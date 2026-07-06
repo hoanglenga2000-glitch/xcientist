@@ -1,0 +1,17 @@
+task:
+  name: ps4e3
+  competition: playground-series-s4e3
+  type: classification
+  target: Other_Faults
+  metric: accuracy
+data:
+  task_dir: tasks/ps4e3
+  train: tasks/ps4e3/data/train.csv
+  test: tasks/ps4e3/data/test.csv
+  sample_submission: tasks/ps4e3/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

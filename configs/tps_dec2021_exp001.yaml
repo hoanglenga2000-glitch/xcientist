@@ -1,0 +1,30 @@
+data:
+  sample_submission: workspace/smoke_data/tps_dec2021_exp001/data/sample_submission.csv
+  task_dir: workspace/smoke_data/tps_dec2021_exp001
+  test: workspace/smoke_data/tps_dec2021_exp001/data/test.csv
+  train: workspace/smoke_data/tps_dec2021_exp001/data/train.csv
+  overview: workspace/smoke_data/tps_dec2021_exp001/overview.txt
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns: [Id]
+  numeric_strategy: median
+  preset: tabular_basic
+  target_transform: null
+scaffold:
+  first_stage_models: [logistic_regression, random_forest]
+  time_budget_minutes: 15
+  validation_strategy: 5-fold CV (non-stratified; class5=1 sample)
+task:
+  competition: TPS Dec 2021 EXP001 (SMOKE)
+  id_column: Id
+  metric: accuracy
+  name: tps_dec2021_exp001
+  prediction_column: Cover_Type
+  target: Cover_Type
+  type: multiclass_classification
+thresholds:
+  expected_submission_columns: [Id, Cover_Type]
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow: [task_understanding, preliminary_eda, data_quality_check, feature_engineering, model_validation, submission_generation, report_and_review]

@@ -1,0 +1,43 @@
+data:
+  sample_submission: tasks/home_data_ml_course/data/sample_submission.csv
+  task_dir: tasks/home_data_ml_course
+  test: tasks/home_data_ml_course/data/test.csv
+  train: tasks/home_data_ml_course/data/train.csv
+  variant_of: home_data_ml_course
+feature_engineering:
+  categorical_strategy: label_encoding
+  drop_columns:
+  - Id
+  numeric_strategy: median
+  outlier_handling: winsorize_0.01
+  preset: tabular_basic
+  target_transform: log1p
+scaffold:
+  first_stage_models:
+  - random_forest
+  - extra_trees
+  - hist_gradient_boosting
+  time_budget_minutes: 12
+  validation_strategy: 5-fold KFold CV with winsorized features
+task:
+  competition: Home Data - Outlier Robust Variant
+  id_column: Id
+  metric: rmsle
+  name: home_data_v2_outlier_robust
+  prediction_column: SalePrice
+  target: SalePrice
+  type: regression
+thresholds:
+  expected_submission_rows: 1459
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

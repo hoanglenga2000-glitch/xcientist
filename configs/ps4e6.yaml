@@ -1,0 +1,17 @@
+task:
+  name: ps4e6
+  competition: playground-series-s4e6
+  type: classification
+  target: Target
+  metric: accuracy
+data:
+  task_dir: tasks/ps4e6
+  train: tasks/ps4e6/data/train.csv
+  test: tasks/ps4e6/data/test.csv
+  sample_submission: tasks/ps4e6/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

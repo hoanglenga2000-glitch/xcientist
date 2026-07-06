@@ -1,0 +1,159 @@
+"use client";
+
+import { useState } from "react";
+import { Beaker, CheckCircle2, ChevronRight, Cloud, Menu, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { navItems, type PageId } from "./navigation";
+
+type Locale = "zh-CN" | "en-US";
+
+const navLabelZh: Record<PageId, string> = {
+  overview: "总览",
+  control: "AI 控制台",
+  mission: "科研总控",
+  experiments: "实验中心",
+  data: "数据 / Kaggle",
+  report: "报告工作室",
+  code: "代码 Agent",
+  gpu: "GPU / HPC",
+  evidence: "证据账本",
+  gates: "完整性 Gate",
+  literature: "文献 / RAG",
+  tasks: "任务队列",
+  runtime: "Agent 运行时",
+  workflow: "流程编排",
+  settings: "系统设置",
+  design: "设计系统"
+};
+
+function t(locale: Locale | undefined, en: string, zh: string) {
+  return locale === "zh-CN" ? zh : en;
+}
+
+export function Sidebar({
+  activePage,
+  onPageChange,
+  onAction,
+  locale = "en-US"
+}: {
+  activePage: PageId;
+  onPageChange: (page: PageId) => void;
+  onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  locale?: Locale;
+}) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const activeItem = navItems.find((item) => item.id === activePage);
+  const activeLabel = activeItem ? (locale === "zh-CN" ? navLabelZh[activeItem.id] : activeItem.label) : t(locale, "Menu", "菜单");
+
+  return (
+    <aside className="sticky top-0 z-40 w-full bg-[#061326] text-white lg:fixed lg:left-0 lg:top-0 lg:h-screen lg:w-[244px] lg:border-r lg:border-white/10">
+      <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061326_0%,#08213b_56%,#061326_100%)] p-3 lg:p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-blue-300/30 bg-blue-600 text-base font-black text-white shadow-[0_12px_28px_-18px_rgba(37,99,235,0.9)]">
+            AR
+          </div>
+          <div className="min-w-0">
+            <div className="truncate text-base font-bold">{t(locale, "Academic OS", "科研工作站")}</div>
+            <div className="text-xs font-semibold uppercase tracking-[0.08em] text-blue-100/80">WORKSTATION</div>
+          </div>
+          <button
+            className="ml-auto flex h-10 w-10 items-center justify-center rounded-md border border-white/10 bg-white/10 text-white hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 lg:hidden"
+            onClick={() => setMobileOpen((value) => !value)}
+            aria-expanded={mobileOpen}
+            aria-controls="mobile-workstation-nav"
+            aria-label={
+              mobileOpen
+                ? t(locale, "Close navigation", "收起导航")
+                : t(locale, `Open navigation, current page ${activeLabel}`, `展开导航，当前页面 ${activeLabel}`)
+            }
+            data-testid="mobile-nav-toggle"
+          >
+            {mobileOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
+        </div>
+
+        <nav
+          id="mobile-workstation-nav"
+          className={cn(
+            "thin-scrollbar mt-4 grid grid-cols-2 gap-1 lg:block lg:min-h-0 lg:flex-1 lg:space-y-1 lg:overflow-y-auto lg:pr-1",
+            !mobileOpen && "hidden lg:block"
+          )}
+        >
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = item.id === activePage;
+            const label = locale === "zh-CN" ? navLabelZh[item.id] : item.label;
+            return (
+              <Button
+                key={item.id}
+                variant="ghost"
+                className={cn(
+                  "group h-10 w-full justify-start gap-2 rounded-md border border-transparent px-3 text-sm font-semibold text-blue-50/85 shadow-none transition hover:border-white/10 hover:bg-white/10 hover:text-white focus-visible:ring-white/70",
+                  active && "border-blue-400/30 bg-blue-600 text-white shadow-[0_12px_26px_-20px_rgba(37,99,235,0.9)] hover:bg-blue-600"
+                )}
+                onClick={() => {
+                  onPageChange(item.id);
+                  setMobileOpen(false);
+                  void onAction?.("navigate_page", { page: item.id, label: item.label });
+                }}
+                data-testid={`nav-${item.id}`}
+              >
+                <Icon className={cn("h-4 w-4 shrink-0", active ? "text-white" : "text-blue-100/80 group-hover:text-white")} />
+                <span className="min-w-0 truncate text-left">{label}</span>
+              </Button>
+            );
+          })}
+        </nav>
+
+        <div className={cn("mt-4 shrink-0 space-y-3 lg:block", !mobileOpen && "hidden lg:block")}>
+          <div className="rounded-lg border border-white/12 bg-white/[0.07] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <Cloud className="h-4 w-4 shrink-0 text-blue-100" />
+                <span className="truncate text-xs font-semibold text-blue-50">{t(locale, "Local + HPC", "本地 + HPC")}</span>
+              </div>
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+            </div>
+            <div className="my-3 border-t border-white/10" />
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-bold">{t(locale, "Evidence-first runtime", "证据优先运行时")}</div>
+              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+            </div>
+            <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/12">
+              <div className="h-full w-[86%] rounded-full bg-blue-500" />
+            </div>
+            <button
+              className="mt-3 flex w-full items-center justify-between rounded-md border border-white/12 bg-white/[0.06] px-3 py-2 text-left text-xs font-bold text-blue-50 hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+              onClick={() => {
+                onPageChange("settings");
+                setMobileOpen(false);
+                void onAction?.("resource_panel_open", { page: "settings" });
+              }}
+              data-testid="resource-panel-open"
+            >
+              {t(locale, "Resources and connectors", "资源与连接管理")}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          <button
+            className="flex w-full items-center gap-3 rounded-lg border border-emerald-300/20 bg-emerald-300/10 p-3 text-left hover:bg-emerald-300/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
+            onClick={() => {
+              onPageChange("mission");
+              setMobileOpen(false);
+              void onAction?.("research_mode_open", { page: "mission" });
+            }}
+            data-testid="research-mode-toggle"
+          >
+            <Beaker className="h-5 w-5 shrink-0 text-emerald-200" />
+            <div className="min-w-0">
+              <div className="text-sm font-bold">{t(locale, "Research Mode", "科研模式")}</div>
+              <div className="text-xs font-semibold text-emerald-300">{t(locale, "Human-gated execution", "人工 Gate 受控")}</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}

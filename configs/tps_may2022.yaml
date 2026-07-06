@@ -1,0 +1,18 @@
+task:
+  name: tps_may2022
+  competition: tabular-playground-series-may-2022
+  type: classification
+  target: target
+  metric: accuracy
+data:
+  task_dir: tasks/tps_may2022
+  train: tasks/tps_may2022/data/train.csv
+  test: tasks/tps_may2022/data/test.csv
+  sample_submission: tasks/tps_may2022/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

@@ -1,0 +1,361 @@
+import path from "node:path";
+import { promises as fs } from "node:fs";
+import { prisma } from "@/lib/db";
+import { logAction } from "@/lib/server/actions";
+import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
+import { encodeJson } from "@/lib/server/json";
+import { runManagedCommand } from "@/lib/server/job-registry";
+import { normalizeTaskId, toRelativePath, workspaceRoot } from "@/lib/server/paths";
+import { getWorkstationSummary } from "@/lib/server/summary";
+
+type TaskRunConfig = { config: string; validator: string; validatorArgs: string[] };
+
+const taskConfig: Record<string, TaskRunConfig> = {
+  house_prices: {
+    config: "configs/house_prices.yaml",
+    validator: "scripts/validate_tabular_experiment.py",
+    validatorArgs: ["--config", "configs/house_prices.yaml"]
+  },
+  titanic: {
+    config: "configs/titanic.yaml",
+    validator: "scripts/validate_titanic_experiment.py",
+    validatorArgs: ["--config", "configs/titanic.yaml"]
+  },
+  telco_churn: {
+    config: "configs/telco_churn.yaml",
+    validator: "scripts/validate_tabular_experiment.py",
+    validatorArgs: ["--config", "configs/telco_churn.yaml"]
+  }
+};
+
+function pythonExecutable() {
+  if (process.env.WORKSTATION_PYTHON) return process.env.WORKSTATION_PYTHON;
+  if (process.platform !== "win32") return "python3";
+  return "C:\\codex-python\\python.exe";
+}
+
+function safeGeneratedConfig(configPath: string | null | undefined) {
+  if (!configPath) return null;
+  const normalized = configPath.replaceAll("\\", "/");
+  if (!normalized.startsWith("configs/generated/")) return null;
+  if (!normalized.endsWith(".yaml") && !normalized.endsWith(".yml")) return null;
+  if (normalized.includes("..")) return null;
+  return normalized;
+}
+
+async function resolveTaskRunConfig(taskId: string): Promise<TaskRunConfig> {
+  const staticConfig = taskConfig[taskId];
+  if (staticConfig) return staticConfig;
+
+  const task = await prisma.task.findUnique({ where: { id: taskId } });
+  const generatedConfig = safeGeneratedConfig(task?.configPath);
+  if (!generatedConfig) {
+    throw new Error(`Unsupported task: ${taskId}. Create a runnable task or use house_prices/titanic.`);
+  }
+
+  const fullConfigPath = path.join(workspaceRoot, generatedConfig);
+  const exists = await fs.stat(fullConfigPath).then((stat) => stat.isFile()).catch(() => false);
+  if (!exists) throw new Error(`Generated task config is missing: ${generatedConfig}`);
+
+  return {
+    config: generatedConfig,
+    validator: "scripts/validate_tabular_experiment.py",
+    validatorArgs: ["--config", generatedConfig]
+  };
+}
+
+async function latestExperimentDir(taskId: string) {
+  const root = path.join(workspaceRoot, "experiments", taskId);
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const dirs = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name).sort();
+  if (!dirs.length) throw new Error(`No experiment directory found for ${taskId}`);
+  return path.join(root, dirs[dirs.length - 1]);
+}
+
+export async function runLocalExperiment(taskIdInput: string) {
+  await ensureWorkstationSeeded();
+  const taskId = normalizeTaskId(taskIdInput);
+  const config = await resolveTaskRunConfig(taskId);
+
+  await prisma.task.update({ where: { id: taskId }, data: { status: "running" } });
+  const run = await prisma.experimentRun.create({
+    data: {
+      id: `run_${taskId}_${Date.now()}`,
+      taskId,
+      status: "running",
+      startedAt: new Date()
+    }
+  });
+  await logAction({ action: "run_local_experiment", taskId, runId: run.id, message: `Local experiment started for ${taskId}.` });
+
+  try {
+    await runManagedCommand({
+      command: pythonExecutable(),
+      args: ["scripts/run_workstation_orchestrator.py", "--config", config.config, "--output-base", "experiments", "--random-state", "42"],
+      cwd: workspaceRoot,
+      timeout: 180000,
+      taskId,
+      runId: run.id,
+      onStart: (pid) => prisma.experimentRun.update({ where: { id: run.id }, data: { processId: pid } }).then(() => undefined)
+    });
+
+    const experimentDir = await latestExperimentDir(taskId);
+    const relativeExperimentDir = toRelativePath(experimentDir) ?? experimentDir;
+    const validation = await runManagedCommand({
+      command: pythonExecutable(),
+      args: [config.validator, "--experiment-dir", relativeExperimentDir, ...config.validatorArgs],
+      cwd: workspaceRoot,
+      timeout: 120000,
+      taskId,
+      runId: run.id
+    });
+    const validationPayload = JSON.parse(validation.stdout);
+
+    await runManagedCommand({
+      command: pythonExecutable(),
+      args: ["scripts/write_workstation_summary.py", "--tasks", ...Array.from(new Set(["house_prices", "titanic", "telco_churn", taskId]))],
+      cwd: workspaceRoot,
+      timeout: 120000,
+      taskId,
+      runId: run.id
+    });
+
+    const metrics = {
+      cv_rmsle_mean: validationPayload.cv_rmsle_mean,
+      holdout_rmsle: validationPayload.holdout_rmsle,
+      submission_rows: validationPayload.submission_rows
+    };
+    const updatedRun = await prisma.experimentRun.update({
+      where: { id: run.id },
+      data: {
+        outputDir: relativeExperimentDir,
+        status: validationPayload.status === "passed" ? "passed" : "failed",
+        bestModel: validationPayload.best_model ?? null,
+        metricsJson: encodeJson(metrics),
+        validationStatus: validationPayload.status ?? null,
+        processId: null,
+        finishedAt: new Date()
+      }
+    });
+    await prisma.task.update({ where: { id: taskId }, data: { status: validationPayload.status === "passed" ? "review" : "failed" } });
+    await prisma.gate.create({
+      data: {
+        id: `gate_${taskId}_${Date.now()}`,
+        taskId,
+        runId: run.id,
+        gateType: "validation_gate",
+        decision: validationPayload.status ?? "unknown",
+        reviewer: "Local Validator",
+        evidenceJson: encodeJson(validationPayload),
+        decidedAt: new Date()
+      }
+    });
+    for (const [label, artifactPath] of Object.entries({
+      submission: `${relativeExperimentDir}/submission.csv`,
+      validation_gate: `${relativeExperimentDir}/validation_gate.json`,
+      experiment_record: `${relativeExperimentDir}/experiment_record.json`,
+      evidence_manifest: `${relativeExperimentDir}/evidence_manifest.json`
+    })) {
+      await prisma.evidence.create({
+        data: {
+          id: `evidence_${label}_${Date.now()}_${Math.round(Math.random() * 1000)}`,
+          taskId,
+          runId: run.id,
+          label,
+          artifactPath,
+          source: "local_runner",
+          claimBinding: label === "validation_gate" ? "validation_status" : "run_artifact"
+        }
+      });
+    }
+    await logAction({ action: "run_local_experiment_passed", taskId, runId: run.id, message: `Experiment passed: ${relativeExperimentDir}`, artifactPath: relativeExperimentDir, metadata: { validation: validationPayload } });
+
+    return {
+      ok: true,
+      task_id: taskId,
+      run_id: updatedRun.id,
+      experiment_dir: relativeExperimentDir,
+      validation: {
+        ...validationPayload,
+        submission_path: `${relativeExperimentDir}/submission.csv`
+      },
+      summary: await getWorkstationSummary()
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown run error";
+    const currentRun = await prisma.experimentRun.findUnique({ where: { id: run.id } });
+    const cancelled = currentRun?.status === "cancelled" || currentRun?.status === "cancel_requested";
+    await prisma.experimentRun.update({
+      where: { id: run.id },
+      data: {
+        status: cancelled ? "cancelled" : "failed",
+        finishedAt: currentRun?.finishedAt ?? new Date(),
+        validationStatus: cancelled ? "cancelled" : "failed",
+        processId: null
+      }
+    });
+    await prisma.task.update({ where: { id: taskId }, data: { status: cancelled ? "cancelled" : "failed" } });
+    await logAction({ action: cancelled ? "run_local_experiment_cancelled" : "run_local_experiment_failed", taskId, runId: run.id, message, metadata: { error: message } });
+    throw error;
+  }
+}
+
+export async function runEnsembleExperiment(taskIdInput: string) {
+  await ensureWorkstationSeeded();
+  const taskId = normalizeTaskId(taskIdInput);
+  const config = await resolveTaskRunConfig(taskId);
+
+  await prisma.task.update({ where: { id: taskId }, data: { status: "running" } });
+  const run = await prisma.experimentRun.create({
+    data: {
+      id: `run_${taskId}_ensemble_${Date.now()}`,
+      taskId,
+      status: "running",
+      startedAt: new Date()
+    }
+  });
+  await logAction({ action: "run_ensemble_experiment", taskId, runId: run.id, message: `Workstation ensemble experiment started for ${taskId}.` });
+
+  try {
+    await runManagedCommand({
+      command: pythonExecutable(),
+      args: [
+        "scripts/run_workstation_ensemble.py",
+        "--config",
+        config.config,
+        "--template",
+        "sklearn_rf_hgb_et_ensemble",
+        "--output-base",
+        "experiments",
+        "--random-state",
+        "42"
+      ],
+      cwd: workspaceRoot,
+      timeout: 900000,
+      taskId,
+      runId: run.id,
+      onStart: (pid) => prisma.experimentRun.update({ where: { id: run.id }, data: { processId: pid } }).then(() => undefined)
+    });
+
+    const experimentDir = await latestExperimentDir(taskId);
+    const relativeExperimentDir = toRelativePath(experimentDir) ?? experimentDir;
+    const metricsPath = path.join(experimentDir, "metrics.json");
+    const metricsPayload = JSON.parse(await fs.readFile(metricsPath, "utf-8"));
+    const bestScore = metricsPayload?.ensemble?.best_validation_score ?? null;
+
+    await runManagedCommand({
+      command: pythonExecutable(),
+      args: ["scripts/write_workstation_summary.py", "--tasks", ...Array.from(new Set(["house_prices", "titanic", "telco_churn", taskId]))],
+      cwd: workspaceRoot,
+      timeout: 120000,
+      taskId,
+      runId: run.id
+    });
+
+    const updatedRun = await prisma.experimentRun.update({
+      where: { id: run.id },
+      data: {
+        outputDir: relativeExperimentDir,
+        status: metricsPayload.status === "passed" ? "passed" : "failed",
+        bestModel: `ensemble_${metricsPayload?.ensemble?.best_method ?? "unknown"}`,
+        metricsJson: encodeJson(metricsPayload),
+        validationStatus: metricsPayload.status ?? null,
+        processId: null,
+        finishedAt: new Date()
+      }
+    });
+    await prisma.task.update({ where: { id: taskId }, data: { status: metricsPayload.status === "passed" ? "review" : "failed" } });
+    await prisma.gate.create({
+      data: {
+        id: `gate_${taskId}_ensemble_${Date.now()}`,
+        taskId,
+        runId: run.id,
+        gateType: "ensemble_validation_gate",
+        decision: metricsPayload.status ?? "unknown",
+        reviewer: "Workstation Search Controller",
+        evidenceJson: encodeJson(metricsPayload),
+        decidedAt: new Date()
+      }
+    });
+    for (const [label, artifactPath] of Object.entries({
+      submission: `${relativeExperimentDir}/submission.csv`,
+      metrics: `${relativeExperimentDir}/metrics.json`,
+      oof_predictions: `${relativeExperimentDir}/oof_predictions.csv`,
+      artifact_manifest: `${relativeExperimentDir}/artifact_manifest.json`
+    })) {
+      await prisma.evidence.create({
+        data: {
+          id: `evidence_${label}_${Date.now()}_${Math.round(Math.random() * 1000)}`,
+          taskId,
+          runId: run.id,
+          label,
+          artifactPath,
+          source: "workstation_ensemble_runner",
+          claimBinding: label === "metrics" ? "search_controller_metric" : "run_artifact"
+        }
+      });
+    }
+    await logAction({
+      action: "run_ensemble_experiment_passed",
+      taskId,
+      runId: run.id,
+      message: `Ensemble experiment completed: ${relativeExperimentDir}`,
+      artifactPath: relativeExperimentDir,
+      metadata: { bestScore, metrics: metricsPayload }
+    });
+
+    return {
+      ok: true,
+      task_id: taskId,
+      run_id: updatedRun.id,
+      experiment_dir: relativeExperimentDir,
+      metrics: metricsPayload,
+      summary: await getWorkstationSummary()
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown run error";
+    const currentRun = await prisma.experimentRun.findUnique({ where: { id: run.id } });
+    const cancelled = currentRun?.status === "cancelled" || currentRun?.status === "cancel_requested";
+    await prisma.experimentRun.update({
+      where: { id: run.id },
+      data: {
+        status: cancelled ? "cancelled" : "failed",
+        finishedAt: currentRun?.finishedAt ?? new Date(),
+        validationStatus: cancelled ? "cancelled" : "failed",
+        processId: null
+      }
+    });
+    await prisma.task.update({ where: { id: taskId }, data: { status: cancelled ? "cancelled" : "failed" } });
+    await logAction({ action: cancelled ? "run_ensemble_experiment_cancelled" : "run_ensemble_experiment_failed", taskId, runId: run.id, message, metadata: { error: message } });
+    throw error;
+  }
+}
+
+export async function generatePaperEvidenceBundle() {
+  await ensureWorkstationSeeded();
+  const runId = `paper_evidence_bundle_${Date.now()}`;
+  await logAction({ action: "generate_paper_evidence_bundle", runId, message: "Generating three-layer paper evidence bundle." });
+
+  const result = await runManagedCommand({
+    command: pythonExecutable(),
+    args: ["scripts/build_paper_evidence_bundle.py"],
+    cwd: workspaceRoot,
+    timeout: 120000,
+    taskId: "paper_evidence_bundle",
+    runId
+  });
+  const payload = JSON.parse(result.stdout);
+  await logAction({
+    action: "generate_paper_evidence_bundle_passed",
+    runId,
+    message: "Three-layer paper evidence bundle generated.",
+    artifactPath: payload.paper_report,
+    metadata: payload
+  });
+  return {
+    ok: true,
+    run_id: runId,
+    ...payload,
+    summary: await getWorkstationSummary()
+  };
+}

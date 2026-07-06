@@ -1,0 +1,17 @@
+task:
+  name: ps4e2
+  competition: playground-series-s4e2
+  type: classification
+  target: NObeyesdad
+  metric: accuracy
+data:
+  task_dir: tasks/ps4e2
+  train: tasks/ps4e2/data/train.csv
+  test: tasks/ps4e2/data/test.csv
+  sample_submission: tasks/ps4e2/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

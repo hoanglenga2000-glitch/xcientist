@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/benchmark_claim_gate.schema.json",
+  "title": "BenchmarkClaimGate",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema",
+    "evaluated_tasks",
+    "total_target_tasks",
+    "mlevolve_target_medal_rate",
+    "mlebench_comparable",
+    "claim_status",
+    "allowed_conclusion"
+  ],
+  "properties": {
+    "schema": { "type": "string" },
+    "created_at": { "type": "string" },
+    "evaluated_tasks": { "type": "integer" },
+    "total_target_tasks": { "type": "integer" },
+    "mlevolve_target_medal_rate": { "type": "number" },
+    "current_medal_rate": { "type": ["number", "null"] },
+    "mlebench_comparable": { "type": "boolean" },
+    "claim_status": { "type": "string", "enum": ["allow", "partial", "reject"] },
+    "allowed_conclusion": { "type": "string" }
+  }
+}

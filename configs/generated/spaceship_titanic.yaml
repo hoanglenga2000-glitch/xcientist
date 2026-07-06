@@ -1,0 +1,52 @@
+task:
+  name: spaceship_titanic
+  competition: spaceship-titanic
+  type: binary_classification
+  target: Transported
+  metric: accuracy
+  id_column: PassengerId
+  prediction_column: Transported
+data:
+  task_dir: tasks/spaceship_titanic
+  train: tasks/spaceship_titanic/data/train.csv
+  test: tasks/spaceship_titanic/data/test.csv
+  sample_submission: tasks/spaceship_titanic/data/sample_submission.csv
+  overview: tasks/spaceship_titanic/overview.txt
+  data_source: tasks/spaceship_titanic/data/DATA_SOURCE.md
+agent_templates: configs/agent_templates.yaml
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 4277
+  expected_submission_columns:
+  - PassengerId
+  - Transported
+scaffold:
+  time_budget_minutes: 30
+  validation_strategy: 3-fold stratified cross-validation plus OOF evaluation
+  first_stage_models:
+  - hist_gradient_boosting
+  - random_forest
+  - extra_trees
+  - catboost
+  - lightgbm
+  - xgboost
+  risk_points:
+  - Local CV is a proxy and may not match hidden leaderboard distribution.
+  - Submission schema must match sample_submission.csv exactly.
+  - Official Kaggle submission requires credentials and human gate.
+feature_engineering:
+  preset: generic_tabular
+  target_transform: none
+  drop_columns:
+  - PassengerId
+  - Name

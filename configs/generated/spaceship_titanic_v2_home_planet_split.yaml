@@ -1,0 +1,56 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/spaceship_titanic/data/sample_submission.csv
+  task_dir: tasks/spaceship_titanic
+  test: tasks/spaceship_titanic/data/test.csv
+  train: tasks/spaceship_titanic/data/train.csv
+  variant_of: spaceship_titanic
+feature_engineering:
+  categorical_strategy: target_encoding
+  derived_features:
+  - cabin_deck
+  - cabin_num
+  - cabin_side
+  - group_size
+  - total_spend
+  drop_columns:
+  - Name
+  - PassengerId
+  numeric_strategy: median
+  preset: spaceship_by_planet
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - logistic_regression
+  - random_forest
+  - xgboost
+  - lightgbm
+  risk_points:
+  - Passenger/group/cabin text features need controlled parsing.
+  - Local CV is proxy only.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 18
+  validation_strategy: GroupKFold by HomePlanet
+task:
+  competition: Spaceship Titanic - HomePlanet Split Variant
+  id_column: PassengerId
+  metric: accuracy
+  name: spaceship_titanic_v2_home_planet_split
+  prediction_column: Transported
+  target: Transported
+  type: binary_classification
+thresholds:
+  expected_submission_columns:
+  - PassengerId
+  - Transported
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

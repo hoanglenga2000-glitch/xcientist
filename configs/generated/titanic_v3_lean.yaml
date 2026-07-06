@@ -1,0 +1,46 @@
+data:
+  sample_submission: tasks/titanic/data/sample_submission.csv
+  task_dir: tasks/titanic
+  test: tasks/titanic/data/test.csv
+  train: tasks/titanic/data/train.csv
+  variant_of: titanic
+feature_engineering:
+  categorical_strategy: label_encoding
+  drop_columns:
+  - Name
+  - Ticket
+  - Cabin
+  - Embarked
+  numeric_strategy: median
+  preset: titanic_lean
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - logistic_regression
+  - random_forest
+  risk_points:
+  - Age and Cabin have high missing rates.
+  - Train/test feature columns must stay aligned.
+  - Submission must keep PassengerId and Survived columns.
+  - Local validation is only a proxy before official Kaggle submission.
+  time_budget_minutes: 6
+  validation_strategy: 3-fold stratified CV
+task:
+  competition: Titanic - Lean Variant
+  metric: accuracy
+  name: titanic_v3_lean
+  target: Survived
+  type: binary_classification
+thresholds:
+  min_validation_accuracy: 0.76
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

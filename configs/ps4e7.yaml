@@ -1,0 +1,18 @@
+task:
+  name: ps4e7
+  competition: playground-series-s4e7
+  type: classification
+  target: Response
+  metric: accuracy
+data:
+  task_dir: tasks/ps4e7
+  train: tasks/ps4e7/data/train.csv
+  test: tasks/ps4e7/data/test.csv
+  sample_submission: tasks/ps4e7/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

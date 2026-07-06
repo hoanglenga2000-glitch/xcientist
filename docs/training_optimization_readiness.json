@@ -1,0 +1,199 @@
+{
+  "generated_at": "2026-07-06T09:16:38",
+  "overall_status": "passed",
+  "required_task_count": 3,
+  "ready_task_count": 3,
+  "completion_rate_percent": 100.0,
+  "tasks": [
+    {
+      "task_id": "house_prices",
+      "config_path": "configs/house_prices.yaml",
+      "latest_experiment": "experiments/house_prices/20260627_190321",
+      "metric": "rmsle",
+      "selection_direction": "minimize",
+      "selection_metric_key": "cv_rmsle_mean",
+      "expected_candidate_models": [
+        "ridge_log_target",
+        "random_forest_log_target",
+        "extra_trees_log_target",
+        "gradient_boosting_log_target"
+      ],
+      "actual_candidate_models": [
+        "extra_trees_log_target",
+        "gradient_boosting_log_target",
+        "random_forest_log_target",
+        "ridge_log_target"
+      ],
+      "candidate_model_count": 4,
+      "configured_candidate_count": 4,
+      "missing_candidate_models": [],
+      "extra_candidate_models": [],
+      "best_model_recorded": "gradient_boosting_log_target",
+      "best_model_computed": "gradient_boosting_log_target",
+      "best_model_selection_valid": true,
+      "ranked_models": [
+        {
+          "model": "gradient_boosting_log_target",
+          "cv_rmsle_mean": 0.12899
+        },
+        {
+          "model": "extra_trees_log_target",
+          "cv_rmsle_mean": 0.138377
+        },
+        {
+          "model": "random_forest_log_target",
+          "cv_rmsle_mean": 0.142487
+        },
+        {
+          "model": "ridge_log_target",
+          "cv_rmsle_mean": 0.144948
+        }
+      ],
+      "threshold_checks": [
+        {
+          "metric": "cv_rmsle_mean",
+          "operator": "<=",
+          "threshold": 0.18,
+          "value": 0.12899,
+          "passed": true
+        },
+        {
+          "metric": "holdout_rmsle",
+          "operator": "<=",
+          "threshold": 0.2,
+          "value": 0.129797,
+          "passed": true
+        },
+        {
+          "metric": "submission_rows",
+          "operator": "==",
+          "threshold": 1459,
+          "value": 1459,
+          "passed": true
+        }
+      ],
+      "validation_gate_passed": true,
+      "ready_for_optimized_local_training": true
+    },
+    {
+      "task_id": "titanic",
+      "config_path": "configs/titanic.yaml",
+      "latest_experiment": "experiments/titanic/20260701_144612",
+      "metric": "accuracy",
+      "selection_direction": "maximize",
+      "selection_metric_key": "cv_accuracy_mean",
+      "expected_candidate_models": [
+        "logistic_regression",
+        "random_forest",
+        "extra_trees",
+        "gradient_boosting"
+      ],
+      "actual_candidate_models": [
+        "extra_trees",
+        "gradient_boosting",
+        "logistic_regression",
+        "random_forest"
+      ],
+      "candidate_model_count": 4,
+      "configured_candidate_count": 4,
+      "missing_candidate_models": [],
+      "extra_candidate_models": [],
+      "best_model_recorded": "random_forest",
+      "best_model_computed": "random_forest",
+      "best_model_selection_valid": true,
+      "ranked_models": [
+        {
+          "model": "random_forest",
+          "cv_accuracy_mean": 0.8305
+        },
+        {
+          "model": "gradient_boosting",
+          "cv_accuracy_mean": 0.821537
+        },
+        {
+          "model": "extra_trees",
+          "cv_accuracy_mean": 0.81032
+        },
+        {
+          "model": "logistic_regression",
+          "cv_accuracy_mean": 0.793516
+        }
+      ],
+      "threshold_checks": [
+        {
+          "metric": "cv_accuracy_mean",
+          "operator": ">=",
+          "threshold": 0.78,
+          "value": 0.8305,
+          "passed": true
+        }
+      ],
+      "validation_gate_passed": true,
+      "ready_for_optimized_local_training": true
+    },
+    {
+      "task_id": "telco_churn",
+      "config_path": "configs/telco_churn.yaml",
+      "latest_experiment": "experiments/telco_churn/20260623_160853",
+      "metric": "accuracy",
+      "selection_direction": "maximize",
+      "selection_metric_key": "cv_accuracy_mean",
+      "expected_candidate_models": [
+        "logistic_regression",
+        "random_forest",
+        "extra_trees",
+        "gradient_boosting"
+      ],
+      "actual_candidate_models": [
+        "extra_trees",
+        "gradient_boosting",
+        "logistic_regression",
+        "random_forest"
+      ],
+      "candidate_model_count": 4,
+      "configured_candidate_count": 4,
+      "missing_candidate_models": [],
+      "extra_candidate_models": [],
+      "best_model_recorded": "gradient_boosting",
+      "best_model_computed": "gradient_boosting",
+      "best_model_selection_valid": true,
+      "ranked_models": [
+        {
+          "model": "gradient_boosting",
+          "cv_accuracy_mean": 0.807773
+        },
+        {
+          "model": "logistic_regression",
+          "cv_accuracy_mean": 0.803869
+        },
+        {
+          "model": "random_forest",
+          "cv_accuracy_mean": 0.803513
+        },
+        {
+          "model": "extra_trees",
+          "cv_accuracy_mean": 0.800319
+        }
+      ],
+      "threshold_checks": [
+        {
+          "metric": "cv_accuracy_mean",
+          "operator": ">=",
+          "threshold": 0.78,
+          "value": 0.807773,
+          "passed": true
+        },
+        {
+          "metric": "submission_rows",
+          "operator": "==",
+          "threshold": 1409,
+          "value": 1409,
+          "passed": true
+        }
+      ],
+      "validation_gate_passed": true,
+      "ready_for_optimized_local_training": true
+    }
+  ],
+  "conclusion": "本地训练任务完成率为 100%，且每个任务的最佳模型均由候选模型指标重新计算验证通过。"
+}

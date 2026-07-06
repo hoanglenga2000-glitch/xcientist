@@ -1,0 +1,33 @@
+"""Detailed V4 training status check."""
+import socket, struct, paramiko
+
+sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+sock.settimeout(10)
+sock.connect(('127.0.0.1', 7890))
+sock.send(b'\x05\x01\x00')
+sock.recv(2)
+sock.send(b'\x05\x01\x00\x01' + socket.inet_aton('100.85.169.63') + struct.pack('>H', 1235))
+sock.recv(10)
+
+ssh = paramiko.SSHClient()
+ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password='wM5T1Qfz5l',
+            sock=sock, timeout=15, banner_timeout=15, auth_timeout=15,
+            allow_agent=False, look_for_keys=False)
+print('Connected!')
+
+BASE = '/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra'
+
+# Show full V4 log
+stdin, stdout, stderr = ssh.exec_command(f'cat {BASE}/mlebench_trainer_v4_87729.log', timeout=10)
+log = stdout.read().decode('utf-8', errors='replace')
+print(f'V4 Log ({len(log)} chars):')
+print(log)
+
+# GPU status
+stdin, stdout, stderr = ssh.exec_command('nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits', timeout=10)
+print('\n--- GPU ---')
+print(stdout.read().decode().strip())
+
+ssh.close()
+sock.close()

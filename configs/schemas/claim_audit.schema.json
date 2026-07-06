@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/claim_audit.schema.json",
+  "title": "ClaimAudit",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "claim_id",
+    "related_exp_ids",
+    "claimed_improvement",
+    "supporting_metrics",
+    "required_ablations",
+    "missing_evidence",
+    "drift_type",
+    "audit_result",
+    "allowed_conclusion"
+  ],
+  "properties": {
+    "claim_id": { "type": "string" },
+    "related_exp_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "claimed_improvement": { "type": "string" },
+    "supporting_metrics": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "boolean", "null"] }
+    },
+    "required_ablations": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "missing_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "drift_type": {
+      "type": "string",
+      "enum": ["semantic_drift", "experimental_drift", "mechanistic_drift", "insufficient_evidence", "no_drift"]
+    },
+    "audit_result": {
+      "type": "string",
+      "enum": ["allow", "revise", "reject"]
+    },
+    "allowed_conclusion": { "type": "string" }
+  }
+}

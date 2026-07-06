@@ -1,0 +1,19 @@
+{
+  "deployed_at": "2026-06-26T00:19:54.131979",
+  "server1": {
+    "name": "server1-A800",
+    "model": "LightGBM",
+    "trials": 50,
+    "folds": 5,
+    "output_dir": "/hpc2hdd/home/aimslab/optuna_sweeps/server1-A800-lightgbm",
+    "launched": false
+  },
+  "server2": {
+    "name": "server2-A40",
+    "model": "CatBoost",
+    "trials": 50,
+    "folds": 5,
+    "output_dir": "/hpc2hdd/home/aimslab/optuna_sweeps/server2-A40-catboost",
+    "launched": false
+  }
+}

@@ -1,0 +1,21 @@
+task:
+  name: playground_s4e1
+  competition: playground-series-s4e1
+  type: binary_classification
+  target: Exited
+  metric: accuracy
+data:
+  task_dir: tasks/playground_s4e1
+  train: tasks/playground_s4e1/data/train.csv
+  test: tasks/playground_s4e1/data/test.csv
+  sample_submission: tasks/playground_s4e1/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id, CustomerId, Surname]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+scaffold:
+  first_stage_models: [random_forest, extra_trees, hist_gradient_boosting]
+  time_budget_minutes: 10

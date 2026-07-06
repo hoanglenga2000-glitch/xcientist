@@ -1,0 +1,806 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  BookOpen,
+  CheckCircle2,
+  Code2,
+  Cpu,
+  Database,
+  FileCheck2,
+  FileText,
+  GitBranch,
+  BrainCircuit,
+  Play,
+  RefreshCcw,
+  ShieldCheck,
+  Upload
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import * as api from "@/lib/api/client";
+import type { GpuGatewayResponse, WorkstationSummary } from "@/lib/api/types";
+import { PaperEvidenceBundleCard } from "./PaperEvidenceBundle";
+import { ArtifactPathRow, JsonInspector, CodeBlockPanel, WorkbenchSection, RealEmptyState, GateReviewRow } from "./Common";
+
+type Locale = "zh-CN" | "en-US";
+
+type RuntimePayload = NonNullable<WorkstationSummary["runtime"]> & {
+  latest_workstation_run_dir?: string | null;
+  latest_code_agent_session?: Record<string, unknown> | null;
+  latest_code_agent_transcript?: Record<string, unknown> | null;
+  latest_code_agent_review?: Record<string, unknown> | null;
+  score_improvement_gate?: Record<string, unknown> | null;
+  submission_audit?: Record<string, unknown> | null;
+  score_regression_recovery_plan?: Record<string, unknown> | null;
+  score_regression_diagnosis?: Record<string, unknown> | null;
+};
+
+type SummaryRun = NonNullable<WorkstationSummary["runs"]>[number];
+type SummaryGate = NonNullable<WorkstationSummary["gates"]>[number];
+type SummaryEvidence = NonNullable<WorkstationSummary["evidence"]>[number];
+
+type ScreenProps = {
+  selectedTask: string;
+  setSelectedTask: (id: string) => void;
+  selectedStage: string;
+  setSelectedStage: (id: string) => void;
+  selectedExperiment: string;
+  setSelectedExperiment: (id: string) => void;
+  gateStatus: "Pending" | "Approved" | "Rejected";
+  setGateStatus: (status: "Pending" | "Approved" | "Rejected") => void;
+  patchApplied: boolean;
+  setPatchApplied: (value: boolean) => void;
+  reportSubmitted: boolean;
+  setReportSubmitted: (value: boolean) => void;
+  summary?: WorkstationSummary | null;
+  runLocalExperiment?: (taskId?: string) => Promise<void>;
+  runState?: { status: "idle" | "running" | "passed" | "failed"; message: string; experimentDir?: string };
+  exportCodeAgentContext?: (taskId?: string, targetAgent?: string) => Promise<void>;
+  importDemoPatch?: (taskId?: string) => Promise<void>;
+  agentActionMessage?: string;
+  runWorkstationAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  systemActionMessage?: string;
+  lastActionTrace?: {
+    action: string;
+    taskId?: string;
+    request?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+    message: string;
+    artifact?: string | null;
+    at: string;
+  } | null;
+  locale?: Locale;
+  setLocale?: (locale: Locale) => void;
+};
+
+function tx(locale: Locale | undefined, en: string, zh: string) {
+  return locale === "zh-CN" ? zh : en;
+}
+
+function normalizeTaskId(taskId?: string) {
+  const value = taskId || "playground_series_s6e6";
+  return value === "house-prices" ? "house_prices" : value;
+}
+
+function runtimeForTask(summary: WorkstationSummary | null | undefined, taskId?: string): RuntimePayload | undefined {
+  const normalized = normalizeTaskId(taskId);
+  return (summary?.runtime_by_task?.[normalized] ?? summary?.runtime) as RuntimePayload | undefined;
+}
+
+function latestRunForTask(summary: WorkstationSummary | null | undefined, taskId?: string): SummaryRun | undefined {
+  const normalized = normalizeTaskId(taskId);
+  return summary?.runs?.find((run) => normalizeTaskId(run.task_id) === normalized) ?? summary?.runs?.[0];
+}
+
+function connectorEntry(summary: WorkstationSummary | null | undefined, key: string) {
+  return (summary?.connector_status as Record<string, any> | undefined)?.[key] as Record<string, any> | undefined;
+}
+
+function pickRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function scoreTone(status?: unknown): StatusTone {
+  const value = String(status ?? "").toLowerCase();
+  if (value.includes("passed") || value.includes("ready") || value.includes("verified") || value.includes("complete")) return "green";
+  if (value.includes("blocked") || value.includes("failed") || value.includes("regression")) return "red";
+  if (value.includes("running") || value.includes("submitted")) return "blue";
+  return "amber";
+}
+
+function connectorDisplay(entry: Record<string, any> | undefined) {
+  const configured = Boolean(entry?.configured);
+  const state = String(entry?.state ?? (configured ? "ready" : "not configured"));
+  const normalized = state.toLowerCase();
+  const verified = normalized.includes("verified")
+    || normalized.includes("ready")
+    || normalized.includes("passed")
+    || Boolean(entry?.evidence?.latest_ssh_connection?.passed)
+    || Boolean(entry?.toolchain_ready);
+
+  if (configured && verified) return { state, tone: "green" as StatusTone, label: "ready" };
+  if (configured) return { state, tone: "blue" as StatusTone, label: "configured" };
+  if (verified) return { state, tone: "amber" as StatusTone, label: "evidence only" };
+  return { state, tone: "red" as StatusTone, label: "not configured" };
+}
+
+function valueText(value: unknown, fallback = "n/a") {
+  if (typeof value === "number") return Number.isFinite(value) ? value.toFixed(6) : fallback;
+  if (typeof value === "string" && value.length) return value;
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return fallback;
+}
+
+function sectionTitle(title: string, description: string) {
+  return (
+    <div>
+      <h2 className="text-xl font-bold tracking-normal text-slate-950">{title}</h2>
+      <p className="mt-1 text-sm leading-6 text-slate-500">{description}</p>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: unknown }) {
+  return (
+    <div className="flex min-w-0 items-center justify-between gap-3 border-b border-slate-100 py-2 text-xs last:border-b-0">
+      <span className="font-semibold text-slate-500">{label}</span>
+      <span className="min-w-0 truncate text-right font-bold text-slate-900">{String(value ?? "n/a")}</span>
+    </div>
+  );
+}
+
+function MetricTile({ label, value, tone = "slate" }: { label: string; value: unknown; tone?: StatusTone }) {
+  return (
+    <div className="rounded-md border border-slate-200 bg-white p-3">
+      <div className="text-[11px] font-bold uppercase text-slate-500">{label}</div>
+      <div className="mt-1 truncate text-lg font-bold text-slate-950">{valueText(value)}</div>
+      <StatusBadge tone={tone} className="mt-2">{tone}</StatusBadge>
+    </div>
+  );
+}
+
+function StandardPage({
+  title,
+  description,
+  children,
+  summary,
+  selectedTask
+}: {
+  title: string;
+  description: string;
+  children?: React.ReactNode;
+  summary?: WorkstationSummary | null;
+  selectedTask?: string;
+}) {
+  const runtime = runtimeForTask(summary, selectedTask);
+  const latestRun = latestRunForTask(summary, selectedTask);
+  const scoreStatus = String(
+    runtime?.score_regression_recovery_plan?.status
+    ?? runtime?.score_regression_diagnosis?.status
+    ?? runtime?.score_improvement_gate?.status
+    ?? "pending"
+  );
+  return (
+    <main className="space-y-4">
+      {sectionTitle(title, description)}
+      <div className="grid gap-3 md:grid-cols-4">
+        <MetricTile label="Run" value={latestRun?.id ?? "pending"} tone={scoreTone(latestRun?.status)} />
+        <MetricTile label="Run Status" value={latestRun?.status ?? "ready"} tone={scoreTone(latestRun?.status)} />
+        <MetricTile label="Score Gate" value={scoreStatus} tone={scoreTone(scoreStatus)} />
+        <MetricTile label="Artifacts" value={summary?.evidence?.length ?? 0} tone={(summary?.evidence?.length ?? 0) ? "green" : "amber"} />
+      </div>
+      {children}
+    </main>
+  );
+}
+
+function ActionTrace({ trace, message }: { trace?: ScreenProps["lastActionTrace"]; message?: string }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Action Log</CardTitle>
+        <CardDescription>Latest UI/API action recorded by the workstation.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-2 text-xs">
+        <Row label="Message" value={message ?? trace?.message ?? "ready"} />
+        <Row label="Action" value={trace?.action ?? "none"} />
+        <Row label="Artifact" value={trace?.artifact ?? "n/a"} />
+        <Row label="At" value={trace?.at ?? "n/a"} />
+      </CardContent>
+    </Card>
+  );
+}
+
+function ResourceCard({ summary }: { summary?: WorkstationSummary | null }) {
+  const resources = [
+    ["GPU / HPC", connectorEntry(summary, "gpu"), Cpu],
+    ["DeepSeek", connectorEntry(summary, "deepseek"), BrainCircuit],
+    ["Claude Code Agent", connectorEntry(summary, "code_agent"), Code2],
+    ["Kaggle", connectorEntry(summary, "kaggle"), Database]
+  ] as const;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Resource Readiness</CardTitle>
+        <CardDescription>Only verified resources are marked ready; official submission stays gated.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3 md:grid-cols-4">
+        {resources.map(([label, entry, Icon]) => {
+          const display = connectorDisplay(entry);
+          return (
+            <div key={label} className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <Icon className="h-4 w-4 text-slate-600" />
+                <StatusBadge tone={display.tone}>{display.label}</StatusBadge>
+              </div>
+              <div className="mt-3 text-sm font-bold text-slate-950">{label}</div>
+              <div className="mt-1 min-h-10 text-xs leading-5 text-slate-500">{display.state}</div>
+            </div>
+          );
+        })}
+      </CardContent>
+    </Card>
+  );
+}
+
+function Top30RankGateCard({ summary }: { summary?: WorkstationSummary | null }) {
+  const inventory = summary?.kaggle_experiment_inventory;
+  const orders = summary?.top30_next_evolution_orders;
+  const officialRecords = Array.isArray(inventory?.official_submission_records)
+    ? inventory.official_submission_records as Array<Record<string, unknown>>
+    : [];
+  const p0Order = Array.isArray(orders?.orders)
+    ? (orders.orders as Array<Record<string, unknown>>).find((item) => item.task_id === "spaceship_titanic")
+    : undefined;
+  const spaceship = officialRecords.find((item) => item.task_id === "spaceship_titanic");
+  const top30Rate = typeof inventory?.official_top30_rate === "number" ? inventory.official_top30_rate : 0;
+  const top30Reached = Boolean(spaceship?.top30_reached);
+  const status = spaceship ? (top30Reached ? "top30_reached" : "top30_failed") : "proxy_only";
+  const target = typeof orders?.rank_target_percentile === "number" ? orders.rank_target_percentile : 0.3;
+  const rankText = spaceship?.rank && spaceship?.leaderboard_team_count
+    ? `${String(spaceship.rank)}/${String(spaceship.leaderboard_team_count)}`
+    : "n/a";
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Official Rank Gate</CardTitle>
+          <CardDescription>Top 30% requires official leaderboard evidence; proxy CV is never shown as rank.</CardDescription>
+        </div>
+        <StatusBadge tone={top30Reached ? "green" : spaceship ? "red" : "amber"}>{status.replaceAll("_", " ")}</StatusBadge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricTile label="Official submits" value={officialRecords.length} tone={officialRecords.length ? "blue" : "amber"} />
+          <MetricTile label="Official top30 rate" value={top30Rate} tone={top30Rate > 0 ? "green" : "red"} />
+          <MetricTile label="Spaceship rank" value={rankText} tone={top30Reached ? "green" : "red"} />
+          <MetricTile label="Target percentile" value={target} tone="blue" />
+        </div>
+        <div className="rounded-md border border-amber-100 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+          Spaceship Titanic public score is {valueText(spaceship?.public_score)} at percentile {valueText(spaceship?.rank_percentile)}. Current official evidence has not reached the top 30% gate.
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-md border border-slate-200 bg-white p-3 text-xs">
+            <div className="font-bold text-slate-900">Next Workstation Order</div>
+            <Row label="Priority" value={p0Order?.priority ?? "P0"} />
+            <Row label="Submit budget" value={p0Order?.official_submit_budget ?? 2} />
+            <Row label="Policy" value={orders?.official_submit_budget_policy ?? "human gate required"} />
+          </div>
+          <div className="rounded-md border border-slate-200 bg-white p-3 text-xs">
+            <div className="font-bold text-slate-900">Claim Boundary</div>
+            <div className="mt-2 leading-5 text-slate-600">{orders?.claim_boundary ?? inventory?.claim_boundary ?? "No leaderboard claim without Kaggle response artifact."}</div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ScoreRecoveryCard({ runtime }: { runtime?: RuntimePayload }) {
+  const gate = pickRecord(runtime?.score_improvement_gate);
+  const recovery = pickRecord(runtime?.score_regression_recovery_plan ?? runtime?.score_regression_diagnosis);
+  const failed = pickRecord(recovery.failed_candidate ?? recovery.score_summary);
+  const rollback = pickRecord(recovery.rollback_baseline);
+  const status = String(recovery.status ?? gate.status ?? "pending");
+  const blockedReasons = Array.isArray(gate.blocked_reasons)
+    ? gate.blocked_reasons.map(String)
+    : Array.isArray(recovery.hard_blocks_for_next_run)
+      ? recovery.hard_blocks_for_next_run.map(String)
+      : [];
+  const workOrder = Array.isArray(recovery.next_agent_work_order)
+    ? recovery.next_agent_work_order as Array<Record<string, unknown>>
+    : Array.isArray(pickRecord(recovery.next_agent_work_order).agents)
+      ? pickRecord(recovery.next_agent_work_order).agents as Array<Record<string, unknown>>
+      : [];
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div>
+          <CardTitle>Score Regression Recovery</CardTitle>
+          <CardDescription>Low-score candidates are blocked and returned to responsible agents.</CardDescription>
+        </div>
+        <StatusBadge tone={scoreTone(status)}>{status.replaceAll("_", " ")}</StatusBadge>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricTile label="Current score" value={failed.public_score ?? failed.candidate_validation_score ?? gate.current_public_score} tone={scoreTone(status)} />
+          <MetricTile label="Protected best" value={rollback.public_score ?? gate.historical_best_public_score ?? "0.96659"} tone="green" />
+          <MetricTile label="Validation floor" value={gate.minimum_candidate_validation_score ?? rollback.validation_balanced_accuracy} tone="green" />
+          <MetricTile label="Submit allowed" value={String(gate.status === "passed")} tone={gate.status === "passed" ? "green" : "red"} />
+        </div>
+        <div className="rounded-md border border-red-100 bg-red-50 p-3 text-xs text-red-900">
+          <div className="font-bold">Why this matters</div>
+          <div className="mt-2 space-y-1">
+            {(blockedReasons.length ? blockedReasons : ["Score gate must prove the candidate beats the protected baseline before official submit."]).slice(0, 5).map((item) => (
+              <div key={item}>- {item}</div>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-xs">
+            <div className="font-bold text-blue-900">Next Agent Work Order</div>
+            <div className="mt-2 space-y-2">
+              {(workOrder.length ? workOrder : [
+                { agent_id: "ModelSelectionAgent", instruction: "Return to the EXP007 probability-blend baseline." },
+                { agent_id: "CodeImplementationAgent", instruction: "Generate reviewable code only." },
+                { agent_id: "ValidationAnalysisAgent", instruction: "Compare against protected best before submission." }
+              ]).slice(0, 5).map((agent) => (
+                <div key={String(agent.agent_id)} className="rounded bg-white px-2 py-2">
+                  <div className="font-bold text-slate-900">{String(agent.agent_id)}</div>
+                  <div className="mt-1 text-slate-600">{String(agent.instruction ?? agent.required_output ?? "artifact required")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs">
+            <div className="font-bold text-slate-900">Rollback Baseline Contract</div>
+            <Row label="Experiment" value={rollback.experiment_id ?? "EXP007"} />
+            <Row label="Policy" value={rollback.policy ?? "preserve_as_safe_submission_baseline"} />
+            <Row label="Artifact" value={recovery.artifact_path ?? "score_regression_recovery_plan.json"} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function MissionControl(props: ScreenProps) {
+  const runtime = runtimeForTask(props.summary, props.selectedTask);
+  return (
+    <StandardPage
+      title={tx(props.locale, "Academic Research OS", "科研工作站总控")}
+      description={tx(props.locale, "Mission control for Kaggle, GPU/HPC, Code Agent gates, evidence and score recovery.", "统一管理 Kaggle、GPU/HPC、代码 Agent、证据、Gate 和提分回退。")}
+      {...props}
+    >
+      <ResourceCard summary={props.summary} />
+      <Top30RankGateCard summary={props.summary} />
+      <ScoreRecoveryCard runtime={runtime} />
+      <ActionTrace trace={props.lastActionTrace} message={props.systemActionMessage} />
+    </StandardPage>
+  );
+}
+
+export function ResearchTasks(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Research Tasks", "科研任务")} description={tx(props.locale, "Task queue and workstation ownership.", "任务队列与工作站负责关系。")} {...props}>
+      <Card>
+        <CardContent className="space-y-2">
+          {(props.summary?.tasks ?? []).slice(0, 10).map((task) => (
+            <button key={task.id} className="grid w-full gap-2 rounded-md border border-slate-200 px-3 py-2 text-left text-xs hover:bg-slate-50 md:grid-cols-[1fr_120px_120px]" onClick={() => props.setSelectedTask(task.id)}>
+              <span className="font-bold">{task.name ?? task.id}</span>
+              <span>{task.metric ?? "metric"}</span>
+              <StatusBadge tone={scoreTone(task.status)}>{task.status}</StatusBadge>
+            </button>
+          ))}
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export function DataKagglePipeline(props: ScreenProps) {
+  const readiness = props.summary?.kaggle_new_competition_readiness;
+  return (
+    <StandardPage title={tx(props.locale, "Kaggle Data Pipeline", "Kaggle 数据流水线")} description={tx(props.locale, "Kaggle assets are onboarded into workstation specs; official submission remains human-gated.", "Kaggle 数据接入工作站任务规格，官方提交保留人工 Gate。")} {...props}>
+      <Card>
+        <CardContent>
+          <Row label="Readiness" value={readiness?.status ?? "pending"} />
+          <Row label="Competition" value={readiness?.competition_slug ?? "playground-series-s6e6"} />
+          <Row label="Target" value={readiness?.target ?? "class"} />
+          <Row label="Metric" value={readiness?.metric ?? "balanced_accuracy"} />
+          <Row label="Train rows" value={readiness?.train_rows ?? "pending"} />
+          <Row label="Test rows" value={readiness?.test_rows ?? "pending"} />
+          <Row label="Human gate" value={String(props.summary?.kaggle_dpapi_readiness?.human_gate_required_for_submission ?? true)} />
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export function GpuHpcConsole(props: ScreenProps) {
+  const [gpuStatus, setGpuStatus] = useState<GpuGatewayResponse | null>(null);
+  async function testGpu() {
+    const payload = await api.testGpuConnection();
+    setGpuStatus(payload);
+    await props.runWorkstationAction?.("gpu_connection_test", payload as unknown as Record<string, unknown>);
+  }
+  async function submitProbe(template = "playground_s6e6_boosting_ensemble") {
+    const latestRun = latestRunForTask(props.summary, props.selectedTask);
+    const runId = latestRun?.id ?? "wr_s6e6_gate_probe";
+    const payload = await api.submitGpuJob(normalizeTaskId(props.selectedTask), template, {
+      run_id: runId,
+      agent_id: "HpcGpuExecutionAgent",
+      gate_id: `${runId}_hpc_execution_approval`,
+      resource_request: { mode: "s6e6_score_recovery", template }
+    });
+    setGpuStatus(payload);
+    await props.runWorkstationAction?.("gpu_job_submit", payload as unknown as Record<string, unknown>);
+  }
+  return (
+    <StandardPage title={tx(props.locale, "GPU / HPC Console", "GPU / HPC 控制台")} description={tx(props.locale, "GPU jobs can run only through workstation whitelist templates and gates.", "GPU 作业只能通过工作站白名单模板和 Gate 启动。")} {...props}>
+      <ResourceCard summary={props.summary} />
+      <Card>
+        <CardHeader>
+          <CardTitle>Gateway Actions</CardTitle>
+          <CardDescription>Use smoke checks for connectivity; long training remains manifest-gated.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={testGpu} data-testid="test-gpu-connection"><Activity className="h-4 w-4" />Test GPU</Button>
+            <Button variant="primary" onClick={() => submitProbe()} data-testid="submit-score-gated-gpu-job"><Play className="h-4 w-4" />Probe Score-Gated Job</Button>
+          </div>
+          <Row label="Status" value={gpuStatus?.status ?? "not run in this browser"} />
+          <Row label="Provider" value={gpuStatus?.provider ?? "ssh_gateway"} />
+          <Row label="Artifact" value={gpuStatus?.artifact_path ?? "n/a"} />
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export function WorkflowGraph(props: ScreenProps) {
+  const runtime = runtimeForTask(props.summary, props.selectedTask);
+  const trace = runtime?.agent_trace ?? [];
+  return (
+    <StandardPage title={tx(props.locale, "Agent Workflow", "Agent 工作流")} description={tx(props.locale, "Agent stages, return states and evidence handoff contracts.", "Agent 阶段、回退状态与证据交接契约。")} {...props}>
+      <Card>
+        <CardContent className="grid gap-2 md:grid-cols-3">
+          {trace.length ? trace.slice(-12).map((event, index) => (
+            <div key={index} className="rounded-md border border-slate-200 p-3 text-xs">
+              <div className="font-bold">{String(event.agent_id ?? event.event ?? "agent")}</div>
+              <div className="mt-1 text-slate-500">{String(event.stage ?? event.return_state ?? "stage")}</div>
+              <StatusBadge tone={scoreTone(String(event.event ?? ""))} className="mt-2">{String(event.event ?? "recorded")}</StatusBadge>
+            </div>
+          )) : (
+            <div className="rounded-md border border-amber-100 bg-amber-50 p-4 text-sm text-amber-900">No agent trace is loaded yet.</div>
+          )}
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export function CodeRunner(props: ScreenProps) {
+  const runtime = runtimeForTask(props.summary, props.selectedTask);
+  const [draft, setDraft] = useState<Awaited<ReturnType<typeof api.generateCodeAgentDraft>> | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const taskId = normalizeTaskId(props.selectedTask);
+  async function runDraft(sourceAgent: string) {
+    setBusy(sourceAgent);
+    try {
+      const payload = await api.generateCodeAgentDraft(taskId, { source_agent: sourceAgent });
+      setDraft(payload);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const generatedCode = draft?.generated_code || String(runtime?.generated_code ?? "");
+  const patchDiff = draft?.patch_diff || "";
+
+  return (
+    <StandardPage title={tx(props.locale, "Code Agent Workspace", "代码 Agent 工作区")} description={tx(props.locale, "Code is drafted by configured agents and must pass review gates before execution.", "DeepSeek / Claude Code 只负责起草；应用、HPC 执行和提交必须经过工作站 Gate。")} {...props}>
+      <ScoreRecoveryCard runtime={runtime} />
+      <div className="grid gap-4 xl:grid-cols-[280px_1fr_320px] items-start">
+        {/* Left: Actions */}
+        <WorkbenchSection title="Code Agent Actions" description="Trigger draft and patch workflows.">
+          <div className="flex flex-col gap-2">
+            <Button size="sm" onClick={() => props.exportCodeAgentContext?.(taskId, "claude_code")}>Export Claude Context</Button>
+            <Button size="sm" variant="secondary" onClick={() => runDraft("deepseek_code_agent")} disabled={Boolean(busy)}>{busy === 'deepseek_code_agent' ? "Generating..." : "DeepSeek Draft"}</Button>
+            <Button size="sm" variant="secondary" onClick={() => runDraft("claude_code")} disabled={Boolean(busy)}>{busy === 'claude_code' ? "Generating..." : "Claude Code Draft"}</Button>
+            <Button size="sm" variant="secondary" onClick={() => props.importDemoPatch?.(taskId)}>Import Demo Patch</Button>
+            <hr className="my-2 border-slate-200" />
+            <Button size="sm" variant="secondary" onClick={() => props.runWorkstationAction?.("review_agent_patch")}>Review Latest Patch</Button>
+            <Button size="sm" className="bg-primary text-white" onClick={() => props.runWorkstationAction?.("apply_agent_patch")}>Apply Patch</Button>
+            <div className="text-[10px] text-amber-600 mt-1">Requires Code Quality Gate</div>
+            <Button size="sm" variant="danger" onClick={() => props.runWorkstationAction?.("rollback_agent_patch")}>Rollback Patch</Button>
+          </div>
+        </WorkbenchSection>
+        
+        {/* Middle: Code */}
+        <WorkbenchSection title="Generated Code & Patch" description="Review drafted changes before applying.">
+           {generatedCode || patchDiff ? (
+             <div className="space-y-4">
+               {generatedCode && (
+                 <div>
+                   <div className="text-sm font-bold text-slate-700 mb-2">Generated Code</div>
+                   <CodeBlockPanel code={generatedCode} />
+                 </div>
+               )}
+               {patchDiff && (
+                 <div>
+                   <div className="text-sm font-bold text-slate-700 mb-2">Patch Diff</div>
+                   <CodeBlockPanel code={patchDiff} />
+                 </div>
+               )}
+             </div>
+           ) : (
+             <RealEmptyState message="No generated code or patch artifact loaded. Use the actions on the left to generate one." />
+           )}
+        </WorkbenchSection>
+
+        {/* Right: Info */}
+        <WorkbenchSection title="Session & Artifacts" description="Current code agent state.">
+          <ArtifactPathRow label="Draft Path" path={draft?.draft_path ?? runtime?.latest_code_agent_session?.draft_path as string | null} />
+          <ArtifactPathRow label="Patch Path" path={draft?.patch_path ?? runtime?.latest_code_agent_review?.patch_path as string | null} />
+          <ArtifactPathRow label="Manifest Path" path={draft?.manifest_path ?? runtime?.latest_code_agent_session?.manifest_path as string | null} />
+          <ArtifactPathRow label="Transcript Path" path={draft?.transcript_path ?? runtime?.latest_code_agent_transcript?.path as string | null} />
+          
+          <div className="mt-4">
+            <div className="text-xs font-bold text-slate-700 mb-2">Latest Action Trace</div>
+            <ActionTrace trace={props.lastActionTrace} message={props.agentActionMessage} />
+          </div>
+          
+          <div className="mt-4">
+            <div className="text-xs font-bold text-slate-700 mb-2">Quality Gate Status</div>
+            <StatusBadge tone={draft?.configured === false ? "amber" : draft ? "green" : "slate"}>
+              {draft?.cli_status ?? (runtime?.generated_code ? "loaded" : "empty")}
+            </StatusBadge>
+          </div>
+          
+          {draft?.missing_env && draft.missing_env.length > 0 && (
+            <div className="mt-4">
+               <div className="text-xs font-bold text-red-700 mb-2">Missing Env (Do not show values)</div>
+               <ul className="text-xs text-slate-600 list-disc pl-4">
+                 {draft.missing_env.map(env => <li key={env}>{env}</li>)}
+               </ul>
+            </div>
+          )}
+        </WorkbenchSection>
+      </div>
+    </StandardPage>
+  );
+}
+
+export function AgentRuntime(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Agent Runtime", "Agent 运行时")} description={tx(props.locale, "Live traces, action evidence and failure recovery.", "实时 trace、动作证据与失败回退。")} {...props}>
+      <WorkflowGraph {...props} />
+      <ActionTrace trace={props.lastActionTrace} message={props.systemActionMessage} />
+    </StandardPage>
+  );
+}
+
+export function Experiments(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Experiments", "实验中心")} description={tx(props.locale, "Recent workstation runs and model evidence.", "最近工作站 run 与模型证据。")} {...props}>
+      <Card>
+        <CardContent className="space-y-2">
+          {(props.summary?.runs ?? []).slice(0, 12).map((run) => (
+            <div key={run.id ?? run.output_dir ?? run.task_id} className="grid gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs md:grid-cols-[1.5fr_1fr_120px]">
+              <span className="truncate font-bold">{run.id ?? run.output_dir}</span>
+              <span>{run.task_id}</span>
+              <StatusBadge tone={scoreTone(run.status)}>{run.status ?? "recorded"}</StatusBadge>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export function EvidenceLedger(props: ScreenProps) {
+  const evidence = (props.summary?.evidence ?? []) as Array<SummaryEvidence & { id?: string; label?: string; artifact_path?: string; source?: string; claim_binding?: string; run_id?: string; task_id?: string; created_at?: string; hash?: string; sha256?: string }>;
+  return (
+    <StandardPage title={tx(props.locale, "Evidence Ledger", "证据台账")} description={tx(props.locale, "Artifacts, gates and claims must stay auditable.", "所有产物、Gate、结论和日志都必须可审计。")} {...props}>
+      <PaperEvidenceBundleCard
+        onGenerated={(payload) => {
+          void props.runWorkstationAction?.("paper_evidence_bundle_generated", payload as Record<string, unknown>);
+        }}
+      />
+      <WorkbenchSection title="Evidence Artifacts" description="Detailed list of all bound artifacts.">
+        {evidence.length ? (
+           <div className="space-y-4">
+             {evidence.map((item) => (
+                <div key={String(item.id ?? item.artifact_path)} className="rounded-md border border-slate-200 p-4 text-xs bg-white">
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="font-bold text-sm text-slate-900">{item.label || 'Unnamed Evidence'}</div>
+                    <div className="text-slate-500">{item.created_at || 'No timestamp'}</div>
+                  </div>
+                  
+                  <ArtifactPathRow label="Artifact Path" path={item.artifact_path} />
+                  
+                  <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div>
+                      <div className="font-semibold text-slate-500">Source</div>
+                      <div className="text-slate-900">{item.source || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-500">Claim Binding</div>
+                      <div className="text-slate-900">{item.claim_binding || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-500">Run ID</div>
+                      <div className="text-slate-900">{item.run_id || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <div className="font-semibold text-slate-500">Task ID</div>
+                      <div className="text-slate-900">{item.task_id || 'N/A'}</div>
+                    </div>
+                  </div>
+                  
+                  {(item.hash || item.sha256) && (
+                    <div className="mt-3">
+                      <div className="font-semibold text-slate-500">Hash (SHA256)</div>
+                      <div className="font-mono text-slate-700 bg-slate-50 p-1 rounded border border-slate-200 inline-block">{item.hash || item.sha256}</div>
+                    </div>
+                  )}
+
+                  <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+                    <Button size="sm" variant="secondary" disabled title="Backend does not support direct open yet">Open</Button>
+                    <Button size="sm" variant="secondary" disabled title="Backend does not support verification yet">Verify</Button>
+                    <Button size="sm" variant="secondary" disabled title="Manifest export not available">Export manifest</Button>
+                  </div>
+                </div>
+             ))}
+           </div>
+        ) : (
+           <RealEmptyState message="No evidence artifacts are loaded for this task yet." />
+        )}
+      </WorkbenchSection>
+    </StandardPage>
+  );
+}
+
+export function IntegrityGates(props: ScreenProps) {
+  const runtime = runtimeForTask(props.summary, props.selectedTask);
+  const gates = (props.summary?.gates ?? []) as Array<SummaryGate & { id?: string; created_at?: string; decided_at?: string; artifact?: unknown; evidence?: unknown }>;
+  return (
+    <StandardPage title={tx(props.locale, "Integrity Gates", "完整性 Gate")} description={tx(props.locale, "Submission and GPU execution require explicit gate records.", "HPC 执行和 Kaggle 提交必须有明确审批记录。")} {...props}>
+      <ScoreRecoveryCard runtime={runtime} />
+      <WorkbenchSection title="Pending & Historical Gates" description="Review and approve/reject gated actions.">
+        {gates.length > 0 ? (
+          gates.map((gate) => (
+            <GateReviewRow 
+              key={String(gate.id ?? `${gate.gate_type}-${gate.run_id}`)}
+              gate={gate}
+              onApprove={(id) => props.runWorkstationAction?.("approve_gate", { gate_id: id })}
+              onReject={(id) => props.runWorkstationAction?.("reject_gate", { gate_id: id })}
+              onRequestEvidence={(id) => props.runWorkstationAction?.("request_evidence", { gate_id: id })}
+            />
+          ))
+        ) : (
+          <RealEmptyState message="当前没有待审 Gate。HPC 执行、代码应用、Kaggle 提交会在对应流程中创建 Gate。" />
+        )}
+      </WorkbenchSection>
+    </StandardPage>
+  );
+}
+
+export function ReportStudio(props: ScreenProps) {
+  const runtime = runtimeForTask(props.summary, props.selectedTask);
+  const [draft, setDraft] = useState<Awaited<ReturnType<typeof api.generateReportDraft>> | null>(null);
+  const [busy, setBusy] = useState(false);
+  const markdown = draft?.markdown_content ?? String(runtime?.report_markdown ?? "");
+  async function generateDraft() {
+    setBusy(true);
+    try {
+      const payload = await api.generateReportDraft(normalizeTaskId(props.selectedTask), {
+        language: props.locale ?? "zh-CN",
+        style: "teacher_evidence_bundle"
+      });
+      setDraft(payload);
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <StandardPage title={tx(props.locale, "Report Studio", "报告工作室")} description={tx(props.locale, "Reports summarize agent traces, score gates, GPU evidence and residual risk.", "报告必须汇总 Agent trace、分数 Gate、GPU 证据与剩余风险。")} {...props}>
+      <PaperEvidenceBundleCard
+        onGenerated={(payload) => {
+          void props.runWorkstationAction?.("paper_evidence_bundle_generated", payload as Record<string, unknown>);
+        }}
+      />
+      <div className="grid gap-4 xl:grid-cols-[250px_1fr_300px] items-start">
+        {/* Left: Actions */}
+        <WorkbenchSection title="Report Actions" description="Generate evidence-bound drafts.">
+          <div className="flex flex-col gap-2">
+            <Button size="sm" onClick={generateDraft} disabled={busy} data-testid="generate-report-draft">
+              {busy ? "Generating..." : "Generate Report Draft"}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => props.runWorkstationAction?.("generate_teacher_evidence_bundle", { task_id: normalizeTaskId(props.selectedTask) })} data-testid="generate-teacher-evidence-bundle-report">
+              Generate Teacher Evidence Bundle
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => props.runWorkstationAction?.("submit_report_review", { task_id: normalizeTaskId(props.selectedTask) })} data-testid="submit-report-review">
+              Submit Report Review
+            </Button>
+          </div>
+          <div className="mt-4">
+            <div className="text-xs font-bold text-slate-700 mb-2">Latest Action Trace</div>
+            <ActionTrace trace={props.lastActionTrace} message={props.systemActionMessage} />
+          </div>
+        </WorkbenchSection>
+
+        {/* Middle: Report Content */}
+        <WorkbenchSection title="Markdown Preview" description="Rendered markdown from the draft.">
+          {markdown ? (
+            <div className="prose prose-sm prose-slate max-w-none max-h-[600px] overflow-auto p-4 border border-slate-200 rounded-md bg-white">
+              <pre className="whitespace-pre-wrap font-sans text-xs">{markdown}</pre>
+            </div>
+          ) : (
+            <RealEmptyState message="No report artifact loaded yet. Click Generate Report Draft to create a workstation-controlled report draft." />
+          )}
+        </WorkbenchSection>
+
+        {/* Right: Info */}
+        <WorkbenchSection title="Report Details" description="Evidence bundle and artifacts.">
+          <ArtifactPathRow label="Report Path" path={(draft as any)?.report_path ?? (runtime?.report_markdown ? "in-memory" : null)} />
+          <ArtifactPathRow label="Markdown Path" path={draft?.markdown_path ?? (runtime?.report_markdown ? "in-memory" : null)} />
+          <ArtifactPathRow label="HTML Path" path={draft?.html_path} />
+          
+          <div className="mt-4">
+            <div className="text-xs font-bold text-slate-700 mb-2">Evidence Analysis</div>
+            <RealEmptyState message="No unsupported claims detected." />
+          </div>
+        </WorkbenchSection>
+      </div>
+    </StandardPage>
+  );
+}
+
+export function LiteratureKnowledge(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Literature & Knowledge", "文献与知识库")} description={tx(props.locale, "Reserved knowledge layer; no fake external claims are shown.", "预留知识层；不展示伪造外部结论。")} {...props}>
+      <Card><CardContent className="text-sm text-slate-600">Research briefs and citations must bind to real artifacts before report approval.</CardContent></Card>
+    </StandardPage>
+  );
+}
+
+export function SettingsCenter(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Settings", "系统设置")} description={tx(props.locale, "Runtime configuration and resource gates.", "运行配置与资源门禁。")} {...props}>
+      <Card>
+        <CardContent className="space-y-2">
+          <Row label="Workspace" value={props.summary?.workspace_root ?? "local"} />
+          <Row label="Locale" value={props.locale ?? "zh-CN"} />
+          <Button onClick={() => props.setLocale?.(props.locale === "en-US" ? "zh-CN" : "en-US")}>Toggle Locale</Button>
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}
+
+export { AiControlConsole } from "./AiControlConsole";
+
+export function DesignSystem(props: ScreenProps) {
+  return (
+    <StandardPage title={tx(props.locale, "Design System", "设计系统")} description={tx(props.locale, "Operational, evidence-first interface tokens.", "面向科研操作台的证据优先界面规范。")} {...props}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Tokens</CardTitle>
+          <CardDescription>Status colors are semantic and reusable across the workstation.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-2">
+          {(["green", "blue", "amber", "red", "slate", "purple"] as StatusTone[]).map((tone) => (
+            <StatusBadge key={tone} tone={tone}>{tone}</StatusBadge>
+          ))}
+        </CardContent>
+      </Card>
+    </StandardPage>
+  );
+}

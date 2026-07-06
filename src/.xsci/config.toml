@@ -1,0 +1,14 @@
+# xsci project config — non-secret settings only.
+# Secrets (API keys) live in ~/.xsci/secrets.toml, never here.
+
+[project]
+name = "src"
+
+[compute]
+# backend = "local"  (default) or "gpu" (requires GPU_SSH_* env / global config)
+backend = "local"
+
+[run]
+# defaults for `xsci run` in this project
+iterations = 20
+metric_direction = "maximize"

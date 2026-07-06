@@ -1,0 +1,182 @@
+generated_at: "2026-06-13"
+policy:
+  secrets_storage: "env_or_secret_file_only"
+  no_plaintext_secrets_in_repo: true
+  human_gate_required_for_external_submission: true
+  gpu_shell_policy: "whitelist_templates_only"
+  local_training_fallback: "disabled"
+  local_training_fallback_note: "Disabled by user policy: Kaggle/MLE-Bench training and optimization workloads must use workstation-gated HPC/GPU cluster resources. If the current rotating GPU allocation is unavailable, mark training as blocked/pending instead of falling back to local GPU or local training."
+  verified_local_launcher: "scripts/start_verified_workstation.ps1"
+  verified_local_launcher_note: "Loads installed Windows DPAPI secrets for DeepSeek, Claude and Kaggle before starting the dashboard, then runs smoke checks without printing secret values."
+
+resources:
+  deepseek:
+    provider: "DeepSeek"
+    status: "ready"
+    base_url: "https://api.deepseek.com"
+    default_model: "deepseek-v4-flash"
+    supported_models:
+      - "deepseek-v4-flash"
+      - "deepseek-v4-pro"
+    required_env:
+      - "DEEPSEEK_API_KEY"
+    optional_env:
+      - "DEEPSEEK_API_KEY_FILE"
+      - "DEEPSEEK_BASE_URL"
+      - "DEEPSEEK_MODEL"
+      - "WORKSTATION_SECRET_DIR"
+    smoke_command: "python scripts/verify_deepseek_provider.py --url http://127.0.0.1:8088 --require-configured"
+    local_endpoint: "POST /api/llm/deepseek/smoke"
+    credential_storage: "Windows DPAPI via scripts/manage_deepseek_secret.ps1; no plaintext key is stored in the repository."
+    current_runtime_note: "DeepSeek is configured in the running dashboard via user-scoped DPAPI storage and the audited smoke route passed with content deepseek-ok."
+    evidence:
+      - "workspace/llm/deepseek_smoke_*.json"
+      - "scripts/manage_deepseek_secret.ps1"
+
+  hpc_gpu_ssh:
+    provider: "HKUST(GZ) HPC+AI"
+    status: "configured_channels_closed"
+    local_bridge:
+      listen: "127.0.0.1:7890"
+      script: "scripts/hpc_socks_bridge.py"
+      manager: "scripts/manage_hpc_proxy_bridge.ps1"
+      browser_shortcut_name: "HKUST HPC平台-专用代理.lnk"
+      browser_launcher: "scripts/open_hpc_browser.ps1"
+      ncat_status: "installed_verified_user_path"
+      ncat_path: "C:/Users/景浩伟/AppData/Local/Programs/NmapPortable/nmap-7.92/ncat.exe"
+      ncat_version: "7.92"
+      ncat_pdf_command: "ssh -o ProxyCommand=\"ncat --proxy 127.0.0.1:7890 --proxy-type socks5 %h %p\" ${HPCSSH_ACCOUNT}@100.85.169.63 -p 1235"
+    web_url: "http://100.85.169.63:1234/appform/login"
+    ssh_host: "100.85.169.63"
+    ssh_port: 1235
+    proxy:
+      type: "socks5"
+      host: "8.163.52.223"
+      port: 1080
+      auth: "username_password"
+    required_env:
+      - "GPU_SSH_HOST"
+      - "GPU_SSH_PORT"
+      - "GPU_SSH_USER"
+      - "GPU_SSH_PASSWORD or GPU_SSH_KEY_PATH"
+      - "GPU_REMOTE_WORKSPACE"
+    optional_env:
+      - "GPU_SSH_PASSWORD_FILE"
+      - "GPU_SSH_KEY_PATH"
+      - "GPU_SSH_KEY_PATH_FILE"
+      - "GPU_SSH_KNOWN_HOSTS_PATH"
+      - "GPU_SSH_SOCKS_HOST"
+      - "GPU_SSH_SOCKS_PORT"
+      - "GPU_SSH_SOCKS_USER"
+      - "GPU_SSH_SOCKS_PASSWORD"
+      - "GPU_SSH_SOCKS_PASSWORD_FILE"
+      - "WORKSTATION_SECRET_DIR"
+    smoke_commands:
+      - "python scripts/verify_hpc_socks_gateway.py --require-auth"
+      - "POST /api/gpu/connections/test"
+    current_blocker: "All local HPC SSH/SOCKS channels were intentionally closed by operator request. No training should start until the operator explicitly reopens one of the two allowed allocations and a fresh GPU smoke passes."
+    current_runtime_note: "Allowed allocations are restricted to job 87384 aimslab-TTA-A800-1GPU as primary and job 87318 aimslab-kdd-ai4s as backup. The default DPAPI credential metadata points at 87384 direct endpoint 10.120.18.240:6988 with dedicated remote workspace /hpc2hdd/home/aimslab/research_agent_workstation. The local 127.0.0.1:7890 HPC bridge and active SSH/SOCKS channels were closed; evidence is workspace/gpu/local_hpc_channels_closed_2026-06-28T20-55-00.json. CatBoost has been used by the workstation search/boosting stack, and the previous S6E6 boosting dependency gate verified LightGBM/XGBoost/CatBoost availability on the prior tested runtime. New training remains blocked until one allowed allocation is explicitly smoke-tested."
+    development_environment_note: "The current environment card shows an inner ssh command like ssh aimslab-wqx-SDBS@10.120.18.240 -p 6988. Treat 10.120.x addresses as allocation-internal endpoints; direct 10.120.x access from the workstation may be not reachable or timed out. The documented login node 100.85.169.63:1235 remains the verified workstation route through 127.0.0.1:7890 and is the default training gateway."
+    platform_environment_status: "channels_closed_allowed_allocations_only"
+    ssh_config:
+      host_alias: "hpc-hkust-gz"
+      path: "C:/Users/景浩伟/.ssh/config"
+      backup: "C:/Users/景浩伟/.ssh/config.bak-20260613-200518"
+      proxy_command: "ncat --proxy 127.0.0.1:7890 --proxy-type socks5 %h %p"
+    strongest_visible_resource:
+      gpu_type: "NVIDIA A800-SXM4-80GB"
+      cluster: "AI-X86_NVIDIA"
+      evidence: "workspace/gpu/local_hpc_channels_closed_2026-06-28T20-55-00.json records that local HPC SSH/SOCKS channels were closed and only allocations 87384 and 87318 remain allowed. New jobs must write under /hpc2hdd/home/aimslab/research_agent_workstation. workspace/gpu/s6e6_boosting_dependency_2026-06-28T10-28-33-318Z.json proves a prior S6E6 boosting runtime had LightGBM 4.6.0, XGBoost 3.2.0 and CatBoost 1.2.10; any new training still requires fresh smoke on an allowed allocation."
+    verified_gpu_environment:
+      ssh_user: "aimslab-TTA-A800-1GPU"
+      login_node: "10.120.18.240:6988"
+      inner_endpoint: "10.120.18.240:6988"
+      evidence_file: "workspace/gpu/local_hpc_channels_closed_2026-06-28T20-55-00.json"
+      dependency_evidence_file: "workspace/gpu/s6e6_boosting_dependency_2026-06-28T10-28-33-318Z.json"
+      auth_mode_evidence_file: "workspace/hpc/ssh_auth_mode_20260613.json"
+      portal_key_binding_probe_file: "workspace/hpc/portal_key_binding_probe_20260613.json"
+      gpu_count: 1
+      gpu_type: "NVIDIA A800-SXM4-80GB"
+      cuda_version: "12.8"
+      driver_version: "570.195.03"
+      python_version: "3.10.13"
+      torch_available: false
+      boosting_environment_status: "passed"
+      home: "/hpc2hdd/home/aimslab"
+      remote_workspace: "/hpc2hdd/home/aimslab/research_agent_workstation"
+    automated_job_credential_status:
+      local_key_path: "C:/Users/景浩伟/.ssh/research_agent_hpc_ed25519"
+      password_credential_status: "ready_windows_dpapi"
+      public_key_install_status: "optional_not_required_for_current_password_flow"
+      auth_observation: "Password authentication with the current rotated aimslab-wqx-SDBS environment credential reaches authenticated=true through Paramiko/workstation API when connecting to 100.85.169.63:1235 via 127.0.0.1:7890."
+      portal_key_binding_observation: "Portal/devEnv credentials are rotating per allocation. Codex must ask the user for the current environment SSH account and password before each new connection attempt, then store it only in Windows DPAPI."
+      tested_local_keys:
+        - "id_ed25519"
+        - "id_rsa"
+        - "research_agent_hpc_ed25519"
+    post_authorization_checks:
+      - "whoami"
+      - "hostname"
+      - "pwd"
+      - "python --version"
+      - "nvidia-smi"
+      - "df -hT"
+      - "free -h"
+      - "test -w ${GPU_REMOTE_WORKSPACE}"
+      - "submit whitelist training template"
+    latest_ssh_cuda_smoke:
+      verified_at: "2026-06-28T11:17:53Z"
+      command_path: "POST /api/gpu/connections/test; POST /api/workstation-actions verify_s6e6_boosting_environment"
+      result: "passed"
+      evidence:
+        whoami: "aimslab"
+        hostname: "981e41eafb3e"
+        python_version: "3.10.13"
+        torch_version: "not_installed_in_default_runtime"
+        cuda_available: "visible_by_nvidia_smi"
+        cuda_device_count: 1
+        device0: "NVIDIA A800-SXM4-80GB"
+        gpu_memory_total_mib_each: 81920
+        gpu_memory_free_mib_observed: 226
+        gpu_utilization_observed: "100%"
+        training_gate_state: "blocked_until_memory_available"
+        boosting_packages: "lightgbm 4.6.0, xgboost 3.2.0, catboost 1.2.10"
+        connection_artifact: "workspace/gpu/connection_test_2026-06-28T11-17-53-272Z.json"
+        dependency_artifact: "workspace/gpu/s6e6_boosting_dependency_2026-06-28T10-28-33-318Z.json"
+
+  claude_code:
+    provider: "Code Agent"
+    status: "ready_via_deepseek_fallback"
+    required_env:
+      - "DEEPSEEK_API_KEY or ANTHROPIC_API_KEY"
+    optional_env:
+      - "ANTHROPIC_API_KEY_FILE"
+      - "CLAUDE_API_KEY"
+      - "CLAUDE_API_KEY_FILE"
+      - "DEEPSEEK_API_KEY_FILE"
+      - "DEEPSEEK_BASE_URL"
+      - "DEEPSEEK_MODEL"
+      - "WORKSTATION_SECRET_DIR"
+    smoke_command: "python scripts/verify_external_resource_gateways.py --url http://127.0.0.1:8088 --allow-real-external"
+    credential_storage: "Windows DPAPI via scripts/manage_deepseek_secret.ps1 for DeepSeek fallback; optional Anthropic key can still use scripts/manage_claude_secret.ps1. No plaintext key is stored in the repository."
+    current_runtime_note: "No official Anthropic API key is required for the current closed loop. Code Agent sessions use DeepSeek as a Claude-Code-like patch drafter and still emit transcript, manifest, diff artifact and manual gate records."
+    gate_policy: "Code Agent may generate transcripts, patches, and drafts only; Manual Gate is required before applying code."
+
+  kaggle:
+    provider: "Kaggle API"
+    status: "ready"
+    required_env:
+      - "KAGGLE_API_TOKEN"
+    legacy_required_env:
+      - "KAGGLE_USERNAME"
+      - "KAGGLE_KEY"
+    optional_env:
+      - "KAGGLE_API_TOKEN_FILE"
+      - "KAGGLE_USERNAME_FILE"
+      - "KAGGLE_KEY_FILE"
+      - "WORKSTATION_SECRET_DIR"
+    smoke_command: "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/manage_kaggle_secret.ps1 smoke"
+    real_api_smoke_command: "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/manage_kaggle_secret.ps1 smoke -AllowRealExternal"
+    credential_storage: "Windows DPAPI via scripts/manage_kaggle_secret.ps1; no plaintext token is stored in the repository."
+    current_runtime_note: "Kaggle official API is configured through a user-scoped Windows DPAPI access token. Official download smoke passed; leaderboard submission still requires Human Gate."
+    gate_policy: "Official download and leaderboard submission require Human Gate; local Kaggle-style smoke remains available without token."

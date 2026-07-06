@@ -1,0 +1,40 @@
+services:
+  research-agent-workstation:
+    build: .
+    container_name: research-agent-workstation
+    ports:
+      - "3090:3090"
+      - "8088:3090"
+    environment:
+      WORKSTATION_ROOT: /app
+      DATABASE_URL: file:/app/web/research-agent-workstation/prisma/workstation.db
+      NEXT_TELEMETRY_DISABLED: "1"
+      KAGGLE_ENABLED: "false"
+      GPU_PROVIDER: ssh_gateway
+      LLM_PROVIDER: rule_based
+      CODE_AGENT_PROVIDER: claude_agent_sdk
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLAUDE_CODE_MODEL: ${CLAUDE_CODE_MODEL:-sonnet}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      GPU_SSH_HOST: ${GPU_SSH_HOST:-}
+      GPU_SSH_PORT: ${GPU_SSH_PORT:-22}
+      GPU_SSH_USER: ${GPU_SSH_USER:-}
+      GPU_SSH_PASSWORD: ${GPU_SSH_PASSWORD:-}
+      GPU_SSH_KEY_PATH: ${GPU_SSH_KEY_PATH:-}
+      GPU_REMOTE_WORKSPACE: ${GPU_REMOTE_WORKSPACE:-}
+      GPU_SSH_KNOWN_HOSTS_PATH: ${GPU_SSH_KNOWN_HOSTS_PATH:-}
+      GPU_SSH_SOCKS_HOST: ${GPU_SSH_SOCKS_HOST:-}
+      GPU_SSH_SOCKS_PORT: ${GPU_SSH_SOCKS_PORT:-1080}
+      GPU_SSH_SOCKS_USER: ${GPU_SSH_SOCKS_USER:-}
+      GPU_SSH_SOCKS_PASSWORD: ${GPU_SSH_SOCKS_PASSWORD:-}
+      WORKSTATION_SECRET_DIR: /run/secrets/workstation
+    volumes:
+      - ./workspace:/app/workspace
+      - ./experiments:/app/experiments
+      - ./tasks:/app/tasks
+      - ./configs:/app/configs:ro
+      - ./web/research-agent-workstation/prisma:/app/web/research-agent-workstation/prisma
+      - ${WORKSTATION_SECRET_DIR:-./workspace/secrets}:/run/secrets/workstation:ro
+    restart: unless-stopped

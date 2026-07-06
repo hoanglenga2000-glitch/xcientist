@@ -1,0 +1,18 @@
+task:
+  name: ps3e7
+  competition: playground-series-s3e7
+  type: classification
+  target: booking_status
+  metric: accuracy
+data:
+  task_dir: tasks/ps3e7
+  train: tasks/ps3e7/data/train.csv
+  test: tasks/ps3e7/data/test.csv
+  sample_submission: tasks/ps3e7/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

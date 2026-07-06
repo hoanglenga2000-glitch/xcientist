@@ -1,0 +1,57 @@
+source:
+  public_url: https://ai.zhjjq.tech/agents
+  public_market_api: https://ai.zhjjq.tech/api/market/agents
+  access_policy: read_only_public_templates
+  private_agents_policy: do_not_read_or_modify_without_login_authorization
+
+template_mapping:
+  orchestrator_planner:
+    server_template_id: 16
+    server_template_name: 多 Agent 调度主管
+    local_role: Orchestrator/Planner
+    workstation_responsibility:
+      - task_decomposition
+      - acceptance_criteria
+      - risk_management
+      - stage_coordination
+    prompt_template_summary: 把目标拆解为子任务，指定 Agent 角色，定义验收标准、依赖关系和风险处理方式。
+  analyst:
+    server_template_id: 13
+    server_template_name: 高级数据分析 Agent
+    local_role: Analyst
+    workstation_responsibility:
+      - tabular_eda
+      - anomaly_detection
+      - trend_hypothesis
+      - validation_plan
+    prompt_template_summary: 用业务语言解释数据，识别趋势和异常，给出可能原因、置信度和下一步验证方案。
+  developer:
+    server_template_id: 14
+    server_template_name: 代码开发 Agent
+    local_role: Developer
+    workstation_responsibility:
+      - implementation_plan
+      - model_training_code
+      - test_plan
+      - implementation_risk
+    prompt_template_summary: 先理解需求和约束，再给出实现方案、关键代码思路、测试点和风险。
+  evidence_summarizer:
+    server_template_id: 15
+    server_template_name: 知识库 RAG Agent
+    local_role: Evidence/Summarizer
+    workstation_responsibility:
+      - evidence_tracking
+      - report_grounding
+      - uncertainty_statement
+      - context_memory
+    prompt_template_summary: 优先基于上下文回答，列出依据；没有依据时说明无法确认。
+  reviewer_gate:
+    server_template_id: 18
+    server_template_name: 流程自动化 Agent
+    local_role: Reviewer/Gate
+    workstation_responsibility:
+      - stage_gate
+      - approval_points
+      - exception_handling
+      - automation_checklist
+    prompt_template_summary: 整理触发条件、输入输出、执行步骤、审批节点、异常处理和可自动化环节。

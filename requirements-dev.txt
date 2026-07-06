@@ -1,0 +1,5 @@
+# Developer / CI tooling. Required to run the test suite and lint gates.
+-r requirements.txt
+
+pytest>=7.0,<10.0
+ruff>=0.5,<1.0

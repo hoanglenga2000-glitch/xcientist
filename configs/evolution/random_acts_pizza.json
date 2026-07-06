@@ -1,0 +1,17 @@
+{
+  "task_name": "random-acts-of-pizza",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "roc_auc",
+  "metric_direction": "maximize",
+  "target_column": "requester_received_pizza",
+  "id_column": "request_id",
+  "n_train": 4040,
+  "n_test": 1631,
+  "data_schema": "train.json (list of records incl. request_id, request_text_edit_aware, request_title, requester_* numeric account features, unix_timestamp_of_request, and boolean target requester_received_pizza). test.json: same minus target. sampleSubmission.csv: request_id, requester_received_pizza (probability).",
+  "extra_notes": "Random Acts of Pizza. Files: train.json, test.json, sampleSubmission.csv. Predict probability the request got a pizza. Official metric = ROC AUC (HIGHER better). Read json with pandas.read_json. Baseline: TF-IDF on request_title + request_text_edit_aware, plus the numeric requester_* account-age/activity features present in BOTH train and test (ignore _at_retrieval leakage cols that are train-only), then logistic regression / lightgbm predict_proba. Report CV_SCORE = ROC AUC on OOF (higher better). submission.csv columns EXACTLY request_id,requester_received_pizza (probability) for all test request_ids. metrics.json {\"cv_score\": <float>, \"metric\": \"roc_auc\"}.",
+  "remote_data_dirname": "random-acts-of-pizza",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/random-acts-of-pizza",
+  "n_features": 0,
+  "n_model_families": 2
+}

@@ -1,0 +1,6 @@
+# ── added by `xsci init` — never commit local secrets or heavy data ──
+.xsci/secrets*
+.xsci/*.local.*
+experiments/
+data/
+*.kaggle.json

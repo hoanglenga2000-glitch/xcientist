@@ -1,0 +1,960 @@
+"use client";
+
+import { useState } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Bell,
+  BookOpen,
+  Bot,
+  Box,
+  BrainCircuit,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Code2,
+  Cpu,
+  Database,
+  Download,
+  FileCode2,
+  FileText,
+  Filter,
+  GitBranch,
+  Globe2,
+  KeyRound,
+  Languages,
+  Layers3,
+  LineChart,
+  Lock,
+  Moon,
+  Network,
+  Play,
+  RefreshCw,
+  Search,
+  Server,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  TerminalSquare,
+  Upload,
+  UserCheck,
+  Users
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
+import { cn } from "@/lib/utils";
+import type { WorkstationSummary } from "@/lib/api/types";
+
+type Locale = "zh-CN" | "en-US";
+
+type ScreenProps = {
+  selectedTask: string;
+  setSelectedTask: (id: string) => void;
+  selectedStage: string;
+  setSelectedStage: (id: string) => void;
+  selectedExperiment: string;
+  setSelectedExperiment: (id: string) => void;
+  gateStatus: "Pending" | "Approved" | "Rejected";
+  setGateStatus: (status: "Pending" | "Approved" | "Rejected") => void;
+  patchApplied: boolean;
+  setPatchApplied: (value: boolean) => void;
+  reportSubmitted: boolean;
+  setReportSubmitted: (value: boolean) => void;
+  summary?: WorkstationSummary | null;
+  runLocalExperiment?: (taskId?: string) => Promise<void>;
+  runState?: { status: "idle" | "running" | "passed" | "failed"; message: string; experimentDir?: string };
+  exportCodeAgentContext?: (taskId?: string, targetAgent?: string) => Promise<void>;
+  importDemoPatch?: (taskId?: string) => Promise<void>;
+  agentActionMessage?: string;
+  runWorkstationAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  systemActionMessage?: string;
+  lastActionTrace?: {
+    action: string;
+    taskId?: string;
+    request?: Record<string, unknown>;
+    response?: Record<string, unknown>;
+    message: string;
+    artifact?: string | null;
+    at: string;
+  } | null;
+  locale?: Locale;
+  setLocale?: (locale: Locale) => void;
+};
+
+const mono = "font-mono text-[12px] tracking-normal";
+
+const agents = [
+  ["Research Agent", "研究问题分析与计划", "completed", "plan.json", 100],
+  ["Data Audit Agent", "数据质量与泄露审计", "completed", "data_audit.json", 100],
+  ["Feature Eng. Agent", "特征工程与语义特征", "running", "features.parquet", 78],
+  ["Model Selection Agent", "模型路径搜索与选择", "running", "model_select.json", 62],
+  ["Code Impl. Agent", "训练脚本与提交代码生成", "running", "train.py", 65],
+  ["GPU / HPC Agent", "提交 GPU 训练作业", "running", "gpu_job_manifest.yaml", 41],
+  ["Validation Agent", "指标计算与验证分析", "running", "metrics.json", 58],
+  ["Submission Gate Agent", "提交前合规 Gate", "waiting", "submission.json", 0],
+  ["Claim Audit Agent", "结论漂移与证据审计", "waiting", "claim_audit.json", 0],
+  ["Report Agent", "报告撰写与证据生成", "pending", "report_draft.md", 0],
+  ["Reflection Agent", "失败复盘与回退计划", "failed", "recovery_plan.md", 15]
+] as const;
+
+const artifacts = [
+  ["metrics_20260625_1001", "metrics", "task_001", "run_14", "exp_038", "agent_xcientist_v2", "evaluation", "/runs/.../metrics.json", "91fa...c2b1", "claim_003", "gate_regression_v1", "verified"],
+  ["oof_20260625_1001", "oof_prediction", "task_001", "run_14", "exp_038", "agent_xcientist_v2", "evaluation", "/runs/.../oof_pred.parquet", "3b7a...f6a9", "claim_003", "gate_oof_v1", "pending"],
+  ["model_code_20260625_1001", "code", "task_001", "run_14", "exp_038", "code-agent", "train", "/artifacts/code/train.py", "a1b2...4e56", "claim_003", "gate_code_v1", "verified"],
+  ["submission_20260625_1001", "submission", "task_001", "run_14", "exp_038", "report-agent", "submit", "/submissions/.../submission.csv", "7e2b...9664", "claim_003", "gate_kaggle_v1", "verified"],
+  ["gpu_job_manifest_1001", "gpu_job_manifest", "task_001", "run_14", "exp_038", "hpc-agent", "train", "/hpc/job_1001.yaml", "6d8a...e0b3", "-", "gate_hpc_v1", "verified"],
+  ["stderr_log_1001", "stderr_log", "task_001", "run_14", "exp_038", "hpc-agent", "train", "/logs/stderr.log", "9a11...3bb7", "-", "gate_hpc_v1", "pending"],
+  ["claim_audit_1001", "claim_audit", "task_001", "run_14", "exp_038", "audit-agent", "audit", "/audit/claim_audit.json", "1d23...666", "claim_003", "gate_claim_v1", "blocked"]
+] as const;
+
+const jobs = [
+  ["jb_20260625_0012", "tk_0842", "run_7f3c1d", "exp_0912", "agent_lightgbm", "lgbm_cv_v2", "8xA800 80GB", "gate_hpc_03", "running", "11:31:02", "00:07:18"],
+  ["jb_20260625_0013", "tk_0843", "run_8a9f2e", "exp_0913", "agent_xgb", "xgb_cv_v1", "4xA800 80GB", "gate_hpc_03", "queued", "-", "-"],
+  ["jb_20260625_0011", "tk_0841", "run_6d2b7a", "exp_0911", "agent_tabnet", "tabnet_cv_v1", "2xA800 80GB", "gate_hpc_03", "blocked_by_gate", "-", "-"],
+  ["jb_20260625_0010", "tk_0840", "run_5c1a8f", "exp_0910", "agent_catboost", "catboost_cv_v1", "4xA800 80GB", "gate_hpc_02", "failed", "10:18:40", "00:06:41"]
+] as const;
+
+const codeSample = `import os
+import json
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import log_loss
+import lightgbm as lgb
+import xgboost as xgb
+import catboost as cb
+
+# 1. load audited data
+train = pd.read_parquet("data/train.parquet")
+test = pd.read_parquet("data/test.parquet")
+target = train["target"]
+
+# 2. feature engineering bound to Data Agent audit result
+def add_features(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+    df["ratio_ab"] = df["a"] / (df["b"] + 1e-6)
+    df["log_c"] = np.log1p(df["c"])
+    df["inter_a_c"] = df["a"] * df["c"]
+    return df
+
+train = add_features(train)
+test = add_features(test)
+
+# 3. OOF validation before any official submission
+oof = np.zeros(len(train))
+test_pred = np.zeros(len(test))
+skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+
+for fold, (trn_idx, val_idx) in enumerate(skf.split(train, target)):
+    model = lgb.LGBMClassifier(n_estimators=1800, learning_rate=0.025)
+    model.fit(train.iloc[trn_idx], target.iloc[trn_idx])
+    oof[val_idx] = model.predict_proba(train.iloc[val_idx])[:, 1]
+    test_pred += model.predict_proba(test)[:, 1] / 5
+
+metric = log_loss(target, oof)
+json.dump({"oof_logloss": metric}, open("metrics.json", "w"))`;
+
+function toneFor(value: string | undefined): StatusTone {
+  const v = String(value ?? "").toLowerCase();
+  if (["completed", "done", "passed", "verified", "online", "ready", "approved", "generated", "healthy"].some((x) => v.includes(x))) return "green";
+  if (["running", "reviewing", "queued", "draft", "indexed"].some((x) => v.includes(x))) return "blue";
+  if (["waiting", "pending", "warning", "review", "controlled", "stale"].some((x) => v.includes(x))) return "amber";
+  if (["failed", "blocked", "missing", "regression", "rejected"].some((x) => v.includes(x))) return "red";
+  return "slate";
+}
+
+function Page({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+  return (
+    <main className="space-y-4">
+      <div>
+        <h2 className="text-2xl font-black tracking-normal text-slate-950">{title}</h2>
+        <p className="mt-1 text-sm font-medium text-slate-500">{subtitle}</p>
+      </div>
+      {children}
+    </main>
+  );
+}
+
+function StatCard({ icon: Icon, label, value, sub, tone = "blue" }: { icon: React.ElementType; label: string; value: string; sub?: string; tone?: StatusTone }) {
+  const toneClass = {
+    blue: "border-blue-100 bg-blue-50 text-blue-700",
+    green: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+    slate: "border-slate-200 bg-slate-50 text-slate-700",
+    purple: "border-violet-100 bg-violet-50 text-violet-700"
+  }[tone];
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <span className={cn("flex h-10 w-10 items-center justify-center rounded-md border", toneClass)}>
+            <Icon className="h-4 w-4" />
+          </span>
+          <StatusBadge tone={tone}>{sub ?? tone}</StatusBadge>
+        </div>
+        <div className="mt-4 text-[11px] font-black uppercase tracking-[0.04em] text-slate-500">{label}</div>
+        <div className="mt-1 truncate text-2xl font-black text-slate-950">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Panel({ title, description, action, children, className }: { title: string; description?: string; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
+  return (
+    <Card className={cn("min-w-0", className)}>
+      <CardHeader className="flex flex-row items-start justify-between gap-3">
+        <div className="min-w-0">
+          <CardTitle>{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </div>
+        {action}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
+
+function Row({ label, value, monoValue = false }: { label: string; value: React.ReactNode; monoValue?: boolean }) {
+  return (
+    <div className="grid min-w-0 grid-cols-[136px_1fr] gap-3 border-b border-slate-100 py-2 text-xs last:border-b-0">
+      <span className="font-bold text-slate-500">{label}</span>
+      <span className={cn("min-w-0 break-words font-bold text-slate-900", monoValue && mono)}>{value}</span>
+    </div>
+  );
+}
+
+function Progress({ value, tone = "blue" }: { value: number; tone?: StatusTone }) {
+  const color = tone === "green" ? "bg-emerald-500" : tone === "amber" ? "bg-amber-500" : tone === "red" ? "bg-red-500" : "bg-blue-600";
+  return (
+    <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+      <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(0, Math.min(value, 100))}%` }} />
+    </div>
+  );
+}
+
+function MiniLine({ tone = "blue" }: { tone?: StatusTone }) {
+  const stroke = tone === "green" ? "#10b981" : tone === "amber" ? "#f59e0b" : tone === "red" ? "#ef4444" : "#2563eb";
+  return (
+    <svg viewBox="0 0 120 32" className="h-8 w-full">
+      <polyline points="0,22 12,18 24,20 36,11 48,15 60,9 72,17 84,8 96,12 108,5 120,10" fill="none" stroke={stroke} strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GatePipeline() {
+  const steps = [
+    ["Task Spec", "Done", "green"],
+    ["Data Audit", "Done", "green"],
+    ["Research Plan", "Done", "green"],
+    ["Code Draft", "Running", "blue"],
+    ["GPU/HPC Job", "Running", "blue"],
+    ["Metrics / OOF", "Waiting", "amber"],
+    ["Submission Gate", "Needs Approval", "amber"],
+    ["Kaggle Response", "Pending", "slate"],
+    ["Report", "Pending", "slate"]
+  ] as const;
+  return (
+    <Card>
+      <CardContent className="flex min-w-0 items-center gap-2 overflow-x-auto p-3">
+        {steps.map(([label, status, tone], index) => (
+          <div key={label} className="flex shrink-0 items-center gap-2">
+            <div className="flex min-w-[118px] flex-col items-center rounded-md border border-slate-200 bg-white px-3 py-2 text-center">
+              <StatusBadge tone={tone as StatusTone}>{status}</StatusBadge>
+              <span className="mt-1 text-xs font-black text-slate-700">{label}</span>
+            </div>
+            {index < steps.length - 1 ? <ArrowRight className="h-4 w-4 text-slate-300" /> : null}
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+function AgentGraph() {
+  return (
+    <Panel title="多智能体执行图 / Multi-Agent Execution Graph" description="任务流转、产物流转和失败回退状态">
+      <div className="workflow-bg rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+        <div className="mx-auto mb-4 w-fit rounded-lg border border-blue-200 bg-white px-5 py-3 text-center shadow-sm">
+          <StatusBadge tone="blue">running · routing</StatusBadge>
+          <div className="mt-1 text-sm font-black text-slate-950">Orchestrator Agent</div>
+          <div className={`${mono} mt-1 text-blue-700`}>orchestrator_state.json</div>
+        </div>
+        <div className="grid gap-2 md:grid-cols-3 xl:grid-cols-6">
+          {agents.slice(0, 6).map(([name, task, status, artifact, progress]) => (
+            <div key={name} className={cn("rounded-lg border bg-white p-3", status === "failed" ? "border-red-200" : status === "waiting" ? "border-amber-200" : "border-slate-200")}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-black text-slate-900">{name}</div>
+                <StatusBadge tone={toneFor(status)}>{status}</StatusBadge>
+              </div>
+              <div className="mt-2 min-h-8 text-[11px] leading-4 text-slate-500">{task}</div>
+              <div className={`${mono} mt-2 truncate rounded bg-slate-50 px-2 py-1 text-blue-700`}>{artifact}</div>
+              <div className="mt-2 flex items-center gap-2">
+                <div className="flex-1"><Progress value={progress} tone={toneFor(status)} /></div>
+                <span className="w-8 text-right text-[11px] font-black text-slate-500">{progress}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function ActionFooter() {
+  return (
+    <div className="sticky bottom-0 z-10 mt-4 rounded-lg border border-slate-200 bg-white/95 p-3 shadow-[0_-8px_26px_-26px_rgba(15,23,42,0.55)] backdrop-blur">
+      <div className="grid gap-3 md:grid-cols-4">
+        <div className="flex items-center gap-3">
+          <Activity className="h-5 w-5 text-blue-600" />
+          <div><div className="text-xs font-black text-slate-500">Active Phase</div><div className="text-sm font-black text-slate-900">OOF / CV</div></div>
+        </div>
+        <div><div className="text-xs font-black text-slate-500">Current Best Protected</div><div className={`${mono} text-slate-900`}>exp_909 · RMSE 0.76321</div></div>
+        <div><div className="text-xs font-black text-slate-500">Next Allowed Action</div><div className="text-sm font-black text-amber-700">等待 Submission Gate 审批</div></div>
+        <div><div className="text-xs font-black text-slate-500">Human Approval Pending</div><div className="text-sm font-black text-red-700">3 items</div></div>
+      </div>
+    </div>
+  );
+}
+
+export function MissionControl(props: ScreenProps) {
+  return (
+    <Page title="AI 科研工作站 · 任务总控" subtitle="任务、Agent、算力、证据、Gate 与报告的主工作区">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={Activity} label="Run ID" value="wr_2026-06-25T10-38-14-633Z_ll7ln" sub="Running" tone="blue" />
+        <StatCard icon={Database} label="Task ID" value="spaceship_titanic_2nd_round" sub="6 / 9" tone="blue" />
+        <StatCard icon={Cpu} label="GPU/HPC" value="A800 cluster" sub="Running" tone="green" />
+        <StatCard icon={ShieldCheck} label="Gate" value="Waiting Approval" sub="Human" tone="amber" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[330px_1fr_320px]">
+        <Panel title="Current Experiment Brief" description="研究假设、指标与下一步动作">
+          <Row label="Task" value="Spaceship Titanic" />
+          <Row label="Hypothesis" value="Graph + Target Encoding + Model Ensembling improves leaderboard score." />
+          <Row label="Dataset" value="train.csv (8693 rows / 14 features)" />
+          <Row label="Metric" value="Private Score (Kaggle)" />
+          <Row label="Current Best" value="0.78456 (cv_5fold)" />
+          <Row label="Next Action" value={<span className="text-amber-700">等待审批：提交候选集 submission_v3.csv</span>} />
+        </Panel>
+        <AgentGraph />
+        <Panel title="Evidence Summary" description="证据、Gate 与资源状态">
+          <div className="grid grid-cols-3 gap-2">
+            <StatMini label="Artifacts" value="18" tone="blue" />
+            <StatMini label="Complete" value="62%" tone="green" />
+            <StatMini label="Last Sync" value="1m" tone="slate" />
+          </div>
+          <div className="mt-4 space-y-2">
+            {["Code Quality Gate passed", "HPC Execution Gate passed", "Submission Approval waiting"].map((x) => (
+              <div key={x} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs">
+                <span className="font-bold text-slate-700">{x}</span>
+                <StatusBadge tone={toneFor(x)}>{x.split(" ").at(-1)}</StatusBadge>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      </div>
+      <GatePipeline />
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr_1fr]">
+        <AgentLog />
+        <ArtifactCenter />
+        <TimelinePanel />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-5">
+        <AgentAssignment />
+        <LatestResult />
+        <FailureRollback />
+        <NextOptimization />
+        <GpuMonitor />
+      </div>
+      <ActionFooter />
+    </Page>
+  );
+}
+
+function StatMini({ label, value, tone }: { label: string; value: string; tone: StatusTone }) {
+  return <div className="rounded-md border border-slate-200 p-2"><div className="text-[11px] font-bold text-slate-500">{label}</div><div className="mt-1 text-lg font-black text-slate-950">{value}</div><StatusBadge tone={tone}>{tone}</StatusBadge></div>;
+}
+
+function AgentLog() {
+  const rows = ["Code Agent generated train_v2.py", "GPU Agent job 4821 started", "Validation Agent wrote oof_preds.parquet", "Data Agent audit_v2.json verified", "Orchestrator dispatched tasks"];
+  return (
+    <Panel title="Realtime Agent Log" description="Live">
+      <div className="space-y-2">
+        {rows.map((row, i) => <div key={row} className="grid grid-cols-[68px_100px_1fr] text-xs"><span className="text-slate-500">10:4{i}:18</span><span className="font-black text-blue-700">{i % 2 ? "GPU Agent" : "Code Agent"}</span><span className="truncate text-slate-700">{row}</span></div>)}
+      </div>
+    </Panel>
+  );
+}
+
+function ArtifactCenter() {
+  return (
+    <Panel title="Artifact Center" description="产物、版本与校验">
+      <DenseTable
+        headers={["Artifact", "Type", "Agent", "Status"]}
+        rows={[
+          ["plan_v3.md", "Plan", "Research", "Verified"],
+          ["feature_audit.json", "Audit", "Data", "Verified"],
+          ["train_v2.py", "Code", "Code", "Generated"],
+          ["oof_preds.parquet", "Data", "Validation", "Waiting"],
+          ["submission_v3.csv", "Submission", "Report", "Ready"]
+        ]}
+      />
+    </Panel>
+  );
+}
+
+function TimelinePanel() {
+  return (
+    <Panel title="Experiment Timeline" description="Agent Gantt">
+      <div className="space-y-3">
+        {agents.slice(0, 7).map(([name], i) => (
+          <div key={name} className="grid grid-cols-[120px_1fr] items-center gap-3 text-xs">
+            <span className="truncate font-bold text-slate-600">{name}</span>
+            <div className="h-2 rounded-full bg-slate-100"><div className={cn("h-2 rounded-full", i % 3 === 0 ? "bg-blue-500" : i % 3 === 1 ? "bg-emerald-500" : "bg-amber-500")} style={{ width: `${48 + i * 6}%` }} /></div>
+          </div>
+        ))}
+      </div>
+    </Panel>
+  );
+}
+
+function AgentAssignment() {
+  return <Panel title="Agent Assignment" description="分工表" className="xl:col-span-1"><DenseTable headers={["Agent", "Status"]} rows={agents.slice(0, 7).map(([a, , s]) => [a, s])} /></Panel>;
+}
+
+function LatestResult() {
+  return <Panel title="Latest Result" description="CV 5-Fold"><DenseTable headers={["Fold", "OOF", "Status"]} rows={[["Fold1", "0.78123", "Done"], ["Fold2", "0.78541", "Done"], ["Fold3", "0.78702", "Done"], ["Mean", "0.78456", "Done"]]} /></Panel>;
+}
+
+function FailureRollback() {
+  return <Panel title="Failure Rollback" description="失败与回退"><DenseTable headers={["Time", "Reason", "Action"]} rows={[["10:38", "OOM", "Reverted"], ["10:34", "GPU OOM", "Requeued"], ["10:21", "schema", "Fixed"]]} /></Panel>;
+}
+
+function NextOptimization() {
+  return <Panel title="Next Optimization" description="下一轮建议"><ul className="space-y-2 text-xs font-semibold text-slate-700"><li>• 尝试 LightGBM + CatBoost 堆叠</li><li>• 增加 Graph Centrality / Embedding</li><li>• 调参空间：LR、Depth、L2</li></ul></Panel>;
+}
+
+function GpuMonitor() {
+  return <Panel title="GPU/HPC Monitor" description="资源使用"><div className="space-y-3"><Row label="GPU" value="75%" /><Progress value={75} tone="blue" /><Row label="Memory" value="63%" /><Progress value={63} tone="green" /><Row label="Jobs" value="1 running / 1 queued" /></div></Panel>;
+}
+
+function DenseTable({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] | readonly (readonly React.ReactNode[])[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[420px] text-left text-xs">
+        <thead><tr className="border-b border-slate-200 text-[11px] uppercase text-slate-500">{headers.map((h) => <th key={h} className="px-2 py-2 font-black">{h}</th>)}</tr></thead>
+        <tbody>{rows.map((row, i) => <tr key={i} className="border-b border-slate-100 last:border-0">{row.map((cell, j) => <td key={j} className="px-2 py-2 font-semibold text-slate-700">{typeof cell === "string" && j === row.length - 1 ? <StatusBadge tone={toneFor(cell)}>{cell}</StatusBadge> : cell}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+}
+
+export function OverviewBoardEnhanced(props: ScreenProps) {
+  return <MissionControl {...props} />;
+}
+
+export function AiControlConsole(props: ScreenProps) {
+  return (
+    <Page title="AI 控制台" subtitle="用自然语言控制科研工作站，所有动作写入审计日志">
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Command Console" description="科研任务、训练、报告、证据与 Gate 的统一入口">
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+            <textarea className="min-h-[160px] w-full resize-none rounded-md border border-slate-200 bg-white p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="例如：让工作站为 spaceship_titanic 创建二轮自进化计划，但不要提交 Kaggle，先生成 evidence bundle..." />
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["Create Run", "Dispatch Agents", "Generate Report", "Open Gate"].map((x) => <Button key={x} variant="secondary" size="sm">{x}</Button>)}
+              <Button variant="primary" size="sm" onClick={() => props.runWorkstationAction?.("ai_control_execute")}>执行受控动作</Button>
+            </div>
+          </div>
+        </Panel>
+        <Panel title="Action Trace" description="最近一次工作站动作">
+          <Row label="Action" value={props.lastActionTrace?.action ?? "navigate_page"} monoValue />
+          <Row label="Artifact" value={props.lastActionTrace?.artifact ?? "workspace/ui_state/latest.json"} monoValue />
+          <Row label="Message" value={props.systemActionMessage ?? "ready"} />
+        </Panel>
+      </div>
+      <AgentGraph />
+    </Page>
+  );
+}
+
+export function DataKagglePipeline(_props: ScreenProps) {
+  return (
+    <Page title="数据与 Kaggle" subtitle="数据接入、schema 审计、Kaggle 下载与 submission 门禁">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={ShieldCheck} label="分数门禁" value="保护历史 best" sub="Score Guard" tone="green" />
+        <StatCard icon={Database} label="证据索引" value="产物可审计" sub="12 / 12" tone="blue" />
+        <StatCard icon={UserCheck} label="人工 GATE" value="提交需审批" sub="待审批 1" tone="amber" />
+        <StatCard icon={Lock} label="上线边界" value="算力与提交受控" sub="Gate" tone="slate" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
+        <Panel title="Kaggle 数据流概览" description="当前 run、任务、指标与人工 Gate">
+          <Row label="Run ID" value="wr_2026-06-25T10-38-14-633Z_ll7ln" monoValue />
+          <Row label="Task ID" value="task_spaceship_titanic_2nd_round" monoValue />
+          <Row label="Competition" value={<span>Spaceship Titanic · <span className="text-blue-700">kaggle.com/c/spaceship-titanic</span></span>} />
+          <Row label="Metric" value="rmsle (minimize)" />
+          <Row label="Train / Test" value="8,703,498 / 4,271,574 rows" />
+          <Row label="Human Gate" value={<StatusBadge tone="amber">待审批</StatusBadge>} />
+        </Panel>
+        <Panel title="Kaggle Readiness / Gate Summary" description="数据准备、证据审计与风险边界">
+          {["数据准备 ready", "数据下载 completed", "Schema 校验 passed", "特征审计 passed", "OOF / CV completed", "Submission Candidate ready", "人工 Gate 待审批", "风险 Flags 1 个"].map((x) => <Row key={x} label={x.split(" ")[0]} value={<StatusBadge tone={toneFor(x)}>{x.replace(x.split(" ")[0], "").trim()}</StatusBadge>} />)}
+        </Panel>
+      </div>
+      <GatePipeline />
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="最近实验结果" description="Recent Experiments"><DenseTable headers={["实验 ID", "模型路线", "CV", "Public", "状态"]} rows={[["exp_1036", "lgbm_v5_stack", "0.9659", "0.8765", "running"], ["exp_1012", "lgbm_v5", "0.9662", "0.8731", "completed"], ["exp_0945", "xgb_v3", "0.9678", "0.8654", "completed"]]} /></Panel>
+        <Panel title="失败 / 回退记录" description="Failure & Rollback"><DenseTable headers={["时间", "原因", "实验", "状态"]} rows={[["10:12", "cv_timeout", "exp_1001", "resolved"], ["09:41", "schema_mismatch", "exp_0932", "resolved"], ["09:15", "metric_regression", "exp_0910", "reviewed"]]} /></Panel>
+        <Panel title="下一轮优化建议" description="Next Optimization"><DenseTable headers={["方向", "优先级", "Agent"]} rows={[["特征工程优化", "High", "Data Agent"], ["模型集成 / 堆叠", "High", "Code Agent"], ["阈值搜索", "Medium", "Validation Agent"]]} /></Panel>
+      </div>
+    </Page>
+  );
+}
+
+export function CodeRunner(props: ScreenProps) {
+  return (
+    <Page title="代码 Agent IDE" subtitle="算法代码生成、Diff 审计、质量 Gate 与执行沙箱">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={FileCode2} label="代码来源可追溯" value="12 / 12" sub="良好" tone="green" />
+        <StatCard icon={ShieldCheck} label="质量审计状态" value="4 passed" sub="部分通过" tone="amber" />
+        <StatCard icon={Server} label="执行沙箱受控" value="Ready for HPC" sub="就绪" tone="blue" />
+        <StatCard icon={Lock} label="低分不覆盖 best" value="Score Gate" sub="策略生效" tone="blue" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[320px_1fr_360px]">
+        <Panel title="Workspace Explorer" description="文件树与实验绑定">
+          <div className="mb-3 grid grid-cols-3 gap-2">
+            {["Task", "Run", "Exp"].map((x) => <button key={x} className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-bold">{x}</button>)}
+          </div>
+          {["experiments/exp_20260625_1036", "train.py", "features.py", "model_lgbm.py", "model_xgb.py", "blend.py", "submission.py", "requirements.txt", "run_manifest.json", "metrics.json", "audits/quality_gate.json"].map((x, i) => (
+            <div key={x} className={cn("flex items-center justify-between border-b border-slate-100 py-1.5 text-xs", i === 1 && "bg-blue-50 px-2")}>
+              <span className={cn("truncate", i > 0 && "pl-4", mono)}>{x}</span>
+              <StatusBadge tone={i % 3 === 0 ? "blue" : i % 3 === 1 ? "green" : "amber"}>{i % 3 === 0 ? "reviewed" : i % 3 === 1 ? "generated" : "edited"}</StatusBadge>
+            </div>
+          ))}
+          <div className="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Row label="task_id" value="TASK-2026-1036" monoValue />
+            <Row label="run_id" value="wr_2026-06-25T10-38" monoValue />
+            <Row label="mode" value="Base / Stepwise / Diff" />
+          </div>
+        </Panel>
+        <Panel title="train.py" description="Generated by Code Agent · reviewed by human" action={<div className="flex gap-2"><Button size="sm">Ask Code Agent</Button><Button size="sm" variant="secondary">Review Diff</Button><Button size="sm" variant="secondary">Run Smoke Test</Button><Button size="sm" variant="secondary">Request Gate</Button><Button size="sm" variant="secondary" disabled>Send to HPC</Button></div>}>
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
+            <div className="flex gap-1 border-b border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold">
+              {["train.py", "features.py", "blend.py", "submission.py", "metrics.json"].map((x, i) => <span key={x} className={cn("rounded px-3 py-1", i === 0 ? "bg-white text-blue-700 shadow-sm" : "text-slate-600")}>{x}</span>)}
+            </div>
+            <pre className={`${mono} thin-scrollbar max-h-[560px] overflow-auto p-4 leading-6 text-slate-800`}>
+              {codeSample.split("\n").map((line, i) => `${String(i + 1).padStart(3, " ")}  ${line}`).join("\n")}
+            </pre>
+          </div>
+        </Panel>
+        <Panel title="Trace Detail" description="代码生成、Diff 与 Gate 审计">
+          <Row label="Agent" value="Code Implementation Agent" />
+          <Row label="Hypothesis" value="HYP-024" monoValue />
+          <Row label="Expected" value="logloss improvement > 0.003" />
+          <Row label="Rollback" value="CV logloss 下降 < 0 即回退" />
+          <DenseTable headers={["Check", "Status"]} rows={[["Syntax", "passed"], ["Unit smoke", "passed"], ["Secret scan", "passed"], ["Leakage check", "waiting"], ["Dependency", "passed"]]} />
+          <div className="mt-4">
+            <div className="mb-2 text-xs font-black text-slate-500">底部 Terminal / Metrics / Artifacts</div>
+            <pre className={`${mono} rounded-lg bg-slate-950 p-3 leading-5 text-emerald-200`}>[info] python -m py_compile train.py ... OK{"\n"}[info] smoke test passed{"\n"}[warn] submission schema audit pending</pre>
+          </div>
+        </Panel>
+      </div>
+    </Page>
+  );
+}
+
+export function GpuHpcConsole(_props: ScreenProps) {
+  return (
+    <Page title="GPU / HPC 控制台" subtitle="算力资源状态、作业门禁、远程训练与产物回传">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={Server} label="GPU Gateway" value="ssh_gateway" sub="Connected" tone="green" />
+        <StatCard icon={Cpu} label="Resource Pool" value="A800 Cluster" sub="8 GPUs" tone="blue" />
+        <StatCard icon={ShieldCheck} label="Job Gate" value="HPC approval required" sub="Controlled" tone="amber" />
+        <StatCard icon={Download} label="Artifact Pullback" value="Artifacts returning" sub="72%" tone="green" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_1fr]">
+        <Panel title="当前 GPU/HPC 资源" description="Resource Profile">
+          <div className="grid gap-x-6 md:grid-cols-2">
+            {["Cluster Name:a800-cluster-prod", "SSH Gateway:ssh_gateway", "User Account:hpc_user_***", "GPU Model:NVIDIA A800 80GB", "CUDA Version:12.2", "GPU Memory:80 GB", "CPU:64 vCPU", "RAM:256 GB", "Disk Workspace:/workspace", "Python:conda research-3.10", "Dependencies:LightGBM / XGBoost / CatBoost / PyTorch", "nvidia-smi:All 8 GPUs OK"].map((x) => {
+              const [k, v] = x.split(":");
+              return <Row key={x} label={k} value={<span>{v} <StatusBadge tone="green">ready</StatusBadge></span>} />;
+            })}
+          </div>
+        </Panel>
+        <Panel title="资源健康监控" description="Resource Health Monitor">
+          <div className="grid gap-3 md:grid-cols-2">
+            <div><div className="text-xs font-black text-slate-500">GPU Utilization</div><MiniLine /><Progress value={37} /></div>
+            <div><Row label="GPU Memory" value="237 / 384 GB" /><Progress value={62} tone="green" /></div>
+            <div><Row label="CPU Usage" value="27 / 64 cores" /><Progress value={42} tone="green" /></div>
+            <div><Row label="Running Jobs" value="2" /><Row label="Queued Jobs" value="2" /><Row label="Last Heartbeat" value="2026-06-25 11:38:21" /></div>
+          </div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.4fr_0.8fr]">
+        <Panel title="作业队列 / Job Queue" description="Manifest-gated remote training">
+          <DenseTable headers={["job_id", "task_id", "run_id", "agent", "template", "status", "duration"]} rows={jobs.map((j) => [j[0], j[1], j[2], j[4], j[5], j[8], j[10]])} />
+        </Panel>
+        <Panel title="GPU Job Manifest" description="受控命令模板">
+          <pre className={`${mono} max-h-[260px] overflow-auto rounded-lg bg-slate-950 p-3 leading-5 text-slate-100`}>command_template: python train.py --config {"{config}"} --fold {"{fold}"}{"\n"}timeout: 03:00:00{"\n"}python_version: 3.10.14{"\n"}output_artifacts: metrics.json, oof_pred.parquet, submission.csv{"\n"}gate_dependency: gate_hpc_03, gate_submission</pre>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px_1fr]">
+        <Panel title="远程训练日志" description="stdout / stderr / nvidia-smi / metrics">
+          <pre className={`${mono} rounded-lg bg-slate-950 p-3 leading-5 text-emerald-200`}>[info] CUDA available: True{"\n"}[info] loading train/test parquet{"\n"}[fold 1/5] training LightGBM{"\n"}[info] oof_pred.parquet saved{"\n"}[warn] waiting for Submission Gate approval</pre>
+        </Panel>
+        <Panel title="Gate 与安全控制" description="Start 受 Gate 控制">
+          <DenseTable headers={["Gate", "Status"]} rows={[["HPC Execution", "passed"], ["Code Quality", "passed"], ["Resource Preflight", "passed"], ["Secret Scan", "passed"], ["Submission Gate", "waiting"], ["Human Approval", "waiting"]]} />
+          <Button className="mt-4 w-full" variant="secondary" disabled><Lock className="h-4 w-4" /> Start Training</Button>
+        </Panel>
+        <Panel title="Artifact Pullback" description="产物回传">
+          <DenseTable headers={["artifact", "status"]} rows={[["metrics.json", "returned"], ["oof_pred.parquet", "returned"], ["submission.csv", "pending"], ["stdout.log", "returned"], ["gpu_job_manifest.yaml", "verified"]]} />
+        </Panel>
+      </div>
+      <FailureRollback />
+      <ActionFooter />
+    </Page>
+  );
+}
+
+export function EvidenceLedger(_props: ScreenProps) {
+  return (
+    <Page title="证据台账" subtitle="统一归档 artifact、日志、指标、报告和审计证据">
+      <div className="flex flex-wrap gap-2 rounded-lg border border-slate-200 bg-white p-3">
+        {["task_id 全部", "run_id 全部", "exp_id 全部", "agent 全部", "artifact_type 全部", "gate_status 全部", "claim_binding 全部"].map((x) => <button key={x} className="rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold">{x}</button>)}
+        <Button size="sm" variant="secondary"><Filter className="h-4 w-4" /> 更多筛选</Button>
+      </div>
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={ShieldCheck} label="Evidence Coverage" value="92%" sub="良好" tone="green" />
+        <StatCard icon={Database} label="Artifact Integrity" value="1,284 / 1,342" sub="95.7%" tone="blue" />
+        <StatCard icon={GitBranch} label="Claim Binding" value="24 / 31" sub="77.4%" tone="blue" />
+        <StatCard icon={AlertTriangle} label="Missing Evidence" value="7" sub="高风险" tone="red" />
+      </div>
+      <Panel title="证据谱系 / Evidence Lineage" description="Task -> Run -> Experiment -> Agent -> Artifact -> Claim -> Report">
+        <div className="grid gap-2 md:grid-cols-7">
+          {["Task", "Run", "Experiment", "Agent", "Artifact", "Claim", "Report"].map((x, i) => <div key={x} className={cn("rounded-lg border p-3 text-center", i === 4 ? "border-blue-300 bg-blue-50" : "border-slate-200 bg-white")}><StatusBadge tone={i < 5 ? "blue" : "green"}>{i === 4 ? "selected" : "linked"}</StatusBadge><div className="mt-2 text-sm font-black text-slate-900">{x}</div><div className={`${mono} mt-1 text-slate-500`}>{i === 4 ? "metrics_1001" : `${x.toLowerCase()}_id`}</div></div>)}
+        </div>
+      </Panel>
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Artifact Ledger" description="证据总账">
+          <DenseTable headers={["artifact_id", "type", "task", "run", "exp", "agent", "stage", "sha256", "claim", "gate", "status"]} rows={artifacts.map((a) => [a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[8], a[9], a[10], a[11]])} />
+        </Panel>
+        <Panel title="Artifact Detail" description="右侧证据详情抽屉">
+          <Row label="artifact_id" value="metrics_20260625_1001" monoValue />
+          <Row label="artifact_type" value="metrics" />
+          <Row label="file path" value="/runs/run_20260625_10/exp_1001/metrics.json" monoValue />
+          <Row label="sha256" value="91fa5c8b..." monoValue />
+          <Row label="linked claim" value="claim_003" monoValue />
+          <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-xs font-bold text-amber-800">注意事项：Artifact 较旧，建议重新生成以确保最新。</div>
+          <pre className={`${mono} mt-3 rounded-lg bg-slate-950 p-3 leading-5 text-slate-100`}>{"{ \"exp_id\": \"exp_1001\", \"auc\": 0.8742, \"timestamp\": \"2026-06-25T10:30:12Z\" }"}</pre>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-4">
+        <Panel title="Claim Binding / Claim Audit" description="结论绑定"><DenseTable headers={["claim", "evidence", "status"]} rows={[["CLM-003", "metrics, oof", "confirmed"], ["CLM-011", "metrics", "weak"], ["CLM-118", "public only", "unsupported"]]} /></Panel>
+        <Panel title="Artifact Integrity" description="完整性检查"><DenseTable headers={["check", "status"]} rows={[["Hash 已验证", "passed"], ["Schema 合规", "passed"], ["Path 存在", "passed"], ["Gate 依赖满足", "waiting"]]} /></Panel>
+        <Panel title="Evidence Timeline" description="审计日志"><DenseTable headers={["time", "agent", "action"]} rows={[["10:36", "audit-agent", "verified"], ["10:35", "gate-agent", "approved"], ["10:34", "submit-agent", "created"]]} /></Panel>
+        <Panel title="Delivery / Bundle" description="交付包"><DenseTable headers={["file", "status"]} rows={[["teacher_report.pdf", "pending"], ["evidence_bundle.zip", "verified"], ["claim_audit.json", "blocked"], ["gpu_job_logs.zip", "verified"]]} /></Panel>
+      </div>
+      <ActionFooter />
+    </Page>
+  );
+}
+
+export function ReportStudio(_props: ScreenProps) {
+  return (
+    <Page title="报告工作室" subtitle="AI 自动汇总实验结果、证据链、风险审计与最终交付材料">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={ShieldCheck} label="分数门禁" value="保护历史 best" sub="已启用" tone="green" />
+        <StatCard icon={Database} label="证据索引" value="产物可审计" sub="运行中" tone="blue" />
+        <StatCard icon={UserCheck} label="人工 GATE" value="报告需审批" sub="审阅中" tone="amber" />
+        <StatCard icon={Lock} label="上线边界" value="算力与提交受控" sub="受控中" tone="slate" />
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[300px_1fr_360px]">
+        <Panel title="报告大纲 / Outline" description="章节生成状态">
+          {["Executive Summary", "Task & Dataset", "Agent Workflow", "Experiment Results", "Score Gate", "Failure & Rollback", "Evidence Ledger", "Claim Audit", "Risk Boundary", "Next Plan", "Appendix"].map((x, i) => <div key={x} className="flex items-center justify-between border-b border-slate-100 py-2 text-xs"><span className="font-bold text-slate-700">{i + 1}. {x}</span><StatusBadge tone={i === 5 || i === 7 ? "amber" : "green"}>{i === 5 ? "needs evidence" : i === 7 ? "needs review" : "generated"}</StatusBadge></div>)}
+        </Panel>
+        <Panel title="AI 生成报告 / Report Draft" description="人工可编辑、证据可绑定">
+          <article className="report-page rounded-lg border border-slate-200 bg-white px-10 py-8">
+            <div className="text-center"><h1 className="text-2xl font-black">房价预测研究报告（教师版）</h1><p className="mt-2 text-xs text-slate-500">Author: AI Agent (DeepSeek-R1) · Reviewer: 王老师 · Project: house_price_pred</p></div>
+            <h2 className="mt-8 text-base font-black">摘要 / Abstract</h2>
+            <p className="mt-2 text-sm leading-7 text-slate-700">本报告基于多轮实验、Agent trace、CV/OOF 指标与 evidence ledger 自动生成。所有结论均绑定 exp_id、metrics.json、oof_pred.parquet 与 claim_audit.json。</p>
+            <DenseTable headers={["Model", "CV", "Public", "MAE", "Evidence"]} rows={[["XGBoost + Stacking", "0.8412", "0.8251", "0.0853", "exp_9981 / metrics.json"], ["LightGBM", "0.8320", "0.8150", "0.0881", "exp_9972 / metrics.json"], ["CatBoost", "0.8234", "0.8067", "0.0896", "exp_9973 / metrics.json"]]} />
+            <h2 className="mt-6 text-base font-black">风险边界 / Risk Note</h2>
+            <p className="mt-2 text-sm leading-7 text-amber-800">CV 与 Public 存在 1.6% gap，报告仅允许写作“候选提升”，不能宣称官方奖牌。</p>
+          </article>
+        </Panel>
+        <Panel title="审核与证据 / Review & Evidence" description="质量 Gate、Claim Audit 与导出">
+          <Row label="Evidence Coverage" value="92%" />
+          <Progress value={92} tone="green" />
+          <DenseTable headers={["Audit", "Count"]} rows={[["Passed", "8"], ["Needs Revision", "1"], ["Blocked", "0"]]} />
+          <div className="mt-4 rounded-md border border-slate-200 p-3">
+            <div className="text-xs font-black text-slate-500">Report Package</div>
+            <DenseTable headers={["file", "status"]} rows={[["teacher_report.pdf", "warning"], ["experiment_summary.xlsx", "passed"], ["evidence_bundle.zip", "passed"], ["claim_audit.json", "warning"]]} />
+          </div>
+          <Button className="mt-4 w-full" variant="primary"><Download className="h-4 w-4" /> 导出草稿 PDF</Button>
+          <Button className="mt-2 w-full" variant="secondary" disabled><Lock className="h-4 w-4" /> 最终导出需人工审批</Button>
+        </Panel>
+      </div>
+    </Page>
+  );
+}
+
+export function LiteratureKnowledge(_props: ScreenProps) {
+  return (
+    <Page title="文献与知识库" subtitle="文献检索、RAG 资料库与研究上下文">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={BookOpen} label="Knowledge Coverage" value="1,248" sub="82%" tone="green" />
+        <StatCard icon={Database} label="RAG Index" value="Healthy" sub="1,862,334 chunks" tone="blue" />
+        <StatCard icon={GitBranch} label="Citation Binding" value="216 / 268" sub="81%" tone="amber" />
+        <StatCard icon={ShieldAlert} label="Risk Boundary" value="38" sub="高风险" tone="red" />
+      </div>
+      <div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">Research briefs and citations must bind to real source artifacts before report approval.</div>
+      <div className="grid gap-4 xl:grid-cols-[1fr_1.1fr_360px]">
+        <Panel title="文献库 / Literature Library" description="论文、报告、讨论与内部笔记">
+          <DenseTable headers={["Title", "Year", "Venue", "Score", "Task", "Exp", "Status"]} rows={[["Informer: Beyond Efficient Transformer", "2021", "AAAI", "0.95", "TSF-2026", "EXP-142", "indexed"], ["Autoformer", "2021", "NeurIPS", "0.92", "TSF-2026", "EXP-142", "indexed"], ["FEDformer", "2022", "ICLR", "0.90", "TSF-2026", "EXP-156", "parsed"], ["DeepAR", "2017", "AWS", "0.74", "TSF-2026", "EXP-098", "indexed"]]} />
+        </Panel>
+        <Panel title="阅读与方法抽取" description="PDF 预览、关键方法和引用绑定">
+          <h3 className="text-sm font-black text-slate-950">Informer: Beyond Efficient Transformer for Long Sequence Time-Series Forecasting</h3>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-slate-200 p-3 text-xs leading-5"><b>Abstract</b><br />We propose Informer, a transformer with ProbSparse self-attention and distilling for long sequence forecasting.</div>
+            <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs leading-5"><b>Source text</b><br />“ProbSparse self-attention selects the most informative queries...” <StatusBadge tone="blue">引用</StatusBadge></div>
+            <div className="rounded-md border border-slate-200 p-3 text-xs leading-5"><b>Implementation Hints</b><br />Use sparse attention, distill every 2 layers, positional encoding.</div>
+            <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs leading-5"><b>Claim Risk</b><br />Only bind to claim after experiment and artifact validation.</div>
+          </div>
+        </Panel>
+        <Panel title="Agent Context Builder" description="RAG 上下文与 Agent 绑定">
+          <Row label="当前任务" value="TSF-2026-06 Time-Series Forecasting" />
+          <Row label="Selected papers" value="3" />
+          <Row label="Retrieved chunks" value="28" />
+          <Row label="Context budget" value="6,120 / 8,192 tokens" />
+          <Progress value={75} tone="green" />
+          <Button className="mt-4 w-full" variant="primary">构建 Agent Context</Button>
+          <div className="mt-3 grid grid-cols-2 gap-2"><Button size="sm" variant="secondary">发送 Research Agent</Button><Button size="sm" variant="secondary">发送 Code Agent</Button><Button size="sm" variant="secondary">绑定 Report Claim</Button><Button size="sm" variant="secondary">请求引用审计</Button></div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="RAG Retrieval Results" description="检索结果"><DenseTable headers={["chunk", "score", "source", "used"]} rows={[["ProbSparse attention selects...", "0.95", "Informer (2021)", "accepted"], ["Distilling operation halves...", "0.92", "Informer (2021)", "accepted"], ["Auto-correlation can capture...", "0.88", "Autoformer", "review"]]} /></Panel>
+        <Panel title="Reusable Strategy Memory" description="可复用策略记忆"><DenseTable headers={["strategy", "paper", "benefit"]} rows={[["Feature Engineering", "P-2021-0916", "3-8%"], ["Model Family", "P-2021-17325", "5-12%"], ["Validation Strategy", "P-2019-06347", "稳定"]]} /></Panel>
+        <Panel title="Citation / Claim Audit" description="引用与结论审计"><DenseTable headers={["Claim", "Paper", "Status"]} rows={[["ProbSparse reduces complexity", "P-2021-17325", "confirmed"], ["Informer ETTm2 MAPE 19.3%", "P-2021-17325", "confirmed"], ["泛化到所有场景", "-", "unsupported"]]} /></Panel>
+      </div>
+    </Page>
+  );
+}
+
+export function AgentRuntime(_props: ScreenProps) {
+  return (
+    <Page title="AI 科研工作站 · Agent 运行时" subtitle="实时 trace、工具调用、失败回退与运行时间线">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={Users} label="Agent Fleet" value="11" sub="7 运行中" tone="blue" />
+        <StatCard icon={TerminalSquare} label="Tool Calls" value="326" sub="94.2%" tone="green" />
+        <StatCard icon={Box} label="Artifact Output" value="87" sub="12 待验证" tone="amber" />
+        <StatCard icon={Activity} label="Runtime Health" value="82.6%" sub="cache hit" tone="green" />
+      </div>
+      <AgentGraph />
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Agent 状态矩阵 (11/11)" description="每个 Agent 的当前状态、任务、进度与输出">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {agents.map(([name, task, status, artifact, progress]) => (
+              <div key={name} className={cn("rounded-lg border bg-white p-3", status === "failed" ? "border-red-200" : status === "waiting" ? "border-amber-200" : status === "running" ? "border-blue-200" : "border-slate-200")}>
+                <div className="flex items-center justify-between gap-2"><div className="text-sm font-black text-slate-950">{name}</div><StatusBadge tone={toneFor(status)}>{status}</StatusBadge></div>
+                <div className="mt-2 text-xs text-slate-500">{task}</div>
+                <div className="mt-2"><Progress value={progress} tone={toneFor(status)} /></div>
+                <div className={`${mono} mt-2 truncate rounded bg-slate-50 px-2 py-1 text-blue-700`}>{artifact}</div>
+                <div className="mt-2 flex gap-2"><button className="text-xs font-bold text-blue-700">trace</button><button className="text-xs font-bold text-blue-700">artifacts</button><button className="text-xs font-bold text-blue-700">retry</button></div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+        <Panel title="Trace Detail" description="选中 Agent 的工具调用与缓存">
+          <Row label="Agent" value="Code Implementation Agent" />
+          <Row label="agent_id" value="ag_code_impl_03" monoValue />
+          <Row label="Status" value={<StatusBadge tone="blue">运行中</StatusBadge>} />
+          <DenseTable headers={["Tool Call", "Status", "Duration"]} rows={[["read_artifact", "success", "0.32s"], ["call_deepseek", "success", "1.62s"], ["generate_code", "success", "3.41s"], ["run_smoke_test", "success", "1.11s"], ["submit_gpu_job", "running", "5.23s"], ["pull_artifacts", "waiting", "-"]]} />
+          <div className="mt-4 rounded-md border border-slate-200 p-3">
+            <Row label="LLM" value="DeepSeek-V3.1 (32k)" />
+            <Row label="Cache" value={<StatusBadge tone="green">HIT</StatusBadge>} />
+            <Row label="Cost" value="$0.84" />
+          </div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Run Timeline" description="运行时间线"><DenseTable headers={["Time", "Stage", "Status"]} rows={[["10:20", "Research context", "completed"], ["10:26", "Code Agent", "running"], ["10:30", "HPC job", "running"], ["10:32", "retry #1", "failed"], ["10:34", "Submission Gate", "waiting"]]} /></Panel>
+        <Panel title="Failure & Recovery" description="失败与恢复"><DenseTable headers={["Agent", "Failure", "Retry", "Protected"]} rows={[["Reflection Agent", "tool_timeout", "1", "Yes"], ["GPU Agent", "hpc_job_failed", "1", "Yes"], ["Code Agent", "code_generation_error", "0", "Yes"]]} /></Panel>
+        <Panel title="Agent Performance" description="性能面板"><div className="grid grid-cols-2 gap-3"><StatMini label="缓存命中率" value="82.6%" tone="green" /><StatMini label="Token 使用" value="1.82M" tone="blue" /><StatMini label="平均延迟" value="1.28s" tone="green" /><StatMini label="失败率" value="6.1%" tone="amber" /></div></Panel>
+      </div>
+      <Panel title="Action Log / Event Stream" description="实时事件流">
+        <DenseTable headers={["time", "agent", "action", "status", "artifact"]} rows={[["10:38:15", "Orchestrator", "dispatch", "success", "task_code_impl_91"], ["10:38:02", "Code Agent", "write_artifact", "success", "train.py"], ["10:37:48", "CodeQuality Gate", "scan_code", "blocked", "train.py"], ["10:37:05", "GPU Agent", "submit_gpu_job", "success", "job_7f3a1c"], ["10:36:22", "DataAudit Agent", "validate_dataset", "success", "data_audit.json"]]} />
+      </Panel>
+    </Page>
+  );
+}
+
+export function IntegrityGates(_props: ScreenProps) {
+  return (
+    <Page title="完整性 Gate" subtitle="人工审批、提交阻断、安全边界与完整性校验">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={ShieldAlert} label="Overall Decision" value="blocked" sub="regression" tone="red" />
+        <StatCard icon={LineChart} label="Score Protection" value="0.966590" sub="best" tone="green" />
+        <StatCard icon={Upload} label="Submission Permission" value="false" sub="blocked" tone="red" />
+        <StatCard icon={UserCheck} label="Human Approval" value="pending" sub="2 reviewers" tone="amber" />
+      </div>
+      <GatePipeline />
+      <ScoreRecoveryBlock />
+      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
+        <Panel title="Agent Work Order" description="Gate 自动分派回退任务">
+          {["EnvironmentAgent: Verify GPU SSH gateway before long training", "ModelSelectionAgent: Preserve EXP007 safe baseline", "CodeImplementationAgent: Generate only workstation-controlled diff", "ValidationAgent: Recompute OOF and schema audit"].map((x) => <div key={x} className="mb-2 rounded-md border border-blue-100 bg-blue-50 p-3 text-sm font-semibold text-blue-900">{x}</div>)}
+        </Panel>
+        <Panel title="Human Approval Console" description="人工审批面板">
+          <textarea className="min-h-[120px] w-full rounded-md border border-slate-200 p-3 text-sm" placeholder="审核意见..." />
+          <div className="mt-3 grid grid-cols-2 gap-2"><Button variant="success">Approve</Button><Button variant="danger">Reject</Button><Button variant="secondary">Request Revision</Button><Button variant="secondary" disabled>Allow Official Submit</Button></div>
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-3">
+        <Panel title="Gate Evidence Checklist" description="证据检查"><DenseTable headers={["artifact", "status"]} rows={[["metrics.json", "passed"], ["oof_pred.parquet", "passed"], ["submission.csv", "waiting"], ["claim_audit.json", "passed"], ["kaggle_response.json", "missing"]]} /></Panel>
+        <Panel title="Decision History" description="决策历史"><DenseTable headers={["gate", "decision", "time"]} rows={[["gate_code_v1", "approved", "10:21"], ["gate_hpc_v1", "approved", "10:28"], ["gate_submission", "waiting", "10:38"]]} /></Panel>
+        <Panel title="Risk Boundary" description="科研风险边界"><DenseTable headers={["risk", "level"]} rows={[["CV-public gap", "watch"], ["data leakage", "safe"], ["overfitting", "medium"], ["unsupported claim", "blocked"]]} /></Panel>
+      </div>
+    </Page>
+  );
+}
+
+function ScoreRecoveryBlock() {
+  return (
+    <Panel title="Score Regression Recovery" description="低分候选被阻断并回退给责任 Agent" action={<StatusBadge tone="red">regression confirmed</StatusBadge>}>
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatMini label="CURRENT SCORE" value="0.965910" tone="red" />
+        <StatMini label="PROTECTED BEST" value="0.966590" tone="green" />
+        <StatMini label="VALIDATION FLOOR" value="0.965743" tone="green" />
+        <StatMini label="SUBMIT ALLOWED" value="false" tone="red" />
+      </div>
+      <div className="mt-4 rounded-md border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-800">Score gate must prove the candidate beats the protected baseline before official submit.</div>
+    </Panel>
+  );
+}
+
+export function Experiments(_props: ScreenProps) {
+  return (
+    <Page title="实验中心" subtitle="实验台账、分支搜索、指标对比和 best-so-far 保护">
+      <div className="grid gap-3 md:grid-cols-4">
+        <StatCard icon={Database} label="Tasks" value="9" sub="active" tone="blue" />
+        <StatCard icon={GitBranch} label="Runs" value="96" sub="recorded" tone="green" />
+        <StatCard icon={LineChart} label="Promoted" value="7" sub="best protected" tone="green" />
+        <StatCard icon={AlertTriangle} label="Held" value="14" sub="rollback" tone="amber" />
+      </div>
+      <Panel title="Experiment Search Graph" description="MLEvolve-style 分支搜索图">
+        <div className="grid gap-3 md:grid-cols-6">
+          {["EXP000 Baseline", "EXP003 LGBM", "EXP017 Blend", "EXP024 Frontier", "EXP033 Offset", "EXP034 Dual Blend"].map((x, i) => <div key={x} className={cn("rounded-lg border p-3 text-center", i === 2 ? "border-emerald-300 bg-emerald-50" : i > 2 ? "border-blue-200 bg-blue-50" : "border-slate-200 bg-white")}><div className="text-sm font-black">{x}</div><StatusBadge tone={i === 2 ? "green" : i > 2 ? "blue" : "slate"}>{i === 2 ? "best" : i > 2 ? "candidate" : "baseline"}</StatusBadge></div>)}
+        </div>
+      </Panel>
+      <Panel title="Experiment Ledger" description="最近实验结果">
+        <DenseTable headers={["task", "exp", "branch", "cv", "public", "decision", "claim"]} rows={[["house_prices", "exp_9981", "xgb_stack", "0.8412", "0.8251", "preserve_best", "supported"], ["titanic", "exp_8812", "round4", "0.8623", "0.8510", "promote_round4", "supported"], ["telco_churn", "exp_7715", "round4", "0.8078", "0.7894", "needs_revision", "weak"], ["credit_risk", "exp_6610", "baseline", "0.7431", "0.7002", "hold", "blocked"]]} />
+      </Panel>
+    </Page>
+  );
+}
+
+export function ResearchTasks(props: ScreenProps) {
+  return (
+    <Page title="任务队列" subtitle="Kaggle / MLE-Bench 任务、优先级、状态和负责人">
+      <Panel title="Task Queue" description="任务选择会改变当前工作站上下文">
+        <DenseTable headers={["task", "type", "metric", "priority", "status", "owner"]} rows={[["playground_series_s6e6", "classification", "accuracy", "P0", "running", "Orchestrator"], ["spaceship_titanic", "classification", "accuracy", "P0", "reviewing", "Validation"], ["house_prices", "regression", "rmse", "P1", "completed", "Report"], ["digit_recognizer", "image", "accuracy", "P2", "queued", "Data"]]} />
+      </Panel>
+      <Panel title="Selected Task Contract" description="当前任务规范">
+        <Row label="selectedTask" value={props.selectedTask} monoValue />
+        <Row label="stage" value={props.selectedStage} monoValue />
+        <Row label="experiment" value={props.selectedExperiment} monoValue />
+      </Panel>
+    </Page>
+  );
+}
+
+export function WorkflowGraph(_props: ScreenProps) {
+  return (
+    <Page title="流程编排" subtitle="多 Agent 工作流、任务分派、状态回退和证据交接">
+      <AgentGraph />
+      <GatePipeline />
+      <Panel title="Workflow Contract" description="每个阶段输入、输出、失败回退">
+        <DenseTable headers={["stage", "input", "output", "fallback"]} rows={[["Research", "task spec", "plan.json", "return_to_research"], ["Data Audit", "dataset", "data_audit.json", "return_to_data"], ["Code", "plan + context", "train.py", "return_to_code"], ["HPC", "manifest", "metrics.json", "return_to_hpc"], ["Report", "evidence", "teacher_report.pdf", "return_to_report"]]} />
+      </Panel>
+    </Page>
+  );
+}
+
+export function SettingsCenter(props: ScreenProps) {
+  return (
+    <Page title="系统设置" subtitle="账号、语言、主题、凭据、资源与工作站偏好">
+      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1.4fr_1fr]">
+        <Panel title="账户与角色" description="Account & Role">
+          <div className="flex items-center gap-3"><span className="flex h-12 w-12 items-center justify-center rounded-full bg-blue-600 text-lg font-black text-white">RA</span><div><div className="font-black">科研管理员</div><div className="text-xs text-slate-500">ra_admin@researchlab.ai</div></div></div>
+          <div className="mt-3 flex gap-2"><StatusBadge tone="blue">Owner</StatusBadge><StatusBadge tone="purple">Research Admin</StatusBadge><StatusBadge tone="green">2FA 已启用</StatusBadge></div>
+        </Panel>
+        <Panel title="工作区安全" description="Workspace Security"><Row label="密钥保险库" value="可信任 (12)" /><Row label="加密强度" value="AES-256-GCM" /><Row label="审计日志" value="实时记录中" /></Panel>
+        <Panel title="运行时连接器" description="Runtime Connectors">
+          <div className="grid grid-cols-2 gap-2">{["Kaggle Online", "HPC / GPU Online", "DeepSeek Online", "Claude Code 警告", "RAG / Vector Online", "报告导出 Online"].map((x) => <div key={x} className="flex items-center justify-between rounded-md border border-slate-200 px-3 py-2 text-xs font-bold"><span>{x.split(" ")[0]}</span><StatusBadge tone={toneFor(x)}>{x.split(" ").slice(1).join(" ")}</StatusBadge></div>)}</div>
+        </Panel>
+        <Panel title="偏好设置" description="Preferences">
+          <Row label="语言 / Language" value="简体中文" />
+          <Row label="主题 / Theme" value="浅色 (Light)" />
+          <Row label="时区 / Timezone" value="Asia/Shanghai" />
+        </Panel>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-[240px_1fr]">
+        <Panel title="设置分类" description="Settings navigation">
+          {["Account", "Profile", "Language & Region", "Appearance", "Security & Credentials", "Resource Connectors", "Agent Runtime", "Kaggle & Submission", "GPU / HPC", "RAG & Knowledge Base", "Notifications", "Audit Log", "Backup & Export", "Advanced"].map((x, i) => <button key={x} className={cn("mb-1 flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-bold", i === 0 ? "bg-blue-50 text-blue-700" : "text-slate-700 hover:bg-slate-50")}><Settings className="h-4 w-4" />{x}</button>)}
+        </Panel>
+        <div className="space-y-3">
+          <Panel title="A. Account & Role" description="核心账号登录、会话、权限与 2FA">
+            <div className="grid gap-4 xl:grid-cols-4">
+              <div><Row label="User ID" value="usr_3f7a9c2b8d1e" monoValue /><div className="mt-2 flex gap-2"><StatusBadge tone="blue">Owner</StatusBadge><StatusBadge tone="purple">Research Admin</StatusBadge></div></div>
+              <div><Row label="本地账号" value="启用" /><Row label="SSO (OIDC)" value="启用" /><Row label="API 网关账号" value="启用" /></div>
+              <div><Row label="当前状态" value="已登录 (2FA)" /><Row label="最近登录" value="2026-06-25 10:38:21" /><Row label="活跃设备" value="3 台" /></div>
+              <DenseTable headers={["角色", "用户数", "权限范围"]} rows={[["Owner", "1", "全局权限"], ["Research Admin", "3", "资源与凭据"], ["Reviewer", "5", "审阅与评论"], ["Agent Operator", "8", "运行与监控"]]} />
+            </div>
+          </Panel>
+          <div className="grid gap-3 xl:grid-cols-2">
+            <SettingsTile icon={Languages} title="Language & Region" value="简体中文 / Asia-Shanghai" detail="支持 English、简体中文、跟随系统" />
+            <SettingsTile icon={Sun} title="Appearance" value="浅色 / 深色 / System" detail="支持代码编辑器主题、紧凑密度和字体大小" />
+            <SettingsTile icon={KeyRound} title="Security & Credentials" value="1 需轮换，1 已过期" detail="Kaggle/HPC/DeepSeek/Claude/RAG 全部脱敏显示" warning />
+            <SettingsTile icon={Network} title="Resource Connectors" value="1 需重连，0 异常" detail="Test、Reconnect、Configure、View Logs" warning />
+            <SettingsTile icon={Bot} title="Agent Runtime Settings" value="缓存命中 86% / 成本守护开启" detail="max retry、timeout、context token、failure recovery" />
+            <SettingsTile icon={ShieldCheck} title="Kaggle & Submission Policy" value="人类 Gate 必须启用" detail="官方提交、rank claim、score regression 均受控" warning />
+            <SettingsTile icon={Server} title="GPU / HPC Gateway Settings" value="HPC 已连接" detail="SSH gateway、remote workspace、job allowlist" />
+            <SettingsTile icon={Bell} title="Notifications & Alerts" value="邮件 + 站内信" detail="运行失败、Gate 等待、证据缺失提醒" />
+          </div>
+        </div>
+      </div>
+      <Panel title="最近设置变更审计 / Audit Log" description="所有设置改动都可追溯">
+        <DenseTable headers={["时间", "Changed By", "Setting Key", "Old State", "New State", "Reason", "Approval"]} rows={[["2026-06-25 10:34:11", "ra_admin", "kaggle.submission.require_gate", "false", "true", "启用官方提交人工 Gate", "owner_approve"], ["2026-06-25 10:10:02", "ra_admin", "security.credential.rag_embedding", "expired", "rotated", "RAG 嵌入凭据轮换", "owner_approve"], ["2026-06-24 21:55:33", "ops_agent", "resource.hpc.retry_policy", "max_retry=3", "max_retry=5", "增强 HPC 重试策略", "auto_approved"]]} />
+      </Panel>
+      <div className="flex flex-wrap justify-end gap-3">
+        <Button variant="primary">保存更改</Button>
+        <Button variant="secondary">取消</Button>
+        <Button variant="secondary">测试所有连接</Button>
+        <Button variant="secondary">批量轮换凭据</Button>
+      </div>
+    </Page>
+  );
+}
+
+function SettingsTile({ icon: Icon, title, value, detail, warning = false }: { icon: React.ElementType; title: string; value: string; detail: string; warning?: boolean }) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white p-3">
+      <span className={cn("flex h-10 w-10 items-center justify-center rounded-md border", warning ? "border-amber-100 bg-amber-50 text-amber-700" : "border-blue-100 bg-blue-50 text-blue-700")}><Icon className="h-4 w-4" /></span>
+      <div className="min-w-0 flex-1"><div className="text-sm font-black text-slate-950">{title}</div><div className="mt-1 text-xs font-bold text-slate-600">{value}</div><div className="mt-1 text-xs text-slate-500">{detail}</div></div>
+      <ChevronRight className="h-4 w-4 text-slate-400" />
+    </div>
+  );
+}
+
+export function DesignSystem(_props: ScreenProps) {
+  return (
+    <Page title="设计系统" subtitle="Research OS 视觉 token、组件规则与页面基线">
+      <div className="grid gap-3 md:grid-cols-6">
+        {(["blue", "green", "amber", "red", "slate", "purple"] as StatusTone[]).map((tone) => <Card key={tone}><CardContent className="p-4"><StatusBadge tone={tone}>{tone}</StatusBadge><div className="mt-3 h-12 rounded-md border border-slate-200 bg-slate-50" /></CardContent></Card>)}
+      </div>
+      <Panel title="页面基线" description="当前设计成果图覆盖的核心页面">
+        <DenseTable headers={["page", "role", "status"]} rows={[["Mission Control", "总控", "done"], ["Data / Kaggle", "数据提交", "done"], ["Report Studio", "报告", "done"], ["Code Agent IDE", "代码", "done"], ["GPU / HPC", "算力", "done"], ["Evidence Ledger", "证据", "done"], ["Literature / RAG", "知识库", "done"], ["Agent Runtime", "运行时", "done"], ["Settings", "系统设置", "done"]]} />
+      </Panel>
+    </Page>
+  );
+}

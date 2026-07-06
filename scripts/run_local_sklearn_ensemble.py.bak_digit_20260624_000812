@@ -1,0 +1,599 @@
+from __future__ import annotations
+
+"""Local sklearn ensemble runner for workstation-managed training.
+
+Implements the sklearn_rf_hgb_et_ensemble template:
+  - RandomForest + HistGradientBoosting + ExtraTrees
+  - 5-fold StratifiedKFold x multi-seed
+  - OOF blend grid search
+  - Logistic regression stacking
+  - Produces workstation-compatible artifacts
+"""
+
+import argparse
+import hashlib
+import json
+import time
+from dataclasses import asdict
+from datetime import datetime
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import (
+    ExtraTreesClassifier,
+    ExtraTreesRegressor,
+    HistGradientBoostingClassifier,
+    HistGradientBoostingRegressor,
+    RandomForestClassifier,
+    RandomForestRegressor,
+)
+from sklearn.linear_model import LinearRegression, LogisticRegression, RidgeCV
+from sklearn.metrics import accuracy_score, balanced_accuracy_score, log_loss, mean_squared_log_error
+from sklearn.model_selection import KFold, StratifiedKFold
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder, StandardScaler
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def make_encoder():
+    try:
+        return OneHotEncoder(handle_unknown="ignore", sparse_output=False, dtype=np.float32)
+    except TypeError:
+        return OneHotEncoder(handle_unknown="ignore", sparse=False, dtype=np.float32)
+
+
+def add_features(frame: pd.DataFrame) -> pd.DataFrame:
+    df = frame.copy()
+    pairs = [("u", "g"), ("g", "r"), ("r", "i"), ("i", "z"), ("u", "r"), ("g", "i"), ("r", "z")]
+    for a, b in pairs:
+        if a in df.columns and b in df.columns:
+            df[f"{a}_minus_{b}"] = df[a] - df[b]
+    if "redshift" in df.columns:
+        df["redshift_log1p"] = np.log1p(np.clip(df["redshift"].astype(float), 0, None))
+    return df
+
+
+def rmsle_from_log_target(y_true_log: np.ndarray, y_pred_log: np.ndarray) -> float:
+    y_true = np.expm1(y_true_log)
+    y_pred = np.expm1(y_pred_log)
+    y_true = np.clip(y_true, 0, None)
+    y_pred = np.clip(y_pred, 0, None)
+    return float(np.sqrt(mean_squared_log_error(y_true, y_pred)))
+
+
+def run_regression_ensemble(args: argparse.Namespace, config: dict[str, Any], output_dir: Path, run_id: str, started: float) -> None:
+    task_id = args.task_id
+    data_dir = ROOT / "tasks" / task_id / "data"
+    train = pd.read_csv(data_dir / "train.csv")
+    test = pd.read_csv(data_dir / "test.csv")
+    sample = pd.read_csv(data_dir / "sample_submission.csv")
+
+    target = config["task"].get("target", "SalePrice")
+    configured_id_col = config["task"].get("id_column") or config.get("data", {}).get("id_column")
+    id_col = configured_id_col if configured_id_col in sample.columns else sample.columns[0]
+    prediction_col = config["task"].get("prediction_column")
+    if prediction_col not in sample.columns:
+        prediction_col = sample.columns[1] if len(sample.columns) > 1 else target
+    target_transform = str(config.get("feature_engineering", {}).get("target_transform", "")).lower()
+
+    y_raw = train[target].astype(float).to_numpy()
+    y = np.log1p(y_raw) if target_transform == "log1p" else y_raw
+
+    train_x = add_features(train.drop(columns=[target], errors="ignore"))
+    test_x = add_features(test)
+    feature_cols = [c for c in train_x.columns if c != id_col]
+    categorical = [c for c in feature_cols if train_x[c].dtype == "object"]
+    numeric = [c for c in feature_cols if c not in categorical]
+
+    preprocessor = ColumnTransformer(
+        transformers=[("num", StandardScaler(), numeric), ("cat", make_encoder(), categorical)],
+        remainder="drop",
+    )
+    x_all = preprocessor.fit_transform(train_x[feature_cols]).astype(np.float32)
+    x_test = preprocessor.transform(test_x[feature_cols]).astype(np.float32)
+
+    train_sampled = train
+    if args.fast and args.sample_rows > 0 and args.sample_rows < len(y):
+        sample_idx = np.random.RandomState(42).choice(len(y), args.sample_rows, replace=False)
+        x_all = x_all[sample_idx]
+        y = y[sample_idx]
+        y_raw = y_raw[sample_idx]
+        train_sampled = train.iloc[sample_idx].reset_index(drop=True)
+        print(f"[fast mode] Sampled {args.sample_rows} rows from {len(train)}", flush=True)
+
+    seeds = [int(s.strip()) for s in args.seeds.split(",")]
+    if args.fast:
+        seeds = seeds[:1]
+        n_folds = min(3, max(2, len(y) // 10))
+        rf_est, hgb_iter, et_est = 120, 180, 120
+    else:
+        n_folds = args.n_folds
+        rf_est, hgb_iter, et_est = 500, 700, 500
+
+    model_builders = {
+        "rf": lambda rseed: RandomForestRegressor(
+            n_estimators=rf_est, max_depth=18, min_samples_leaf=2,
+            max_features=0.55, n_jobs=4, random_state=rseed,
+        ),
+        "hgb": lambda rseed: HistGradientBoostingRegressor(
+            max_iter=hgb_iter, learning_rate=0.035, max_leaf_nodes=31,
+            l2_regularization=0.05, early_stopping=True,
+            validation_fraction=0.12, n_iter_no_change=40, random_state=rseed,
+        ),
+        "et": lambda rseed: ExtraTreesRegressor(
+            n_estimators=et_est, max_depth=None, min_samples_leaf=2,
+            max_features=0.75, n_jobs=4, random_state=rseed,
+        ),
+    }
+    model_names = list(model_builders.keys())
+    oof = {name: np.zeros(len(y), dtype=np.float64) for name in model_names}
+    test_preds = {name: np.zeros(len(x_test), dtype=np.float64) for name in model_names}
+    cv_scores = {name: [] for name in model_names}
+    event_log = []
+
+    kf = KFold(n_splits=n_folds, shuffle=True, random_state=42)
+    for seed in seeds:
+        for fold, (train_idx, val_idx) in enumerate(kf.split(x_all)):
+            X_tr, X_va = x_all[train_idx], x_all[val_idx]
+            y_tr, y_va = y[train_idx], y[val_idx]
+            for name, build_fn in model_builders.items():
+                model = build_fn(seed)
+                model.fit(X_tr, y_tr)
+                p_val = np.asarray(model.predict(X_va), dtype=np.float64)
+                p_test = np.asarray(model.predict(x_test), dtype=np.float64)
+                oof[name][val_idx] += p_val / len(seeds)
+                test_preds[name] += p_test / (n_folds * len(seeds))
+                fold_rmsle = rmsle_from_log_target(y_va, p_val) if target_transform == "log1p" else float(np.sqrt(mean_squared_log_error(np.clip(y_va,0,None), np.clip(p_val,0,None))))
+                cv_scores[name].append(fold_rmsle)
+                event_log.append({"model": name, "seed": seed, "fold": fold + 1, "rmsle": fold_rmsle})
+                print(f"  [{time.time() - started:.0f}s] {name} seed={seed} fold={fold+1}: rmsle={fold_rmsle:.5f}", flush=True)
+
+    oof_scores = {name: rmsle_from_log_target(y, oof[name]) if target_transform == "log1p" else float(np.sqrt(mean_squared_log_error(np.clip(y,0,None), np.clip(oof[name],0,None)))) for name in model_names}
+
+    best_blend_score = float("inf")
+    best_weights = tuple([1.0 / len(model_names)] * len(model_names))
+    for w1 in range(5, 91, 5):
+        for w2 in range(5, 91, 5):
+            w3 = 100 - w1 - w2
+            if w3 < 5:
+                continue
+            w = (w1 / 100.0, w2 / 100.0, w3 / 100.0)
+            blend = w[0] * oof[model_names[0]] + w[1] * oof[model_names[1]] + w[2] * oof[model_names[2]]
+            score = rmsle_from_log_target(y, blend) if target_transform == "log1p" else float(np.sqrt(mean_squared_log_error(np.clip(y,0,None), np.clip(blend,0,None))))
+            if score < best_blend_score:
+                best_blend_score = score
+                best_weights = w
+
+    blend_oof = best_weights[0] * oof[model_names[0]] + best_weights[1] * oof[model_names[1]] + best_weights[2] * oof[model_names[2]]
+    blend_test = best_weights[0] * test_preds[model_names[0]] + best_weights[1] * test_preds[model_names[1]] + best_weights[2] * test_preds[model_names[2]]
+
+    stack_features = np.column_stack([oof[name] for name in model_names])
+    stack_test = np.column_stack([test_preds[name] for name in model_names])
+    stacker = RidgeCV(alphas=[0.01, 0.1, 1.0, 10.0, 50.0])
+    stacker.fit(stack_features, y)
+    stack_oof = np.asarray(stacker.predict(stack_features), dtype=np.float64)
+    stack_pred_test = np.asarray(stacker.predict(stack_test), dtype=np.float64)
+    stack_score = rmsle_from_log_target(y, stack_oof) if target_transform == "log1p" else float(np.sqrt(mean_squared_log_error(np.clip(y,0,None), np.clip(stack_oof,0,None))))
+
+    if stack_score < best_blend_score:
+        final_oof = stack_oof
+        final_pred_log = stack_pred_test
+        best_method = "ridge_stack"
+        best_oof_score = stack_score
+    else:
+        final_oof = blend_oof
+        final_pred_log = blend_test
+        best_method = "blend"
+        best_oof_score = best_blend_score
+
+    final_pred = np.expm1(final_pred_log) if target_transform == "log1p" else final_pred_log
+    final_pred = np.clip(final_pred, 1e-6, None)
+    submission = pd.DataFrame({id_col: sample[id_col].to_numpy(), prediction_col: final_pred})
+    submission.to_csv(output_dir / "submission.csv", index=False)
+
+    oof_frame = pd.DataFrame({"id": train_sampled[id_col].to_numpy(), "prediction": np.expm1(final_oof) if target_transform == "log1p" else final_oof, "true": y_raw})
+    oof_frame.to_csv(output_dir / "oof_predictions.csv", index=False)
+
+    cv_summary = {name: {"mean": float(np.mean(cv_scores[name])), "std": float(np.std(cv_scores[name]))} for name in model_names}
+    metrics = {
+        "schema": "academic_research_os.local_ensemble_metrics.v1",
+        "status": "passed",
+        "task_id": args.task_id,
+        "run_id": run_id,
+        "runner": "local_sklearn_regression_ensemble_rf_hgb_et",
+        "task_type": "regression",
+        "metric": "rmsle",
+        "metric_direction": "minimize",
+        "n_folds": n_folds,
+        "n_seeds": len(seeds),
+        "seeds": seeds,
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "features_after_encoding": int(x_all.shape[1]),
+        "cv_fold_rmsle": cv_summary,
+        "oof_rmsle": oof_scores,
+        "ensemble": {
+            "blend": {"weights": {model_names[i]: round(best_weights[i], 4) for i in range(len(model_names))}, "rmsle": best_blend_score},
+            "stack": {"method": "RidgeCV", "rmsle": stack_score},
+            "best_method": best_method,
+            "selection_metric": "rmsle",
+            "best_validation_score": float(best_oof_score),
+            "metric_direction": "minimize",
+        },
+        "seconds": round(time.time() - started, 3),
+        "submission_rows": int(len(submission)),
+        "prediction_summary": {"min": float(np.min(final_pred)), "mean": float(np.mean(final_pred)), "max": float(np.max(final_pred))},
+        "human_gate_required_for_official_submission": True,
+    }
+    (output_dir / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    artifacts = {}
+    for fpath in sorted(output_dir.rglob("*")):
+        if fpath.is_file():
+            rel = str(fpath.relative_to(output_dir))
+            artifacts[rel] = {"path": rel, "sha256": sha256_file(fpath), "size": fpath.stat().st_size}
+    manifest = {
+        "schema": "academic_research_os.artifact_manifest.v1",
+        "task_id": args.task_id,
+        "run_id": run_id,
+        "template_id": "sklearn_rf_hgb_et_ensemble",
+        "created_by_agent": "workstation_orchestrator",
+        "stage": "training",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "artifacts": artifacts,
+        "gate_dependency": "SUBMISSION_APPROVAL",
+        "claim_binding": f"Local sklearn regression ensemble produced OOF rmsle={best_oof_score:.6f}",
+        "metrics": {"best_method": best_method, "best_validation_score": best_oof_score, "rmsle": best_oof_score, "metric_direction": "minimize"},
+    }
+    (output_dir / "artifact_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    report = [
+        "# Local Sklearn Regression Ensemble Run", "",
+        f"- task: `{args.task_id}`",
+        "- runner: `local_sklearn_regression_ensemble_rf_hgb_et`",
+        f"- folds: `{n_folds}` x seeds: `{len(seeds)}`",
+        f"- best method: `{best_method}`",
+        f"- best OOF RMSLE: `{best_oof_score:.6f}`", "",
+        "## CV RMSLE (per-fold, mean +/- std)",
+    ]
+    for name in model_names:
+        report.append(f"- {name.upper()}: {cv_summary[name]['mean']:.6f} +/- {cv_summary[name]['std']:.6f}")
+    report += ["", "## OOF Scores", *[f"- {n.upper()}: rmsle={oof_scores[n]:.6f}" for n in model_names], f"- Blend: rmsle={best_blend_score:.6f} (weights: {best_weights[0]:.2f}/{best_weights[1]:.2f}/{best_weights[2]:.2f})", f"- Ridge stack: rmsle={stack_score:.6f}", "", f"- submission rows: `{metrics['submission_rows']}`", "- official Kaggle submission remains behind Human Gate."]
+    (output_dir / "report.md").write_text("\n".join(report), encoding="utf-8")
+
+    print(json.dumps({"status": "passed", "task_id": args.task_id, "run_id": run_id, "output_dir": str(output_dir), "best_method": best_method, "best_validation_score": best_oof_score, "seconds": metrics["seconds"]}, ensure_ascii=False))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Local sklearn ensemble runner.")
+    parser.add_argument("--config", required=True, help="Task config YAML")
+    parser.add_argument("--output-base", required=True, help="Output base directory")
+    parser.add_argument("--n-folds", type=int, default=5)
+    parser.add_argument("--seeds", default="42,3407,12345")
+    parser.add_argument("--random-state", type=int, default=42)
+    parser.add_argument("--task-id", default="playground_series_s6e6")
+    parser.add_argument("--run-id", default="")
+    parser.add_argument("--fast", action="store_true", help="Use reduced estimators and sample for quick verification.")
+    parser.add_argument("--sample-rows", type=int, default=0, help="Sample N rows for fast mode.")
+    args = parser.parse_args()
+
+    started = time.time()
+    seeds = [int(s.strip()) for s in args.seeds.split(",")]
+    if args.fast:
+        seeds = seeds[:1]  # Single seed for fast mode
+        args.n_folds = 3  # Reduced folds for fast mode
+        n_folds = 3
+    else:
+        n_folds = args.n_folds
+    run_id = args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_dir = Path(args.output_base) / args.task_id / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    ROOT_LOCAL = Path(args.output_base).parent if Path(args.output_base).parent != Path(args.output_base) else ROOT
+    try:
+        import yaml
+        config = yaml.safe_load(Path(args.config).read_text(encoding="utf-8"))
+    except Exception:
+        config = {"task": {"name": args.task_id, "target": "class", "metric": "balanced_accuracy", "type": "classification"}}
+
+    task_type = str(config.get("task", {}).get("type", "classification")).lower()
+    metric_name = str(config.get("task", {}).get("metric", "")).lower()
+    if task_type == "regression" or metric_name in {"rmsle", "rmse", "mae", "mse"}:
+        return run_regression_ensemble(args, config, output_dir, run_id, started)
+
+    data_dir = ROOT / "tasks" / args.task_id / "data"
+    train = pd.read_csv(data_dir / "train.csv")
+    test = pd.read_csv(data_dir / "test.csv")
+    sample = pd.read_csv(data_dir / "sample_submission.csv")
+
+    target = config["task"].get("target", "class")
+    configured_id_col = config["task"].get("id_column") or config.get("data", {}).get("id_column")
+    id_col = configured_id_col if configured_id_col in sample.columns else sample.columns[0]
+    prediction_col = config["task"].get("prediction_column")
+    if prediction_col not in sample.columns:
+        prediction_col = sample.columns[1] if len(sample.columns) > 1 else target
+    class_names = sorted(train[target].dropna().unique().tolist())
+    le = LabelEncoder()
+    y = le.fit_transform(train[target].astype(str)).astype("int64")
+
+    train_x = add_features(train.drop(columns=[target], errors="ignore"))
+    test_x = add_features(test)
+    feature_cols = [c for c in train_x.columns if c != id_col]
+    categorical = [c for c in feature_cols if train_x[c].dtype == "object"]
+    numeric = [c for c in feature_cols if c not in categorical]
+
+    preprocessor = ColumnTransformer(
+        transformers=[("num", StandardScaler(), numeric), ("cat", make_encoder(), categorical)],
+        remainder="drop",
+    )
+    x_all = preprocessor.fit_transform(train_x[feature_cols]).astype(np.float32)
+    x_test = preprocessor.transform(test_x[feature_cols]).astype(np.float32)
+
+    # Sample data in fast mode
+    train_sampled = train
+    if args.fast and args.sample_rows > 0 and args.sample_rows < len(y):
+        sample_idx = np.random.RandomState(42).choice(len(y), args.sample_rows, replace=False)
+        x_all = x_all[sample_idx]
+        y = y[sample_idx]
+        train_sampled = train.iloc[sample_idx].reset_index(drop=True)
+        print(f"[fast mode] Sampled {args.sample_rows} rows from {len(train)}", flush=True)
+
+    n_classes = len(class_names)
+
+    if args.fast:
+        rf_est, rf_depth = 80, 12
+        hgb_iter, hgb_depth = 100, 6
+        et_est, et_depth = 80, 12
+    else:
+        rf_est, rf_depth = 400, 18
+        hgb_iter, hgb_depth = 300, 8
+        et_est, et_depth = 400, 18
+
+    n_jobs = 4
+    model_builders = {
+        "rf": lambda rseed: RandomForestClassifier(
+            n_estimators=rf_est, max_depth=rf_depth, min_samples_leaf=32,
+            max_features="sqrt", n_jobs=n_jobs, random_state=rseed,
+        ),
+        "hgb": lambda rseed: HistGradientBoostingClassifier(
+            max_iter=hgb_iter, learning_rate=0.05, max_depth=hgb_depth, max_leaf_nodes=63,
+            min_samples_leaf=32, l2_regularization=0.5, early_stopping=True,
+            validation_fraction=0.12, n_iter_no_change=30, random_state=rseed,
+        ),
+        "et": lambda rseed: ExtraTreesClassifier(
+            n_estimators=et_est, max_depth=et_depth, min_samples_leaf=32,
+            max_features="sqrt", n_jobs=n_jobs, random_state=rseed,
+        ),
+    }
+    model_names = list(model_builders.keys())
+
+    oof = {name: np.zeros((len(y), n_classes), dtype=np.float64) for name in model_names}
+    test_preds = {name: np.zeros((len(x_test), n_classes), dtype=np.float64) for name in model_names}
+    cv_scores = {name: [] for name in model_names}
+    event_log = []
+
+    skf = StratifiedKFold(n_splits=n_folds, shuffle=True, random_state=42)
+
+    for seed in seeds:
+        for fold, (train_idx, val_idx) in enumerate(skf.split(x_all, y)):
+            X_tr, X_va = x_all[train_idx], x_all[val_idx]
+            y_tr, y_va = y[train_idx], y[val_idx]
+
+            for name, build_fn in model_builders.items():
+                model = build_fn(seed)
+                model.fit(X_tr, y_tr)
+                p_val = model.predict_proba(X_va)
+                if p_val.ndim == 1:
+                    p_val = np.column_stack([1 - p_val, p_val])
+                if p_val.shape[1] != n_classes:
+                    full = np.zeros((len(p_val), n_classes), dtype=np.float64)
+                    full[:, :p_val.shape[1]] = p_val
+                    p_val = full
+                p_test = model.predict_proba(x_test)
+                if p_test.ndim == 1:
+                    p_test = np.column_stack([1 - p_test, p_test])
+                if p_test.shape[1] != n_classes:
+                    full = np.zeros((len(p_test), n_classes), dtype=np.float64)
+                    full[:, :p_test.shape[1]] = p_test
+                    p_test = full
+
+                oof[name][val_idx] += p_val / len(seeds)
+                test_preds[name] += p_test / (n_folds * len(seeds))
+                acc = float(accuracy_score(y_va, p_val.argmax(axis=1)))
+                cv_scores[name].append(acc)
+                event_log.append({"model": name, "seed": seed, "fold": fold + 1, "accuracy": acc})
+                print(f"  [{time.time() - started:.0f}s] {name} seed={seed} fold={fold+1}: acc={acc:.4f}", flush=True)
+
+    # OOF scores
+    oof_scores = {}
+    for name in model_names:
+        oof_scores[name] = {
+            "accuracy": float(accuracy_score(y, oof[name].argmax(axis=1))),
+            "balanced_accuracy": float(balanced_accuracy_score(y, oof[name].argmax(axis=1))),
+            "log_loss": float(log_loss(y, oof[name], labels=list(range(n_classes)))),
+        }
+
+    task_metric = str(config["task"].get("metric", "balanced_accuracy")).lower()
+    score_key = "accuracy" if task_metric == "accuracy" else "balanced_accuracy"
+
+    # Blend weight grid search
+    best_blend_score = 0.0
+    best_weights = tuple([1.0 / len(model_names)] * len(model_names))
+    for w1 in range(10, 71, 3):
+        for w2 in range(10, 71, 3):
+            w3 = 100 - w1 - w2
+            if w3 < 5:
+                continue
+            w = (w1 / 100.0, w2 / 100.0, w3 / 100.0)
+            blend = w[0] * oof[model_names[0]] + w[1] * oof[model_names[1]] + w[2] * oof[model_names[2]]
+            pred = blend.argmax(axis=1)
+            blend_score = float(accuracy_score(y, pred)) if score_key == "accuracy" else float(balanced_accuracy_score(y, pred))
+            if blend_score > best_blend_score:
+                best_blend_score = blend_score
+                best_weights = w
+
+    blend_oof = best_weights[0] * oof[model_names[0]] + best_weights[1] * oof[model_names[1]] + best_weights[2] * oof[model_names[2]]
+    blend_accuracy = float(accuracy_score(y, blend_oof.argmax(axis=1)))
+    blend_bal_acc = float(balanced_accuracy_score(y, blend_oof.argmax(axis=1)))
+
+    # Logistic regression stacking
+    stack_features = np.hstack([oof[name] for name in model_names])
+    stack_test = np.hstack([test_preds[name] for name in model_names])
+    stacker = LogisticRegression(max_iter=5000, C=1.0, random_state=42)
+    stacker.fit(stack_features, y)
+    stack_oof = stacker.predict_proba(stack_features)
+    stack_accuracy = float(accuracy_score(y, stack_oof.argmax(axis=1)))
+    stack_bal_acc = float(balanced_accuracy_score(y, stack_oof.argmax(axis=1)))
+
+    # Choose best method
+    stack_score = stack_accuracy if score_key == "accuracy" else stack_bal_acc
+    blend_score = blend_accuracy if score_key == "accuracy" else blend_bal_acc
+    if stack_score > blend_score:
+        final_pred_test = stacker.predict_proba(stack_test).argmax(axis=1)
+        best_method = "stack"
+        best_oof_score = stack_score
+    else:
+        blend_test = best_weights[0] * test_preds[model_names[0]] + best_weights[1] * test_preds[model_names[1]] + best_weights[2] * test_preds[model_names[2]]
+        final_pred_test = blend_test.argmax(axis=1)
+        best_method = "blend"
+        best_oof_score = blend_score
+
+    pred_labels = [class_names[int(i)] for i in final_pred_test]
+    submission = pd.DataFrame({id_col: sample[id_col].to_numpy(), prediction_col: pred_labels})
+    submission.to_csv(output_dir / "submission.csv", index=False)
+
+    # Save OOF predictions
+    final_oof = blend_oof if best_method == "blend" else stack_oof
+    oof_frame = pd.DataFrame({"id": train_sampled[id_col].to_numpy()})
+    for idx, cls in enumerate(class_names):
+        oof_frame[f"proba_{cls}"] = final_oof[:, idx]
+    oof_frame["pred_class"] = [class_names[int(i)] for i in final_oof.argmax(axis=1)]
+    oof_frame["true_class"] = train_sampled[target].astype(str).to_numpy()
+    oof_frame.to_csv(output_dir / "oof_predictions.csv", index=False)
+
+    cv_summary = {}
+    for name in model_names:
+        scores = cv_scores[name]
+        cv_summary[name] = {"mean": float(np.mean(scores)), "std": float(np.std(scores))}
+
+    metrics = {
+        "schema": "academic_research_os.local_ensemble_metrics.v1",
+        "status": "passed",
+        "task_id": args.task_id,
+        "run_id": run_id,
+        "runner": "local_sklearn_ensemble_rf_hgb_et",
+        "n_folds": n_folds,
+        "n_seeds": len(seeds),
+        "seeds": seeds,
+        "train_rows": int(len(train)),
+        "test_rows": int(len(test)),
+        "features_after_encoding": int(x_all.shape[1]),
+        "classes": class_names,
+        "cv_fold_accuracy": cv_summary,
+        "oof_accuracy": {name: oof_scores[name]["accuracy"] for name in model_names},
+        "oof_balanced_accuracy": {name: oof_scores[name]["balanced_accuracy"] for name in model_names},
+        "oof_log_loss": {name: oof_scores[name]["log_loss"] for name in model_names},
+        "ensemble": {
+            "blend": {
+                "weights": {model_names[i]: round(best_weights[i], 4) for i in range(len(model_names))},
+                "accuracy": blend_accuracy,
+                "balanced_accuracy": blend_bal_acc,
+                "log_loss": float(log_loss(y, blend_oof, labels=list(range(n_classes)))),
+            },
+            "stack": {
+                "accuracy": stack_accuracy,
+                "balanced_accuracy": stack_bal_acc,
+                "log_loss": float(log_loss(y, stack_oof, labels=list(range(n_classes)))),
+            },
+            "best_method": best_method,
+            "selection_metric": score_key,
+            "best_validation_score": float(best_oof_score),
+        },
+        "seconds": round(time.time() - started, 3),
+        "submission_rows": int(len(submission)),
+        "prediction_distribution": submission[target].value_counts().to_dict(),
+        "human_gate_required_for_official_submission": True,
+    }
+    (output_dir / "metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Build artifact manifest
+    artifacts = {}
+    for fpath in sorted(output_dir.rglob("*")):
+        if fpath.is_file():
+            rel = str(fpath.relative_to(output_dir))
+            artifacts[rel] = {
+                "path": rel,
+                "sha256": sha256_file(fpath),
+                "size": fpath.stat().st_size,
+            }
+
+    manifest = {
+        "schema": "academic_research_os.artifact_manifest.v1",
+        "task_id": args.task_id,
+        "run_id": run_id,
+        "template_id": "sklearn_rf_hgb_et_ensemble",
+        "created_by_agent": "workstation_orchestrator",
+        "stage": "training",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "artifacts": artifacts,
+        "gate_dependency": "SUBMISSION_APPROVAL",
+        "claim_binding": f"Local sklearn ensemble produced OOF balanced_accuracy={best_oof_score:.6f}",
+        "metrics": {
+            "best_method": best_method,
+            "best_validation_score": best_oof_score,
+            "balanced_accuracy": best_oof_score,
+        },
+    }
+    (output_dir / "artifact_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    # Report
+    report = [
+        f"# Local Sklearn Ensemble Run",
+        "",
+        f"- task: `{args.task_id}`",
+        f"- runner: `local_sklearn_ensemble_rf_hgb_et`",
+        f"- folds: `{n_folds}` x seeds: `{len(seeds)}`",
+        f"- best method: `{best_method}`",
+        f"- best OOF balanced accuracy: `{best_oof_score:.6f}`",
+        "",
+        "## CV Accuracy (per-fold, mean +/- std)",
+    ]
+    for name in model_names:
+        report.append(f"- {name.upper()}: {cv_summary[name]['mean']:.6f} +/- {cv_summary[name]['std']:.6f}")
+    report += [
+        "",
+        "## OOF Scores",
+        *[f"- {n.upper()}: bal_acc={oof_scores[n]['balanced_accuracy']:.6f} log_loss={oof_scores[n]['log_loss']:.6f}" for n in model_names],
+        f"- Blend: bal_acc={blend_bal_acc:.6f} (weights: {best_weights[0]:.2f}/{best_weights[1]:.2f}/{best_weights[2]:.2f})",
+        f"- Stack (LogisticRegression): bal_acc={stack_bal_acc:.6f}",
+        "",
+        f"- submission rows: `{metrics['submission_rows']}`",
+        f"- prediction distribution: {json.dumps(metrics['prediction_distribution'])}",
+        "- official Kaggle submission remains behind Human Gate.",
+    ]
+    (output_dir / "report.md").write_text("\n".join(report), encoding="utf-8")
+
+    print(json.dumps({
+        "status": "passed",
+        "task_id": args.task_id,
+        "run_id": run_id,
+        "output_dir": str(output_dir),
+        "best_method": best_method,
+        "best_validation_score": best_oof_score,
+        "seconds": metrics["seconds"],
+    }, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()

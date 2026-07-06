@@ -1,0 +1,66 @@
+﻿task:
+  name: digit_recognizer
+  competition: digit-recognizer
+  type: classification
+  target: label
+  metric: accuracy
+  id_column: ImageId
+  prediction_column: Label
+
+data:
+  task_dir: tasks/digit_recognizer
+  train: tasks/digit_recognizer/data/train.csv
+  test: tasks/digit_recognizer/data/test.csv
+  sample_submission: tasks/digit_recognizer/data/sample_submission.csv
+  overview: tasks/digit_recognizer/overview.txt
+  data_source: tasks/digit_recognizer/data/DATA_SOURCE.md
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 28000
+  expected_submission_columns:
+    - ImageId
+    - Label
+  allowed_prediction_values:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    - 5
+    - 6
+    - 7
+    - 8
+    - 9
+
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: stratified K-fold cross-validation; official Kaggle leaderboard remains gated.
+  first_stage_models:
+    - logistic_regression
+    - random_forest
+    - extra_trees
+    - hist_gradient_boosting
+  risk_points:
+    - Pixel columns are high-dimensional numeric features.
+    - Local CV is a proxy and must not be presented as Kaggle leaderboard score.
+    - Submission schema must keep ImageId and Label columns exactly.
+    - Official Kaggle submission requires Human Gate.
+
+feature_engineering:
+  preset: digit_pixels_flat
+  target_transform: null
+  drop_columns: []

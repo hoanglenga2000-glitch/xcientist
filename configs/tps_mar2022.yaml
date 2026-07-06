@@ -1,0 +1,20 @@
+data:
+  sample_submission: tasks/tps_mar2022/data/sample_submission.csv
+  task_dir: tasks/tps_mar2022
+  test: tasks/tps_mar2022/data/test.csv
+  train: tasks/tps_mar2022/data/train.csv
+feature_engineering:
+  drop_columns:
+  - row_id
+  preset: tabular_basic
+  target_transform: log1p
+task:
+  competition: tabular-playground-series-mar-2022
+  metric: rmse
+  name: tps_mar2022
+  target: congestion
+  type: regression
+thresholds:
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true

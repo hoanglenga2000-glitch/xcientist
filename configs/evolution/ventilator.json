@@ -1,0 +1,19 @@
+{
+  "task_name": "ventilator-pressure-prediction",
+  "remote_data_dirname": "ventilator-pressure-prediction",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/ventilator-pressure-prediction",
+  "modality": "tabular",
+  "task_type": "regression",
+  "metric": "mae",
+  "metric_direction": "minimize",
+  "target_column": "pressure",
+  "id_column": "id",
+  "n_train": 6036000,
+  "n_test": 4024000,
+  "n_features": 6,
+  "n_model_families": 2,
+  "has_time_column": true,
+  "group_column": "breath_id",
+  "data_schema": "id(int row id, keep verbatim for submission); breath_id(int, groups 80 consecutive timesteps of ONE breath — this is the sequence/group key); R(int lung resistance), C(int lung compliance) — constant within a breath; time_step(float seconds); u_in(float inspiratory valve control 0..100); u_out(int 0/1 exploratory valve, 1=expiratory phase); pressure(float target, cmH2O, train only).",
+  "extra_notes": "Kaggle Ventilator Pressure Prediction. Time-series regression: predict airway pressure per timestep. train=6.03M rows in 75450 breaths of 80 steps each. LOCAL CV_SCORE = MAE (LOWER better). IMPORTANT: the OFFICIAL leaderboard metric is MAE computed ONLY on inspiratory timesteps (u_out==0); compute local CV both ways but report cv_score as the u_out==0 MAE to match official. Group-aware CV: split by breath_id (GroupKFold) so no breath leaks across folds. Strong features: within each breath_id sort by time_step then lag/lead u_in, cumulative sum of u_in, time since breath start, R*C. lightgbm/xgboost work; for speed you MAY subsample breaths for CV but predict all test rows. submission.csv columns EXACTLY id,pressure for all 4024000 test rows in order. metrics.json {\"cv_score\": <mae float>, \"metric\": \"mae\"}."
+}

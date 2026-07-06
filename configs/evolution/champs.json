@@ -1,0 +1,18 @@
+{
+  "task_name": "champs-scalar-coupling",
+  "remote_data_dirname": "champs-scalar-coupling",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/champs-scalar-coupling",
+  "modality": "tabular",
+  "task_type": "regression",
+  "metric": "mae",
+  "metric_direction": "minimize",
+  "target_column": "scalar_coupling_constant",
+  "id_column": "id",
+  "n_train": 4659076,
+  "n_test": 2505190,
+  "n_features": 4,
+  "n_model_families": 2,
+  "group_column": "molecule_name",
+  "data_schema": "id(int row id, keep verbatim for submission); molecule_name(str, groups atom pairs of one molecule — group key); atom_index_0/atom_index_1(int indices of the coupled atom pair); type(categorical coupling type e.g. 1JHC,2JHH,3JHN — 8 distinct); scalar_coupling_constant(float target, Hz, train only). Extra files (structures.csv with per-atom x,y,z) exist in the data dir and can be joined on molecule_name+atom_index for geometry features.",
+  "extra_notes": "Kaggle CHAMPS Molecular Scalar Coupling. Regression predicting NMR scalar coupling constant per atom pair. train=4.66M rows. LOCAL CV_SCORE = MAE (LOWER better). NOTE official metric = mean over the 8 coupling types of log(MAE_type); compute that as a secondary number but report cv_score as plain overall MAE for a stable proxy. Group-aware CV by molecule_name (GroupKFold) so no molecule leaks. Best features come from JOINING structures.csv to get 3D coordinates then computing interatomic DISTANCE between atom_index_0 and atom_index_1, plus one-hot of type. lightgbm/xgboost; subsample molecules for CV if needed but predict all test rows. submission.csv columns EXACTLY id,scalar_coupling_constant for all 2505190 test rows in order. metrics.json {\"cv_score\": <mae float>, \"metric\": \"mae\"}."
+}

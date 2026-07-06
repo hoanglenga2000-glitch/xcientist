@@ -1,0 +1,53 @@
+﻿task:
+  name: tabular_playground_series_aug_2022
+  competition: tabular-playground-series-aug-2022
+  type: binary_classification
+  target: failure
+  metric: roc_auc
+  id_column: id
+  prediction_column: failure
+
+data:
+  task_dir: tasks/tabular_playground_series_aug_2022
+  train: tasks/tabular_playground_series_aug_2022/data/train.csv
+  test: tasks/tabular_playground_series_aug_2022/data/test.csv
+  sample_submission: tasks/tabular_playground_series_aug_2022/data/sample_submission.csv
+  data_source: Kaggle API via workstation DPAPI credential
+  overview: tasks/tabular_playground_series_aug_2022/overview.txt
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_columns:
+    - id
+    - failure
+
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: stratified K-fold local CV; official metric proxy requires later AUC scorer.
+  first_stage_models:
+    - hist_gradient_boosting
+    - random_forest
+    - extra_trees
+  risk_points:
+    - Official evaluation may require probability-style submission; current generic runner is smoke-level.
+    - CV/public gap must be audited before official submission.
+    - Official Kaggle submission requires Human Gate.
+
+feature_engineering:
+  preset: tabular_basic
+  target_transform: null
+  drop_columns: []
+

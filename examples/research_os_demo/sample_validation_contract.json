@@ -1,0 +1,31 @@
+{
+  "contract_id": "VC_EXP005_DEMO",
+  "exp_id": "EXP005",
+  "claim": "LightGBM + XGBoost OOF blend improves stable CV over single boosting baselines.",
+  "hypothesis": "LightGBM and XGBoost OOF blend can reduce variance and improve stable CV.",
+  "implementation_requirement": "Blend only OOF predictions from EXP003 and EXP004; keep fold split, target encoding boundary, and submission schema unchanged.",
+  "metric": "cv_score",
+  "baseline_exp_id": "EXP003",
+  "acceptance_criteria": {
+    "cv_score": { "min": 0.763 },
+    "fold_std": { "max": 0.0045 },
+    "schema_valid": true
+  },
+  "ablation_plan": [
+    "compare_against_EXP003_lightgbm_only",
+    "compare_against_EXP004_xgboost_only",
+    "weight_sensitivity_0.6_0.4_to_0.8_0.2"
+  ],
+  "risk_checklist": [
+    { "risk": "data_leakage", "status": "pending", "evidence": null },
+    { "risk": "cv_public_gap", "status": "pending", "evidence": null },
+    { "risk": "submission_schema", "status": "pending", "evidence": null }
+  ],
+  "conclusion_boundary": "Only claim improvement under the fixed CV protocol and completed blend ablations.",
+  "required_artifacts": [
+    "metrics.json",
+    "oof_predictions.parquet",
+    "submission_audit.json",
+    "blend_ablation_report.md"
+  ]
+}

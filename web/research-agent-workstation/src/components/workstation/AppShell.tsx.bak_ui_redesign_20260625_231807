@@ -1,0 +1,270 @@
+"use client";
+
+import {
+  Bell,
+  Bot,
+  CheckCircle2,
+  ChevronDown,
+  Code2,
+  Database,
+  FileText,
+  Menu,
+  Search,
+  Server,
+  ShieldCheck,
+  Timer,
+  UserCheck
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Sidebar } from "./Sidebar";
+import { pageTitles, type PageId } from "./navigation";
+
+type Locale = "zh-CN" | "en-US";
+
+function t(locale: Locale | undefined, en: string, zh: string) {
+  return locale === "zh-CN" ? zh : en;
+}
+
+const pageTitleZh: Record<PageId, string> = {
+  overview: "科研工作站总览",
+  control: "AI 控制台",
+  mission: "科研任务总控",
+  tasks: "任务队列",
+  data: "数据与 Kaggle",
+  gpu: "GPU / HPC 控制台",
+  evidence: "证据账本",
+  literature: "文献与知识库",
+  workflow: "Agent 流程图",
+  code: "代码 Agent",
+  runtime: "Agent 运行时",
+  experiments: "实验中心",
+  report: "报告工作室",
+  gates: "完整性 Gate",
+  settings: "系统设置",
+  design: "设计系统"
+};
+
+const pageSubtitleZh: Record<PageId, string> = {
+  overview: "面向 Kaggle、论文、数据和算力任务的 Academic Research OS。",
+  control: "用自然语言指挥工作站；所有动作都受 Gate 控制并记录日志。",
+  mission: "从任务目标、资源、Gate 到报告产物的工作站级总控。",
+  tasks: "管理任务队列、阶段状态、负责 Agent 与下一步动作。",
+  data: "数据接入、schema 审计、Kaggle 下载与 submission 边界。",
+  gpu: "HPC/GPU 资源状态、作业门禁与受控执行记录。",
+  evidence: "统一归档产物、日志、指标、报告和审计证据。",
+  literature: "文献检索、RAG 资料库与研究上下文。",
+  workflow: "可审计的 Agent 协作流程、依赖和回退路径。",
+  code: "代码草稿、补丁导入、质量 Gate 与执行沙箱。",
+  runtime: "Agent trace、工具调用、失败回退与运行时间线。",
+  experiments: "实验记录、指标对比、lineage 与候选方案。",
+  report: "报告生成、教师证据包与最终复盘材料。",
+  gates: "人工审批、提交阻断、安全边界与完整性校验。",
+  settings: "凭据槽位、资源配置、语言与系统偏好。",
+  design: "产品架构、组件状态、权限、安全、日志与路线图。"
+};
+
+export function AppShell({
+  activePage,
+  onPageChange,
+  onAction,
+  locale = "en-US",
+  children
+}: {
+  activePage: PageId;
+  onPageChange: (page: PageId) => void;
+  onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  locale?: Locale;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="workstation-chrome min-h-screen overflow-x-hidden bg-[#f5f7fb] text-slate-950">
+      <Sidebar activePage={activePage} onPageChange={onPageChange} onAction={onAction} locale={locale} />
+      <div className="min-w-0 lg:pl-[244px]">
+        <Topbar activePage={activePage} onPageChange={onPageChange} onAction={onAction} locale={locale} />
+        <main className="min-h-screen min-w-0 overflow-x-hidden px-4 pb-8 pt-4 sm:px-5 lg:px-6 lg:pt-[88px]">
+          <LabStatusStrip locale={locale} />
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}
+
+function LabStatusStrip({ locale }: { locale?: Locale }) {
+  const items = [
+    {
+      icon: CheckCircle2,
+      label: t(locale, "Score Gate", "分数门禁"),
+      value: t(locale, "best protected", "历史 best 已保护"),
+      tone: "text-emerald-700",
+      bg: "bg-emerald-50",
+      border: "border-emerald-100"
+    },
+    {
+      icon: Database,
+      label: t(locale, "Evidence Index", "证据索引"),
+      value: t(locale, "artifact-bound", "产物可审计"),
+      tone: "text-blue-700",
+      bg: "bg-blue-50",
+      border: "border-blue-100"
+    },
+    {
+      icon: UserCheck,
+      label: t(locale, "Human Gate", "人工 Gate"),
+      value: t(locale, "submit approval", "提交需审批"),
+      tone: "text-amber-700",
+      bg: "bg-amber-50",
+      border: "border-amber-100"
+    },
+    {
+      icon: ShieldCheck,
+      label: t(locale, "Launch Boundary", "上线边界"),
+      value: t(locale, "GPU/Kaggle gated", "算力与提交受控"),
+      tone: "text-slate-700",
+      bg: "bg-white",
+      border: "border-slate-200"
+    }
+  ];
+
+  return (
+    <section
+      className="mb-4 grid gap-2 rounded-lg border border-slate-200 bg-white p-2 shadow-[0_1px_2px_rgba(15,23,42,0.035)] md:grid-cols-2 xl:grid-cols-4"
+      aria-label={t(locale, "Research workstation status", "科研工作站状态")}
+    >
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <div
+            key={item.label}
+            className={cn("flex min-w-0 items-center gap-3 rounded-md border px-3 py-2.5", item.bg, item.border)}
+          >
+            <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white bg-white", item.tone)}>
+              <Icon className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="truncate text-[11px] font-bold uppercase tracking-[0.04em] text-slate-500">{item.label}</div>
+              <div className={cn("mt-0.5 truncate text-sm font-bold", item.tone)}>{item.value}</div>
+            </div>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function Topbar({
+  activePage,
+  onPageChange,
+  onAction,
+  locale
+}: {
+  activePage: PageId;
+  onPageChange: (page: PageId) => void;
+  onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
+  locale?: Locale;
+}) {
+  const title = locale === "zh-CN" ? pageTitleZh[activePage] : pageTitles[activePage];
+  const subtitle = locale === "zh-CN"
+    ? pageSubtitleZh[activePage]
+    : "Evidence-first AI Data Scientist workstation with gated compute, code agents, reports and Kaggle operations.";
+
+  return (
+    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 py-3 shadow-[0_1px_0_rgba(15,23,42,0.035)] backdrop-blur-xl lg:fixed lg:left-[244px] lg:right-0 lg:h-[72px] lg:px-6 lg:py-0">
+      <div className="flex h-full w-full flex-wrap items-center gap-3 xl:flex-nowrap">
+        <button
+          className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 lg:hidden"
+          onClick={() => onAction?.("mobile_menu_hint")}
+          aria-label={t(locale, "Navigation is above on mobile", "移动端导航位于页面顶部")}
+        >
+          <Menu className="h-4 w-4" />
+        </button>
+        <div className="min-w-[220px] flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-bold tracking-normal text-slate-950 sm:text-2xl">{title}</h1>
+            <span className="rounded-md border border-blue-100 bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">Research OS</span>
+          </div>
+          <p className="mt-1 line-clamp-1 text-xs font-medium text-slate-500 sm:text-sm">{subtitle}</p>
+        </div>
+        <div className="relative hidden min-w-[280px] max-w-[380px] flex-1 xl:block">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            className="h-10 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-14 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            placeholder={t(locale, "Search commands, tasks, evidence...", "搜索命令、任务、证据...")}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                void onAction?.("search_command", { query: event.currentTarget.value });
+              }
+            }}
+            data-testid="command-search"
+          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-500">
+            {t(locale, "Enter", "回车")}
+          </span>
+        </div>
+        <div className="flex w-full gap-1 overflow-x-auto pb-1 sm:w-auto sm:pb-0">
+          {[
+            { id: "control", icon: Bot, label: t(locale, "AI Ctrl", "AI 控制") },
+            { id: "code", icon: Code2, label: t(locale, "Code", "代码") },
+            { id: "report", icon: FileText, label: t(locale, "Report", "报告") },
+            { id: "runtime", icon: Timer, label: t(locale, "Agents", "Agent") },
+            { id: "gpu", icon: Server, label: "GPU" },
+            { id: "gates", icon: ShieldCheck, label: "Gate" },
+            { id: "evidence", icon: Database, label: t(locale, "Evidence", "证据") }
+          ].map((item) => {
+            const Icon = item.icon;
+            const active = activePage === item.id;
+            return (
+              <button
+                key={item.id}
+                className={cn(
+                  "flex h-9 shrink-0 items-center gap-1.5 rounded-md border px-2.5 text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                  active
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                )}
+                onClick={() => {
+                  onPageChange(item.id as PageId);
+                  void onAction?.("quick_open_workspace", { page: item.id });
+                }}
+                data-testid={`topbar-open-${item.id}`}
+              >
+                <Icon className="h-4 w-4" />
+                {item.label}
+              </button>
+            );
+          })}
+        </div>
+        <div className="ml-auto hidden items-center gap-2 sm:flex">
+          <button
+            className="hidden h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-bold text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 sm:flex"
+            onClick={() => onAction?.("workspace_select")}
+            data-testid="workspace-select"
+          >
+            AI Research Lab
+            <ChevronDown className="h-4 w-4 text-slate-400" />
+          </button>
+          <button
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onClick={() => onAction?.("notification_open")}
+            data-testid="notification-open"
+            aria-label={t(locale, "Open notifications", "打开通知")}
+          >
+            <Bell className="h-4 w-4" />
+          </button>
+          <button
+            className="flex items-center gap-2 rounded-md border border-transparent px-1.5 py-1 text-left hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            onClick={() => onAction?.("profile_open")}
+            data-testid="topbar-profile-open"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">RA</span>
+            <span className="hidden sm:block">
+              <span className="block text-sm font-bold text-slate-950">{t(locale, "Research Admin", "科研管理员")}</span>
+              <span className="block text-xs text-slate-500">{t(locale, "Owner", "负责人")}</span>
+            </span>
+            <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+          </button>
+        </div>
+      </div>
+    </header>
+  );
+}

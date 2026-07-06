@@ -1,6 +1,154 @@
-# Core files
-!/.gitignore
-!/CLAUDE.md
-!/external-projects/
-!/jailbreak-study-workspace/
-!/jailbreak-study-sandbox-claude/
+# ── Secrets: NEVER commit ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.*
+**/kaggle.json
+**/secrets/**
+*_secret*
+*password*.txt
+*.xml
+**/DPAPI*
+**/dpapi*
+
+# ── XSCI local config & state (contains per-user paths/secrets) ──
+.xsci/secrets*
+.xsci/*.local.*
+.xsci/session.json
+.xsci/conversation_history.json
+.xsci/config.toml
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+*.egg
+
+# ── Node / Next.js ──
+node_modules/
+.next/
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Large data / experiment outputs (users pull fresh) ──
+experiments/
+datasets/
+workspace/
+cache/
+submissions/
+submissions_v*/
+results/
+output/
+logs/
+*.log
+
+# ── Heavy binaries ──
+*.pkl
+*.joblib
+*.h5
+*.onnx
+*.zip
+*.tar.gz
+*.7z
+*.png
+*.jpg
+*.jpeg
+!reports/figures/**/*.png
+!docs/**/*.png
+
+# ── IDE / editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# ── Local tool configs ──
+catboost_info/
+*.codex*
+.codex-ui-designer.md
+
+# ── Backups ──
+*.bak
+*.bak-*
+
+# ── Browser/CDP profiles (large, not source code) ──
+docs/ui-editable-capture-*/
+docs/ui-verification-*/
+docs/ui-mockups*/
+docs/browser-acceptance-*/
+docs/chrome-live-profile*/
+docs/cdp-profile*/
+docs/claude-code-research-agent-workstation-skill/
+docs/academic_os_pages_*/
+docs/report_assets_*/
+docs/word_pdf_check_*/
+docs/visual-acceptance-*/
+docker-compose.override.yml
+
+# ── Temp/test artifacts ──
+/tmp/
+/temp/
+tool-write-test.txt
+test_models.js
+
+# ── External/personal projects ──
+jailbreak-study-sandbox-claude/
+jailbreak-study-workspace/
+chatgpt-sso-keycloak/
+open-reverselab/
+external-projects/
+zm-auto/
+_tmp_*.json
+
+# ── Scripts (keep only verifiable scripts, not personal dev scripts) ──
+/check_download.py
+/check_hub_batch2.py
+/clean_orphan.py
+/clean_restart.py
+/cli_download.py
+/find_root.py
+/gpu_monitor.py
+/gpu_monitor_batch2.py
+/hybrid_download.py
+/kill_all.py
+/kill_all_orphans.py
+/kill_and_restart.py
+/kill_dup.py
+/kill_smart.py
+/kill_tree.py
+/monitor_batch2.py
+/monitor_batch2_log.txt
+/monitor_batch2_loop.py
+/monitor_batch2_quick.py
+/q2.py
+/q3.py
+/q4.py
+/qcheck.py
+/temp_ssh_monitor.py
+/test_ssh.py
+/generate_skills_audit.py
+/skills_audit_report.md
+/model_test_results.json
+
+# ── DB files (runtime state, never commit) ──
+*.db
+*.db-journal
+*.db-wal
+
+# ── MLE-Bench grading artifacts (large CSVs) ──
+scripts/mlebench_grading/
+scripts/mlebench_proper_results/
+
+# ── Local dev scripts that write secrets to .env ──
+scripts/load_gpu_env.ps1
+scripts/setup_gpu_env.py

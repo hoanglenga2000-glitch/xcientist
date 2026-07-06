@@ -1,0 +1,297 @@
+import { spawn } from "node:child_process";
+import { mkdir, rm, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const root = resolve(__dirname, "..");
+const outJson = join(root, "workspace", "code_agent_file_navigation_20260701.json");
+const outMd = join(root, "reports", "CODE_AGENT_FILE_NAVIGATION_20260701.md");
+
+const baseUrl = process.argv.includes("--base-url")
+  ? process.argv[process.argv.indexOf("--base-url") + 1]
+  : "http://127.0.0.1:8088";
+const writeReport = process.argv.includes("--write-report");
+const port = Number(process.env.CODE_AGENT_NAV_CDP_PORT ?? String(9423 + (process.pid % 1000)));
+
+const chromeCandidates = [
+  process.env.WORKSTATION_BROWSER,
+  process.env.CHROME_PATH,
+  "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+  "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+].filter(Boolean);
+
+const fileChecks = [
+  { file: "features.py", selector: "[data-ui-action='open_code_file_features_py']", mustContain: "build_feature_matrix" },
+  { file: "model_lgbm.py", selector: "[data-ui-action='open_code_file_model_lgbm_py']", mustContain: "build_lgbm" },
+  { file: "metrics.json", selector: "[data-ui-action='open_code_file_metrics_json']", mustContain: "cv_logloss" },
+  { file: "implementation_contract.json", selector: "[data-ui-action='open_code_file_implementation_contract_json']", mustContain: "HYP-024" },
+  { file: "quality_gate.json", selector: "[data-ui-action='open_code_file_quality_gate_json']", mustContain: "hpc_handoff" },
+];
+
+function sleep(ms) {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+function findChrome() {
+  return chromeCandidates.find((candidate) => candidate && existsSync(candidate)) ?? null;
+}
+
+async function fetchJson(url, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    return await response.json();
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function stopBrowser(process) {
+  if (!process || process.killed) return;
+  process.kill();
+  await new Promise((resolveStop) => {
+    const timer = setTimeout(resolveStop, 2500);
+    process.once("exit", () => {
+      clearTimeout(timer);
+      resolveStop();
+    });
+  });
+}
+
+async function cleanupUserDataDir(userDataDir) {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      await rm(userDataDir, { recursive: true, force: true });
+      return null;
+    } catch (error) {
+      if (error?.code !== "EBUSY" && error?.code !== "EPERM") throw error;
+      await sleep(400 + attempt * 300);
+    }
+  }
+  return `cleanup_deferred:${userDataDir}`;
+}
+
+class CdpClient {
+  constructor(wsUrl) {
+    this.wsUrl = wsUrl;
+    this.nextId = 1;
+    this.pending = new Map();
+    this.events = [];
+  }
+
+  async connect() {
+    this.socket = new WebSocket(this.wsUrl);
+    await new Promise((resolveConnect, reject) => {
+      const timer = setTimeout(() => reject(new Error("CDP websocket connection timeout")), 10000);
+      this.socket.addEventListener("open", () => {
+        clearTimeout(timer);
+        resolveConnect();
+      }, { once: true });
+      this.socket.addEventListener("error", (event) => {
+        clearTimeout(timer);
+        reject(new Error(`CDP websocket error: ${event.message ?? "unknown"}`));
+      }, { once: true });
+    });
+    this.socket.addEventListener("message", (event) => {
+      const payload = JSON.parse(String(event.data));
+      if (payload.id && this.pending.has(payload.id)) {
+        const { resolve: resolvePending, reject } = this.pending.get(payload.id);
+        this.pending.delete(payload.id);
+        if (payload.error) reject(new Error(payload.error.message ?? JSON.stringify(payload.error)));
+        else resolvePending(payload.result ?? {});
+        return;
+      }
+      this.events.push(payload);
+    });
+  }
+
+  send(method, params = {}) {
+    const id = this.nextId++;
+    return new Promise((resolveSend, reject) => {
+      this.pending.set(id, { resolve: resolveSend, reject });
+      this.socket.send(JSON.stringify({ id, method, params }));
+      setTimeout(() => {
+        if (this.pending.has(id)) {
+          this.pending.delete(id);
+          reject(new Error(`CDP command timeout: ${method}`));
+        }
+      }, 12000);
+    });
+  }
+
+  close() {
+    this.socket?.close();
+  }
+}
+
+async function waitForChrome(portNumber) {
+  for (let attempt = 0; attempt < 50; attempt++) {
+    try {
+      return await fetchJson(`http://127.0.0.1:${portNumber}/json/version`, 2000);
+    } catch {
+      await sleep(200);
+    }
+  }
+  throw new Error("Chrome DevTools endpoint did not become ready.");
+}
+
+async function evalValue(client, expression) {
+  const result = await client.send("Runtime.evaluate", {
+    expression,
+    awaitPromise: true,
+    returnByValue: true
+  });
+  if (result.exceptionDetails) throw new Error(result.exceptionDetails.text ?? "Runtime evaluation failed.");
+  return result.result?.value;
+}
+
+async function waitForCodePage(client) {
+  for (let attempt = 0; attempt < 80; attempt++) {
+    const ok = await evalValue(client, "document.readyState === 'complete' && document.querySelector('[data-ui-component=\"workstation-page\"]')?.getAttribute('data-ui-page') === 'code'");
+    if (ok) return;
+    await sleep(150);
+  }
+  throw new Error("Code page did not become ready.");
+}
+
+async function inspectFileClick(client, check) {
+  const clicked = await evalValue(client, `(() => {
+    const target = document.querySelector(${JSON.stringify(check.selector)});
+    if (!target) return { ok: false, reason: "selector_not_found" };
+    target.click();
+    return { ok: true };
+  })()`);
+  await sleep(450);
+  const state = await evalValue(client, `(() => {
+    const body = document.body.innerText;
+    const selected = document.querySelector(${JSON.stringify(`${check.selector}[data-selected-file="true"]`)});
+    return {
+      clicked: ${JSON.stringify(Boolean(clicked.ok))},
+      reason: ${JSON.stringify(clicked.reason ?? null)},
+      selectedMarker: Boolean(selected),
+      bodyHasFile: body.includes(${JSON.stringify(check.file)}),
+      bodyHasSnippet: body.includes(${JSON.stringify(check.mustContain)}),
+      hasRuntimeError: /Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(body),
+    };
+  })()`);
+  return {
+    ...check,
+    ...state,
+    ok: Boolean(clicked.ok) && state.selectedMarker && state.bodyHasFile && state.bodyHasSnippet && !state.hasRuntimeError,
+  };
+}
+
+async function run() {
+  const chrome = findChrome();
+  const createdAt = new Date().toISOString();
+  if (!chrome) {
+    return {
+      schema: "academic_research_os.code_agent_file_navigation.v1",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: "blocked",
+      blocker: "browser_unavailable",
+      results: [],
+      failed_files: fileChecks.map((item) => item.file),
+      claim_boundary: "No Chromium-compatible browser was found, so Code Agent file navigation could not run."
+    };
+  }
+
+  const userDataDir = join(root, "workspace", `.chrome-code-agent-nav-${Date.now()}`);
+  await mkdir(userDataDir, { recursive: true });
+  const chromeProcess = spawn(chrome, [
+    "--headless=new",
+    "--disable-gpu",
+    "--disable-dev-shm-usage",
+    "--no-first-run",
+    "--no-default-browser-check",
+    `--remote-debugging-port=${port}`,
+    `--user-data-dir=${userDataDir}`,
+    `${baseUrl}/?page=code`
+  ], { stdio: "ignore" });
+
+  let client;
+  let cleanupWarning = null;
+  try {
+    const version = await waitForChrome(port);
+    const tabs = await fetchJson(`http://127.0.0.1:${port}/json`);
+    const tab = tabs.find((item) => item.type === "page") ?? tabs[0];
+    client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
+    await client.connect();
+    await client.send("Page.enable");
+    await client.send("Runtime.enable");
+    await client.send("Log.enable");
+    await waitForCodePage(client);
+
+    const results = [];
+    for (const check of fileChecks) results.push(await inspectFileClick(client, check));
+    const runtimeErrors = client.events.filter((event) => {
+      const method = event.method ?? "";
+      const text = JSON.stringify(event.params ?? {});
+      const favicon404 = /favicon\.ico/.test(text) && /404|Not Found/.test(text);
+      return !favicon404 && (method.includes("exception") || /ChunkLoadError|Hydration failed|Internal Server Error/i.test(text));
+    });
+    const failedFiles = results.filter((item) => !item.ok).map((item) => item.file);
+    return {
+      schema: "academic_research_os.code_agent_file_navigation.v1",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: failedFiles.length === 0 && runtimeErrors.length === 0 ? "passed" : "failed",
+      blocker: null,
+      chrome,
+      results,
+      failed_files: failedFiles,
+      runtime_error_count: runtimeErrors.length,
+      runtime_errors: runtimeErrors.slice(0, 10),
+      cleanup_warning: cleanupWarning,
+      claim_boundary: "This smoke verifies real Code Agent IDE file navigation only. It does not start training, GPU jobs, Kaggle submission, or write secrets."
+    };
+  } finally {
+    client?.close();
+    await stopBrowser(chromeProcess);
+    cleanupWarning = await cleanupUserDataDir(userDataDir);
+  }
+}
+
+function toMarkdown(report) {
+  const lines = [
+    "# Code Agent 文件切换 Smoke",
+    "",
+    `- 生成时间：\`${report.created_at}\``,
+    `- 工作站地址：\`${report.base_url}\``,
+    `- 状态：\`${report.status}\``,
+    `- 失败文件：\`${report.failed_files?.join(", ") || "none"}\``,
+    `- 运行时错误数：\`${report.runtime_error_count ?? 0}\``,
+    "",
+    "| file | clicked | selected | file visible | snippet visible | ok |",
+    "| --- | --- | --- | --- | --- | --- |",
+  ];
+  for (const item of report.results ?? []) {
+    lines.push(`| \`${item.file}\` | \`${item.clicked}\` | \`${item.selectedMarker}\` | \`${item.bodyHasFile}\` | \`${item.bodyHasSnippet}\` | \`${item.ok}\` |`);
+  }
+  lines.push("", "## 声明边界", "", report.claim_boundary, "");
+  return lines.join("\n");
+}
+
+const report = await run();
+if (writeReport) {
+  await mkdir(dirname(outJson), { recursive: true });
+  await mkdir(dirname(outMd), { recursive: true });
+  await writeFile(outJson, `${JSON.stringify(report, null, 2)}\n`, "utf8");
+  await writeFile(outMd, `\ufeff${toMarkdown(report)}`, "utf8");
+}
+
+console.log(JSON.stringify({
+  status: report.status,
+  failed_files: report.failed_files,
+  runtime_error_count: report.runtime_error_count ?? 0,
+  json: writeReport ? "workspace/code_agent_file_navigation_20260701.json" : null,
+  md: writeReport ? "reports/CODE_AGENT_FILE_NAVIGATION_20260701.md" : null
+}, null, 2));
+
+process.exit(report.status === "passed" ? 0 : 1);

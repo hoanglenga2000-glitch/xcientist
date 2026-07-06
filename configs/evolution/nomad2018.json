@@ -1,0 +1,17 @@
+{
+  "task_name": "nomad2018-predict-transparent-conductors",
+  "remote_data_dirname": "nomad2018-predict-transparent-conductors",
+  "modality": "tabular",
+  "task_type": "regression",
+  "metric": "rmsle_columnwise_mean",
+  "metric_direction": "minimize",
+  "target_column": "formation_energy_ev_natom,bandgap_energy_ev",
+  "id_column": "id",
+  "n_train": 2400,
+  "n_test": 600,
+  "n_features": 11,
+  "n_model_families": 3,
+  "target_is_positive": true,
+  "data_schema": "id(int); spacegroup(int categorical); number_of_total_atoms(float); percent_atom_al/ga/in(float fractions sum~1); lattice_vector_1/2/3_ang(float); lattice_angle_alpha/beta/gamma_degree(float). TWO regression TARGETS: formation_energy_ev_natom and bandgap_energy_ev (both >=0).",
+  "extra_notes": "Dual-target regression. Metric = mean of column-wise RMSLE over the two targets. Train one model per target (or multi-output). Both targets are non-negative, so log1p target transform is appropriate. submission.csv columns: id,formation_energy_ev_natom,bandgap_energy_ev. CV_SCORE must be the mean column-wise RMSLE (lower is better)."
+}

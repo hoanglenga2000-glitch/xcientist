@@ -1,0 +1,55 @@
+﻿task:
+  name: bike_sharing_demand
+  competition: bike-sharing-demand
+  type: regression
+  target: count
+  metric: rmsle
+  id_column: datetime
+  prediction_column: count
+
+data:
+  task_dir: tasks/bike_sharing_demand
+  train: tasks/bike_sharing_demand/data/train.csv
+  test: tasks/bike_sharing_demand/data/test.csv
+  sample_submission: tasks/bike_sharing_demand/data/sample_submission.csv
+  data_source: Kaggle API via workstation DPAPI credential
+  overview: tasks/bike_sharing_demand/overview.txt
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  require_positive_predictions: true
+  expected_submission_columns:
+    - datetime
+    - count
+
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: time-aware split preferred; MVP fast-run uses local CV smoke only.
+  first_stage_models:
+    - hist_gradient_boosting_log_target
+    - random_forest_log_target
+    - extra_trees_log_target
+  risk_points:
+    - Time leakage risk from datetime and seasonality.
+    - Casual/registered columns are unavailable in test and must not be used as targets.
+    - Official Kaggle submission requires Human Gate.
+
+feature_engineering:
+  preset: datetime_tabular_basic
+  target_transform: log1p
+  drop_columns:
+    - casual
+    - registered

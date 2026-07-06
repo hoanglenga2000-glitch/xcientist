@@ -1,0 +1,17 @@
+{
+  "task_name": "google-quest-challenge",
+  "modality": "text",
+  "task_type": "regression",
+  "metric": "spearman_mean",
+  "metric_direction": "maximize",
+  "target_column": "30 label columns",
+  "id_column": "qa_id",
+  "n_train": 6079,
+  "n_test": 476,
+  "n_model_families": 2,
+  "data_schema": "train.csv: qa_id(id), question_title, question_body, answer, category, host (+ 6 user/url text cols), then 30 float target columns in [0,1] (question_* and answer_*). test.csv: qa_id + the same input text cols (NO targets). sample_submission.csv: qa_id + the 30 target columns.",
+  "extra_notes": "Google QUEST Q&A Labeling. Files at data-dir: train.csv, test.csv, sample_submission.csv. Predict 30 quality float scores in [0,1] per (question,answer). Official metric = mean column-wise Spearman rank correlation (HIGHER better). Approach that fits the A40 in minutes: TF-IDF (word+char n-grams) on question_title+question_body+answer, plus one-hot of category/host, then a multi-output Ridge/ridge-per-target or lightgbm per target (30 targets). Report CV_SCORE = mean over the 30 targets of Spearman correlation on an OOF/holdout split (higher better). submission.csv MUST have columns EXACTLY matching sample_submission.csv (qa_id + 30 target names) for all test qa_id rows in order. metrics.json {\"cv_score\": <float>, \"metric\": \"spearman_mean\"}.",
+  "remote_data_dirname": "google-quest-challenge",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/google-quest-challenge",
+  "n_features": 0
+}

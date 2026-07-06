@@ -1,0 +1,48 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/porto_seguro_safe_driver_prediction/data/sample_submission.csv
+  task_dir: tasks/porto_seguro_safe_driver_prediction
+  test: tasks/porto_seguro_safe_driver_prediction/data/test.csv
+  train: tasks/porto_seguro_safe_driver_prediction/data/train.csv
+  variant_of: porto_seguro_safe_driver_prediction
+feature_engineering:
+  drop_columns:
+  - id
+  feature_selection: lgbm_importance
+  max_features: 30
+  numeric_strategy: median
+  preset: porto_seguro_selected
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - lightgbm
+  - random_forest
+  risk_points:
+  - Large tabular dataset; use fast sampling locally, HPC for full search.
+  - Official metric is normalized gini/AUC proxy; current generic runner is smoke-level.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 12
+  validation_strategy: 5-fold stratified CV with top-30 features
+task:
+  competition: Porto Seguro - Feature Selection Variant
+  id_column: id
+  metric: normalized_gini
+  name: porto_seguro_v2_feature_selection
+  prediction_column: target
+  target: target
+  type: binary_classification
+thresholds:
+  expected_submission_columns:
+  - id
+  - target
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

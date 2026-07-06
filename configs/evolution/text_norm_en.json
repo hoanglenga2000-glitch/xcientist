@@ -1,0 +1,17 @@
+{
+  "task_name": "text-normalization-challenge-english-language",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "token_accuracy",
+  "metric_direction": "maximize",
+  "target_column": "after",
+  "id_column": "id",
+  "n_train": 9918441,
+  "n_test": 1088565,
+  "data_schema": "en_train.csv: sentence_id, token_id, class, before, after. en_test.csv: sentence_id, token_id, before (id for submission = 'sentence_id_token_id'). en_sample_submission.csv: id, after.",
+  "extra_notes": "Text Normalization (English). Files: en_train.csv (9.9M token rows), en_test.csv, en_sample_submission.csv. For each token predict its normalized 'after' string. Official metric = per-token accuracy (HIGHER better). Strong cheap baseline that finishes on A40: build a memorization dictionary from en_train mapping before->most_frequent(after); at predict time, output the dict value if 'before' seen else identity (after=before). ~most tokens are class=PLAIN where after==before, so identity+dict is a very strong baseline. Report CV_SCORE = token accuracy on a held-out slice of en_train (higher better). submission.csv columns EXACTLY id,after where id = f'{sentence_id}_{token_id}' for every en_test row in order. metrics.json {\"cv_score\": <float>, \"metric\": \"token_accuracy\"}.",
+  "remote_data_dirname": "text-normalization-challenge-english-language",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/text-normalization-challenge-english-language",
+  "n_features": 0,
+  "n_model_families": 2
+}

@@ -1,0 +1,51 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/spaceship_titanic/data/sample_submission.csv
+  task_dir: tasks/spaceship_titanic
+  test: tasks/spaceship_titanic/data/test.csv
+  train: tasks/spaceship_titanic/data/train.csv
+  variant_of: spaceship_titanic
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - Name
+  - PassengerId
+  - Cabin
+  missing_indicators: true
+  numeric_strategy: iterative_impute
+  preset: spaceship_missing_aware
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - logistic_regression
+  - random_forest
+  - hist_gradient_boosting
+  risk_points:
+  - Passenger/group/cabin text features need controlled parsing.
+  - Local CV is proxy only.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 12
+  validation_strategy: 5-fold stratified CV with missing indicator features
+task:
+  competition: Spaceship Titanic - Imputation Focus Variant
+  id_column: PassengerId
+  metric: accuracy
+  name: spaceship_titanic_v3_imputation_focus
+  prediction_column: Transported
+  target: Transported
+  type: binary_classification
+thresholds:
+  expected_submission_columns:
+  - PassengerId
+  - Transported
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

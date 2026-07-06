@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/validation_contract.schema.json",
+  "title": "ValidationContract",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "contract_id",
+    "exp_id",
+    "claim",
+    "hypothesis",
+    "implementation_requirement",
+    "metric",
+    "baseline_exp_id",
+    "acceptance_criteria",
+    "ablation_plan",
+    "risk_checklist",
+    "conclusion_boundary",
+    "required_artifacts"
+  ],
+  "properties": {
+    "contract_id": { "type": "string" },
+    "exp_id": { "type": "string" },
+    "claim": { "type": "string" },
+    "hypothesis": { "type": "string" },
+    "implementation_requirement": { "type": "string" },
+    "metric": { "type": "string" },
+    "baseline_exp_id": { "type": "string" },
+    "acceptance_criteria": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "boolean", "null"] }
+    },
+    "ablation_plan": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risk_checklist": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["risk", "status"],
+        "properties": {
+          "risk": { "type": "string" },
+          "status": { "type": "string", "enum": ["pending", "passed", "failed", "waived"] },
+          "evidence": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "conclusion_boundary": { "type": "string" },
+    "required_artifacts": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

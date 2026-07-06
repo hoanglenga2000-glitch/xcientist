@@ -1,0 +1,18 @@
+task:
+  name: ps3e1
+  competition: playground-series-s3e1
+  type: regression
+  target: MedHouseVal
+  metric: rmse
+data:
+  task_dir: tasks/ps3e1
+  train: tasks/ps3e1/data/train.csv
+  test: tasks/ps3e1/data/test.csv
+  sample_submission: tasks/ps3e1/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

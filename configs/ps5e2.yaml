@@ -1,0 +1,18 @@
+task:
+  name: ps5e2
+  competition: playground-series-s5e2
+  type: regression
+  target: Price
+  metric: rmse
+data:
+  task_dir: tasks/ps5e2
+  train: tasks/ps5e2/data/train.csv
+  test: tasks/ps5e2/data/test.csv
+  sample_submission: tasks/ps5e2/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

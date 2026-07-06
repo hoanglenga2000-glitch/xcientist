@@ -1,0 +1,54 @@
+task:
+  name: store_sales_time_series_forecasting
+  competition: store-sales-time-series-forecasting
+  type: regression
+  target: sales
+  metric: rmsle
+  id_column: id
+  prediction_column: sales
+
+data:
+  task_dir: tasks/store_sales_time_series_forecasting
+  train: tasks/store_sales_time_series_forecasting/data/train.csv
+  test: tasks/store_sales_time_series_forecasting/data/test.csv
+  sample_submission: tasks/store_sales_time_series_forecasting/data/sample_submission.csv
+  overview: tasks/store_sales_time_series_forecasting/overview.txt
+  data_source: tasks/store_sales_time_series_forecasting/data/DATA_SOURCE.md
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  require_positive_predictions: true
+  expected_submission_columns:
+    - id
+    - sales
+
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: time-aware local validation is preferred; MVP fast-run uses sampled local CV only as smoke evidence.
+  first_stage_models:
+    - hist_gradient_boosting_log_target
+    - random_forest_log_target
+    - extra_trees_log_target
+  risk_points:
+    - Time-series leakage risk: future dates must not leak into training features.
+    - Local sampled CV is only a smoke proxy and not leaderboard evidence.
+    - Full training should use time-aware splits and HPC/GPU/CPU resources when available.
+    - Official Kaggle submission requires Human Gate.
+
+feature_engineering:
+  preset: store_sales_basic
+  target_transform: log1p
+  drop_columns: []

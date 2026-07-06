@@ -1,0 +1,43 @@
+data:
+  sample_submission: tasks/playground_series_s6e6/data/sample_submission.csv
+  task_dir: tasks/playground_series_s6e6
+  test: tasks/playground_series_s6e6/data/test.csv
+  train: tasks/playground_series_s6e6/data/train.csv
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - id
+  numeric_strategy: median
+  preset: tabular_basic
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - random_forest
+  - extra_trees
+  - hist_gradient_boosting
+  - xgboost
+  time_budget_minutes: 15
+  validation_strategy: 5-fold stratified cross-validation
+task:
+  competition: Playground Series - Season 6 Episode 6
+  id_column: id
+  metric: accuracy
+  name: playground_series_s6e6
+  prediction_column: class
+  target: class
+  type: multiclass_classification
+thresholds:
+  expected_submission_columns:
+  - id
+  - class
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

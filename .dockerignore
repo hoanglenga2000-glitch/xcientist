@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.env
+.git/
+web/research-agent-workstation/node_modules/
+web/research-agent-workstation/.next/
+web/research-agent-workstation/prisma/*.db
+web/research-agent-workstation/prisma/*.db-journal

@@ -1,0 +1,20 @@
+task:
+  name: home_data_ml
+  competition: home-data-for-ml-course
+  type: regression
+  target: SalePrice
+  metric: rmsle
+  id_column: Id
+data:
+  task_dir: tasks/home_data_ml
+  train: tasks/home_data_ml/data/train.csv
+  test: tasks/home_data_ml/data/test.csv
+  sample_submission: tasks/home_data_ml/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [Id]
+  target_transform: log1p
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

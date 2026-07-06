@@ -1,0 +1,52 @@
+task:
+  name: kaggle_new_competition_smoke
+  competition: kaggle-new-competition-smoke
+  type: regression
+  target: SalePrice
+  metric: rmsle
+  id_column: Id
+  prediction_column: SalePrice
+data:
+  task_dir: tasks/kaggle_new_competition_smoke
+  train: tasks/kaggle_new_competition_smoke/data/train.csv
+  test: tasks/kaggle_new_competition_smoke/data/test.csv
+  sample_submission: tasks/kaggle_new_competition_smoke/data/sample_submission.csv
+  overview: tasks/kaggle_new_competition_smoke/overview.txt
+  data_source: tasks/kaggle_new_competition_smoke/data/DATA_SOURCE.md
+agent_templates: configs/agent_templates.yaml
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 1459
+  expected_submission_columns:
+  - Id
+  - SalePrice
+  require_positive_predictions: true
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: 5-fold local cross-validation plus holdout validation; official
+    Kaggle leaderboard remains gated.
+  first_stage_models:
+  - ridge_log_target
+  - random_forest_log_target
+  - extra_trees_log_target
+  - gradient_boosting_log_target
+  risk_points:
+  - Metric and target inference must be reviewed before official submission.
+  - Local CV is a proxy and may not match hidden leaderboard distribution.
+  - Submission schema must match sample_submission.csv exactly.
+  - Official Kaggle download/submission requires credentials and a human gate.
+feature_engineering:
+  preset: generic_tabular
+  target_transform: log1p
+  drop_columns:
+  - Id

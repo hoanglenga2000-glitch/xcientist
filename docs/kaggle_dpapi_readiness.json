@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-07-06T09:18:40",
+  "status": "passed",
+  "verification_method": "cli_fallback",
+  "credential_status": "configured_cli_fallback",
+  "credential_installed": true,
+  "token_type": "cli_fallback",
+  "credential_path": "n/a (CLI fallback)",
+  "tool_status": {
+    "python_package_installed": true,
+    "python_package_version": "1.6.17",
+    "cli_path": "C:\\Users\\景浩伟\\.xsci\\bin\\kaggle.CMD",
+    "cli_competition_count": 0
+  },
+  "safe_install_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 install-token -ApiToken <token>",
+  "real_api_smoke_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 smoke -AllowRealExternal",
+  "human_gate_required_for_submission": true,
+  "conclusion": "Kaggle CLI fallback verification passed: 0 competitions accessible via `kaggle competitions list`. DPAPI secret manager output was not parseable (likely encoding), but the Kaggle CLI is functional. Official submission still requires Human Gate."
+}

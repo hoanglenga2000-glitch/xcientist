@@ -1,0 +1,18 @@
+{
+  "task_name": "lmsys-chatbot-arena",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "multiclass_log_loss",
+  "metric_direction": "minimize",
+  "target_column": "winner_model_a/b/tie",
+  "id_column": "id",
+  "n_train": 57477,
+  "n_test": 3,
+  "n_classes": 3,
+  "data_schema": "train.csv: id, model_a, model_b, prompt(list-json str), response_a(list-json str), response_b(list-json str), winner_model_a, winner_model_b, winner_tie (3 one-hot target cols). test.csv: id, prompt, response_a, response_b. sample_submission.csv: id, winner_model_a, winner_model_b, winner_tie (probabilities summing to 1).",
+  "extra_notes": "LMSYS Chatbot Arena human-preference prediction. Files: train.csv, test.csv, sample_submission.csv. 3-class: which of response_a / response_b wins, or tie. Official metric = multi-class log loss (LOWER better). prompt/response_a/response_b are JSON-encoded lists of strings — join them to plain text first. Fast baseline: TF-IDF on prompt + response_a + response_b (and length/diff features between a and b), then a 3-class classifier (lightgbm multiclass or logistic regression) with predict_proba. Report CV_SCORE = multiclass log loss on OOF (lower better). submission.csv columns EXACTLY id,winner_model_a,winner_model_b,winner_tie (probabilities, each row sums to 1) for all test ids. metrics.json {\"cv_score\": <float>, \"metric\": \"multiclass_log_loss\"}.",
+  "remote_data_dirname": "lmsys-chatbot-arena",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/lmsys-chatbot-arena",
+  "n_features": 0,
+  "n_model_families": 2
+}

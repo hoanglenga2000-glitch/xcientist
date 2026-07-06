@@ -1,0 +1,34 @@
+{
+  "schema": "academic_research_os.hpc_allowed_allocations.v1",
+  "updated_at": "2026-06-28T20:55:00+08:00",
+  "policy": "Only these user-owned allocations may be used by local workstation tooling. Other allocations must not be connected or scheduled.",
+  "remote_workspace": "/hpc2hdd/home/aimslab/research_agent_workstation",
+  "allocations": [
+    {
+      "job_id": "87384",
+      "role": "primary",
+      "cluster": "AI-X86_NVIDIA",
+      "ssh_user": "aimslab-TTA-A800-1GPU",
+      "inner_endpoint": "10.120.18.240:6988",
+      "gpu": "1",
+      "cpu": "8",
+      "environment_type": "VSCode",
+      "image": "10.120.18.240:5000/dl_project/yifanlitest:latest",
+      "credential_storage": "Windows DPAPI or runtime environment only",
+      "secret_values_recorded": false
+    },
+    {
+      "job_id": "87318",
+      "role": "backup",
+      "cluster": "AI-X86_NVIDIA",
+      "ssh_user": "aimslab-kdd-ai4s",
+      "inner_endpoint": "10.120.18.240:6988",
+      "gpu": "1",
+      "cpu": "8",
+      "environment_type": "JupyterLab",
+      "image": "10.120.18.240:5000/admin/webide-jupter:test1",
+      "credential_storage": "Windows DPAPI or runtime environment only",
+      "secret_values_recorded": false
+    }
+  ]
+}

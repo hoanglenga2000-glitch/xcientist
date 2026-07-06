@@ -1,0 +1,18 @@
+{
+  "task_name": "jigsaw-toxic-comment-classification-challenge",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "mean_column_roc_auc",
+  "metric_direction": "maximize",
+  "target_column": "6 toxicity labels",
+  "id_column": "id",
+  "n_train": 159571,
+  "n_test": 153164,
+  "n_classes": 6,
+  "data_schema": "train.csv: id, comment_text, and 6 binary label cols (toxic, severe_toxic, obscene, threat, insult, identity_hate). test.csv: id, comment_text. test_labels.csv: id + 6 labels but rows with -1 are unscored. sample_submission.csv: id + 6 label probability cols.",
+  "extra_notes": "Jigsaw Toxic Comment Classification. Files: train.csv, test.csv, sample_submission.csv (test_labels.csv exists but the grader uses only scored rows). Multi-label: predict probability of each of 6 toxicity types. Official metric = mean column-wise ROC AUC over the 6 labels (HIGHER better). Fast strong baseline: TF-IDF (word 1-2gram + char 3-5gram, sublinear tf, max_features ~50k) then one logistic regression per label (predict_proba). Report CV_SCORE = mean over 6 labels of ROC AUC on OOF (higher better). submission.csv columns EXACTLY id,toxic,severe_toxic,obscene,threat,insult,identity_hate (probabilities) for all test ids in order. metrics.json {\"cv_score\": <float>, \"metric\": \"mean_column_roc_auc\"}.",
+  "remote_data_dirname": "jigsaw-toxic-comment-classification-challenge",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/jigsaw-toxic-comment-classification-challenge",
+  "n_features": 0,
+  "n_model_families": 2
+}

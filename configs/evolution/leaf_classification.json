@@ -1,0 +1,18 @@
+{
+  "task_name": "leaf-classification",
+  "remote_data_dirname": "leaf-classification",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_prepared/leaf-classification",
+  "modality": "tabular",
+  "task_type": "multiclass_classification",
+  "metric": "multiclass_log_loss",
+  "metric_direction": "minimize",
+  "target_column": "species",
+  "id_column": "id",
+  "n_train": 990,
+  "n_test": 594,
+  "n_features": 192,
+  "n_classes": 99,
+  "n_model_families": 3,
+  "data_schema": "id(int id, keep verbatim for submission); species(string target, 99 distinct leaf species — this is the label, present in train.csv only); margin1..margin64, shape1..shape64, texture1..texture64 (192 float features, pre-extracted image descriptors in [0,1]). test.csv has id + the 192 feature columns, no species.",
+  "extra_notes": "Kaggle Leaf Classification. 99-class multiclass classification on 192 numeric features. Metric = multi-class log loss (LOWER is better); CV_SCORE = OOF/K-fold multiclass log loss. Only 990 train rows x 99 classes, so use StratifiedKFold and models that give calibrated probabilities (LogisticRegression, lightgbm multiclass, or a small MLP); watch for overfitting (regularize, keep it simple). submission.csv MUST have columns id + one probability column PER SPECIES named EXACTLY as in sample_submission.csv (id,Acer_Capillipes,...,Zelkova_Serrata), row order = test id order, each row's 99 probabilities sum to 1. metrics.json must contain {\"cv_score\": <logloss float>, \"metric\": \"multiclass_log_loss\"}."
+}

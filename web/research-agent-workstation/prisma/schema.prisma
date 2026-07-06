@@ -1,0 +1,161 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Task {
+  id          String          @id
+  name        String
+  taskType    String          @map("task_type")
+  target      String?
+  metric      String?
+  status      String
+  priority    String?
+  owner       String?
+  configPath  String?         @map("config_path")
+  taskDir     String?         @map("task_dir")
+  createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+  actions     ActionLog[]
+  evidence    Evidence[]
+  gates       Gate[]
+  reports     Report[]
+  runs        ExperimentRun[]
+  workflows   Workflow[]
+
+  @@map("tasks")
+}
+
+model ExperimentRun {
+  id               String      @id
+  taskId           String      @map("task_id")
+  outputDir        String?     @map("output_dir")
+  status           String
+  bestModel        String?     @map("best_model")
+  metricsJson      String?     @map("metrics_json")
+  validationStatus String?     @map("validation_status")
+  processId        Int?        @map("process_id")
+  startedAt        DateTime?   @map("started_at")
+  finishedAt       DateTime?   @map("finished_at")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+  task             Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actions          ActionLog[]
+  evidence         Evidence[]
+  gates            Gate[]
+  reports          Report[]
+
+  @@index([taskId, createdAt])
+  @@map("experiment_runs")
+}
+
+model ActionLog {
+  id           String         @id
+  action       String
+  taskId       String?        @map("task_id")
+  runId        String?        @map("run_id")
+  message      String
+  artifactPath String?        @map("artifact_path")
+  metadataJson String?        @map("metadata_json")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  run          ExperimentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  task         Task?          @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([taskId, createdAt])
+  @@map("action_logs")
+}
+
+model Workflow {
+  id          String    @id
+  taskId      String    @map("task_id")
+  name        String
+  status      String
+  version     Int       @default(1)
+  nodesJson   String    @map("nodes_json")
+  edgesJson   String    @map("edges_json")
+  publishedAt DateTime? @map("published_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  task        Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, updatedAt])
+  @@map("workflows")
+}
+
+model Gate {
+  id           String         @id
+  taskId       String         @map("task_id")
+  runId        String?        @map("run_id")
+  gateType     String         @map("gate_type")
+  decision     String
+  reviewer     String?
+  evidenceJson String?        @map("evidence_json")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  decidedAt    DateTime?      @map("decided_at")
+  run          ExperimentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("gates")
+}
+
+model Evidence {
+  id           String         @id
+  taskId       String         @map("task_id")
+  runId        String?        @map("run_id")
+  label        String
+  artifactPath String?        @map("artifact_path")
+  hash         String?
+  source       String?
+  claimBinding String?        @map("claim_binding")
+  createdAt    DateTime       @default(now()) @map("created_at")
+  run          ExperimentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  task         Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("evidence")
+}
+
+model Report {
+  id              String         @id
+  taskId          String         @map("task_id")
+  runId           String?        @map("run_id")
+  title           String
+  status          String
+  markdownContent String?        @map("markdown_content")
+  contentJson     String?        @map("content_json")
+  markdownPath    String?        @map("markdown_path")
+  docxPath        String?        @map("docx_path")
+  selectedSection String?        @map("selected_section")
+  submittedAt     DateTime?      @map("submitted_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  run             ExperimentRun? @relation(fields: [runId], references: [id], onDelete: SetNull)
+  task            Task           @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, updatedAt])
+  @@map("reports")
+}
+
+model ConnectorStatus {
+  provider  String   @id
+  name      String
+  state     String
+  configured Boolean
+  detail    String?
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("connector_statuses")
+}
+
+model Setting {
+  key       String   @id
+  valueJson String   @map("value_json")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("settings")
+}

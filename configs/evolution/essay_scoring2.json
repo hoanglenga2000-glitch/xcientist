@@ -1,0 +1,17 @@
+{
+  "task_name": "learning-agency-lab-automated-essay-scoring-2",
+  "modality": "text",
+  "task_type": "regression",
+  "metric": "quadratic_weighted_kappa",
+  "metric_direction": "maximize",
+  "target_column": "score",
+  "id_column": "essay_id",
+  "n_train": 17307,
+  "n_test": 3,
+  "data_schema": "train.csv: essay_id(id), full_text(str essay), score(int 1..6 target). test.csv: essay_id, full_text. sample_submission.csv: essay_id, score.",
+  "extra_notes": "Automated Essay Scoring 2.0. Files: train.csv, test.csv, sample_submission.csv. Predict integer essay score 1..6. Official metric = Quadratic Weighted Kappa (HIGHER better). Fast strong baseline on A40: engineer text features (length, word/sentence counts, mean word len, punctuation, TF-IDF word+char n-grams truncated by SVD) then lightgbm/xgboost REGRESSION, round+clip predictions to [1,6] ints for QWK. Report CV_SCORE = QWK on K-fold OOF (higher better). submission.csv columns EXACTLY essay_id,score (int) for all test rows. metrics.json {\"cv_score\": <float>, \"metric\": \"quadratic_weighted_kappa\"}.",
+  "remote_data_dirname": "learning-agency-lab-automated-essay-scoring-2",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/learning-agency-lab-automated-essay-scoring-2",
+  "n_features": 0,
+  "n_model_families": 2
+}

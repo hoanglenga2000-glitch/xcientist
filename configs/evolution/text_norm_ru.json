@@ -1,0 +1,17 @@
+{
+  "task_name": "text-normalization-challenge-russian-language",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "token_accuracy",
+  "metric_direction": "maximize",
+  "target_column": "after",
+  "id_column": "id",
+  "n_train": 10574516,
+  "n_test": 1074564,
+  "data_schema": "ru_train.csv: sentence_id, token_id, class, before, after. ru_test.csv: sentence_id, token_id, before. ru_sample_submission.csv: id, after.",
+  "extra_notes": "Text Normalization (Russian). Files: ru_train.csv (10.6M token rows), ru_test.csv, ru_sample_submission.csv. Same task as English. Official metric = per-token accuracy (HIGHER better). Baseline: before->most_frequent(after) dictionary from ru_train, fall back to identity (after=before) for unseen tokens. Read CSVs as utf-8. Report CV_SCORE = token accuracy on a held-out slice of ru_train. submission.csv columns EXACTLY id,after where id = f'{sentence_id}_{token_id}' for every ru_test row in order. metrics.json {\"cv_score\": <float>, \"metric\": \"token_accuracy\"}.",
+  "remote_data_dirname": "text-normalization-challenge-russian-language",
+  "gpu_data_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data/text-normalization-challenge-russian-language",
+  "n_features": 0,
+  "n_model_families": 2
+}

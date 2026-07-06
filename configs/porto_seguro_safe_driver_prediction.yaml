@@ -1,0 +1,53 @@
+﻿task:
+  name: porto_seguro_safe_driver_prediction
+  competition: porto-seguro-safe-driver-prediction
+  type: binary_classification
+  target: target
+  metric: normalized_gini
+  id_column: id
+  prediction_column: target
+
+data:
+  task_dir: tasks/porto_seguro_safe_driver_prediction
+  train: tasks/porto_seguro_safe_driver_prediction/data/train.csv
+  test: tasks/porto_seguro_safe_driver_prediction/data/test.csv
+  sample_submission: tasks/porto_seguro_safe_driver_prediction/data/sample_submission.csv
+  data_source: Kaggle API via workstation DPAPI credential
+  overview: tasks/porto_seguro_safe_driver_prediction/overview.txt
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_columns:
+    - id
+    - target
+
+scaffold:
+  time_budget_minutes: 30
+  validation_strategy: stratified K-fold local CV; official metric/gini needs dedicated scorer in later phase.
+  first_stage_models:
+    - hist_gradient_boosting
+    - random_forest
+    - extra_trees
+  risk_points:
+    - Large tabular dataset; use fast sampling locally, HPC for full search.
+    - Official metric is normalized gini/AUC proxy; current generic runner is smoke-level.
+    - Official Kaggle submission requires Human Gate.
+
+feature_engineering:
+  preset: tabular_basic
+  target_transform: null
+  drop_columns: []
+
