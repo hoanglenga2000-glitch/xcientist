@@ -194,13 +194,18 @@ async function inspectControls(client, page) {
       const label = (el.getAttribute('aria-label') || el.textContent || el.getAttribute('placeholder') || '').replace(/\\s+/g, ' ').trim().slice(0, 120);
       const disabled = Boolean(el.disabled) || el.getAttribute('aria-disabled') === 'true';
       const action = el.getAttribute('data-ui-action');
+      const skipAction = el.getAttribute('data-ui-skip-action') === 'true';
       const testid = el.getAttribute('data-testid');
       const component = el.getAttribute('data-ui-component');
       const href = el.getAttribute('href');
       const role = el.getAttribute('role');
       const type = el.getAttribute('type');
       const hasInlineHandler = Array.from(el.getAttributeNames()).some((name) => name.toLowerCase().startsWith('on'));
-      const hasRouteContract = Boolean(action || testid || component || href || disabled || ['input','select','textarea'].includes(tag));
+      const isFormControl = ['input','select','textarea'].includes(tag);
+      const isFocusableContainer = !['button','a','input','select','textarea'].includes(tag)
+        && !role
+        && el.hasAttribute('tabindex');
+      const hasRouteContract = Boolean(skipAction || action || testid || component || href || disabled || isFormControl || isFocusableContainer);
       const rect = el.getBoundingClientRect();
       return {
         index,
@@ -208,6 +213,7 @@ async function inspectControls(client, page) {
         type,
         label,
         action,
+        skipAction,
         testid,
         component,
         href,
@@ -379,12 +385,46 @@ function toMarkdownClean(report) {
   return lines.join("\n");
 }
 
+function toMarkdownCleanUtf8(report) {
+  const lines = [
+    "# Workstation Interactive Controls Audit",
+    "",
+    `- created_at: \`${report.created_at}\``,
+    `- base_url: \`${report.base_url}\``,
+    `- status: \`${report.status}\``,
+    `- browser: \`${report.chrome ?? "not_found"}\``,
+    `- failed_pages: \`${report.failed_pages?.join(", ") || "none"}\``,
+    `- missing_control_count: \`${report.missing_control_count ?? "unknown"}\``,
+    `- runtime_error_count: \`${report.runtime_error_count ?? 0}\``,
+    "",
+    "## Page Coverage",
+    "",
+    "| page | ok | controls | data-ui-action | data-testid | disabled | missing |",
+    "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+  ];
+  for (const item of report.page_results ?? []) {
+    lines.push(`| \`${item.page}\` | \`${item.ok}\` | ${item.total} | ${item.withAction} | ${item.withTestId} | ${item.disabled} | ${item.missing.length} |`);
+  }
+  lines.push("", "## Missing Control Contracts", "");
+  const missing = (report.page_results ?? []).flatMap((item) => item.missing.map((control) => ({ page: item.page, ...control })));
+  if (missing.length === 0) {
+    lines.push("none", "");
+  } else {
+    lines.push("| page | tag | label | action | testid |", "| --- | --- | --- | --- | --- |");
+    for (const item of missing.slice(0, 100)) {
+      lines.push(`| \`${item.page}\` | \`${item.tag}\` | \`${item.label || "-"}\` | \`${item.action || "-"}\` | \`${item.testid || "-"}\` |`);
+    }
+  }
+  lines.push("", "## Claim Boundary", "", report.claim_boundary, "");
+  return lines.join("\n");
+}
+
 const report = await run();
 if (writeReport) {
   await mkdir(dirname(outJson), { recursive: true });
   await mkdir(dirname(outMd), { recursive: true });
   await writeFile(outJson, `${JSON.stringify(report, null, 2)}\n`, "utf8");
-  await writeFile(outMd, `\ufeff${toMarkdownClean(report)}`, "utf8");
+  await writeFile(outMd, `\ufeff${toMarkdownCleanUtf8(report)}`, "utf8");
 }
 
 console.log(JSON.stringify({

@@ -1,7 +1,10 @@
-# install.ps1 — AI Research Workstation ONE-COMMAND installer
-# Usage: powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
-# What it does: checks deps → installs Python/Node deps → builds frontend →
-#               installs CLI → configures secrets → verifies → prints next steps.
+# AI Research Workstation one-command installer.
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
+#
+# This script installs local dependencies, CLI wrappers, optional DPAPI secrets,
+# and runs a lightweight release check. It does not start training and does not
+# print secret values.
 param(
   [string]$DeepSeekApiKey = "",
   [string]$KaggleApiToken = "",
@@ -12,193 +15,195 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch {
+  # Best effort for legacy Windows PowerShell.
+}
 $Root = Split-Path -Parent $PSCommandPath
 $Web = Join-Path $Root "web\research-agent-workstation"
-$Green = "Green"; $Yellow = "Yellow"; $Cyan = "Cyan"; $Red = "Red"
+$ShimDir = Join-Path $env:USERPROFILE ".xsci\bin"
+$env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
 
-Write-Host "`n================================================================" -ForegroundColor $Cyan
-Write-Host "  AI Research Workstation — One-Command Installer" -ForegroundColor $Cyan
-Write-Host "  XCIENTIST / Kaggle Research Agent" -ForegroundColor $Cyan
-Write-Host "================================================================`n" -ForegroundColor $Cyan
-
-# ── 0. Prerequisites ──────────────────────────────────────────
-Write-Host ">>> Checking prerequisites..." -ForegroundColor $Cyan
-
-# Check Python
-$python = (Get-Command python -ErrorAction SilentlyContinue) ?? (Get-Command python3 -ErrorAction SilentlyContinue)
-if (-not $python) {
-  Write-Host "  [MISS] Python not found. Please install Python 3.10+ from https://python.org" -ForegroundColor $Red
-  exit 1
-}
-$pyVer = & $python.Source --version 2>&1
-Write-Host "  [OK] $pyVer ($($python.Source))" -ForegroundColor $Green
-
-# Check Node
-$node = Get-Command node -ErrorAction SilentlyContinue
-if (-not $node) {
-  Write-Host "  [MISS] Node.js not found. Install Node 18+ from https://nodejs.org" -ForegroundColor $Red
-  exit 1
-}
-Write-Host "  [OK] Node $(node --version)" -ForegroundColor $Green
-
-# Check Git
-$git = Get-Command git -ErrorAction SilentlyContinue
-if (-not $git) {
-  Write-Host "  [WARN] Git not found. Some features may be limited." -ForegroundColor $Yellow
-} else {
-  Write-Host "  [OK] Git $(git --version)" -ForegroundColor $Green
+function Write-Step([string]$Text) {
+  Write-Host ""
+  Write-Host ">>> $Text" -ForegroundColor Cyan
 }
 
-# ── 1. Python deps ────────────────────────────────────────────
-Write-Host "`n>>> Step 1/5: Python dependencies" -ForegroundColor $Cyan
-
-pip install -e $Root --quiet 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-  Write-Host "  [OK] pip install -e . (editable install)" -ForegroundColor $Green
-} else {
-  Write-Host "  [WARN] pip install -e . had warnings, trying pip install -r requirements.txt" -ForegroundColor $Yellow
-  pip install -r (Join-Path $Root "requirements.txt") --quiet
-  pip install -e $Root --no-deps --quiet
-  Write-Host "  [OK] Fallback install complete" -ForegroundColor $Green
-}
-
-# Verify Python import
-& python -c "import xsci; print('xsci', xsci.__file__)" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-  Write-Host "  [OK] xsci Python module" -ForegroundColor $Green
-} else {
-  Write-Host "  [FAIL] xsci module failed to import. Check the error above." -ForegroundColor $Red
-  exit 1
-}
-
-# Also verify key XSCI submodules compile
-& python -m py_compile src/xsci/kaggle.py,src/xsci/config.py,src/xsci/kaggle_session.py 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) {
-  Write-Host "  [OK] Core XSCI modules compile" -ForegroundColor $Green
-}
-
-# ── 2. Node/npm ───────────────────────────────────────────────
-if (-not $SkipNpmInstall) {
-  Write-Host "`n>>> Step 2/5: Frontend (npm install)" -ForegroundColor $Cyan
-  if (Test-Path (Join-Path $Web "node_modules")) {
-    Write-Host "  [OK] node_modules exists (skipping npm install)" -ForegroundColor $Green
-  } else {
-    Write-Host "  Running npm install (1-2 minutes)..."
-    Push-Location $Web
-    try {
-      npm install 2>&1 | Out-Null
-      Write-Host "  [OK] npm install" -ForegroundColor $Green
-    } catch {
-      Write-Host "  [FAIL] npm install failed: $_" -ForegroundColor $Red
-      exit 1
-    } finally { Pop-Location }
+function Require-Command([string]$Name, [string]$InstallHint) {
+  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
+  if (-not $cmd) {
+    Write-Host "  [FAIL] $Name not found. $InstallHint" -ForegroundColor Red
+    exit 1
   }
+  return $cmd
 }
 
-# ── 3. Frontend build ─────────────────────────────────────────
-if (-not $SkipBuild) {
-  Write-Host "`n>>> Step 3/5: Build frontend" -ForegroundColor $Cyan
+Write-Host ""
+Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "  AI Research Workstation - One-Command Installer" -ForegroundColor Cyan
+Write-Host "  EvoMind / XCIENTIST Research Agent" -ForegroundColor Cyan
+Write-Host "================================================================" -ForegroundColor Cyan
+
+Write-Step "Checking prerequisites"
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+  $python = Get-Command python3 -ErrorAction SilentlyContinue
+}
+if (-not $python) {
+  Write-Host "  [FAIL] Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] $(& $python.Source --version) ($($python.Source))" -ForegroundColor Green
+
+$node = Require-Command "node" "Install Node.js 18+ from https://nodejs.org"
+Write-Host "  [OK] Node $(& $node.Source --version)" -ForegroundColor Green
+
+$git = Get-Command git -ErrorAction SilentlyContinue
+if ($git) {
+  Write-Host "  [OK] $(& $git.Source --version)" -ForegroundColor Green
+} else {
+  Write-Host "  [WARN] Git not found. Clone/update features may be limited." -ForegroundColor Yellow
+}
+
+Write-Step "Step 1/5: Python dependencies"
+& $python.Source -m pip install -e $Root --quiet
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [WARN] editable install failed; trying requirements fallback" -ForegroundColor Yellow
+  & $python.Source -m pip install -r (Join-Path $Root "requirements.txt") --quiet
+  & $python.Source -m pip install -e $Root --no-deps --quiet
+}
+
+& $python.Source -c "import xsci; print('xsci import ok')" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] xsci import failed." -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] xsci Python package" -ForegroundColor Green
+
+$compileTargets = @(
+  (Join-Path $Root "src\xsci\kaggle.py"),
+  (Join-Path $Root "src\xsci\config.py"),
+  (Join-Path $Root "src\xsci\kaggle_session.py")
+)
+& $python.Source -m py_compile @compileTargets
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] core Python modules failed to compile." -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] core Python modules compile" -ForegroundColor Green
+
+if (-not $SkipNpmInstall) {
+  Write-Step "Step 2/5: Frontend dependencies"
+  if (Test-Path (Join-Path $Web "node_modules")) {
+    Write-Host "  [OK] node_modules exists; skipping npm install" -ForegroundColor Green
+  } else {
   Push-Location $Web
   try {
-    npm run build 2>&1 | Out-Null
-    Write-Host "  [OK] npm run build" -ForegroundColor $Green
-  } catch {
-    Write-Host "  [FAIL] Build failed: $_" -ForegroundColor $Red
-    exit 1
-  } finally { Pop-Location }
+    npm install
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm install failed with exit code $LASTEXITCODE"
+    }
+    Write-Host "  [OK] npm install" -ForegroundColor Green
+  } finally {
+    Pop-Location
+    }
+  }
 }
 
-# ── 4. CLI wrappers ───────────────────────────────────────────
-Write-Host "`n>>> Step 4/5: Install CLI commands" -ForegroundColor $Cyan
-& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -NoKaggleAlias:$false -PrependShimPath 2>&1 | Out-Null
+if (-not $SkipBuild) {
+  Write-Step "Step 3/5: Build frontend"
+  Push-Location $Web
+  try {
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm run build failed with exit code $LASTEXITCODE"
+    }
+    Write-Host "  [OK] npm run build" -ForegroundColor Green
+  } finally {
+    Pop-Location
+  }
+}
 
-# Create bash wrappers for Git Bash compatibility
-$shimDir = Join-Path $env:USERPROFILE ".xsci\bin"
-New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
+Write-Step "Step 4/5: Install CLI commands"
+& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] CLI wrapper installation failed." -ForegroundColor Red
+  exit 1
+}
+
+# Git Bash compatible wrappers. CMD wrappers are created by install_autokaggle_cli.ps1.
+New-Item -ItemType Directory -Force -Path $ShimDir | Out-Null
 @"
 #!/usr/bin/env bash
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle "$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $shimDir "kaggle") -Force
+exec python -X utf8 -m xsci.kaggle "`$@"
+"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "evomind") -Force
 @"
 #!/usr/bin/env bash
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle official "$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $shimDir "kaggle-official") -Force
+exec python -X utf8 -m xsci.kaggle official "`$@"
+"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "kaggle-official") -Force
 @"
 #!/usr/bin/env bash
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle "$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $shimDir "autokaggle") -Force
+exec python -X utf8 -m xsci.kaggle "`$@"
+"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "autokaggle") -Force
+Remove-Item -LiteralPath (Join-Path $ShimDir "kaggle") -Force -ErrorAction SilentlyContinue
 
-Write-Host "  [OK] CLI wrappers installed ($shimDir)" -ForegroundColor $Green
+$env:Path = "$ShimDir;$env:Path"
+Write-Host "  [OK] CLI wrappers installed in %USERPROFILE%\.xsci\bin" -ForegroundColor Green
 
-# Refresh PATH in this session
-$env:Path = "$shimDir;$env:Path"
-
-# ── 5. Secrets ────────────────────────────────────────────────
 if (-not $SkipSecretPrompt) {
-  Write-Host "`n>>> Step 5/5: Configuration" -ForegroundColor $Cyan
-
-  # .env file
+  Write-Step "Step 5/5: Optional configuration"
   if (-not (Test-Path (Join-Path $Root ".env"))) {
     Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env") -ErrorAction SilentlyContinue
-    Write-Host "  [OK] Created .env file" -ForegroundColor $Green
+    Write-Host "  [OK] Created .env from .env.example" -ForegroundColor Green
   } else {
-    Write-Host "  [OK] .env exists" -ForegroundColor $Green
+    Write-Host "  [OK] .env already exists" -ForegroundColor Green
   }
 
-  # DeepSeek API key
   if ($DeepSeekApiKey) {
-    & (Join-Path $Root "scripts\manage_deepseek_secret.ps1") install -ApiToken $DeepSeekApiKey 2>&1 | Out-Null
-    Write-Host "  [OK] DeepSeek API key saved (Windows DPAPI)" -ForegroundColor $Green
+    & (Join-Path $Root "scripts\manage_deepseek_secret.ps1") install -ApiToken $DeepSeekApiKey | Out-Null
+    Write-Host "  [OK] DeepSeek key saved with Windows DPAPI" -ForegroundColor Green
   } else {
-    Write-Host "  [ ] DeepSeek API key: not provided. Run after install:"
-    Write-Host "      powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken sk-xxx" -ForegroundColor $Yellow
+    Write-Host "  [INFO] DeepSeek key not provided. Configure later with:" -ForegroundColor Yellow
+    Write-Host "         powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken sk-xxx"
   }
 
-  # Kaggle token
   if ($KaggleApiToken) {
-    & (Join-Path $Root "scripts\manage_kaggle_secret.ps1") install-token -ApiToken $KaggleApiToken 2>&1 | Out-Null
-    Write-Host "  [OK] Kaggle API token saved (Windows DPAPI)" -ForegroundColor $Green
+    & (Join-Path $Root "scripts\manage_kaggle_secret.ps1") install-token -ApiToken $KaggleApiToken | Out-Null
+    Write-Host "  [OK] Kaggle token saved with Windows DPAPI" -ForegroundColor Green
   } else {
-    Write-Host "  [ ] Kaggle token: not provided. Optional — only needed for Kaggle downloads." -ForegroundColor $Yellow
+    Write-Host "  [INFO] Kaggle token not provided. It is only required for downloads/submissions." -ForegroundColor Yellow
   }
 }
 
-# ── Verify ────────────────────────────────────────────────────
 if (-not $SkipVerify) {
-  & python -c "
-from xsci.kaggle import _has_llm, is_onboarded
-print(f'llm_configured={_has_llm()}')
-print(f'onboarded={is_onboarded()}')
-" 2>&1 | ForEach-Object { Write-Host "  [verify] $_" -ForegroundColor $Cyan }
+  Write-Step "Release readiness smoke"
+  & $python.Source (Join-Path $Root "scripts\verify_new_user_release_readiness.py") --write-report
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "  [WARN] New-user release smoke reported issues. See reports/NEW_USER_RELEASE_READINESS.md" -ForegroundColor Yellow
+  }
 }
 
-# ── Done ──────────────────────────────────────────────────────
-Write-Host "`n================================================================" -ForegroundColor $Green
-Write-Host "  Installation complete!" -ForegroundColor $Green
-Write-Host "================================================================" -ForegroundColor $Green
 Write-Host ""
-Write-Host "  NEXT STEPS:"
-Write-Host ""
+Write-Host "================================================================" -ForegroundColor Green
+Write-Host "  Installation complete" -ForegroundColor Green
+Write-Host "================================================================" -ForegroundColor Green
+Write-Host "Next steps:"
 Write-Host "  1. Start the workstation:"
-Write-Host "     powershell -File scripts/start_verified_workstation.ps1 restart"
-Write-Host "     (or: cd web/research-agent-workstation && npm run dev)"
-Write-Host ""
-Write-Host "  2. Open the dashboard:"
+Write-Host "     powershell -File scripts\start_verified_workstation.ps1 restart"
+Write-Host "  2. Open:"
 Write-Host "     http://127.0.0.1:8088/?page=control"
+Write-Host "  3. Check terminal agent:"
+Write-Host "     evomind ready"
+Write-Host "     evomind"
 Write-Host ""
-Write-Host "  3. Try the CLI agent:"
-Write-Host "     kaggle"
-Write-Host "     kaggle ready"
-Write-Host "     kaggle competitions titanic"
-Write-Host ""
-Write-Host "  4. Run your first training:"
-Write-Host "     kaggle run titanic"
-Write-Host ""
-Write-Host "  Full guide: docs/NEW_USER_ONBOARDING_GUIDE.md"
-Write-Host "================================================================" -ForegroundColor $Green
+Write-Host "Training, GPU jobs, and official Kaggle submission remain gate-controlled."
+Write-Host "Full guide: docs\NEW_USER_ONBOARDING_GUIDE.md"
+Write-Host "================================================================" -ForegroundColor Green

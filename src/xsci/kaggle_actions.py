@@ -90,7 +90,7 @@ def list_competitions(
             "ok": False,
             "competitions": [],
             "total": 0,
-            "message": "Kaggle API is not configured. Run `kaggle setup` to add your token, "
+            "message": "Kaggle API is not configured. Run `evomind setup` to add your token, "
                        "or `kaggle official config view` to check the current configuration.",
         }
 

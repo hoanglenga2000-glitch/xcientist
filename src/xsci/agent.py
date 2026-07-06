@@ -207,7 +207,7 @@ def _banner(session, plan: RunPlan, *, mcgs: bool) -> str:
     compute = "remote GPU" if plan.compute == "gpu" else "local subprocess"
     return "\n".join([
         "",
-        "XCIENTIST / Kaggle Research Agent",
+        "EvoMind / XCIENTIST Research Agent",
         "Provider : Anthropic-compatible research gateway",
         "Mode     : MLEvolve search + XCIENTIST audit + memory",
         bar,

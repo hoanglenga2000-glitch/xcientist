@@ -1,4 +1,4 @@
-"""Conversational brain for the kaggle research terminal.
+"""Conversational brain for the EvoMind research terminal.
 
 Multi-turn conversation with streaming, tool-use loop, and competition
 discovery -- giving the terminal agent Claude Code-level interactivity.
@@ -42,7 +42,7 @@ def _save_history(messages: list[dict[str, Any]]) -> None:
 
 _SYSTEM_PROMPT = textwrap.dedent("""\
 You are the terminal-side research agent of XCIENTIST, a self-evolving ML
-research workstation for Kaggle and MLE-Bench. You converse with the user
+research workstation for Kaggle and MLE-Bench. The product name is EvoMind. You converse with the user
 in their language, guide them through competition selection, data download,
 experiment planning, and training execution.
 
@@ -60,7 +60,7 @@ Rules:
 - Never ask for or print secrets/API keys.
 - When listing competitions, highlight 2-3 most relevant ones.
 - After quick_start succeeds, summarize what is available and suggest next steps.
-- If Kaggle API is not configured, tell the user to run `kaggle setup`.
+- If Kaggle API is not configured, tell the user to run `evomind setup`.
 """)
 
 _TOOLS = [
@@ -258,12 +258,24 @@ class ConversationAgent:
     def _rule_reply(self, text: str, session: "SessionState") -> str:
         task = session.selected_task
         gaps = session.missing_setup()
+        normalized = (text or "").strip().lower()
+        if normalized in {"status", "/status", "ready", "就绪", "状态"}:
+            lines = ["System status: check `evomind ready` for details."]
+            if gaps:
+                lines.append("\nSetup gaps:")
+                lines.extend(f"- {gap}" for gap in gaps)
+            return "\n".join(lines)
+        if normalized in {"你好", "hello", "hi", "hey"}:
+            return (
+                "你好，我是 EvoMind 对话终端。"
+                "我可以帮你浏览比赛、规划实验、调用工作站门禁，并在配置完整后启动可审计训练。"
+            )
         if not task:
             return (
                 "No competition selected yet. You can:\n"
                 "1. Tell me the competition name (e.g. Titanic, House Prices) and I will search\n"
                 "2. Paste a Kaggle URL: task add https://www.kaggle.com/c/titanic\n"
-                "3. Run `kaggle setup` to configure your environment first\n\n"
+                "3. Run `evomind setup` to configure your environment first\n\n"
                 "Once Kaggle API is configured, I can browse listings, download data, and start training."
             )
         base = (
@@ -307,7 +319,7 @@ class ConversationAgent:
         )
         return (
             f"{task_line}\n"
-            "I am the Kaggle Research Agent terminal. Capabilities:\n\n"
+            "I am EvoMind, your research AI scientist terminal. Capabilities:\n\n"
             "  Competition discovery: search/browse Kaggle competitions\n"
             "  One-click setup: register + download data in one step\n"
             "  Research planning: analyze task, propose hypotheses, design experiments\n"

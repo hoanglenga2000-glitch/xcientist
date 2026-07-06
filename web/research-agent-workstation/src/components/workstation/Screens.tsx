@@ -950,7 +950,7 @@ function TerminalKaggleAgentPanel(props: ScreenProps) {
   const scoreLine = `${agent?.best_exp_id || "best pending"} / ${formatScore(agent?.best_cv_score)}`;
   const eventMode = agent?.events_present ? "events.jsonl active" : agent?.summary_present ? "summary.json only" : "waiting for artifacts";
   const terminalLines = [
-    "XCIENTIST / Kaggle Research Agent",
+    "EvoMind / XCIENTIST Research Agent",
     `Provider : audited xsci gateway / secrets masked`,
     `Workspace: ${shortPath(props.summary?.workspace_root ?? "Research OS Workspace")}`,
     `Task     : ${taskId}`,
@@ -960,13 +960,13 @@ function TerminalKaggleAgentPanel(props: ScreenProps) {
     `Events   : ${eventMode}`,
     `Memory   : ${agent?.memory_count ?? 0} retrospective records`,
     "",
-    "> give the agent a Kaggle task, then watch plan -> code -> train -> gate -> report"
+    "> give EvoMind a data science task, then watch plan -> code -> train -> gate -> report"
   ];
 
   return (
     <Panel
-      title="Terminal Kaggle Agent / XSCI"
-      description="8088 工作站和 xsci 终端 Agent 共用 experiments/evolution 证据源；没有 events.jsonl 时只回放 summary，不伪装实时运行"
+      title="EvoMind Research Agent"
+      description="8088 工作站和 EvoMind 终端共用 experiments/evolution 证据源；没有 events.jsonl 时只回放 summary，不伪装实时运行"
       action={
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge tone={toneFor(status)}>{terminalAgentStatusLabel(status)}</StatusBadge>
@@ -983,7 +983,7 @@ function TerminalKaggleAgentPanel(props: ScreenProps) {
               <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
               <span className="h-2.5 w-2.5 rounded-full bg-amber-300" />
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <span className={cn(mono, "ml-2 text-[11px] font-black text-slate-300")}>xsci://kaggle-agent</span>
+              <span className={cn(mono, "ml-2 text-[11px] font-black text-slate-300")}>xsci://evomind-agent</span>
             </div>
             <span className={cn(mono, "text-[11px] text-slate-500")}>8088 linked</span>
           </div>
@@ -1294,7 +1294,7 @@ export function AiControlConsole(props: ScreenProps) {
 
 function AiControlConsoleLegacy(props: ScreenProps) {
   return (
-    <Page title="AI 控制台" subtitle="用自然语言控制科研工作站，所有动作写入审计日志">
+    <Page title="EvoMind 工作站入口" subtitle="用自然语言调度科研工作站，所有动作写入审计日志">
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Panel title="Command Console" description="科研任务、训练、报告、证据与 Gate 的统一入口">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
@@ -2983,7 +2983,7 @@ export function ReportStudio(props: ScreenProps) {
                 <button
                   key={taskId}
                   type="button"
-                  data-ui-skip-action="true"
+                  data-ui-action={`report_task_select_${taskId}`}
                   onClick={() => selectTaskReport(taskId, taskReport)}
                   className={cn("w-full rounded-md border px-2 py-2 text-left text-xs transition", active ? "border-blue-200 bg-blue-50 text-blue-800" : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50")}
                 >
@@ -3003,7 +3003,7 @@ export function ReportStudio(props: ScreenProps) {
                 <button
                   key={item.id}
                   type="button"
-                  data-ui-skip-action="true"
+                  data-ui-action={`report_section_select_${index}`}
                   onClick={() => selectOutlineItem(item.id, item.title, index)}
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs font-bold text-slate-700 hover:bg-slate-50"
                 >
@@ -3323,8 +3323,8 @@ export function LiteratureKnowledge(props: ScreenProps) {
               placeholder="输入任务、方法、数据集、metric，例如 LightGBM OOF leakage tabular..."
             />
           </div>
-          <Button variant="primary" data-ui-skip-action="true" onClick={() => void runSearch(query, "manual_search")} disabled={isSearching}><Search className="h-4 w-4" />{isSearching ? "检索中" : "真实检索"}</Button>
-          <Button variant="secondary" data-ui-skip-action="true" onClick={() => buildAgentContext("rag_build_agent_context")}><BrainCircuit className="h-4 w-4" />构建 Agent Context</Button>
+          <Button variant="primary" data-ui-action="literature_search_manual" onClick={() => void runSearch(query, "manual_search")} disabled={isSearching}><Search className="h-4 w-4" />{isSearching ? "检索中" : "真实检索"}</Button>
+          <Button variant="secondary" data-ui-action="rag_build_agent_context" onClick={() => buildAgentContext("rag_build_agent_context")}><BrainCircuit className="h-4 w-4" />构建 Agent Context</Button>
         </CardContent>
       </Card>
       <div className="grid items-start gap-2 xl:grid-cols-[1.08fr_1.22fr_360px]">
@@ -3340,7 +3340,7 @@ export function LiteratureKnowledge(props: ScreenProps) {
               {filterOptions.map(([value, label]) => (
                 <button
                   key={value}
-                  data-ui-skip-action="true"
+                  data-ui-action={`literature_filter_${value}`}
                   onClick={() => {
                     setActiveFilter(value);
                     const nextCount = value === "all"
@@ -3361,7 +3361,7 @@ export function LiteratureKnowledge(props: ScreenProps) {
                   {label}
                 </button>
               ))}
-              <Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={() => void runSearch(query, `filter_refresh_${activeFilter}`)}><Filter className="h-4 w-4" />重算</Button>
+              <Button size="sm" variant="secondary" data-ui-action="literature_filter_recompute" onClick={() => void runSearch(query, `filter_refresh_${activeFilter}`)}><Filter className="h-4 w-4" />重算</Button>
             </div>
             <div className="thin-scrollbar max-h-[360px] overflow-auto overscroll-contain rounded-md border border-slate-100" onWheel={stopWheelPropagation} tabIndex={0}>
               <table className="w-full table-fixed text-left text-[11px]">
@@ -3426,10 +3426,10 @@ export function LiteratureKnowledge(props: ScreenProps) {
               <div className="flex h-16 w-16 items-center justify-center rounded-full border-[7px] border-emerald-400 bg-white text-lg font-black text-slate-950">{metrics.citation_confidence}%</div>
               <div><div className="text-xs font-black text-slate-900">引用置信度</div><MiniLine tone="blue" /><div className="text-[11px] font-bold text-slate-500">低风险，高重复度</div></div>
             </div>
-            <Button className="w-full" variant="primary" data-ui-skip-action="true" onClick={() => buildAgentContext("rag_build_agent_context")}>构建 Agent Context</Button>
-            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={() => buildAgentContext("rag_send_research_agent")}>发送 Research Agent</Button><Button size="sm" variant="secondary" data-ui-action="rag_send_code_agent" onClick={() => buildAgentContext("rag_send_code_agent")}>发送 Code Agent</Button><Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={() => buildAgentContext("rag_bind_report_claim")}>绑定 Report Claim</Button><Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={() => buildAgentContext("rag_request_citation_audit")}>请求引用审计</Button></div>
-            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={exportRagMarkdown}><Download className="h-4 w-4" />导出 Context</Button><Button size="sm" variant="secondary" data-ui-skip-action="true" onClick={exportRagManifest}><Database className="h-4 w-4" />导出 Manifest</Button></div>
-            <Button className="w-full" size="sm" variant="secondary" data-ui-skip-action="true" onClick={() => void runSearch(query, "refresh_index")}><RefreshCw className="h-4 w-4" />刷新 RAG 索引</Button>
+            <Button className="w-full" variant="primary" data-ui-action="rag_build_agent_context" onClick={() => buildAgentContext("rag_build_agent_context")}>构建 Agent Context</Button>
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="secondary" data-ui-action="rag_send_research_agent" onClick={() => buildAgentContext("rag_send_research_agent")}>发送 Research Agent</Button><Button size="sm" variant="secondary" data-ui-action="rag_send_code_agent" onClick={() => buildAgentContext("rag_send_code_agent")}>发送 Code Agent</Button><Button size="sm" variant="secondary" data-ui-action="rag_bind_report_claim" onClick={() => buildAgentContext("rag_bind_report_claim")}>绑定 Report Claim</Button><Button size="sm" variant="secondary" data-ui-action="rag_request_citation_audit" onClick={() => buildAgentContext("rag_request_citation_audit")}>请求引用审计</Button></div>
+            <div className="grid grid-cols-2 gap-2"><Button size="sm" variant="secondary" data-ui-action="rag_export_context_markdown" onClick={exportRagMarkdown}><Download className="h-4 w-4" />导出 Context</Button><Button size="sm" variant="secondary" data-ui-action="rag_export_manifest_json" onClick={exportRagManifest}><Database className="h-4 w-4" />导出 Manifest</Button></div>
+            <Button className="w-full" size="sm" variant="secondary" data-ui-action="rag_refresh_index" onClick={() => void runSearch(query, "refresh_index")}><RefreshCw className="h-4 w-4" />刷新 RAG 索引</Button>
           </CardContent>
         </Card>
       </div>

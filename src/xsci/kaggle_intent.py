@@ -1,9 +1,9 @@
-"""Intent routing for the `kaggle` research terminal.
+"""Intent routing for the EvoMind research terminal.
 
-This module is deliberately small and deterministic: a free-text line is mapped
-to chat, planning, execution, or a command intent before the shell does anything
+This module is intentionally deterministic: a free-text line is mapped to chat,
+planning, execution, or a command intent before the shell does anything
 expensive. Planning never trains. Execution only means "enter the execution
-gate"; the caller still checks task/LLM/resource readiness before a run starts.
+gate"; the caller still checks task, LLM, resource, and human-gate readiness.
 """
 from __future__ import annotations
 

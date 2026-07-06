@@ -300,7 +300,7 @@ function resolveUiActionRoute(actionId: string | undefined) {
 
 const pageTitles: Record<PageId, { zh: string; en: string; subZh: string; subEn: string }> = {
   overview: { zh: "科研总览", en: "Research Overview", subZh: "科研工作站运行态势与闭环总控", subEn: "Research workstation operating status and mission control" },
-  control: { zh: "AI 控制台", en: "AI Control", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
+  control: { zh: "EvoMind 工作站", en: "EvoMind Gateway", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
   experiments: { zh: "实验中心", en: "Experiment Ledger", subZh: "实验台账、分支与分数门禁", subEn: "Experiment ledger, branches, and score gates" },
   evolution: { zh: "自进化引擎", en: "Evolution Engine", subZh: "搜索图、检索记忆与分支扩展规划", subEn: "Search graph, retrospective memory, and branch expansion planning" },
   data: { zh: "数据 / Kaggle", en: "Data / Kaggle", subZh: "数据审计、提交结构与排行榜证据", subEn: "Data audit, submission schema, and leaderboard evidence" },
@@ -406,7 +406,7 @@ function Topbar({
   locale?: Locale;
 }) {
   const shortcuts = [
-    { id: "control", icon: Bot, label: copy(locale, "AI Control", "AI 控制") },
+    { id: "control", icon: Bot, label: copy(locale, "EvoMind", "EvoMind") },
     { id: "code", icon: Code2, label: copy(locale, "Code", "代码") },
     { id: "report", icon: FileText, label: copy(locale, "Report", "报告") },
     { id: "runtime", icon: Timer, label: "Agent" },

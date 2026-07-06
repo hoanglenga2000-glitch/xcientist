@@ -148,7 +148,7 @@ def test_all_specs_have_valid_schema(tmp_path):
     tb = _toolbox(tmp_path, RunResult(success=True, cv_score=0.9, exit_code=0))
     specs = tb.specs()
     assert {s.name for s in specs} == {
-        "inspect_data", "recommend_strategies", "read_memory", "read_search_tree",
+        "inspect_data", "recommend_strategies", "read_memory", "search_memory", "read_search_tree",
         "plan_next_experiment", "run_experiment", "evaluate_promotion", "record_lesson",
         "audit_conclusion", "request_audit", "submit_to_kaggle", "finish",
     }

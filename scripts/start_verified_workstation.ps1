@@ -10,6 +10,12 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch {
+  # Best effort for legacy Windows PowerShell.
+}
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $StateDir = Join-Path $env:APPDATA "ResearchAgentWorkstation"
 $DeepSeekCredentialPath = Join-Path $StateDir "deepseek_api_key.xml"

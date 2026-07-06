@@ -1,4 +1,4 @@
-"""Smoke tests for the installable Kaggle Research Agent terminal."""
+"""Smoke tests for the installable EvoMind research terminal."""
 from __future__ import annotations
 
 import json
@@ -34,8 +34,8 @@ def test_autokaggle_help_mentions_product_shell(isolated_autokaggle, capsys):
     rc = ak.main(["--help"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Kaggle Research Agent" in out
-    assert "kaggle official" in out
+    assert "EvoMind" in out
+    assert "evomind official" in out
     assert "autokaggle" in out
     assert "http://127.0.0.1:8088/?page=control" in out
 
@@ -100,7 +100,7 @@ def test_greeting_in_console_replies_without_running_agent(monkeypatch, isolated
     assert selected == "nyc-taxi-fare-prediction"
     assert not should_exit
     assert not calls
-    assert "Kaggle Agent" in out
+    assert "EvoMind" in out
     assert "对话终端" in out
 
 
@@ -114,7 +114,7 @@ def test_run_intent_without_llm_guides_setup(isolated_autokaggle, capsys):
     assert not should_exit
     assert "Setup needed" in out
     assert "LLM API" in out
-    assert "不会贸然开始训练" in out
+    assert "will not start training" in out
 
 
 def test_status_command_reports_missing_setup(isolated_autokaggle, capsys):
@@ -275,7 +275,7 @@ def test_run_console_end_to_end_smoke(isolated_autokaggle, monkeypatch, capsys):
     rc = ak.run_console(root)
     out = capsys.readouterr().out
     assert rc == 0
-    assert "Kaggle Research Agent" in out
+    assert "EvoMind" in out
     assert "对话终端" in out
     assert "LLM API" in out and "Kaggle API" in out
     assert "selected task: spaceship-titanic" in out

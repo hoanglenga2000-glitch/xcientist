@@ -1,100 +1,136 @@
-# quick_setup.ps1 — AI Research Workstation one-command setup (PowerShell)
+# Quick setup for AI Research Workstation.
+# Usage:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\quick_setup.ps1
 param(
   [switch]$SkipBuild,
-  [switch]$SkipNpmInstall
+  [switch]$SkipNpmInstall,
+  [switch]$SkipVerify
 )
 
 $ErrorActionPreference = "Stop"
+try {
+  [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+} catch {
+  # Best effort for legacy Windows PowerShell.
+}
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $Web = Join-Path $Root "web\research-agent-workstation"
 $ShimDir = Join-Path $env:USERPROFILE ".xsci\bin"
+$env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
+
+function Step([string]$Text) {
+  Write-Host ""
+  Write-Host ">>> $Text" -ForegroundColor Cyan
+}
 
 Write-Host "============================================================" -ForegroundColor Cyan
-Write-Host "AI Research Workstation — Quick Setup (PowerShell)" -ForegroundColor Cyan
+Write-Host "AI Research Workstation - Quick Setup" -ForegroundColor Cyan
 Write-Host "Root: $Root" -ForegroundColor Cyan
 Write-Host "============================================================" -ForegroundColor Cyan
 
-# ── 1. Python ──────────────────────────────────────────────
-Write-Host "`n>>> Step 1/5: Python environment" -ForegroundColor Cyan
+Step "Step 1/5: Python environment"
 $python = Get-Command python -ErrorAction SilentlyContinue
 if (-not $python) {
   Write-Host "  [FAIL] Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
   exit 1
 }
-Write-Host "  [OK] Found $(& python --version) at $($python.Source)" -ForegroundColor Green
+Write-Host "  [OK] $(& $python.Source --version) at $($python.Source)" -ForegroundColor Green
+& $python.Source -m pip install -e $Root --quiet
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] pip install -e . failed" -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] Python dependencies installed" -ForegroundColor Green
 
-Write-Host "  Installing Python dependencies..."
-pip install -e $Root --quiet 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] pip install -e ." -ForegroundColor Green }
-else { Write-Host "  [WARN] pip install -e . had warnings (may be fine)" -ForegroundColor Yellow }
-
-# ── 2. Node ────────────────────────────────────────────────
-Write-Host "`n>>> Step 2/5: Node.js frontend" -ForegroundColor Cyan
+Step "Step 2/5: Node.js frontend"
 $node = Get-Command node -ErrorAction SilentlyContinue
 if (-not $node) {
   Write-Host "  [FAIL] Node.js not found. Install Node 18+ from https://nodejs.org" -ForegroundColor Red
   exit 1
 }
-Write-Host "  [OK] Found Node $(node --version)" -ForegroundColor Green
+Write-Host "  [OK] Node $(& $node.Source --version)" -ForegroundColor Green
 
 if (-not $SkipNpmInstall -and -not (Test-Path (Join-Path $Web "node_modules"))) {
-  Write-Host "  Running npm install (this may take a minute)..."
   Push-Location $Web
-  try { npm install --silent 2>&1 | Out-Null; Write-Host "  [OK] npm install" -ForegroundColor Green }
-  catch { Write-Host "  [FAIL] npm install failed: $_" -ForegroundColor Red; exit 1 }
-  finally { Pop-Location }
+  try {
+    npm install
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm install failed with exit code $LASTEXITCODE"
+    }
+    Write-Host "  [OK] npm install" -ForegroundColor Green
+  } finally {
+    Pop-Location
+  }
 } else {
-  Write-Host "  [OK] node_modules exists (or skipped)" -ForegroundColor Green
+  Write-Host "  [OK] node_modules exists or npm install was skipped" -ForegroundColor Green
 }
 
-# ── 3. Frontend build ──────────────────────────────────────
 if (-not $SkipBuild) {
-  Write-Host "`n>>> Step 3/5: Build frontend" -ForegroundColor Cyan
+  Step "Step 3/5: Build frontend"
   Push-Location $Web
-  try { npm run build 2>&1 | Out-Null; Write-Host "  [OK] npm run build" -ForegroundColor Green }
-  catch { Write-Host "  [FAIL] Build failed: $_" -ForegroundColor Red; exit 1 }
-  finally { Pop-Location }
+  try {
+    npm run build
+    if ($LASTEXITCODE -ne 0) {
+      throw "npm run build failed with exit code $LASTEXITCODE"
+    }
+    Write-Host "  [OK] npm run build" -ForegroundColor Green
+  } finally {
+    Pop-Location
+  }
 }
 
-# ── 4. CLI wrappers ────────────────────────────────────────
-Write-Host "`n>>> Step 4/5: Install CLI commands" -ForegroundColor Cyan
-& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -NoKaggleAlias:$false -PrependShimPath
-Write-Host "  [OK] CLI wrappers installed in $ShimDir" -ForegroundColor Green
+Step "Step 4/5: Install CLI commands"
+& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] CLI wrapper installation failed" -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] CLI wrappers installed in %USERPROFILE%\.xsci\bin" -ForegroundColor Green
 
-# ── 5. .env + verify ──────────────────────────────────────
-Write-Host "`n>>> Step 5/5: Verify installation" -ForegroundColor Cyan
+Step "Step 5/5: Verify installation"
 if (-not (Test-Path (Join-Path $Root ".env"))) {
-  Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env")
+  Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env") -ErrorAction SilentlyContinue
   Write-Host "  [OK] Created .env from .env.example" -ForegroundColor Green
-  Write-Host "  [NOTE] Edit .env to add DEEPSEEK_API_KEY" -ForegroundColor Yellow
 } else {
-  Write-Host "  [OK] .env exists" -ForegroundColor Green
+  Write-Host "  [OK] .env already exists" -ForegroundColor Green
 }
 
-# Verify python imports
-python -c "import xsci; print('xsci OK')" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] Python: xsci module" -ForegroundColor Green }
-python -m py_compile "$Root\src\xsci\kaggle.py","$Root\src\xsci\config.py" 2>&1 | Out-Null
-if ($LASTEXITCODE -eq 0) { Write-Host "  [OK] Python: compile check" -ForegroundColor Green }
+& $python.Source -c "import xsci; print('xsci OK')" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] xsci import failed" -ForegroundColor Red
+  exit 1
+}
+$compileTargets = @(
+  (Join-Path $Root "src\xsci\kaggle.py"),
+  (Join-Path $Root "src\xsci\config.py"),
+  (Join-Path $Root "src\xsci\kaggle_session.py")
+)
+& $python.Source -m py_compile @compileTargets
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "  [FAIL] Python compile check failed" -ForegroundColor Red
+  exit 1
+}
+Write-Host "  [OK] Python compile check" -ForegroundColor Green
 
-# ── Summary ────────────────────────────────────────────────
-Write-Host "`n============================================================" -ForegroundColor Cyan
-Write-Host "Setup complete!" -ForegroundColor Green
-Write-Host "============================================================" -ForegroundColor Cyan
+if (-not $SkipVerify) {
+  & $python.Source (Join-Path $Root "scripts\verify_new_user_release_readiness.py") --write-report
+}
+
 Write-Host ""
+Write-Host "============================================================" -ForegroundColor Green
+Write-Host "Setup complete" -ForegroundColor Green
+Write-Host "============================================================" -ForegroundColor Green
 Write-Host "Next steps:"
-Write-Host ""
-Write-Host "  1. Configure DeepSeek API key:"
-Write-Host "     powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken sk-xxx"
-Write-Host ""
+Write-Host "  1. Configure an LLM key if needed:"
+Write-Host "     evomind setup"
 Write-Host "  2. Start the workstation:"
 Write-Host "     powershell -File scripts\start_verified_workstation.ps1 restart"
-Write-Host ""
-Write-Host "  3. Open dashboard:"
+Write-Host "  3. Open:"
 Write-Host "     http://127.0.0.1:8088/?page=control"
+Write-Host "  4. Check:"
+Write-Host "     evomind ready"
 Write-Host ""
-Write-Host "  4. Run first training:"
-Write-Host "     kaggle run titanic"
-Write-Host ""
+Write-Host "Training and official Kaggle submission stay behind workstation gates."
 Write-Host "Full guide: docs\NEW_USER_ONBOARDING_GUIDE.md"
-Write-Host "============================================================" -ForegroundColor Cyan
+Write-Host "============================================================" -ForegroundColor Green

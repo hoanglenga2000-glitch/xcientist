@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "xcientist"
 version = "0.1.0"
-description = "XCIENTIST — a research-type terminal agent for auditable, experience-driven ML research (Kaggle/MLE-Bench)."
+description = "EvoMind: an auditable self-evolving AI scientist for ML research (Kaggle/MLE-Bench)."
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -25,8 +25,8 @@ dashboard = ["fastapi>=0.110", "uvicorn>=0.29"]
 
 [project.scripts]
 xsci = "xsci.__main__:main"
+evomind = "xsci.kaggle:main"
 autokaggle = "xsci.kaggle:main"
-kaggle = "xsci.kaggle:main"
 kaggle-official = "xsci.kaggle:official_main"
 
 [tool.setuptools]

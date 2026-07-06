@@ -10,7 +10,7 @@ type Locale = "zh-CN" | "en-US";
 
 const navLabelZh: Record<PageId, string> = {
   overview: "科研总览",
-  control: "AI 控制台",
+  control: "EvoMind 工作站",
   experiments: "实验中心",
   evolution: "自进化引擎",
   data: "数据 / Kaggle",
@@ -72,11 +72,11 @@ export function Sidebar({
       <div className="flex h-full flex-col bg-[linear-gradient(180deg,#061326_0%,#071a32_58%,#061326_100%)] p-3">
         <div className="flex items-center gap-2.5">
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-blue-300/30 bg-blue-600 text-xs font-black text-white shadow-[0_14px_32px_-20px_rgba(37,99,235,0.9)]">
-            AR
+            EM
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-black">{text(locale, "AI Research OS", "AI 科研工作站")}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-100/80">AI RESEARCH WORKSTATION</div>
+            <div className="truncate text-sm font-black">EvoMind</div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-blue-100/80">XCIENTIST RESEARCH AGENT</div>
           </div>
           <button
             className="ml-auto flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/10 text-white hover:bg-white/15 lg:hidden"
@@ -174,4 +174,3 @@ export function Sidebar({
     </aside>
   );
 }
-

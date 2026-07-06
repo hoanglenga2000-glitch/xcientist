@@ -218,7 +218,7 @@ export function AiControlConsole({
           pushMessage("system", "Claude Code 草稿已生成。");
           break;
         case "deepseek_smoke":
-          rawResponse = await api.testDeepSeek("Hello from AI Control Console");
+          rawResponse = await api.testDeepSeek("Hello from EvoMind Gateway");
           pushMessage("system", "DeepSeek 连接烟测完成。");
           break;
         case "gpu_smoke":
@@ -295,7 +295,7 @@ export function AiControlConsole({
   return (
     <main className="space-y-4">
       <div>
-        <h2 className="text-xl font-bold tracking-normal text-slate-950">{tx(locale, "AI Control Console", "AI 控制台")}</h2>
+        <h2 className="text-xl font-bold tracking-normal text-slate-950">{tx(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</h2>
         <p className="mt-1 text-sm leading-6 text-slate-500">
           {tx(locale, "Command the workstation with natural language. All actions are gated and logged.", "用自然语言调度工作站；所有动作都经过门禁并写入审计日志。")}
         </p>

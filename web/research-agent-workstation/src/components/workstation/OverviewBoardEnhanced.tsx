@@ -329,13 +329,13 @@ export function OverviewBoardEnhanced({
       testId: "open-agent-runtime"
     },
     {
-      title: ui(locale, "AI Control Console", "AI 控制台"),
+      title: ui(locale, "EvoMind Gateway", "EvoMind 工作站入口"),
       description: ui(locale, "Command the workstation with natural language; all actions are gated and logged.", "用自然语言指挥工作站；所有动作受 Gate 控制并记录。"),
       status: ui(locale, "ready", "就绪"),
       tone: "blue",
       icon: Bot,
       page: "control" as const,
-      actionLabel: ui(locale, "Open AI Control", "进入 AI 控制台"),
+      actionLabel: ui(locale, "Open EvoMind", "进入 EvoMind"),
       testId: "open-ai-control"
     },
     {
@@ -357,7 +357,7 @@ export function OverviewBoardEnhanced({
           <CardHeader className="bg-slate-50 border-b border-slate-100 pb-3">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle>{ui(locale, "Command Center", "指挥控制台")}</CardTitle>
+                <CardTitle>{ui(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</CardTitle>
                 <CardDescription>{ui(locale, "Initialize runs and manage gates for task execution.", "初始化运行，管理任务执行门禁。")}</CardDescription>
               </div>
               <div className="inline-flex items-center gap-2 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">

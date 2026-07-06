@@ -1,7 +1,8 @@
-"""Kaggle Research Agent shell — Claude-Code-like research terminal.
+"""EvoMind shell - Claude-Code-like research terminal.
 
-`kaggle` enters the research-agent conversation. `kaggle official ...` passes
-through to the official Kaggle CLI.
+`evomind` enters the research-agent conversation. `evomind official ...`
+passes through to the official Kaggle CLI. Legacy `kaggle` and `autokaggle`
+shims may exist as compatibility aliases, but EvoMind is the product name.
 """
 from __future__ import annotations
 
@@ -34,6 +35,27 @@ _XSCI_COMMANDS = {"doctor", "config", "init", "login", "task", "run", "report", 
 _CONVERSATION: Optional[ConversationAgent] = None
 
 
+@dataclass
+class _Provider:
+    label: str
+    hint: str
+    family: str
+    base_url: str = ""
+    models: tuple[str, ...] = ()
+
+
+_PROVIDERS = (
+    _Provider("Anthropic (Claude)", "Native tool-use; recommended for the full deep research agent.",
+              "anthropic", "", ("claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001")),
+    _Provider("Anthropic-compatible gateway", "Local/proxy /v1/messages endpoint.", "anthropic", "", ()),
+    _Provider("DeepSeek", "OpenAI-compatible chat/planning/code generation.",
+              "deepseek", "https://api.deepseek.com", ("deepseek-chat", "deepseek-reasoner")),
+    _Provider("OpenAI (GPT)", "OpenAI /v1/chat/completions endpoint.",
+              "deepseek", "https://api.openai.com", ("gpt-4o", "gpt-4o-mini", "gpt-4.1")),
+    _Provider("OpenAI-compatible gateway", "Qwen/Kimi/GLM/vLLM/LM Studio style gateway.", "deepseek", "", ()),
+)
+
+
 def _conversation() -> ConversationAgent:
     global _CONVERSATION
     if _CONVERSATION is None:
@@ -61,16 +83,16 @@ def _strong(text: str) -> str:
 
 def logo() -> str:
     return "\n".join([
-        _accent("  __ __                 __        "),
-        _accent(" / //_/_ ____ ____ ____/ /__      "),
-        _accent("/ ,< / _ `/ _ `/ _ `/ _  / -_)    "),
-        _accent("/_/|_|\\_,_/\\_, /\\_,_/\\_,_/\\__/  "),
-        _accent("          /___/                   "),
-        f"{_strong('Kaggle Research Agent')}  {_dim('XSCI self-evolving MLE workstation')}",
+        _accent("   ______           __  ___ _           __"),
+        _accent("  / ____/   ______ /  |/  /(_)___  ____/ /"),
+        _accent(" / __/ | | / / __ `/ /|_/ // / __ \\/ __  / "),
+        _accent("/ /___ | |/ / /_/ / /  / // / / / / /_/ /  "),
+        _accent("\\____/ |___/\\__,_/_/  /_//_/_/ /_/\\__,_/   "),
+        f"{_strong('EvoMind')}  {_dim('auditable self-evolving AI scientist')}",
     ])
 
 
-def _agent_reply(text: str, *, title: str = "Kaggle Agent") -> None:
+def _agent_reply(text: str, *, title: str = "EvoMind") -> None:
     print()
     print(_strong(title))
     for paragraph in text.strip().split("\n"):
@@ -140,19 +162,26 @@ def _register_task(source: str, root: Optional[Path] = None, force: bool = False
     else:
         slug_candidate = source
     slug = slugify(slug_candidate)
-    add_task(slug, url=source if source.startswith("http") else "", root=root)
+    try:
+        add_task(source, project_root=root, force=force)
+    except FileExistsError:
+        return slug
     return slug
 
 
 def official_main(argv: Optional[list[str]] = None) -> int:
-    import subprocess
     args = list(argv or [])
-    cmd = ["kaggle-official"] + args
+    before = list(sys.argv)
+    sys.argv = ["kaggle", *args]
     try:
-        return subprocess.call(cmd)
-    except FileNotFoundError:
+        from kaggle.cli import main as kaggle_cli_main
+        result = kaggle_cli_main()
+        return int(result or 0)
+    except ModuleNotFoundError:
         print("Official Kaggle CLI not found. Install: pip install kaggle")
         return 1
+    finally:
+        sys.argv = before
 
 
 def _competitions_cmd(args: list[str]) -> int:
@@ -181,7 +210,7 @@ def _competitions_cmd(args: list[str]) -> int:
         if c.get("reward"):
             print(f"      reward: {c['reward']}")
         print()
-    print(f"  To start: kaggle task add https://www.kaggle.com/c/<slug>")
+    print(f"  To start: evomind task add https://www.kaggle.com/c/<slug>")
     return 0
 
 
@@ -192,12 +221,73 @@ def _run_agent(task: str, root: Optional[Path] = None, *, goal: str = "",
                      event_renderer=StageRenderer(), show_plan=False)
 
 
+def _execution_blocker_reply(session: SessionState) -> bool:
+    gaps = session.missing_setup()
+    if session.can_execute() and not gaps:
+        return False
+    _agent_reply(
+        "Setup needed before execution. EvoMind will not start training until every gate below is clear:\n"
+        + "\n".join(f"- {gap}" for gap in gaps),
+        title="Setup needed",
+    )
+    return True
+
+
 def _delegate_xsci(argv: list[str], root: Path) -> int:
     from . import __main__ as xsci_main
     return xsci_main.main(argv)
 
 
 # ── Console loop ────────────────────────────────────────────
+
+def _handle_console_command(line: str, root: Path, selected_task: Optional[str]) -> tuple[int, Optional[str], bool]:
+    """Test-compatible wrapper around _dispatch_intent."""
+    cfg = load_config(root)
+    session = SessionState.from_root(root, cfg=cfg)
+    session.selected_task = selected_task
+    rc, should_exit = _dispatch_intent(line, root, session)
+    return rc, session.selected_task, should_exit
+
+
+def _pick_model(preset: "_Provider") -> str:
+    if not preset.models:
+        return _safe_input("Default model id (blank = provider default)", "").strip()
+    choices = [kaggle_menu.Choice(m) for m in preset.models]
+    choices.append(kaggle_menu.Choice("Custom model id (type your own)"))
+    idx = kaggle_menu.select("    Default model:", choices, default=0, reader=_safe_input)
+    if 0 <= idx < len(preset.models):
+        return preset.models[idx]
+    return _safe_input("Custom model id (blank = provider default)", "").strip()
+
+
+def _setup_llm() -> bool:
+    """Standalone LLM setup — test-compatible entry point."""
+    _setup_step(1, "LLM brain", "Drives planning, code generation, audit, and self-evolution.")
+    choices = [kaggle_menu.Choice(p.label, p.hint) for p in _PROVIDERS]
+    idx = kaggle_menu.select(
+        "    Choose your LLM provider:",
+        choices,
+        default=0,
+        allow_skip=True,
+        reader=_safe_input,
+    )
+    if idx is None or idx < 0:
+        return False
+    preset = _PROVIDERS[idx]
+    base_url = _safe_input("Base URL (blank = provider default)", preset.base_url).strip()
+    model = _pick_model(preset)
+    key = getpass.getpass(f"  {preset.label} API key (hidden)> ").strip()
+    if key:
+        save_llm_credentials(
+            preset.family,
+            api_key=key,
+            base_url=base_url or None,
+            model=model or None,
+            brand=preset.label,
+        )
+        return True
+    return False
+
 
 def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int, bool]:
     raw = (line or "").strip()
@@ -232,6 +322,8 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         if not task:
             _agent_reply("No task selected for resume. First `task add <url>` or `use <task>`.")
             return 1, False
+        if _execution_blocker_reply(session):
+            return 1, False
         session.current_mode = MODE_EXECUTING
         rc = _run_agent(task, root, goal=session.last_goal or "Continue from best-so-far.", resume=True)
         session.current_mode = MODE_CHAT
@@ -241,6 +333,8 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             task = (rest[0] if rest else None) or session.selected_task
             if not task:
                 _agent_reply("No task selected. `task add <url>` first.")
+                return 1, False
+            if _execution_blocker_reply(session):
                 return 1, False
             return _run_agent(task, root, goal=session.last_goal), False
         return _delegate_xsci([verb, *rest], root), False
@@ -289,10 +383,19 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
 
     intent = classify(stripped)
     if intent.kind == GREETING:
-        _agent_reply("Hello. I am the Kaggle Research Agent. Browse competitions, pick one, and let us get started. Type `competitions` or ask me anything.")
+        _agent_reply(
+            "你好，我是 EvoMind 对话终端。"
+            "我可以帮你浏览数据竞赛、选择科研任务、生成研究计划，并在门禁通过后启动可审计的工作站训练。"
+            "可以输入 `competitions`、`task add <url>`、`status`，或直接描述你的研究目标。"
+        )
         return 0, False
     if intent.kind == STATUS:
-        _agent_reply("System status: check `kaggle ready` for details.", title="System status")
+        gaps = session.missing_setup()
+        if gaps:
+            text = "System status: setup is not complete.\n" + "\n".join(f"- {gap}" for gap in gaps)
+        else:
+            text = "System status: core config ready; official Kaggle submit remains human-gated."
+        _agent_reply(text, title="System status")
         return 0, False
     if intent.kind == CAPABILITY:
         with thinking("thinking"):
@@ -338,7 +441,12 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
     if intent.kind == EXECUTION:
         session.last_goal = raw
         if not session.selected_task:
-            _agent_reply("I see you want to train, but no competition is selected. Browse with `competitions` first.")
+            _agent_reply(
+                "还没有选中比赛，所以不会启动训练。"
+                "请先用 `competitions` 浏览，或用 `task add <kaggle-url>` 注册并选择一个任务。"
+            )
+            return 1, False
+        if _execution_blocker_reply(session):
             return 1, False
         session.current_mode = MODE_EXECUTING
         rc = _run_agent(session.selected_task, root, goal=raw)
@@ -355,7 +463,7 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
 def _print_task_list(root: Path, selected_task: Optional[str]) -> None:
     tasks = list_tasks(root)
     if not tasks:
-        _agent_reply("No competitions registered. Use `competitions` to browse Kaggle, then `task add <url>` to register one.")
+        _agent_reply("No competitions registered; no tasks yet. Use `competitions` to browse Kaggle, then `task add <url>` to register one.")
         return
     print()
     print(_strong("Registered tasks"))
@@ -416,7 +524,7 @@ def run_console(root: Optional[Path] = None) -> int:
     print()
     while True:
         try:
-            line = input("kaggle> ").strip()
+            line = input("evomind> ").strip()
         except EOFError:
             print("\nbye.")
             return 0
@@ -443,25 +551,25 @@ def _print_help() -> None:
     print(logo())
     print()
     print("Usage:")
-    print("  kaggle                       enter the research-agent conversation")
-    print("  kaggle setup                 first-run setup wizard")
-    print("  kaggle ready                 show terminal/model/Kaggle/GPU readiness")
-    print("  kaggle status                same as ready")
-    print("  kaggle competitions [query]  browse/search Kaggle competitions")
-    print("  kaggle task add <url>        register a Kaggle/MLE-Bench task")
-    print("  kaggle download <task>       download competition data")
-    print("  kaggle agent <task>          open the deep research agent on a task")
-    print("  kaggle run <task>            run the audited evolution loop")
-    print("  kaggle watch -f              follow the latest event stream")
-    print("  kaggle memory                inspect retrospective memory")
-    print("  kaggle dashboard start       open/manage the 8088 workstation")
-    print("  kaggle official ...          pass through to the official Kaggle CLI")
+    print("  evomind                     enter the EvoMind research terminal")
+    print("  evomind setup               first-run setup wizard")
+    print("  evomind ready               show terminal/model/Kaggle/GPU readiness")
+    print("  evomind status              same as ready")
+    print("  evomind competitions [q]    browse/search Kaggle competitions")
+    print("  evomind task add <url>      register a Kaggle/MLE-Bench task")
+    print("  evomind download <task>     download competition data")
+    print("  evomind agent <task>        open the deep research agent on a task")
+    print("  evomind run <task>          run the audited evolution loop")
+    print("  evomind watch -f            follow the latest event stream")
+    print("  evomind memory              inspect retrospective memory")
+    print("  evomind dashboard start     open/manage the 8088 workstation")
+    print("  evomind official ...        pass through to the official Kaggle CLI")
     print()
     print("Alias:")
-    print("  autokaggle                   same agent shell without overriding Kaggle CLI")
+    print("  autokaggle                  compatibility alias for EvoMind")
     print("  kaggle-official ...          direct official Kaggle CLI passthrough")
     print()
-    print("Default dashboard gateway:")
+    print("Default EvoMind gateway:")
     print("  http://127.0.0.1:8088/?page=control")
     print()
     print(_dim("Official Kaggle submit remains human-gated by the workstation policy."))
@@ -491,11 +599,31 @@ def _dispatch(argv: list[str], root: Path) -> int:
         from . import kaggle_actions
         slug = argv[1] if len(argv) > 1 else ""
         if not slug:
-            print("Usage: kaggle download <task-slug>")
+            print("Usage: evomind download <task-slug>")
             return 1
         result = kaggle_actions.download_competition_data(slug)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result.get("ok") else 1
+    if cmd == "task":
+        sub = argv[1].lower() if len(argv) > 1 else "list"
+        if sub in {"add", "register"} and len(argv) >= 3:
+            slug = _register_task(argv[2], root, force="--force" in argv[3:])
+            if slug:
+                print(f"registered task: {slug}")
+                return 0
+            return 1
+        if sub in {"list", "ls"}:
+            _print_task_list(root, None)
+            return 0
+        if sub in {"use", "select"} and len(argv) >= 3:
+            task = slugify(argv[2])
+            try:
+                resolve_task(task, project_root=root)
+            except FileNotFoundError:
+                print(f"task not found: {task}")
+                return 1
+            print(f"selected task: {task}")
+            return 0
     if cmd in _XSCI_COMMANDS:
         return _delegate_xsci(argv, root)
     if cmd in {"add", "register"} and len(argv) >= 2:
@@ -545,7 +673,7 @@ def _setup_step(index: int, title: str, detail: str) -> None:
 
 def run_setup(*, force: bool = False, reason: str = "") -> int:
     if not sys.stdin.isatty() and not force:
-        print("Setup needs an interactive terminal. Run `kaggle setup` in a TTY.")
+        print("Setup needs an interactive terminal. Run `evomind setup` in a TTY.")
         return 1
     print(logo())
     print()
@@ -584,7 +712,7 @@ def run_setup(*, force: bool = False, reason: str = "") -> int:
             set_global("llm", "provider", "deepseek")
             print("  saved OpenAI API key (routed as DeepSeek-compatible)")
     else:
-        print("  skipped - you can configure later with `kaggle setup`")
+        print("  skipped - you can configure later with `evomind setup`")
 
     # Step 2: Kaggle
     _setup_step(2, "Kaggle account", "Used for data access and human-gated submissions.")
@@ -607,7 +735,7 @@ def run_setup(*, force: bool = False, reason: str = "") -> int:
 
     mark_onboarded()
     print()
-    _agent_reply("Setup complete. Type a research goal or `competitions` to browse Kaggle tasks.", title="Ready")
+    _agent_reply("Setup complete. Type a research goal or `competitions` to browse Kaggle tasks.", title="EvoMind Ready")
     return 0
 
 
