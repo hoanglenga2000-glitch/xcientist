@@ -36,8 +36,8 @@ http://127.0.0.1:8088/?page=control
 ## Quick Start
 
 ```powershell
-git clone <your-repo-url> ai-research-workstation
-cd ai-research-workstation
+git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
+cd EvoMind
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 ```
 

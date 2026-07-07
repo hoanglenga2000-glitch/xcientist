@@ -47,7 +47,7 @@ evomind
 ## 2. 下载项目
 
 ```powershell
-git clone <你的仓库地址> EvoMind
+git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 ```
 

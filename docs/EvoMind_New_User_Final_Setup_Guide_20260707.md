@@ -61,7 +61,7 @@ EvoMind 是一个可审计、自进化的 AI Scientist 工作站，面向 Kaggle
 从 GitHub 下载：
 
 ```powershell
-git clone <你的GitHub仓库地址> EvoMind
+git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 ```
 
@@ -457,7 +457,7 @@ node scripts\verify_workstation_interactive_controls.mjs --write-report
 ## 15. 新用户最短路径
 
 ```powershell
-git clone <你的GitHub仓库地址> EvoMind
+git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 evomind setup
