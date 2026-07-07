@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { submitGpuJob } from "@/lib/server/gpu-ssh-gateway";
+import { sanitizeClientJson } from "@/lib/server/json";
 import { readJsonFile, resolveWorkspacePath } from "@/lib/server/paths";
 
 export const dynamic = "force-dynamic";
@@ -46,7 +47,7 @@ export async function GET() {
       return { ...summarizeGpuJob(payload, relativePath), mtime_ms: stat?.mtimeMs ?? 0 };
     }));
   const jobs = candidates.sort((a, b) => b.mtime_ms - a.mtime_ms).slice(0, 50).map(({ mtime_ms: _mtimeMs, ...job }) => job);
-  return NextResponse.json({ ok: true, jobs });
+  return NextResponse.json(sanitizeClientJson({ ok: true, jobs }));
 }
 
 export async function POST(request: Request) {

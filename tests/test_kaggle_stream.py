@@ -146,3 +146,59 @@ def test_thinking_honors_no_color(monkeypatch):
     with thinking("thinking", stream=buf):
         pass
     assert buf.getvalue() == ""                  # NO_COLOR suppresses the spinner
+
+
+def test_jsonl_event_sink_writes_verifiable_events(tmp_path):
+    """Verify JsonlEventSink actually writes to disk and events can be read back."""
+    from research_os.events import JsonlEventSink, RUN_BEGIN, SCORE, PROMOTE, RUN_END
+
+    path = tmp_path / "test_events.jsonl"
+    sink = JsonlEventSink(path)
+    events = [
+        {"type": RUN_BEGIN, "task": "titanic", "metric": "accuracy", "seq": 1},
+        {"type": SCORE, "exp_id": "EXP001", "cv_score": 0.85, "seq": 2},
+        {"type": PROMOTE, "promoted": True, "best_exp_id": "EXP001", "seq": 3},
+        {"type": RUN_END, "best_cv_score": 0.85, "n_promotions": 1, "seq": 4},
+    ]
+    for e in events:
+        sink(e)
+
+    import json
+    assert path.exists()
+    lines = path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) == 4
+    for i, (line, expected) in enumerate(zip(lines, events)):
+        parsed = json.loads(line)
+        assert parsed["type"] == expected["type"]
+        assert parsed["seq"] == expected["seq"]
+
+
+def test_preflight_stages_render_all_six():
+    """Verify that preflight() renders all 6 preflight stages."""
+    buf = io.StringIO()
+    r = StageRenderer(color=False, stream=buf)
+    stages = [
+        ("Inspecting task", "task=titanic, metric=accuracy", "passed"),
+        ("Checking data", "train.csv found, test.csv missing", "blocked"),
+        ("Checking config", "provider=anthropic, model=claude-opus-4-8, ready=yes", "passed"),
+        ("Selecting compute", "compute=local", "passed"),
+        ("Planning experiment", "goal=improve baseline CV", "passed"),
+        ("Entering workstation agent", "compute=local, events → events.jsonl", "passed"),
+    ]
+    for stage, detail, status in stages:
+        r.preflight(stage, detail, status)
+
+    out = buf.getvalue()
+    for stage_name in ("Inspecting task", "Checking data", "Checking config",
+                       "Selecting compute", "Planning experiment", "Entering workstation agent"):
+        assert stage_name in out, f"missing preflight stage: {stage_name}"
+    # Check status marks
+    assert "✓" in out  # passed
+    assert "⊘" in out  # blocked
+    assert "titanic" in out
+    assert "claude-opus-4-8" in out
+    assert "local" in out
+    assert "1/6" in out
+    assert "6/6" in out
+    # No ANSI in non-colour output
+    assert "\033[" not in out

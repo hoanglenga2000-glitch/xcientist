@@ -147,17 +147,28 @@ def run(cmd: list[str], *, cwd: Path = ROOT, timeout: int = 60) -> dict:
 def http_json(path: str, timeout: int = 8) -> dict:
     url = f"http://127.0.0.1:8088{path}"
     req = Request(url, headers={"Accept": "application/json"})
-    try:
-        with urlopen(req, timeout=timeout) as res:
-            text = res.read().decode("utf-8", errors="replace")
-            data = json.loads(text)
-            return {"ok": 200 <= res.status < 300, "status": res.status, "url": url, "keys": sorted(data)[:30]}
-    except (URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-        return {"ok": False, "status": None, "url": url, "error": str(exc)}
+    last_error = ""
+    for attempt in range(3):
+        try:
+            with urlopen(req, timeout=timeout) as res:
+                text = res.read().decode("utf-8", errors="replace")
+                data = json.loads(text)
+                return {"ok": 200 <= res.status < 300, "status": res.status, "url": url, "keys": sorted(data)[:30]}
+        except (URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+            last_error = clean_report_text(str(exc))
+            if attempt < 2:
+                time.sleep(1.5)
+    return {"ok": False, "status": None, "url": url, "error": last_error}
 
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def clean_report_text(value: str) -> str:
+    if "\ufffd" in value or any(regex.search(value) for regex in MOJIBAKE_REGEXES):
+        return "[unreadable local error text redacted]"
+    return value
 
 
 def check_files() -> list[dict]:
@@ -206,7 +217,7 @@ def check_cli() -> list[dict]:
     ready_text = ready_result["stdout_tail"] + ready_result["stderr_tail"]
     checks.append({
         "id": "cli:ready",
-        "ok": ready_result["ok"] and "Readiness" in ready_text and "Dashboard" in ready_text,
+        "ok": ready_result["ok"] and "Readiness" in ready_text and ("Dashboard" in ready_text or "Panel" in ready_text),
         "result": ready_result,
     })
     official_result = run([sys.executable, "-X", "utf8", "-m", "xsci.kaggle", "official", "--help"], timeout=45)
@@ -339,7 +350,7 @@ def to_markdown(report: dict) -> str:
         elif item.get("launch_state"):
             note = f"launch_state={item.get('launch_state')}; blockers={','.join(item.get('blockers') or []) or 'none'}"
         elif item.get("error"):
-            note = str(item["error"])[:120]
+            note = clean_report_text(str(item["error"]))[:120]
         lines.append(f"| `{item['id']}` | `{item.get('ok')}` | {note} |")
     lines.extend([
         "",

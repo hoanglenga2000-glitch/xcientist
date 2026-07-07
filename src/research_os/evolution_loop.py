@@ -575,7 +575,24 @@ def _classify_failure(error: str) -> str:
     when it maps to a distinct corrective action.
     """
     low = (error or "").lower()
-    # Exit-code diagnostics win first: a killed remote process has no traceback,
+    # Infrastructure/connection faults win FIRST. A dropped SSH session, SOCKS/
+    # connect timeout, EOF before any stdout, or an auth failure is NOT a code
+    # bug — it means the backend never ran the script. It must never be mislabeled
+    # (e.g. as "segfault"), which would poison memory with a useless lesson and
+    # send the proposer chasing a phantom native crash. These mirror the faults
+    # _is_transient_infra() retries on. Kept ahead of the timeout bucket so a
+    # "connection timed out" reads as infra, not a training wall-clock timeout.
+    _infra_needles = (
+        "runner_exception", "eoferror", "sshexception", "paramiko",
+        "session not active", "socks", "connection reset", "connection closed",
+        "connection refused", "connection aborted", "broken pipe",
+        "ssh protocol banner", "authentication failed",
+        "authentication did not complete", "no ssh backend",
+        "gpu backend unreachable", "backend unreachable",
+    )
+    if any(n in low for n in _infra_needles):
+        return "infra"
+    # Exit-code diagnostics win next: a killed remote process has no traceback,
     # so the RUN_EXIT marker (set by the GPU runner) is the ground truth. Without
     # this, a timeout/OOM kill ending in "...before emitting CV_SCORE" would be
     # mis-bucketed as a contract_violation and the wrong lesson would be learned.

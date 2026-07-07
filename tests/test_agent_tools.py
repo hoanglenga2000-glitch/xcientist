@@ -74,6 +74,52 @@ def test_crashed_run_with_score_and_artifacts_is_never_promoted(tmp_path):
     assert "not promotable" in node.promotion_reason or "not promot" in promo.content.lower()
 
 
+class _RaisingRunner:
+    """Simulates a compute backend that never connects: raises before any run
+    (SSH EOF / SOCKS timeout / auth fail) with NO stdout, like the real GPU box
+    when the tunnel is down."""
+
+    def __init__(self, exc: Exception) -> None:
+        self._exc = exc
+        self.calls = 0
+
+    def run(self, code, *, data_dir, out_dir, exp_id):
+        self.calls += 1
+        raise self._exc
+
+
+def test_infra_error_blocks_cleanly_and_is_not_mislabeled_segfault(tmp_path):
+    """Field bug (house_prices): the GPU backend never connected, run_experiment
+    raised a bare EOFError, the agent retried and recorded failure_pattern=segfault
+    — polluting memory. The fix: catch infra faults, return a clean INFRA_BLOCKED
+    that tells the agent to stop (not rewrite/retry), and never bucket as segfault."""
+    from research_os.evolution_loop import _classify_failure
+
+    runner = _RaisingRunner(EOFError())
+    tb = ResearchToolbox(
+        _ctx(), data_dir=str(tmp_path / "data"), work_dir=tmp_path / "exp",
+        runner=runner,
+    )
+    tb.dispatch("plan_next_experiment", {})
+    before = len(tb.graph.nodes)
+    out = tb.dispatch("run_experiment", {"hypothesis": "h", "code": "print('CV_SCORE=0.5')"})
+
+    # (1) the tool did not crash; it returned a clean, actionable blocked outcome.
+    assert out.ok is False
+    assert "INFRA_BLOCKED" in out.content
+    assert "do NOT rewrite" in out.content.lower() or "not rewrite" in out.content.lower()
+    # (2) it did NOT churn: the runner was invoked exactly once (no blind retry loop).
+    assert runner.calls == 1
+    # (3) no phantom experiment node was recorded for a run that never happened.
+    assert len(tb.graph.nodes) == before
+    # (4) the classifier calls connection faults 'infra', never 'segfault'.
+    assert _classify_failure("runner_exception: EOFError: ") == "infra"
+    assert _classify_failure("Error reading SSH protocol banner") == "infra"
+    assert _classify_failure("Authentication failed: transport shut down or saw EOF") == "infra"
+    # ...but a REAL native crash is still bucketed as segfault (no regression).
+    assert _classify_failure("RUN_EXIT=139 SEGFAULT: native crash (SIGSEGV)") == "segfault"
+
+
 def test_successful_improving_run_is_promoted(tmp_path):
     ok = RunResult(
         success=True, cv_score=0.83, exit_code=0,

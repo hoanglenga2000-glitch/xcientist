@@ -168,11 +168,11 @@ if (-not $SkipSecretPrompt) {
   }
 
   if ($DeepSeekApiKey) {
-    & (Join-Path $Root "scripts\manage_deepseek_secret.ps1") install -ApiToken $DeepSeekApiKey | Out-Null
+    & (Join-Path $Root "scripts\manage_deepseek_secret.ps1") install-key -ApiKey $DeepSeekApiKey | Out-Null
     Write-Host "  [OK] DeepSeek key saved with Windows DPAPI" -ForegroundColor Green
   } else {
     Write-Host "  [INFO] DeepSeek key not provided. Configure later with:" -ForegroundColor Yellow
-    Write-Host "         powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken sk-xxx"
+    Write-Host "         powershell -File scripts\manage_deepseek_secret.ps1 install-key -ApiKey sk-xxx"
   }
 
   if ($KaggleApiToken) {
@@ -205,5 +205,5 @@ Write-Host "     evomind ready"
 Write-Host "     evomind"
 Write-Host ""
 Write-Host "Training, GPU jobs, and official Kaggle submission remain gate-controlled."
-Write-Host "Full guide: docs\NEW_USER_ONBOARDING_GUIDE.md"
+Write-Host "Full guide: docs\EvoMind_New_User_Final_Setup_Guide_20260707.md"
 Write-Host "================================================================" -ForegroundColor Green

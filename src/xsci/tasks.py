@@ -41,7 +41,11 @@ def slugify(name: str) -> str:
 def tasks_dir(project_root: Optional[Path] = None) -> Path:
     root = project_root or find_project_dir()
     if root is None:
-        raise FileNotFoundError("not inside an xsci project - run `xsci init` first")
+        # Fall back to global workspace (e.g. ~/.xsci/workspace) which always
+        # has a .xsci/tasks/ directory created by active_root().
+        from .config import GLOBAL_DIR
+        root = GLOBAL_DIR / "workspace"
+        (root / PROJECT_DIRNAME / "tasks").mkdir(parents=True, exist_ok=True)
     return root / PROJECT_DIRNAME / "tasks"
 
 

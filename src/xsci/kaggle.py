@@ -24,15 +24,18 @@ from .config import (
 from .kaggle_conversation import ConversationAgent
 from .kaggle_intent import (
     CAPABILITY, CHAT, EXECUTION, GREETING, MEMORY,
-    OFFICIAL, PLANNING, REPORT, STATUS, TASK_ADD, TASK_USE, classify,
+    OFFICIAL, PLANNING, REPORT, STATUS, TASK_ADD, TASK_USE, TOOL_QUERY, classify,
 )
+from .terminal_agent import TerminalAgent, _agent_reply as _term_agent_reply
+from .recovery_guard import RecoveryGuard
 from .kaggle_session import MODE_CHAT, MODE_EXECUTING, MODE_PLANNING, SessionState
 from .kaggle_stream import StageRenderer, thinking
 from .login import import_kaggle_json, save_kaggle_api_token, save_kaggle_credentials, save_llm_credentials
 from .tasks import add_task, list_tasks, resolve_task, slugify
 
-_XSCI_COMMANDS = {"doctor", "config", "init", "login", "task", "run", "report", "watch", "dashboard", "memory"}
+_XSCI_COMMANDS = {"doctor", "config", "init", "login", "task", "run", "report", "watch", "dashboard", "memory", "evolution", "innovate"}
 _CONVERSATION: Optional[ConversationAgent] = None
+_DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8088/?page=control"
 
 
 @dataclass
@@ -118,6 +121,122 @@ def _has_kaggle(cfg=None) -> bool:
                 or (os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY")))
 
 
+def _infer_compute_override(text: str) -> Optional[str]:
+    low = (text or "").lower()
+    local_terms = (
+        "本地算力", "本地", "local", "cpu", "本机", "不用gpu", "不用 gpu",
+        "不要gpu", "不要 gpu", "小任务", "小数据",
+    )
+    gpu_terms = (
+        "gpu", "hpc", "服务器", "集群", "远端", "远程", "算力服务器",
+        "a800", "cuda",
+    )
+    if any(term in low for term in local_terms):
+        return "local"
+    if any(term in low for term in gpu_terms):
+        return "gpu"
+    return None
+
+
+def _wants_model_status(text: str) -> bool:
+    low = (text or "").lower()
+    return (
+        ("模型" in low and any(term in low for term in ("什么", "哪个", "使用", "当前", "现在")))
+        or "model" in low
+        or "llm" in low
+    )
+
+
+# ── Task-switch detection (Bug #2) ─────────────────────────────────────
+# "切换到 house_prices" / "切到 X 开始训练" classify as EXECUTION, but the
+# EXECUTION branch used to train the *currently* selected task and never
+# switch. These helpers let the dispatcher switch first, then decide whether
+# the same utterance also asked to start training.
+_SWITCH_CUES = (
+    "切换到", "切换成", "切到", "换到", "换成", "转到",
+    "switch to", "change to", "use task",
+)
+_TRAIN_CUES = (
+    "训练", "train", "开始", "开跑", "跑一", "跑起来", "跑通", "跑一遍",
+    "run", "执行", "execute", "baseline", "基线", "建模",
+    "自进化", "evolve", "进化", "继续", "resume",
+)
+
+
+def _has_switch_cue(text: str) -> bool:
+    low = (text or "").lower()
+    return any(cue in low for cue in _SWITCH_CUES)
+
+
+def _mentions_training(text: str) -> bool:
+    low = (text or "").lower()
+    return any(cue in low for cue in _TRAIN_CUES)
+
+
+def _normalize_slug(text: str) -> str:
+    return (text or "").lower().replace(" ", "").replace("-", "").replace("_", "")
+
+
+def _match_task_in_text(text: str, root: Path) -> Optional[str]:
+    """Return the registered task slug mentioned in ``text``, or None.
+
+    Matches on the raw slug substring or a punctuation-insensitive form so that
+    "house_prices", "house-prices", and "house prices" all resolve to the same
+    registered task. Prefers the longest matching slug.
+    """
+    low = (text or "").lower()
+    norm = _normalize_slug(text)
+    best: Optional[str] = None
+    for slug, _ in list_tasks(root):
+        s = slug.lower()
+        if s in low or _normalize_slug(slug) in norm:
+            if best is None or len(slug) > len(best):
+                best = slug
+    return best
+
+
+def _model_status_text(session: SessionState) -> str:
+    cfg = load_config(Path(session.workspace_root) if session.workspace_root else None)
+    provider = str(cfg.get("llm.brand") or cfg.get("llm.provider") or session.llm_provider or "unset")
+    model = str(cfg.get("llm.model") or "")
+    if not model:
+        family = str(cfg.get("llm.provider") or "").lower()
+        model = (
+            os.environ.get("CLAUDE_CODE_MODEL")
+            if family == "anthropic"
+            else os.environ.get("DEEPSEEK_MODEL")
+        ) or "(provider default)"
+    base_url = (
+        cfg.get("llm.anthropic_base_url")
+        if str(cfg.get("llm.provider") or "").lower() == "anthropic"
+        else cfg.get("llm.deepseek_base_url")
+    ) or "(provider default)"
+    return "\n".join([
+        f"当前 LLM provider：{provider}",
+        f"当前模型：{model}",
+        f"Base URL：{base_url}",
+        f"状态：{'ready' if session.llm_ready else 'setup needed'}",
+        "说明：不会显示 API key；训练和提交仍走工作站审计门禁。",
+    ])
+
+
+def _dashboard_url(cfg=None) -> str:
+    cfg = cfg or load_config()
+    value = (
+        cfg.get("workstation.dashboard_url")
+        or cfg.get("dashboard.url")
+        or cfg.get("ui.dashboard_url")
+        or _DEFAULT_DASHBOARD_URL
+    )
+    return str(value).strip() or _DEFAULT_DASHBOARD_URL
+
+
+def _print_dashboard_hint(cfg=None) -> None:
+    print(_strong("Panel"))
+    print("  " + _dashboard_url(cfg))
+    print(_dim("  Open this URL after `evomind dashboard start` or the workstation launcher starts."))
+
+
 def _print_readiness(root: Path) -> None:
     cfg = load_config(root)
     inject_engine_env(cfg)
@@ -128,8 +247,7 @@ def _print_readiness(root: Path) -> None:
     for label, value in session.status_rows():
         print("  " + f"{label:<11} {value}")
     print()
-    print(_strong("Dashboard"))
-    print("  http://127.0.0.1:8088/?page=control")
+    _print_dashboard_hint(cfg)
     gaps = session.missing_setup()
     if gaps:
         print()
@@ -171,6 +289,20 @@ def _register_task(source: str, root: Optional[Path] = None, force: bool = False
 
 def official_main(argv: Optional[list[str]] = None) -> int:
     args = list(argv or [])
+    if not args or args[0] in {"-h", "--help", "help"}:
+        print("Official Kaggle CLI passthrough")
+        print("")
+        print("Usage:")
+        print("  evomind official competitions <args...>")
+        print("  evomind official datasets <args...>")
+        print("  evomind official kernels <args...>")
+        print("  evomind official config <args...>")
+        print("")
+        print("Direct command:")
+        print("  kaggle-official <args...>")
+        print("")
+        print("Networked official Kaggle commands may require configured credentials.")
+        return 0
     before = list(sys.argv)
     sys.argv = ["kaggle", *args]
     try:
@@ -221,9 +353,175 @@ def _run_agent(task: str, root: Optional[Path] = None, *, goal: str = "",
                      event_renderer=StageRenderer(), show_plan=False)
 
 
-def _execution_blocker_reply(session: SessionState) -> bool:
-    gaps = session.missing_setup()
-    if session.can_execute() and not gaps:
+def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
+                            compute: Optional[str] = None) -> int:
+    """Autonomous research mode: inspect data → baseline → train → report.
+
+    EvoMind takes the initiative — it checks what's available, decides on a
+    sensible first experiment, and runs it.  Every step is gated.
+    """
+    from .terminal_tools import TerminalTools
+
+    print()
+    print(_strong("EvoMind Autonomous Research Mode"))
+    print(_dim(f"  Task: {task} | Compute: {compute or session.compute_backend}"))
+    print()
+
+    # Step 1: Inspect task
+    task_result = TerminalTools.dispatch("inspect_task", session, root)
+    if not task_result.get("ok"):
+        _agent_reply(f"Cannot inspect task: {task_result.get('message', '')}", title="Auto blocked")
+        return 1
+    task_info = task_result
+    print(_dim(f"  Task: {task_info.get('name', task)}, "
+               f"modality={task_info.get('modality')}, "
+               f"metric={task_info.get('metric')}({task_info.get('metric_direction')})"))
+
+    # Step 2: Check data
+    effective_compute = compute or session.compute_backend
+    if effective_compute == "gpu":
+        # Data is on remote GPU — check gpu_data_dir config
+        gpu_dir = task_info.get("gpu_data_dir", "")
+        if not gpu_dir:
+            _agent_reply(
+                f"GPU data directory not configured for {task}. "
+                f"Set gpu_data_dir in the task config.",
+                title="Auto blocked"
+            )
+            return 1
+        print(_dim(f"  Data: GPU remote path={gpu_dir}"))
+    else:
+        data_result = TerminalTools.dispatch("data_check", session, root)
+        if not data_result.get("train_csv"):
+            _agent_reply(
+                f"Training data not found for {task}. "
+                f"Run `evomind download {task}` first.",
+                title="Auto blocked"
+            )
+            return 1
+        print(_dim(f"  Data: train.csv found, test.csv {'found' if data_result.get('test_csv') else 'missing'}"))
+
+    # Step 3: Check gates
+    effective_compute = compute or session.compute_backend
+    blockers = session.blocking_setup(compute_override=effective_compute)
+    if blockers:
+        _agent_reply(
+            "Setup needed before autonomous research:\n" + "\n".join(f"- {b}" for b in blockers),
+            title="Auto blocked"
+        )
+        return 1
+
+    # Step 4: Run preflight + training
+    goal = (
+        f"Autonomous research on {task}: inspect data, establish a strong baseline "
+        f"with appropriate preprocessing and model selection, then report results."
+    )
+    _print_preflight_stream(session, compute=effective_compute, goal=goal)
+
+    if _execution_blocker_reply(session, compute=effective_compute):
+        return 1
+
+    session.current_mode = MODE_EXECUTING
+    rc = _run_agent(task, root, goal=goal, compute=effective_compute)
+    session.current_mode = MODE_CHAT
+
+    # Step 5: Brief post-run analysis
+    session.refresh_recent_run(root)
+    if session.recent_run_id:
+        cv_str = f"{session.recent_best_cv:.4f}" if session.recent_best_cv is not None else "N/A"
+        _agent_reply(
+            f"Autonomous research completed.\n\n"
+            f"Run: {session.recent_run_id}\n"
+            f"Best CV: {cv_str}\n\n"
+            f"Run `evomind report` for the full research report, or describe your next "
+            f"research goal to continue improving.",
+            title="EvoMind Auto"
+        )
+    return rc
+
+
+def _print_preflight_stream(session: SessionState, *, compute: Optional[str], goal: str) -> None:
+    """Render a 6-stage preflight narrative using the StageRenderer.
+
+    Each stage checks the real system state and reports passed/blocked.
+    Imitates Claude Code's staged startup output.
+    """
+    from .terminal_tools import TerminalTools
+
+    effective_compute = compute or session.compute_backend
+    renderer = StageRenderer()
+    root = Path(session.workspace_root) if session.workspace_root else active_root()
+
+    print()
+    print(_strong("EvoMind is preparing an audited research run"))
+
+    # Stage 1: Inspect task
+    task_result = TerminalTools.dispatch("inspect_task", session, root)
+    task_ok = task_result.get("ok")
+    renderer.preflight("Inspecting task",
+                       f"task={session.selected_task}, metric={task_result.get('metric', '?')}, "
+                       f"modality={task_result.get('modality', '?')}",
+                       status="passed" if task_ok else "blocked")
+    if not task_ok:
+        print(_dim(f"  blocked: {task_result.get('message', '')}"))
+        return
+
+    # Stage 2: Check data
+    effective_compute = compute or session.compute_backend
+    if effective_compute == "gpu":
+        # Data is on remote GPU — check gpu_data_dir config instead
+        gpu_dir = task_result.get("gpu_data_dir", "")
+        renderer.preflight("Checking data",
+                           f"GPU remote path={gpu_dir or '(from task config)'}",
+                           status="passed" if gpu_dir else "blocked")
+    else:
+        data_result = TerminalTools.dispatch("data_check", session, root)
+        data_ok = data_result.get("ok") and data_result.get("train_csv")
+        renderer.preflight("Checking data",
+                           f"train.csv={'found' if data_result.get('train_csv') else 'missing'}, "
+                           f"test.csv={'found' if data_result.get('test_csv') else 'missing'}",
+                           status="passed" if data_ok else "blocked")
+
+    # Stage 3: Check config
+    model_result = TerminalTools.dispatch("model_status", session, root)
+    model_ready = model_result.get("ready") and model_result.get("ok")
+    renderer.preflight("Checking config",
+                       f"provider={model_result.get('provider')}, model={model_result.get('model')}, "
+                       f"ready={'yes' if model_ready else 'no'}",
+                       status="passed" if model_ready else "blocked")
+
+    # Stage 4: Select compute
+    if effective_compute == "gpu" and session.gpu_blocked:
+        renderer.preflight("Selecting compute",
+                           f"compute=gpu BLOCKED: {session.gpu_blocker or session.gpu_status}",
+                           status="blocked")
+    else:
+        note = ""
+        if effective_compute == "local" and session.compute_backend == "gpu" and session.gpu_blocked:
+            note = " (GPU blocker ignored for local run)"
+        renderer.preflight("Selecting compute", f"compute={effective_compute}{note}",
+                           status="passed")
+
+    # Stage 5: Planning experiment
+    blockers = session.blocking_setup(compute_override=effective_compute)
+    if blockers:
+        renderer.preflight("Planning experiment",
+                           f"blocked: {', '.join(blockers[:3])}",
+                           status="blocked")
+    else:
+        renderer.preflight("Planning experiment",
+                           f"goal={goal[:60] if goal else '(default plan)'}",
+                           status="passed")
+
+    # Stage 6: Entering agent
+    renderer.preflight("Entering workstation agent",
+                       f"compute={effective_compute}, events → events.jsonl, dashboard → :8088",
+                       status="passed")
+
+
+def _execution_blocker_reply(session: SessionState, *, compute: Optional[str] = None) -> bool:
+    gaps = session.blocking_setup(compute_override=compute)
+    if session.can_execute(compute_override=compute) and not gaps:
         return False
     _agent_reply(
         "Setup needed before execution. EvoMind will not start training until every gate below is clear:\n"
@@ -317,26 +615,44 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return official_main(rest), False
     if verb in {"dashboard", "open"}:
         return _delegate_xsci(["dashboard", *(rest or ["start"])], root), False
+    if verb in {"auto", "autonomous"}:
+        task = (rest[0] if rest else None) or session.selected_task
+        if not task:
+            _agent_reply("Usage: `auto <task-slug>` — autonomous research mode. EvoMind will inspect data, generate a baseline, train it, and report results.")
+            return 1, False
+        compute = _infer_compute_override(raw)
+        return _auto_research_pipeline(task, root, session, compute=compute), False
     if verb in {"resume", "continue"}:
         task = (rest[0] if rest else None) or session.selected_task
         if not task:
             _agent_reply("No task selected for resume. First `task add <url>` or `use <task>`.")
             return 1, False
-        if _execution_blocker_reply(session):
+        compute = _infer_compute_override(raw)
+        _print_preflight_stream(session, compute=compute, goal=session.last_goal or "Continue from best-so-far.")
+        if _execution_blocker_reply(session, compute=compute):
             return 1, False
         session.current_mode = MODE_EXECUTING
-        rc = _run_agent(task, root, goal=session.last_goal or "Continue from best-so-far.", resume=True)
+        rc = _run_agent(task, root, goal=session.last_goal or "Continue from best-so-far.", compute=compute, resume=True)
         session.current_mode = MODE_CHAT
         return rc, False
+    if verb in {"evolution", "evolve", "self-evolution"}:
+        from .evolution_tracker import EvolutionTracker
+        tracker = EvolutionTracker(Path(session.workspace_root) if session.workspace_root else root)
+        _agent_reply(tracker.report(), title="Self-Evolution")
+        return 0, False
+    if verb in {"innovate", "innovation"}:
+        return _show_innovations(session, root), False
     if verb in {"watch", "report", "memory", "run", "doctor", "config", "init", "login"}:
         if verb == "run":
             task = (rest[0] if rest else None) or session.selected_task
             if not task:
                 _agent_reply("No task selected. `task add <url>` first.")
                 return 1, False
-            if _execution_blocker_reply(session):
+            compute = _infer_compute_override(raw)
+            _print_preflight_stream(session, compute=compute, goal=session.last_goal or "Start audited evolution loop.")
+            if _execution_blocker_reply(session, compute=compute):
                 return 1, False
-            return _run_agent(task, root, goal=session.last_goal), False
+            return _run_agent(task, root, goal=session.last_goal, compute=compute), False
         return _delegate_xsci([verb, *rest], root), False
     if verb in {"competitions", "comps"}:
         return _competitions_cmd(rest), False
@@ -381,21 +697,32 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             print(f"task not found: {task}")
             return 1, False
 
+    if _wants_model_status(stripped):
+        result = TerminalAgent().handle(raw, session, root)
+        _agent_reply(result.summary, title="Model status")
+        session.last_action = result.action
+        return result.rc, False
+
     intent = classify(stripped)
+    # Bug #5: record the turn's action so status/recovery show real history.
+    # Specific branches below (TOOL_QUERY, EXECUTION, switch) refine this.
+    session.last_action = intent.kind
+
+    # ── TOOL_QUERY: lightweight tool calls (no training) ──────────
+    if intent.kind == TOOL_QUERY:
+        result = TerminalAgent().handle(raw, session, root)
+        _agent_reply(result.summary, title="EvoMind Tool")
+        session.last_action = result.action
+        return result.rc, False
+
     if intent.kind == GREETING:
-        _agent_reply(
-            "你好，我是 EvoMind 对话终端。"
-            "我可以帮你浏览数据竞赛、选择科研任务、生成研究计划，并在门禁通过后启动可审计的工作站训练。"
-            "可以输入 `competitions`、`task add <url>`、`status`，或直接描述你的研究目标。"
-        )
+        reply = _conversation()._build_greeting(session)
+        _agent_reply(reply, title="EvoMind")
         return 0, False
     if intent.kind == STATUS:
-        gaps = session.missing_setup()
-        if gaps:
-            text = "System status: setup is not complete.\n" + "\n".join(f"- {gap}" for gap in gaps)
-        else:
-            text = "System status: core config ready; official Kaggle submit remains human-gated."
-        _agent_reply(text, title="System status")
+        # Delegate to ConversationAgent's richer status report
+        reply = _conversation()._build_status_reply(session, session.missing_setup())
+        _agent_reply(reply, title="System status")
         return 0, False
     if intent.kind == CAPABILITY:
         with thinking("thinking"):
@@ -440,17 +767,51 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return 0, False
     if intent.kind == EXECUTION:
         session.last_goal = raw
+        # Bug #2: "切换到 X [开始训练]" classifies as EXECUTION. Switch the task
+        # first, then decide whether the same utterance also asked to train.
+        if _has_switch_cue(raw):
+            target = _match_task_in_text(raw, root)
+            if target is None:
+                names = [s for s, _ in list_tasks(root)]
+                _agent_reply(
+                    "没找到要切换到的比赛。已注册：" + (", ".join(names) if names else "(无)")
+                    + "。用 `task add <kaggle-url>` 注册，或 `use <task>` 选择已有任务。"
+                )
+                session.last_action = "switch_task"
+                return 1, False
+            if target != session.selected_task:
+                session.selected_task = target
+                session.refresh_task_brief(root)
+                session.refresh_recent_run(root)
+            session.last_action = "switch_task"
+            session.last_artifact = target
+            if not _mentions_training(raw):
+                _agent_reply(
+                    f"已切换到 **{target}**。"
+                    + (f"\n{session.task_brief}" if session.task_brief else "")
+                    + "\n\n告诉我研究目标，或者说“开始训练”。",
+                    title="Task switched",
+                )
+                return 0, False
         if not session.selected_task:
             _agent_reply(
                 "还没有选中比赛，所以不会启动训练。"
                 "请先用 `competitions` 浏览，或用 `task add <kaggle-url>` 注册并选择一个任务。"
             )
+            session.last_action = "training_blocked"
             return 1, False
-        if _execution_blocker_reply(session):
+        compute = _infer_compute_override(raw)
+        resume = (intent.payload == "resume")
+        _print_preflight_stream(session, compute=compute, goal=raw)
+        if _execution_blocker_reply(session, compute=compute):
+            session.last_action = "training_blocked"
             return 1, False
         session.current_mode = MODE_EXECUTING
-        rc = _run_agent(session.selected_task, root, goal=raw)
+        rc = _run_agent(session.selected_task, root, goal=raw, compute=compute, resume=resume)
         session.current_mode = MODE_CHAT
+        session.last_action = "training"
+        session.refresh_recent_run(root)
+        session.last_artifact = session.recent_run_id or ""
         return rc, False
 
     session.current_mode = MODE_CHAT
@@ -458,6 +819,69 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         reply = _conversation().reply(raw, session)
     _agent_reply(reply)
     return 0, False
+
+
+def _show_innovations(session: SessionState, root: Path) -> int:
+    """Display innovation proposals for the current task."""
+    from .innovation_engine import InnovationEngine
+    from .agent import _load_context
+    from .tasks import resolve_task
+
+    if not session.selected_task:
+        _agent_reply("No task selected. Select a task first: `use <task-name>`.", title="Innovation")
+        return 1
+
+    try:
+        task_config = resolve_task(session.selected_task, project_root=root)
+        ctx, _ = _load_context(task_config)
+        task_type = ctx.task_type
+    except Exception:
+        task_type = "classification"
+
+    try:
+        from research_os.retrospective_memory import RetrospectiveMemoryStore
+        from research_os.agent.memory_library import MemoryLibrary
+        store = RetrospectiveMemoryStore(root / "experiments" / "evolution" / "retrospective_memory.json")
+        library = MemoryLibrary(store)
+        engine = InnovationEngine(memory_library=library, workspace_root=root)
+
+        if not engine.ready_for_innovation(task_type):
+            _agent_reply(
+                f"Not enough experience yet for innovation on task_type={task_type}. "
+                f"Complete at least 5 successful experiments with reusable strategies first.",
+                title="Innovation"
+            )
+            return 0
+
+        proposals = engine.propose_innovations(task_type, n=4)
+
+        if not proposals:
+            _agent_reply(
+                f"No novel combinations found for task_type={task_type}. "
+                f"All known strategies have been exhausted or tried on this task.",
+                title="Innovation"
+            )
+            return 0
+
+        lines = [f"💡 Innovation Proposals for task_type={task_type}:\n"]
+        for i, p in enumerate(proposals, 1):
+            lines.append(f"{i}. {p.strategy_name}")
+            lines.append(f"   Novelty: {p.novelty_score:.0%} | Confidence: {p.confidence:.0%}")
+            lines.append(f"   Components: {', '.join(p.components)}")
+            lines.append(f"   Rationale: {p.rationale}")
+            if p.source_tasks:
+                lines.append(f"   Based on: {', '.join(p.source_tasks[:3])}")
+            lines.append("")
+
+        stats = engine.stats()
+        lines.append(f"📊 Innovation stats: {stats['innovations_tried']} tried, "
+                     f"{stats['successes']} succeeded, hit rate {stats['hit_rate']}")
+
+        _agent_reply("\n".join(lines), title="Innovation Engine")
+        return 0
+    except Exception as exc:
+        _agent_reply(f"Innovation engine unavailable: {exc}", title="Innovation")
+        return 1
 
 
 def _print_task_list(root: Path, selected_task: Optional[str]) -> None:
@@ -484,6 +908,7 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  setup                    configuration wizard")
     print("  run [task]               start training")
     print("  resume [task]            continue previous run")
+    print("  auto [task]              autonomous research: inspect→baseline→train→report")
     print("  watch / report / memory  engine views")
     print("  dashboard                manage the 8088 workstation")
     print("  official <args...>       Kaggle CLI passthrough")
@@ -493,8 +918,10 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print(f"{_dim('Selected task:')} {selected_task or '(none)'}")
 
 
-def _print_welcome(session: SessionState) -> None:
+def _print_welcome(session: SessionState, cfg=None) -> None:
     print(logo())
+    print()
+    _print_dashboard_hint(cfg)
     print()
     if session.selected_task:
         print(_strong("Current task"))
@@ -519,8 +946,13 @@ def run_console(root: Optional[Path] = None) -> int:
     cfg = load_config(root)
     inject_engine_env(cfg)
     session = SessionState.from_root(root, cfg=cfg)
-    _print_welcome(session)
+    # Bug #4: wire the recovery guard so EVERY turn (chat/plan/execute, not just
+    # tool queries) writes a durable recovery section for compaction/restart.
+    guard = RecoveryGuard()
+    guard.set_state_file(Path(root) / ".xsci" / "recovery_guard.md")
+    _print_welcome(session, cfg)
     session.persist(root)
+    guard.emit(session, event="SessionStart")
     print()
     while True:
         try:
@@ -532,6 +964,7 @@ def run_console(root: Optional[Path] = None) -> int:
             print(_dim("\n(use exit to quit)"))
             continue
         prev_task = session.selected_task
+        guard.emit(session, event="UserPromptSubmit")
         try:
             rc, should_exit = _dispatch_intent(line, root, session)
         except KeyboardInterrupt:
@@ -542,6 +975,8 @@ def run_console(root: Optional[Path] = None) -> int:
             session.refresh_recent_run(root)
             session.refresh_task_brief(root)
         session.persist(root)
+        guard.record_tool(f"{session.last_action or 'turn'}: rc={rc} task={session.selected_task or '(none)'}")
+        guard.emit(session, event="PostReply")
         if should_exit:
             print("bye.")
             return rc
@@ -570,7 +1005,7 @@ def _print_help() -> None:
     print("  kaggle-official ...          direct official Kaggle CLI passthrough")
     print()
     print("Default EvoMind gateway:")
-    print("  http://127.0.0.1:8088/?page=control")
+    print("  " + _dashboard_url())
     print()
     print(_dim("Official Kaggle submit remains human-gated by the workstation policy."))
 
@@ -604,6 +1039,14 @@ def _dispatch(argv: list[str], root: Path) -> int:
         result = kaggle_actions.download_competition_data(slug)
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if result.get("ok") else 1
+    if cmd in {"evolution", "evolve", "self-evolution"}:
+        from .evolution_tracker import EvolutionTracker
+        tracker = EvolutionTracker(root)
+        print(tracker.report())
+        return 0
+    if cmd in {"innovate", "innovation"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_innovations(session, root)
     if cmd == "task":
         sub = argv[1].lower() if len(argv) > 1 else "list"
         if sub in {"add", "register"} and len(argv) >= 3:

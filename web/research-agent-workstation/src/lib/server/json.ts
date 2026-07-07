@@ -28,3 +28,19 @@ export function decodeJson<T = unknown>(value: string | null | undefined): T | n
     return null;
   }
 }
+
+export function sanitizeClientJson(value: unknown): unknown {
+  if (typeof value === "string") return sanitizeClientText(value);
+  if (Array.isArray(value)) return value.map(sanitizeClientJson);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, sanitizeClientJson(item)])
+    );
+  }
+  return value;
+}
+
+function sanitizeClientText(value: string) {
+  if (!value.includes("\uFFFD")) return value;
+  return "[unreadable historical text redacted]";
+}

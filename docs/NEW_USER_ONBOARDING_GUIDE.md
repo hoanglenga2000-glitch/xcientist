@@ -124,7 +124,7 @@ evomind setup
 也可以使用 DPAPI 脚本单独配置：
 
 ```powershell
-powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken <你的模型API_KEY>
+powershell -File scripts\manage_deepseek_secret.ps1 install-key -ApiKey <你的模型API_KEY>
 ```
 
 如果使用兼容 OpenAI/Claude 的网关，请在 `evomind setup` 中选择对应 provider 或自定义模型名。
@@ -176,20 +176,20 @@ evomind official competitions list
 
 没有 GPU/HPC 也可以使用 EvoMind 的页面、任务管理、报告、证据、文献、审计和小规模 CPU smoke。
 
-如需远程训练，运行：
+如需远程训练，运行（口令为隐藏录入，只存 Windows DPAPI，绝不落明文）：
 
 ```powershell
-powershell -File scripts\manage_hpc_ssh_secret.ps1 install
+powershell -File scripts\install_hpc_ssh_credential_from_stdin.ps1 -User <你的SSH账号> -HostName <登录节点地址> -Port <端口> -RemoteWorkspace <远端工作目录>
 ```
 
-按提示输入：
+运行说明：
 
-- SSH host；
-- SSH port；
-- SSH username；
-- SSH password 或 key path；
-- remote workspace；
-- 可选代理配置。
+- SSH 账号、登录节点地址、端口、远端工作目录通过命令行参数提供；
+- 脚本随后弹出 `HPC SSH password` 隐藏输入，把口令粘入回车即可；
+- 口令经 Windows DPAPI 加密保存，绝不写入命令行历史、日志或文件；
+- 需要代理时脚本默认 `-SocksHost 127.0.0.1 -SocksPort 7890`，可按需覆盖。
+
+> 进阶：查看已存凭据状态用 `powershell -File scripts\manage_hpc_ssh_secret.ps1 status`；仅更新连接元数据（host/port/workspace）用 `... set-metadata`。该脚本的凭据写入子命令是 `install-credential`（需 `-User`/`-Password` 参数），新用户请优先用上面的隐藏录入封装，避免口令进入命令行历史。
 
 配置后验证：
 
@@ -200,7 +200,7 @@ evomind ready
 启动前端后也可以测试：
 
 ```powershell
-curl -X POST http://127.0.0.1:8088/api/gpu/connections/test
+curl.exe -X POST http://127.0.0.1:8088/api/gpu/connections/test
 ```
 
 注意：
@@ -392,11 +392,11 @@ evomind ready
 
 ### 12.5 GPU 显示 blocked
 
-这是远程训练 gate 未通过。需要配置并验证服务器：
+这是远程训练 gate 未通过。需要配置并验证服务器（口令隐藏录入，只存 DPAPI）：
 
 ```powershell
-powershell -File scripts\manage_hpc_ssh_secret.ps1 install
-curl -X POST http://127.0.0.1:8088/api/gpu/connections/test
+powershell -File scripts\install_hpc_ssh_credential_from_stdin.ps1 -User <你的SSH账号> -HostName <登录节点地址> -Port <端口> -RemoteWorkspace <远端工作目录>
+curl.exe -X POST http://127.0.0.1:8088/api/gpu/connections/test
 evomind ready
 ```
 

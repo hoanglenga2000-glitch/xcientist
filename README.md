@@ -71,9 +71,9 @@ evomind setup
 Or install secrets with DPAPI helper scripts:
 
 ```powershell
-powershell -File scripts\manage_deepseek_secret.ps1 install -ApiToken sk-xxx
+powershell -File scripts\manage_deepseek_secret.ps1 install-key -ApiKey sk-xxx
 powershell -File scripts\manage_kaggle_secret.ps1 install-token -ApiToken <token>
-powershell -File scripts\manage_hpc_ssh_secret.ps1 install
+powershell -File scripts\install_hpc_ssh_credential_from_stdin.ps1 -User <ssh-user> -HostName <login-node> -Port <port> -RemoteWorkspace <remote-dir>
 ```
 
 Notes:
@@ -162,6 +162,8 @@ The system is designed to be honest about evidence:
 For detailed onboarding, see:
 
 ```text
+docs/EvoMind_New_User_Final_Setup_Guide_20260707.md
+docs/EvoMind_新用户最终配置使用手册_20260707.md
 docs/NEW_USER_ONBOARDING_GUIDE.md
 docs/RELEASE_CHECKLIST.md
 ```

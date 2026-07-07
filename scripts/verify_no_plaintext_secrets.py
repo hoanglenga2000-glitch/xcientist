@@ -59,11 +59,15 @@ SECRET_PATTERNS = [
     re.compile(r"\bKGAT_[A-Za-z0-9_-]{16,}\b"),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"(?i)\b(?:ANTHROPIC_API_KEY|OPENAI_API_KEY|KAGGLE_KEY|KAGGLE_API_TOKEN)\s*=\s*['\"]?[A-Za-z0-9_-]{16,}"),
+    re.compile(r"(?i)\bpassword\s*=\s*['\"](?![A-Z0-9_]+['\"])[^'\"]{6,}['\"]"),
+    re.compile(r"(?i)\b(?:api[_-]?key|token|secret)\s*[:=]\s*['\"][A-Za-z0-9_./+=-]{16,}['\"]"),
 ]
 
 ALLOWED_PLACEHOLDERS = {
     "<rotated-anthropic-key>",
     "<your-api-key>",
+    "<redacted-password>",
+    "[REDACTED]",
 }
 
 

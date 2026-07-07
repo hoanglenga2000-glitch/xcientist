@@ -117,6 +117,12 @@ class SessionState:
     task_brief: str = ""
     n_tasks: int = 0
     updated_at: str = ""
+    # ── EvoMind terminal-agent extensions ──────────────────────────────
+    tool_readiness: str = ""                # "idle" | "inspecting" | "training" | "reporting"
+    current_compute_override: str = ""      # "local" | "gpu" | "" (use default)
+    last_action: str = ""                   # last action type
+    last_artifact: str = ""                 # last artifact path
+    last_event_path: str = ""               # last events.jsonl path
 
     @classmethod
     def from_root(cls, root: Path, *, cfg: Optional[Config] = None) -> "SessionState":
@@ -245,7 +251,8 @@ class SessionState:
         failures = len(records) - successes
         self.memory_summary = f"{len(records)} lessons ({successes} reuse, {failures} avoid)"
 
-    def missing_setup(self) -> list[str]:
+    def missing_setup(self, *, compute_override: Optional[str] = None) -> list[str]:
+        effective_compute = compute_override or self.compute_backend
         gaps: list[str] = []
         if not self.llm_ready:
             gaps.append(
@@ -257,12 +264,12 @@ class SessionState:
                 "Kaggle API: needed for official downloads, competition metadata, and submit candidates. "
                 "Run `setup` to import kaggle.json or configure a token. You may skip it for local data."
             )
-        if self.compute_backend == "gpu" and not self.gpu_ready:
+        if effective_compute == "gpu" and not self.gpu_ready:
             gaps.append(
                 "GPU/SSH: compute=gpu is selected, but SSH host/user is missing. Configure it in `setup`, "
                 "or switch back to local for small controlled tests."
             )
-        if self.compute_backend == "gpu" and self.gpu_ready and self.gpu_blocked:
+        if effective_compute == "gpu" and self.gpu_ready and self.gpu_blocked:
             detail = f" Manifest status: {self.gpu_status}." if self.gpu_status else ""
             blocker = f" Blocker: {self.gpu_blocker}" if self.gpu_blocker else ""
             gaps.append(
@@ -275,9 +282,40 @@ class SessionState:
             )
         return gaps
 
-    def can_execute(self) -> bool:
-        gpu_allowed = not (self.compute_backend == "gpu" and self.gpu_blocked)
-        return self.llm_ready and bool(self.selected_task) and gpu_allowed
+    def blocking_setup(self, *, compute_override: Optional[str] = None) -> list[str]:
+        """Return only the gates that must block a run.
+
+        Kaggle API is useful for official downloads/submissions, but it should not
+        block a local run when the task data/config already exists. GPU blockers
+        apply only when the effective compute backend is gpu.
+        """
+        effective_compute = compute_override or self.compute_backend
+        gaps: list[str] = []
+        if not self.llm_ready:
+            gaps.append(
+                "LLM API: code generation and experiment reasoning need it. "
+                "Run `setup` or `/setup` to configure Anthropic, DeepSeek, or a compatible gateway."
+            )
+        if not self.selected_task:
+            gaps.append(
+                "Task: no competition is selected. Use `task add https://www.kaggle.com/competitions/<slug>` first."
+            )
+        if effective_compute == "gpu" and not self.gpu_ready:
+            gaps.append(
+                "GPU/SSH: this run requested compute=gpu, but SSH host/user is missing. "
+                "Configure GPU/HPC or request local compute for a small controlled test."
+            )
+        if effective_compute == "gpu" and self.gpu_ready and self.gpu_blocked:
+            detail = f" Manifest status: {self.gpu_status}." if self.gpu_status else ""
+            blocker = f" Blocker: {self.gpu_blocker}" if self.gpu_blocker else ""
+            gaps.append(
+                "GPU/SSH: this run requested compute=gpu, but the external-resource manifest blocks real training "
+                f"until a fresh GPU smoke passes.{detail}{blocker}"
+            )
+        return gaps
+
+    def can_execute(self, *, compute_override: Optional[str] = None) -> bool:
+        return not self.blocking_setup(compute_override=compute_override)
 
     def status_rows(self) -> list[tuple[str, str]]:
         if self.gpu_blocked:
@@ -295,6 +333,9 @@ class SessionState:
             ("gpu/ssh", gpu_label),
             ("memory", self.memory_summary or "-"),
             ("recent run", self.recent_run_id or "(none yet)"),
+            ("tool status", self.tool_readiness or "idle"),
+            ("last action", self.last_action or "(none)"),
+            ("last artifact", self.last_artifact or "(none)"),
         ]
 
     def persist(self, root: Optional[Path] = None) -> Optional[Path]:

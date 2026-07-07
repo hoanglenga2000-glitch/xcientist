@@ -132,5 +132,5 @@ Write-Host "  4. Check:"
 Write-Host "     evomind ready"
 Write-Host ""
 Write-Host "Training and official Kaggle submission stay behind workstation gates."
-Write-Host "Full guide: docs\NEW_USER_ONBOARDING_GUIDE.md"
+Write-Host "Full guide: docs\EvoMind_New_User_Final_Setup_Guide_20260707.md"
 Write-Host "============================================================" -ForegroundColor Green

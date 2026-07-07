@@ -88,6 +88,8 @@ _ENV_MAP = {
     "XSCI_LLM_PROVIDER": "llm.provider",
     "XSCI_LLM_MODEL": "llm.model",
     "XSCI_COMPUTE": "compute.backend",
+    "XSCI_DASHBOARD_URL": "workstation.dashboard_url",
+    "EVOMIND_DASHBOARD_URL": "workstation.dashboard_url",
     "ANTHROPIC_API_KEY": "secrets.anthropic_api_key",
     "DEEPSEEK_API_KEY": "secrets.deepseek_api_key",
     "KAGGLE_API_TOKEN": "secrets.kaggle_api_token",

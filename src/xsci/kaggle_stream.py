@@ -153,6 +153,43 @@ class StageRenderer:
         if detail:
             self._print("    " + self._c("90", detail))
 
+    # ── Preflight stages (before the deep agent runs) ───────────────────
+    PREFLIGHT_STAGES = (
+        "Inspecting task",
+        "Checking data",
+        "Checking config",
+        "Selecting compute",
+        "Planning experiment",
+        "Entering workstation agent",
+    )
+
+    def preflight(self, stage: str, detail: str, status: str = "running") -> None:
+        """Render one preflight stage before the agent run begins.
+
+        Called by ``_print_preflight_stream()`` in kaggle.py for each stage
+        of the pre-run readiness check.  Imitates Claude Code's staged startup
+        output.
+        """
+        try:
+            idx = self.PREFLIGHT_STAGES.index(stage) + 1
+        except ValueError:
+            idx = 0
+        total = len(self.PREFLIGHT_STAGES)
+
+        if status == "passed":
+            mark = self._c("92", "✓")
+        elif status == "blocked":
+            mark = self._c("93", "⊘")
+        elif status == "failed":
+            mark = self._c("91", "✗")
+        else:
+            mark = self._c("96", "●")
+
+        tag = self._c("96", f"{self._g['arrow']} {stage}")
+        counter = self._c("90", f"[{idx}/{total}]")
+        body = f"  {self._c('90', detail)}" if detail else ""
+        self._print(f"{mark} {tag} {counter}{body}")
+
     def _on_run_begin(self, event: dict) -> None:
         task = event.get("task", "?")
         metric = event.get("metric", "?")

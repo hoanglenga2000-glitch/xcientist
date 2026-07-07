@@ -29,7 +29,7 @@ from typing import Any, Callable, Optional
 from .memory_library import MemoryLibrary
 from .messaging import ToolSpec
 from ..claim_audit import audit_claim
-from ..evolution_loop import _clean_error_for_feedback, _classify_failure
+from ..evolution_loop import _clean_error_for_feedback, _classify_failure, _is_transient_infra
 from ..mcgs_selector import ExpansionPlan, MCGSSelector
 from ..retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 from ..search_graph import ExperimentNode, SearchGraph
@@ -540,7 +540,27 @@ class ResearchToolbox:
         self.emit("exec_begin", exp_id=exp_id, runner=type(self.runner).__name__)
         # The RUNNER is the source of truth for success/exit_code. Nothing the
         # model wrote can make a crashed run count as successful.
-        result = self.runner.run(code, data_dir=self.data_dir, out_dir=out_dir, exp_id=exp_id)
+        # INFRA GUARD: a backend that never connected (SSH EOF, SOCKS/connect
+        # timeout, auth failure) raises BEFORE any script runs. That is NOT a code
+        # bug — retrying or rewriting hits the same wall, wastes turns, and pollutes
+        # memory with a phantom "segfault". Catch it, stop cleanly, and tell the
+        # agent to finish with a blocked verdict instead of churning.
+        try:
+            result = self.runner.run(code, data_dir=self.data_dir, out_dir=out_dir, exp_id=exp_id)
+        except Exception as exc:  # noqa: BLE001 - runner backends vary
+            if _is_transient_infra(exc):
+                self._pending_plan = None  # consume the plan; no node was created
+                self.emit("repair", exp_id=exp_id, failure_pattern="infra",
+                          error=f"{type(exc).__name__}: {str(exc)[:200]}")
+                body = (f"exp_id={exp_id} INFRA_BLOCKED — the compute backend did not run the "
+                        f"script (no output produced).\n"
+                        f"cause: {type(exc).__name__}: {str(exc)[:200]}\n"
+                        f"This is an INFRASTRUCTURE fault (SSH/SOCKS/connection/auth), NOT a code "
+                        f"bug. Do NOT rewrite the script and do NOT retry — the same wall recurs. "
+                        f"Call finish now: state that training is blocked on the compute backend "
+                        f"and needs the connection restored.")
+                return ToolOutcome(body, f"{exp_id} INFRA_BLOCKED ({type(exc).__name__})", ok=False)
+            raise  # a real code/runtime error: let the normal path classify it
         self.emit("score", exp_id=exp_id, success=result.success,
                   cv_score=result.cv_score, exit_code=result.exit_code)
 
