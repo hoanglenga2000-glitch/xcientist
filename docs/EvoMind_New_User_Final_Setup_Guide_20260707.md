@@ -58,18 +58,44 @@ EvoMind 是一个可审计、自进化的 AI Scientist 工作站，面向 Kaggle
 
 ## 3. 下载项目
 
-从 GitHub 下载：
+### 3.1 推荐方式：用 Git 下载
+
+在 Windows 上，点击开始菜单，打开 **PowerShell**。先进入你希望存放项目的目录，例如桌面：
+
+```powershell
+cd $env:USERPROFILE\Desktop
+```
+
+然后输入下面两行。第一行会从 GitHub 下载 EvoMind 仓库，第二行进入项目目录：
 
 ```powershell
 git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 ```
 
-如果拿到的是压缩包，解压后进入项目根目录：
+如果你希望放到 D 盘，也可以先进入自己的目录后再执行同样命令：
+
+```powershell
+cd D:\
+git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
+cd EvoMind
+```
+
+### 3.2 没有 Git 时：下载 ZIP
+
+如果电脑没有安装 Git，打开浏览器访问：
+
+```text
+https://github.com/hoanglenga2000-glitch/xcientist
+```
+
+点击 **Code -> Download ZIP**，下载后解压。然后在解压后的项目文件夹里打开 PowerShell，或手动进入该目录：
 
 ```powershell
 cd <EvoMind项目目录>
 ```
+
+继续执行下一节的一键安装命令。
 
 项目根目录应包含：
 

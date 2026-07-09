@@ -46,12 +46,26 @@ evomind
 
 ## 2. 下载项目
 
+在 Windows 上打开 **PowerShell**，先进入你希望存放项目的位置，例如桌面：
+
+```powershell
+cd $env:USERPROFILE\Desktop
+```
+
+然后输入下面命令下载仓库并进入项目目录：
+
 ```powershell
 git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 ```
 
-如果用户拿到的是压缩包，解压后进入项目根目录即可：
+如果电脑没有安装 Git，就在浏览器打开：
+
+```text
+https://github.com/hoanglenga2000-glitch/xcientist
+```
+
+点击 **Code -> Download ZIP**，解压后进入项目根目录即可：
 
 ```powershell
 cd <EvoMind项目目录>

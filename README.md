@@ -35,11 +35,18 @@ http://127.0.0.1:8088/?page=control
 
 ## Quick Start
 
+Open **PowerShell** in the folder where you want to put EvoMind, then paste:
+
 ```powershell
 git clone https://github.com/hoanglenga2000-glitch/xcientist.git EvoMind
 cd EvoMind
 powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
 ```
+
+If `git` is not installed, open
+`https://github.com/hoanglenga2000-glitch/xcientist` in a browser, click
+**Code -> Download ZIP**, unzip it, then open PowerShell inside the extracted
+project folder before running `install.ps1`.
 
 Then start the workstation:
 
