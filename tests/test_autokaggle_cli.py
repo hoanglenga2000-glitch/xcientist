@@ -4636,6 +4636,9 @@ def test_reasoning_synthesis_fulfills_falsifiable_hypothesis_contract(isolated_a
     assert cached["cache_stats"]["hits"] >= 1
     assert cached["cache_stats"]["hit_ratio"] > 0
     assert (root / ".xsci" / "scientist_reasoning_synthesis.json").exists()
+    persisted = json.loads((root / ".xsci" / "scientist_reasoning_synthesis.json").read_text(encoding="utf-8"))
+    assert persisted["cache_hit"] is True
+    assert persisted["cache_stats"]["hits"] >= 1
     assert (root / ".xsci" / "scientist_reasoning_synthesis.md").exists()
     assert (root / ".xsci" / "scientist_reasoning_cache_stats_deterministic.json").exists()
 

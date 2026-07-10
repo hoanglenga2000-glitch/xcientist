@@ -230,30 +230,86 @@ def _stable_cache_value(value: Any, *, depth: int = 0) -> Any:
 def _semantic_cache_projection(evidence: dict[str, Any]) -> dict[str, Any]:
     facts: dict[str, Any] = {}
 
-    def walk(value: Any, path: list[str], *, depth: int = 0) -> None:
-        if depth > 8:
-            return
-        if isinstance(value, dict):
-            for key, item in value.items():
-                key_text = str(key)
-                next_path = [*path, key_text]
-                if key_text in _CACHE_FACT_KEYS:
-                    if isinstance(item, list) and all(
-                        isinstance(element, (str, int, float, bool)) or element is None
-                        for element in item
-                    ):
-                        facts[".".join(next_path)] = sorted(
-                            (_safe_text(element, limit=500) for element in item),
-                        )
-                    elif isinstance(item, (str, int, float, bool)) or item is None:
-                        facts[".".join(next_path)] = _safe_json(item)
-                walk(item, next_path, depth=depth + 1)
-        elif isinstance(value, list):
-            for index, item in enumerate(value[:20]):
-                walk(item, [*path, str(index)], depth=depth + 1)
+    def source(name: str) -> dict[str, Any]:
+        value = evidence.get(name)
+        return value if isinstance(value, dict) else {}
 
-    for source_name, source in evidence.items():
-        walk(source, [str(source_name)])
+    def read_path(payload: dict[str, Any], *keys: str) -> Any:
+        value: Any = payload
+        for key in keys:
+            if not isinstance(value, dict):
+                return None
+            value = value.get(key)
+        return value
+
+    def add(label: str, value: Any) -> None:
+        if value in (None, "", [], {}):
+            return
+        if isinstance(value, list):
+            facts[label] = sorted(_safe_text(item, limit=500) for item in value)
+        else:
+            facts[label] = _safe_json(value)
+
+    turn_plan = source("turn_plan")
+    add("turn.intent.kind", read_path(turn_plan, "intent", "kind"))
+    add("turn.intent.payload", read_path(turn_plan, "intent", "payload"))
+    add("turn.autonomy_level", turn_plan.get("autonomy_level"))
+    add("turn.next_safe_command", turn_plan.get("next_safe_command"))
+    for key in ("llm_ready", "kaggle_ready", "compute_backend", "gpu_ready", "gpu_blocked", "can_execute", "blocking_gates"):
+        add(f"turn.readiness.{key}", read_path(turn_plan, "readiness", key))
+
+    context = source("context_packet")
+    for key in ("task_slug", "task_type", "modality", "metric", "metric_direction", "target_column"):
+        add(f"context.task.{key}", read_path(context, "task_profile", key))
+    for key in ("llm_ready", "kaggle_ready", "compute_backend", "gpu_ready", "gpu_blocked", "can_execute", "blocking_gates"):
+        add(f"context.readiness.{key}", read_path(context, "readiness", key))
+    for key in ("selected_action", "selected_command", "gate_status"):
+        add(f"context.strategy.{key}", read_path(context, "active_strategy", key))
+    add("context.requirements.open", read_path(context, "requirement_context", "open_requirements"))
+    add("context.requirements.blocked", read_path(context, "requirement_context", "blocked_requirements"))
+    for key in ("retrospective_records", "task_relevant_records"):
+        add(f"context.memory.{key}", read_path(context, "memory_digest", key))
+
+    system = source("system_status")
+    for key in ("llm_ready", "kaggle_ready", "compute_backend", "gpu_blocked", "selected_task", "recent_run_id", "blockers"):
+        add(f"system.{key}", system.get(key))
+
+    data = source("data_check")
+    for key in ("train_csv", "test_csv", "data_ready", "status", "message"):
+        add(f"data.{key}", data.get(key))
+
+    strategy = source("scientist_strategy_optimizer")
+    for key in ("strategy_posture", "next_safe_command"):
+        add(f"strategy.{key}", strategy.get(key))
+    for key in ("id", "gate_status", "command"):
+        add(f"strategy.selected.{key}", read_path(strategy, "selected_strategy", key))
+
+    review = source("scientist_hypothesis_review")
+    add("review.recommendation", review.get("recommendation"))
+    for key in ("hypothesis_id", "strategy_name", "status", "branch_type", "code_generation_mode"):
+        add(f"review.selected.{key}", read_path(review, "selected_hypothesis", key))
+    for key in ("data_ready", "execution_contract"):
+        add(f"review.gate.{key}", read_path(review, "gate_summary", key))
+
+    blueprint = source("scientist_experiment_blueprint")
+    add("blueprint.status", blueprint.get("blueprint_status"))
+    for key in ("hypothesis_id", "strategy_name", "status", "branch_type", "code_generation_mode"):
+        add(f"blueprint.selected.{key}", read_path(blueprint, "selected_hypothesis", key))
+    add("blueprint.id", read_path(blueprint, "experiment_blueprint", "blueprint_id"))
+
+    contract = source("scientist_execution_contract")
+    add("contract.go_no_go", contract.get("go_no_go"))
+    add("contract.root_causes", contract.get("root_causes"))
+
+    repair = source("scientist_repair_plan")
+    add("repair.mode", repair.get("mode"))
+    add("repair.root_causes", repair.get("root_causes"))
+    add("repair.selected_action", read_path(repair, "decision", "selected_action"))
+
+    recent = source("recent_run")
+    for key in ("run_id", "recent_run_id", "cv_score", "best_score", "status"):
+        add(f"recent.{key}", recent.get(key))
+
     return _stable_cache_value(facts)
 
 
@@ -273,7 +329,7 @@ def _update_cache_stats(
     generated_at: str,
 ) -> dict[str, Any]:
     previous = _read_json(path) or {}
-    cache_algorithm = "semantic_v4"
+    cache_algorithm = "semantic_v5"
     if previous.get("cache_algorithm") != cache_algorithm:
         previous = {}
     requests = int(previous.get("requests") or 0) + 1
@@ -913,12 +969,21 @@ def build_scientist_reasoning_synthesis(
             cache_key=cache_key,
             generated_at=generated_at,
         )
-        return {
+        cached_payload = {
             **previous,
             "cache_hit": True,
             "cache_stats": cache_stats,
             "cache_stats_path": str(cache_stats_path),
         }
+        if persist:
+            try:
+                artifact_path.write_text(
+                    json.dumps(cached_payload, ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
+        return cached_payload
 
     llm_meta: dict[str, Any] = {
         "used": False,
