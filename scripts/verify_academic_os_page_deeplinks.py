@@ -10,20 +10,69 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUT_DIR = ROOT / "docs" / "academic_os_pages_20260614"
+DEFAULT_OUT_DIR = ROOT / "docs" / "evomind_pages_20260708"
 
 PAGES: dict[str, list[list[str]]] = {
-    "overview": [["Academic Research OS"]],
-    "mission": [["Academic Research OS"], ["科研操作系统能力地图"], ["Academic OS 质量评分卡", "Academic OS quality scorecard"]],
-    "experiments": [["Experiment", "实验室"]],
-    "data": [["Data & Kaggle", "数据与 Kaggle"], ["Kaggle"]],
-    "report": [["Report Studio", "报告工作室"], ["报告"]],
-    "code": [["Code Agent", "代码智能体"], ["Claude"]],
-    "gpu": [["GPU / HPC"], ["SSH Credential", "GPU Compute", "SSH Gateway Ready"], ["NVIDIA A40", "A40", "NVIDIA A800", "A800", "NVIDIA"]],
-    "evidence": [["Evidence Ledger", "证据账本"], ["Unverified", "未验证"]],
-    "gates": [["Integrity", "完整性"], ["Gate"]],
-    "literature": [["Literature", "文献知识"], ["No citation without source"]],
-    "settings": [["Settings", "设置"], ["Kaggle"]],
+    "overview": [
+        ["EvoMind"],
+        ["科研工作站运行态势与闭环总控"],
+        ["实时运行证据", "Live Run Evidence"],
+    ],
+    "control": [
+        ["EvoMind Gateway", "EvoMind 工作站入口"],
+        ["Scientist Autopilot", "科学家诊断"],
+        ["Scientist Action Queue", "科学家行动队列"],
+    ],
+    "mission": [
+        ["Academic Research OS", "科研工作站运行态势与闭环总控"],
+        ["Workstation-started runs", "工作站"],
+        ["无官方 Kaggle response", "人工 Gate"],
+    ],
+    "experiments": [
+        ["实验台账", "Experiment"],
+        ["分支搜索", "Search"],
+        ["分数提升门禁", "Gate"],
+    ],
+    "data": [
+        ["Data & Kaggle", "数据与 Kaggle"],
+        ["schema 审计", "schema"],
+        ["submission 门禁", "submission"],
+    ],
+    "report": [
+        ["Report Studio", "报告工作室"],
+        ["AI 自动汇总实验结果", "AI 生成报告"],
+        ["证据链", "风险审计"],
+    ],
+    "code": [
+        ["Code Agent IDE", "代码 Agent"],
+        ["可审计代码生成", "Algorithm code generation"],
+        ["Diff", "quality gate"],
+    ],
+    "gpu": [
+        ["GPU / HPC 控制台", "GPU / HPC"],
+        ["算力资源状态", "远程算力"],
+        ["远程训练", "产物回传"],
+    ],
+    "evidence": [
+        ["证据台账", "Evidence"],
+        ["统一归档 artifact", "artifact"],
+        ["日志", "指标", "审计证据"],
+    ],
+    "gates": [
+        ["完整性 Gate", "Integrity"],
+        ["人工审批", "Human Gate"],
+        ["提交阻断", "安全边界"],
+    ],
+    "literature": [
+        ["Literature", "文献知识", "文献与知识库"],
+        ["RAG"],
+        ["研究上下文", "知识库"],
+    ],
+    "settings": [
+        ["Settings", "系统设置"],
+        ["账号", "语言", "主题"],
+        ["凭据", "资源"],
+    ],
 }
 
 
@@ -54,27 +103,45 @@ def check_reachable(url: str) -> None:
             fail("dashboard URL is not reachable", {"url": url, "status": response.status})
 
 
-def run_browser(browser: Path, args: list[str], timeout: int = 45) -> subprocess.CompletedProcess[str]:
+def run_browser(browser: Path, args: list[str], timeout: int = 90) -> subprocess.CompletedProcess[str]:
     with tempfile.TemporaryDirectory(prefix="academic-os-chrome-") as profile:
         command = [
             str(browser),
             "--headless=new",
             "--disable-gpu",
+            "--disable-background-networking",
+            "--disable-background-timer-throttling",
+            "--disable-component-update",
+            "--disable-dev-shm-usage",
+            "--disable-extensions",
+            "--disable-features=Translate,MediaRouter,BackForwardCache",
             "--hide-scrollbars",
             "--no-first-run",
             "--no-default-browser-check",
             f"--user-data-dir={profile}",
             *args,
         ]
-        return subprocess.run(
-            command,
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-            timeout=timeout,
-            encoding="utf-8",
-            errors="replace",
-        )
+        try:
+            return subprocess.run(
+                command,
+                cwd=ROOT,
+                text=True,
+                capture_output=True,
+                timeout=timeout,
+                encoding="utf-8",
+                errors="replace",
+            )
+        except subprocess.TimeoutExpired as exc:
+            fail(
+                "browser command timed out",
+                {
+                    "command": command,
+                    "timeout_seconds": timeout,
+                    "stdout_tail": (exc.stdout or "")[-1000:] if isinstance(exc.stdout, str) else "",
+                    "stderr_tail": (exc.stderr or "")[-1000:] if isinstance(exc.stderr, str) else "",
+                },
+            )
+            raise AssertionError("unreachable")
 
 
 def dump_dom(browser: Path, url: str) -> str:
@@ -94,7 +161,7 @@ def screenshot(browser: Path, url: str, path: Path, size: str) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Verify Academic Research OS page deep links with real Chromium screenshots.")
+    parser = argparse.ArgumentParser(description="Verify EvoMind page deep links with real Chromium screenshots.")
     parser.add_argument("--url", default="http://127.0.0.1:8088", help="Running dashboard URL.")
     parser.add_argument("--out-dir", default=str(DEFAULT_OUT_DIR), help="Directory for screenshot and DOM artifacts.")
     args = parser.parse_args()
@@ -124,7 +191,7 @@ def main() -> None:
       artifacts.append(str((out_dir / f"{page}_mobile.png").relative_to(ROOT)))
 
     if missing:
-        fail("Academic OS page deep links are missing expected visible terms", {"missing": missing})
+        fail("EvoMind page deep links are missing expected visible terms", {"missing": missing})
 
     index_path = out_dir / "acceptance_index.json"
     index_path.write_text(json.dumps({

@@ -167,9 +167,12 @@ def main() -> None:
     bridge = hpc_manifest.get("local_bridge") or {}
     listen = str(bridge.get("listen") or "127.0.0.1:7890")
     proxy_host, proxy_port_text = listen.rsplit(":", 1)
-    banner = socks5_banner(proxy_host, int(proxy_port_text), str(hpc_manifest.get("ssh_host")), int(hpc_manifest.get("ssh_port")))
-    if "SSH-2.0-SSHPiper" not in banner:
-        fail("HPC login node banner is not verified", {"banner": banner})
+    banner_error = ""
+    try:
+        banner = socks5_banner(proxy_host, int(proxy_port_text), str(hpc_manifest.get("ssh_host")), int(hpc_manifest.get("ssh_port")))
+    except (OSError, RuntimeError, TimeoutError) as exc:
+        banner = "unverified"
+        banner_error = f"{type(exc).__name__}: {exc}"
 
     probe = probe_status()
     gpu_state = str(connectors["gpu"].get("state", ""))
@@ -194,6 +197,12 @@ def main() -> None:
         no_go_conditions.append("Kaggle official API token is not configured.")
     if not probe.get("fully_ready_allowed") and "SSH Gateway Ready" not in gpu_state:
         no_go_conditions.append("GPU cannot be marked fully ready until Web Terminal nvidia-smi proves 4 x A800.")
+    if connectors["gpu"].get("current_allocation_blocked") or (
+        connectors["gpu"].get("configured") and connectors["gpu"].get("current_gate_ready") is False and "SSH Gateway Ready" not in gpu_state
+    ):
+        no_go_conditions.append("Current GPU allocation gate is blocked until a fresh SSH/CUDA smoke passes.")
+    if "SSH-2.0-SSHPiper" not in banner:
+        no_go_conditions.append("HPC login-node SSH banner is not currently verified; external GPU training must stay pending.")
     if "Permission denied" in str(hpc_manifest.get("current_blocker")):
         no_go_conditions.append("HPC SSH login node still rejects the provided account authentication.")
     normalized_blocker = str(hpc_manifest.get("current_blocker")).lower().replace("public key", "publickey")
@@ -211,6 +220,7 @@ def main() -> None:
             "local_bridge": listen,
             "ssh_destination": f"{hpc_manifest.get('ssh_host')}:{hpc_manifest.get('ssh_port')}",
             "banner": banner,
+            "banner_error": banner_error,
             "current_blocker": hpc_manifest.get("current_blocker"),
         },
         "hpc_web_terminal_probe": probe,

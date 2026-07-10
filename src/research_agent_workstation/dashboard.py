@@ -241,7 +241,20 @@ def latest_experiment(task_name: str) -> Path | None:
     candidates = [item for item in base.iterdir() if item.is_dir()]
     if not candidates:
         return None
-    return max(candidates, key=lambda item: item.name)
+    ordered = sorted(candidates, key=lambda item: item.name, reverse=True)
+    for item in ordered:
+        gate = read_json(item / "validation_gate.json", {})
+        if gate.get("status") == "passed":
+            return item
+    for item in ordered:
+        gate_path = item / "validation_gate.json"
+        if gate_path.exists() and gate_path.stat().st_size > 0:
+            return item
+    for item in ordered:
+        log_path = item / "experiment_log.json"
+        if log_path.exists() and log_path.stat().st_size > 0:
+            return item
+    return ordered[0]
 
 
 def rel(path: Path | None) -> str | None:

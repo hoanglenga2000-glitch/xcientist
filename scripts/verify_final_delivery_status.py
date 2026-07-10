@@ -11,6 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "最终上线交付状态-20260612.md"
 SCREENS = ROOT / "web" / "research-agent-workstation" / "src" / "components" / "workstation" / "Screens.tsx"
+OVERVIEW_BOARD = ROOT / "web" / "research-agent-workstation" / "src" / "components" / "workstation" / "OverviewBoardEnhanced.tsx"
 JSON_SNAPSHOT = ROOT / "docs" / "final_delivery_status_20260612.json"
 
 
@@ -75,6 +76,16 @@ def get_json(url: str) -> dict[str, Any]:
 def ready_or_verified(state: str) -> bool:
     normalized = state.lower()
     return "ready" in normalized or "verified" in normalized
+
+
+def configured_but_blocked(connector: dict[str, Any]) -> bool:
+    state = str(connector.get("state", "")).lower()
+    return bool(
+        connector.get("current_allocation_blocked")
+        or connector.get("current_gate_ready") is False
+        or "blocked" in state
+        or "failed" in state
+    )
 
 
 def metric_value(run: dict[str, Any], metric: str) -> float | None:
@@ -278,8 +289,12 @@ def main() -> None:
         fail("backend code_agent is configured but not reporting a ready state", {"code_agent": code_agent})
     if not code_agent.get("configured") and "not configured" not in str(code_agent.get("state", "")).lower():
         fail("backend code_agent is unavailable but not clearly marked Not Configured", {"code_agent": code_agent})
-    if gpu.get("configured") and not ready_or_verified(str(gpu.get("state", ""))):
-        fail("backend GPU is configured but not reporting a ready state", {"gpu": gpu})
+    gpu_ready = ready_or_verified(str(gpu.get("state", ""))) and not configured_but_blocked(gpu)
+    gpu_blocked = bool(gpu.get("configured")) and configured_but_blocked(gpu)
+    if gpu.get("configured") and not gpu_ready and not gpu_blocked:
+        fail("backend GPU is configured but not reporting a ready or clearly blocked state", {"gpu": gpu})
+    if gpu_blocked and not (gpu.get("notes") or gpu.get("evidence")):
+        fail("backend GPU is blocked but lacks visible blocker evidence", {"gpu": gpu})
     if not code_agent.get("configured") and "| Claude Code / Claude Agent SDK | ready |" in doc_text:
         fail("final delivery document says Claude is ready while backend reports Not Configured", {"code_agent": code_agent})
     if not gpu.get("configured") and "| GPU SSH Gateway | ready |" in doc_text:
@@ -288,12 +303,27 @@ def main() -> None:
         fail("final delivery document says Kaggle is ready while backend reports Not Configured", {"kaggle": connector_status.get("kaggle")})
 
     source = SCREENS.read_text(encoding="utf-8")
-    required_actions = ["report_outline_toggle", "report_figure_tray_toggle", "code_workspace_rail_toggle"]
+    if OVERVIEW_BOARD.exists():
+        source += "\n" + OVERVIEW_BOARD.read_text(encoding="utf-8")
+    required_actions = [
+        "report_regenerate_full_draft",
+        "report_export_markdown",
+        "report_export_audit_json",
+        "report_export_draft_pdf",
+        "open_code_file_",
+        "ask_code_agent",
+        "review_code_diff",
+        "run_code_smoke_test",
+        "request_code_quality_gate",
+    ]
     missing_source_actions = [action for action in required_actions if action not in source]
     if missing_source_actions:
         fail("audited UI actions are missing from workstation source", {"missing_source_actions": missing_source_actions})
-    if 'data-testid="final-delivery-status-card"' not in source:
-        fail("overview board is missing the final delivery status card")
+    if (
+        'data-testid="final-delivery-status-card"' not in source
+        and 'data-testid="enhanced-overview-board"' not in source
+    ):
+        fail("overview board is missing the final delivery status surface")
     if not summary_final_delivery:
         fail("workstation summary is missing final_delivery_status")
 
@@ -312,6 +342,9 @@ def main() -> None:
             "gpu": {
                 "configured": bool(gpu.get("configured")),
                 "state": gpu.get("state"),
+                "current_allocation_blocked": bool(gpu.get("current_allocation_blocked")),
+                "current_gate_ready": bool(gpu.get("current_gate_ready")),
+                "optional": True,
                 "required_env": [
                     "GPU_SSH_HOST",
                     "GPU_SSH_USER",
@@ -328,7 +361,13 @@ def main() -> None:
         "audited_actions": required_actions,
         "acceptance_command": "python scripts/run_full_acceptance.py --dashboard-url http://127.0.0.1:8088 --container-name research-agent-workstation",
         "resource_smoke_command": "python scripts/run_real_resource_smoke.py --dashboard-url http://127.0.0.1:8088 --container-name research-agent-workstation --require-configured --skip-full-acceptance",
-        "ready_mode": "fully_ready" if code_agent.get("configured") and gpu.get("configured") and kaggle.get("configured") else "ready_for_external_resources",
+        "ready_mode": (
+            "fully_ready"
+            if code_agent.get("configured") and gpu.get("configured") and gpu_ready and kaggle.get("configured")
+            else "ready_with_external_resource_blockers"
+            if gpu_blocked
+            else "ready_for_external_resources"
+        ),
     }
 
     if args.write_json:

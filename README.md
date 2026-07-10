@@ -100,6 +100,7 @@ evomind ready                   # Show setup and resource readiness
 evomind setup                   # Configure LLM/Kaggle/compute
 evomind competitions titanic    # Browse/search Kaggle competitions
 evomind task add <KaggleURL>    # Register a competition task
+evomind ask "research goal"     # Run one auditable AI Scientist turn
 evomind run <task>              # Start gated audited execution
 evomind watch -f                # Follow event stream
 evomind memory                  # Inspect retrospective memory

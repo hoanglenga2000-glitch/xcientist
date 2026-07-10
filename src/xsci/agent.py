@@ -16,10 +16,20 @@ Live events stream to the terminal and to ``<exp_dir>/events.jsonl``, which the
 """
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, Optional
 
 from .config import Config, load_config
-from .engine import RunPlan, build_plan, _load_context
+from .engine import (
+    RunPlan, build_plan, _load_context, _record_evolution_summary,
+    _workspace_root_from_exp_dir,
+)
+from .scientist_execution_gate import (
+    build_execution_gate_decision,
+    build_execution_contract_for_task,
+    contract_blocks_training,
+    render_execution_contract_lines,
+)
 
 
 def _make_runner(plan: RunPlan, data: dict[str, Any]):
@@ -171,6 +181,29 @@ def run_agent(
         print("\nrefusing to run: " + "; ".join(blocking))
         return 1
 
+    contract = build_execution_contract_for_task(
+        task,
+        root=_workspace_root_from_exp_dir(plan.exp_dir),
+        cfg=cfg,
+        compute=plan.compute,
+        goal=goal or "xsci agent",
+    )
+    if show_plan:
+        print()
+        print("\n".join(render_execution_contract_lines(contract)))
+    gate_decision = build_execution_gate_decision(contract, require_model_ready=False)
+    if contract_blocks_training(contract, require_model_ready=False):
+        print(
+            "\nrefusing to run: " + str(gate_decision.get("message") or "Scientist execution gate blocked training.")
+        )
+        safe_next = gate_decision.get("safe_next_commands") or []
+        if safe_next:
+            print("safe next: " + " | ".join(str(item) for item in safe_next[:3]))
+        return 1
+    enriched_goal = str(contract.get("enriched_goal") or "").strip()
+    if enriched_goal:
+        goal = f"{goal or ''}\n\n{enriched_goal}".strip()
+
     from research_os.agent import AgentMessageClient
 
     if not AgentMessageClient().is_available():
@@ -189,7 +222,11 @@ def run_agent(
     # RUN_END, so skip the raw [summary]/[artifacts] lines to avoid doubling up.
     quiet_summary = event_renderer is not None
     if goal:
-        return _run_once(session, goal, quiet_summary=quiet_summary)
+        return _run_once(
+            session, goal,
+            quiet_summary=quiet_summary,
+            task_name=str(getattr(plan, "task_name", task)),
+        )
     return _repl(session)
 
 
@@ -226,10 +263,18 @@ def _banner(session, plan: RunPlan, *, mcgs: bool) -> str:
     ])
 
 
-def _run_once(session, goal: str, *, quiet_summary: bool = False) -> int:
+def _run_once(session, goal: str, *, quiet_summary: bool = False,
+              task_name: str = "") -> int:
     if not quiet_summary:
         print(f"[goal] {goal}\n")
     summary = session.run(goal)
+    exp_dir = Path(session.exp_dir)
+    _record_evolution_summary(
+        _workspace_root_from_exp_dir(exp_dir),
+        summary,
+        task=task_name,
+        events_path=exp_dir / "events.jsonl",
+    )
     if not quiet_summary:
         _print_summary(session, summary)
     return 0
@@ -253,6 +298,14 @@ def _repl(session) -> int:
         print(f"\n[goal] {goal}\n")
         try:
             summary = session.run(goal)
+            task_name = str(getattr(getattr(session, "context", None), "task_name", ""))
+            exp_dir = Path(session.exp_dir)
+            _record_evolution_summary(
+                _workspace_root_from_exp_dir(exp_dir),
+                summary,
+                task=task_name,
+                events_path=exp_dir / "events.jsonl",
+            )
         except Exception as exc:  # keep the REPL alive on a run error
             print(f"\n! run error: {type(exc).__name__}: {exc}")
             continue

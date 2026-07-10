@@ -100,6 +100,61 @@ def test_run_dry_run_resolves_without_executing(project, tmp_path, monkeypatch, 
     assert rc == 0
     assert "run plan:" in out and "dry-run" in out
     assert "data dir    : /data/titanic" in out
+    assert "Scientist execution contract:" in out
+    contract_path = project / ".xsci" / "scientist_execution_contract.json"
+    assert contract_path.exists()
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert contract["execution_gate_decision"]["status"] == "blocked"
+    assert contract["execution_gate_decision"]["no_training_started"] is True
+
+
+def test_run_refuses_when_scientist_contract_is_not_training_ready(project, tmp_path, monkeypatch, capsys):
+    xcfg.write_secret("anthropic_api_key", "sk-x")
+    xcfg.set_global("llm", "provider", "anthropic")
+    xtasks.add_task(str(_sample_task(tmp_path / "t.json")))
+    monkeypatch.setattr("xsci.engine.execute_plan",
+                        lambda plan: pytest.fail("execute_plan must NOT run when contract is not training-ready"))
+    rc = main(["run", "titanic", "--compute", "local"])
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "Scientist execution contract:" in out
+    assert "model training  : blocked" in out
+    assert "gate decision   : blocked" in out
+    assert "blocked by      :" in out
+    assert "safe next:" in out
+
+
+def test_execution_gate_decision_is_structured_and_safe():
+    from xsci.scientist_execution_gate import (
+        build_execution_gate_decision,
+        contract_blocks_training,
+        render_execution_contract_lines,
+    )
+
+    contract = {
+        "ok": True,
+        "go_no_go": "no_go",
+        "agent_session_ready": False,
+        "model_training_ready": False,
+        "data_contract_status": "blocked",
+        "root_causes": ["gpu_blocked", "data_missing"],
+        "setup_blockers": ["GPU smoke is stale token=LEAKME"],
+        "artifact_path": "D:/workspace/.xsci/scientist_execution_contract.json",
+    }
+
+    decision = build_execution_gate_decision(contract)
+    rendered = "\n".join(render_execution_contract_lines(contract))
+    serialized = json.dumps(decision, ensure_ascii=False)
+
+    assert decision["blocked"] is True
+    assert decision["status"] == "blocked"
+    assert "execution_contract_no_go" in decision["blocked_by"]
+    assert "model_training_not_ready" in decision["blocked_by"]
+    assert "evomind repair" in decision["safe_next_commands"]
+    assert contract_blocks_training(contract) is True
+    assert "gate decision   : blocked" in rendered
+    assert "safe next       : evomind repair" in rendered
+    assert "token=LEAKME" not in serialized
 
 
 def test_run_refuses_without_llm_key(project, tmp_path, monkeypatch, capsys):

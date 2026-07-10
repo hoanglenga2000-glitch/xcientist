@@ -3013,7 +3013,7 @@ export function ReportStudio(props: ScreenProps) {
               ))}
             </div>
           </div>
-          <Button className="mt-3 w-full" size="sm" variant="secondary" data-ui-skip-action="true" onClick={regenerateDraft} disabled={isGenerating}><FileText className="h-4 w-4" />{isGenerating ? "生成中..." : "重新生成完整草稿"}</Button>
+          <Button className="mt-3 w-full" size="sm" variant="secondary" data-ui-action="report_regenerate_full_draft" data-ui-skip-action="true" onClick={regenerateDraft} disabled={isGenerating}><FileText className="h-4 w-4" />{isGenerating ? "生成中..." : "重新生成完整草稿"}</Button>
           <Panel title="报告质量审计" description="Report Quality Audit" className="mt-3">
             <Row label="Evidence Coverage" value={`${evidenceForTask.length} artifacts`} />
             <Progress value={reportQuality} tone={reportQuality >= 80 ? "green" : "amber"} />
@@ -3073,8 +3073,8 @@ export function ReportStudio(props: ScreenProps) {
           <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-3 text-xs font-bold leading-5 text-blue-900">
             {localStatus} 草稿导出不会写入官方排名或奖牌；最终版仍需人工 Gate。
           </div>
-          <Button className="mt-4 w-full" variant="primary" data-ui-skip-action="true" onClick={exportMarkdown}><Download className="h-4 w-4" /> 导出完整 Markdown</Button>
-          <Button className="mt-2 w-full" variant="secondary" data-ui-skip-action="true" onClick={exportAuditJson}><Database className="h-4 w-4" /> 导出审计 JSON</Button>
+          <Button className="mt-4 w-full" variant="primary" data-ui-action="report_export_markdown" data-ui-skip-action="true" onClick={exportMarkdown}><Download className="h-4 w-4" /> 导出完整 Markdown</Button>
+          <Button className="mt-2 w-full" variant="secondary" data-ui-action="report_export_audit_json" data-ui-skip-action="true" onClick={exportAuditJson}><Database className="h-4 w-4" /> 导出审计 JSON</Button>
           <Button className="mt-2 w-full" variant="secondary" data-ui-action="report_add_section" data-ui-skip-action="true" onClick={selectNextReportSection}><FileText className="h-4 w-4" /> 定位/新增报告章节</Button>
           <Button className="mt-2 w-full" variant="secondary" data-ui-action="report_export_draft_pdf" data-ui-skip-action="true" onClick={exportDraftPdfGate}><Download className="h-4 w-4" /> 导出草稿 PDF 门禁包</Button>
           <Button className="mt-2 w-full" variant="secondary" aria-disabled="true" data-ui-action="blocked_final_report_export"><Lock className="h-4 w-4" /> 最终 PDF 需人工审批</Button>

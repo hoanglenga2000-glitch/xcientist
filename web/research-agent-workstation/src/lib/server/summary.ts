@@ -1,7 +1,9 @@
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import { prisma } from "@/lib/db";
 import { claudeApiKeyStatus, deepSeekApiKeyStatus, deepSeekConfig, gpuSshConfig, gpuSshStatus } from "@/lib/server/capabilities";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
-import { decodeJson } from "@/lib/server/json";
+import { decodeJson, sanitizeClientJson } from "@/lib/server/json";
 import { latestExperimentPath, latestScoreGatedWorkstationRunPath, latestWorkstationRunPath, readJsonFile, resolveWorkspacePath, workspaceRoot } from "@/lib/server/paths";
 
 type RuntimeSummary = {
@@ -41,6 +43,22 @@ type XsciRunCandidate = {
 };
 
 const runtimeTaskIds = ["playground_series_s6e6", "house_prices", "titanic", "telco_churn"];
+const requiredRuntimeArtifacts = [
+  "task_state_machine.json",
+  "agent_trace.jsonl",
+  "event_log.jsonl",
+  "artifact_manifest.json",
+  "evidence_index.json",
+  "experiment_graph.json",
+  "gate_engine.json",
+  "gate_audit_log.jsonl",
+  "runtime_snapshot.json",
+  "reflection.json",
+  "reflection.md",
+  "memory_records.json",
+  "orchestrator_run.json",
+  "validation_gate.json"
+];
 
 const stages = [
   "task_understanding",
@@ -71,6 +89,19 @@ function readJsonl(text: string) {
         return { raw: line };
       }
     });
+}
+
+function runtimeEventsFromAgentTrace(agentTrace: Array<Record<string, unknown>>) {
+  return agentTrace.map((event, index) => ({
+    source: "agent_trace_projection",
+    index,
+    event_type: event.event_type ?? event.type ?? event.stage ?? "agent_step",
+    stage: event.stage ?? event.agent ?? event.event_type ?? `step_${index + 1}`,
+    status: event.status ?? "recorded",
+    message: event.message ?? event.summary ?? event.action ?? event.note ?? "",
+    artifact_path: event.artifact_path ?? event.artifact ?? null,
+    raw: event
+  }));
 }
 
 function safeSummaryText(value: unknown, fallback = "") {
@@ -213,6 +244,610 @@ async function loadXsciTerminalAgentSummary() {
     commands,
     claim_boundary: "No official Kaggle rank, medal, or MLE-Bench claim is shown unless a Kaggle response artifact exists and passes claim audit."
   };
+}
+
+async function loadScientistAutopilotSummary() {
+  const relativePath = ".xsci/scientist_autopilot.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      mode: "not_run",
+      selected_task: null,
+      summary_lines: [],
+      tool_trace: [],
+      next_actions: ["Run Scientist Autopilot from the Control page or `evomind autopilot`."],
+      blockers: [],
+      human_gate: {
+        official_kaggle_submit: "blocked_until_explicit_user_approval",
+        rank_or_medal_claims: "blocked_without_kaggle_response_artifact"
+      }
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistActionQueueSummary() {
+  const relativePath = ".xsci/scientist_action_queue.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_action_queue",
+      selected_task: null,
+      actions: [
+        {
+          id: "run_autopilot_first",
+          title: "Run AI Scientist Autopilot",
+          status: "ready",
+          command: "evomind autopilot",
+          gate: "read_only",
+          why: "Create the first action queue from current system, task, data, memory, and gate evidence.",
+          risk: "none; read-only diagnosis",
+          rollback_condition: "stay in planner mode until action queue exists",
+          expected_artifacts: [".xsci/scientist_autopilot.json", ".xsci/scientist_action_queue.json"],
+          evidence: ["scientist_autopilot", "scientist_step_trace"],
+          autonomy: "read_only"
+        }
+      ],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistContinuationStatusSummary() {
+  const relativePath = ".xsci/scientist_continuation_status.json";
+  const continuationPath = ".xsci/scientist_continuation.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      continuation_artifact_path: continuationPath,
+      tool: "scientist_continuation_status",
+      selected_task: null,
+      status: "no_continuation",
+      completion_ratio: 0,
+      total_required_tools: 0,
+      completed_required_tools: 0,
+      remaining_count: 0,
+      remaining_safe_tools: [],
+      executed_or_completed_tools: [],
+      progress_history: [],
+      next_safe_action_command: "evomind turn",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval",
+      message: "Scientist continuation status has not been generated yet."
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistLoopSummary() {
+  const relativePath = ".xsci/scientist_loop.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_loop",
+      mode: "not_run",
+      stop_reason: "not_run",
+      selected_task: null,
+      steps: [],
+      final_autopilot: null,
+      final_next_action: null,
+      lesson: null,
+      lessons_path: ".xsci/scientist_loop_lessons.jsonl",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistLoopLessonsSummary() {
+  const relativePath = ".xsci/scientist_loop_lessons.jsonl";
+  const text = await readTextFile(resolveWorkspacePath(relativePath));
+  const entries = readJsonl(text).slice(-20).map((event) => sanitizeSummaryRecord(event));
+  return {
+    present: entries.length > 0,
+    artifact_path: relativePath,
+    count: entries.length,
+    latest: entries.at(-1) ?? null,
+    recent: sanitizeClientJson(entries)
+  };
+}
+
+async function loadScientistMemoryConsolidationSummary() {
+  const relativePath = ".xsci/scientist_memory_consolidation.json";
+  const memoryPath = "experiments/evolution/retrospective_memory.json";
+  const [payload, memoryPayload] = await Promise.all([
+    readJsonFile(resolveWorkspacePath(relativePath)) as Promise<Record<string, unknown> | null>,
+    readJsonFile(resolveWorkspacePath(memoryPath))
+  ]);
+  const memoryRecords = Array.isArray(memoryPayload)
+    ? memoryPayload.map((item) => asRecordForSummary(item)).filter(Boolean)
+    : [];
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      memory_path: memoryPath,
+      tool: "scientist_memory_consolidation",
+      records_before: memoryRecords.length,
+      candidate_records: 0,
+      records_added: 0,
+      records_total: memoryRecords.length,
+      added_memory_ids: [],
+      source_counts: {},
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    memory_path: memoryPath,
+    records_total: memoryRecords.length || payload.records_total || 0,
+    ...payload
+  });
+}
+
+async function loadScientistSelfAuditSummary() {
+  const relativePath = ".xsci/scientist_self_audit.json";
+  const backlogPath = ".xsci/scientist_upgrade_backlog.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      backlog_artifact_path: backlogPath,
+      tool: "scientist_self_audit",
+      overall_score: 0,
+      launch_readiness: "not_run",
+      capabilities: [],
+      gaps: [],
+      upgrade_backlog: [
+        {
+          id: "run_self_audit_first",
+          title: "Run EvoMind self-audit",
+          priority: "P0",
+          status: "ready",
+          safe_next_command: "evomind self-audit",
+          gate: "read_only"
+        }
+      ],
+      evidence_sources: {},
+      next_safe_commands: ["evomind self-audit"],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistReadinessReportSummary() {
+  const relativePath = ".xsci/scientist_readiness_report.json";
+  const markdownPath = ".xsci/scientist_readiness_report.md";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      markdown_artifact_path: markdownPath,
+      tool: "scientist_readiness_report",
+      overall_score: 0,
+      capability_readiness: "not_run",
+      launch_readiness: "not_run",
+      claim_readiness: {
+        training_readiness_claim: "not_run",
+        rank_or_medal_claim: "blocked_without_kaggle_response_artifact",
+        official_submit_claim: "blocked_until_explicit_human_approval"
+      },
+      readiness_matrix: [],
+      recommended_next_commands: ["evomind readiness-report", "evomind self-audit"],
+      artifact_evidence: [],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    markdown_artifact_path: markdownPath,
+    ...payload
+  });
+}
+
+async function loadScientistCausalDiagnosisSummary() {
+  const relativePath = ".xsci/scientist_causal_diagnosis.json";
+  const markdownPath = ".xsci/scientist_causal_diagnosis.md";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      markdown_artifact_path: markdownPath,
+      tool: "scientist_causal_diagnosis",
+      posture: "not_run",
+      symptoms: [],
+      root_causes: [],
+      interventions: [],
+      causal_graph: { nodes: [], edges: [] },
+      next_safe_command: "evomind causal-diagnosis",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    markdown_artifact_path: markdownPath,
+    ...payload
+  });
+}
+
+async function loadScientistStrategyOptimizerSummary() {
+  const relativePath = ".xsci/scientist_strategy_optimizer.json";
+  const markdownPath = ".xsci/scientist_strategy_optimizer.md";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      markdown_artifact_path: markdownPath,
+      tool: "scientist_strategy_optimizer",
+      strategy_posture: "not_run",
+      selected_strategy: null,
+      intervention_ranking: [],
+      decision_matrix: { candidate_count: 0, source_presence: {} },
+      next_safe_command: "evomind strategy",
+      claim_boundary: {
+        rank_or_medal: "blocked_without_kaggle_response_artifact",
+        official_submit: "blocked_until_explicit_human_approval"
+      },
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    markdown_artifact_path: markdownPath,
+    ...payload
+  });
+}
+
+async function loadScientistContextPacketSummary() {
+  const relativePath = ".xsci/scientist_context_packet.json";
+  const markdownPath = ".xsci/scientist_context_packet.md";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      markdown_artifact_path: markdownPath,
+      tool: "scientist_context_packet",
+      schema: "evomind.ai_scientist.context_packet.v1",
+      context_quality: {
+        score: 0,
+        present_artifacts: 0,
+        missing_sources: ["scientist_context_packet.json"],
+        interpretation: "not_run"
+      },
+      readiness: {
+        can_execute: false,
+        blocking_gates: []
+      },
+      active_strategy: {
+        present: false,
+        selected_command: "evomind briefing",
+        gate_status: "safe_read_only"
+      },
+      memory_digest: {
+        retrospective_records: 0,
+        recent_lessons: []
+      },
+      next_safe_command: "evomind briefing",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    markdown_artifact_path: markdownPath,
+    ...payload
+  });
+}
+
+async function loadScientistInnovationBacklogSummary() {
+  const relativePath = ".xsci/scientist_innovation_backlog.json";
+  const innovationLogPath = ".xsci/innovation_log.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      innovation_log_path: innovationLogPath,
+      tool: "scientist_innovation_backlog",
+      selected_task: null,
+      memory_summary: {},
+      innovation_hypotheses: [],
+      next_safe_commands: ["evomind innovate-plan"],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistHypothesisReviewSummary() {
+  const relativePath = ".xsci/scientist_hypothesis_review.json";
+  const backlogPath = ".xsci/scientist_innovation_backlog.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      source_backlog_path: backlogPath,
+      tool: "scientist_hypothesis_review",
+      selected_task: null,
+      hypotheses_reviewed: 0,
+      reviews: [],
+      selected_hypothesis: null,
+      recommendation: "not_run",
+      gate_summary: {},
+      next_safe_commands: ["evomind review-hypotheses"],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistExperimentBlueprintSummary() {
+  const relativePath = ".xsci/scientist_experiment_blueprint.json";
+  const reviewPath = ".xsci/scientist_hypothesis_review.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      source_review_path: reviewPath,
+      tool: "scientist_experiment_blueprint",
+      selected_task: null,
+      blueprint_status: "not_run",
+      selected_hypothesis: null,
+      experiment_blueprint: null,
+      gate_summary: {},
+      next_safe_commands: ["evomind blueprint"],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistSituationModelSummary() {
+  const relativePath = ".xsci/scientist_situation_model.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_situation_model",
+      selected_task: null,
+      situation_status: "not_run",
+      situation_model: null,
+      readiness_score: 0,
+      blockers: [],
+      next_safe_commands: ["evomind situation"],
+      source_artifacts: [],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval",
+      message: "Scientist situation model has not been generated yet."
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistTurnPlanSummary() {
+  const relativePath = ".xsci/scientist_turn_plan.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_turn_plan",
+      selected_task: null,
+      intent: { kind: "not_run" },
+      autonomy_level: "not_run",
+      selected_tools: [],
+      tool_sequence: [],
+      expected_artifacts: [],
+      stop_conditions: [],
+      next_safe_command: "evomind turn-plan",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval",
+      message: "Scientist turn plan has not been generated yet."
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistWorkplanSummary() {
+  const relativePath = ".xsci/scientist_workplan.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      mode: "not_run",
+      current_focus: null,
+      summary: { steps_total: 0, completed: 0, ready: 0, pending: 0, blocked: 0 },
+      steps: [],
+      resume_commands: ["Run Scientist Autopilot from the Control page or `evomind workplan`."],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistRepairPlanSummary() {
+  const relativePath = ".xsci/scientist_repair_plan.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      mode: "not_run",
+      diagnosis: [],
+      root_causes: [],
+      repair_steps: [],
+      safe_next_command: "Run Scientist Autopilot or `evomind repair` to create the first repair plan.",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistExecutionContractSummary() {
+  const relativePath = ".xsci/scientist_execution_contract.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      go_no_go: "not_run",
+      agent_session_ready: false,
+      model_training_ready: false,
+      data_contract_status: "unknown",
+      required_artifacts: [],
+      execution_gate_decision: {
+        ok: true,
+        blocked: true,
+        status: "not_run",
+        require_model_ready: true,
+        blocked_by: ["execution_contract_not_generated"],
+        root_causes: ["missing_execution_contract"],
+        setup_blockers: ["Run `evomind contract` or Scientist Autopilot to generate the execution gate evidence."],
+        safe_next_commands: ["evomind contract", "evomind ready"],
+        message: "No Scientist execution contract has been generated yet.",
+        no_training_started: true,
+        official_submit: "blocked_until_explicit_human_approval"
+      },
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval",
+      claim_boundary: "No execution-contract evidence has been generated yet."
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
+async function loadScientistTurnsSummary() {
+  const relativePath = ".xsci/scientist_turns.jsonl";
+  const text = await readTextFile(resolveWorkspacePath(relativePath));
+  const entries = readJsonl(text).slice(-12).map((event) => sanitizeSummaryRecord(event));
+  return {
+    present: entries.length > 0,
+    artifact_path: relativePath,
+    count: entries.length,
+    latest: entries.at(-1) ?? null,
+    recent: sanitizeClientJson(entries)
+  };
+}
+
+async function loadScientistStepTraceSummary() {
+  const relativePath = ".xsci/scientist_step_trace.jsonl";
+  const text = await readTextFile(resolveWorkspacePath(relativePath));
+  const entries = readJsonl(text).slice(-50).map((event) => sanitizeSummaryRecord(event));
+  return {
+    present: entries.length > 0,
+    artifact_path: relativePath,
+    count: entries.length,
+    latest: entries.at(-1) ?? null,
+    recent: sanitizeClientJson(entries)
+  };
+}
+
+async function loadScientistAutopilotStatusSummary() {
+  const relativePath = ".xsci/scientist_autopilot_status.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      running: false,
+      status: "not_started",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
 }
 
 function asRecordForSummary(value: unknown): Record<string, unknown> {
@@ -470,11 +1105,31 @@ async function kaggleDpapiProbeStatus(report: Record<string, unknown> | null) {
   };
 }
 
+async function latestCompleteRuntimePath(taskId: string) {
+  const root = resolveWorkspacePath(path.join("experiments", taskId));
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  const candidates = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort()
+    .reverse();
+
+  for (const name of candidates) {
+    const runRoot = path.join(root, name);
+    const checks = await Promise.all(
+      requiredRuntimeArtifacts.map((artifact) => fs.access(path.join(runRoot, artifact)).then(() => true).catch(() => false))
+    );
+    if (checks.every(Boolean)) return path.join("experiments", taskId, name);
+  }
+  return null;
+}
+
 async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSummary> {
   const latestRaw = await latestExperimentPath(taskId);
   const latestWorkstationRun = await latestWorkstationRunPath(taskId);
   const latestScoreGatedRun = taskId === "playground_series_s6e6" ? await latestScoreGatedWorkstationRunPath(taskId) : null;
-  const latest = latestScoreGatedRun ?? latestRaw;
+  const latestCompleteRuntime = await latestCompleteRuntimePath(taskId);
+  const latest = latestScoreGatedRun ?? latestCompleteRuntime ?? latestRaw;
   const outputDir = latest ? resolveWorkspacePath(latest) : null;
   const workspaceSummary = await readJsonFile(resolveWorkspacePath("workspace/workstation_summary.json"));
   if (!outputDir) {
@@ -546,14 +1201,20 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
         code_agent_result: codeAgentResult
       }
     : null;
+  const agentTrace = readJsonl(agentTraceText);
+  let eventLog = readJsonl(eventLogText);
+  if (eventLog.length < 5 && agentTrace.length >= 5) {
+    eventLog = runtimeEventsFromAgentTrace(agentTrace);
+  }
+
   return {
     task_id: taskId,
     latest_experiment_dir: latest,
     latest_workstation_run_dir: latestWorkstationRun,
     latest_score_gated_run_dir: latestScoreGatedRun,
     task_state: taskState,
-    agent_trace: readJsonl(agentTraceText),
-    event_log: readJsonl(eventLogText),
+    agent_trace: agentTrace,
+    event_log: eventLog,
     artifact_manifest: artifactManifest,
     evidence_graph: evidenceGraph,
     experiment_graph: experimentGraph,
@@ -580,7 +1241,7 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
 
 export async function getWorkstationSummary() {
   await ensureWorkstationSeeded();
-  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
+  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
     prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
@@ -591,6 +1252,28 @@ export async function getWorkstationSummary() {
     prisma.workflow.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }),
     Promise.all(runtimeTaskIds.map((taskId) => loadRuntimeSummary(taskId))),
     loadXsciTerminalAgentSummary(),
+    loadScientistAutopilotSummary(),
+    loadScientistActionQueueSummary(),
+    loadScientistContinuationStatusSummary(),
+    loadScientistLoopSummary(),
+    loadScientistLoopLessonsSummary(),
+    loadScientistMemoryConsolidationSummary(),
+    loadScientistSelfAuditSummary(),
+    loadScientistReadinessReportSummary(),
+    loadScientistCausalDiagnosisSummary(),
+    loadScientistStrategyOptimizerSummary(),
+    loadScientistContextPacketSummary(),
+    loadScientistInnovationBacklogSummary(),
+    loadScientistHypothesisReviewSummary(),
+    loadScientistExperimentBlueprintSummary(),
+    loadScientistSituationModelSummary(),
+    loadScientistTurnPlanSummary(),
+    loadScientistWorkplanSummary(),
+    loadScientistRepairPlanSummary(),
+    loadScientistExecutionContractSummary(),
+    loadScientistTurnsSummary(),
+    loadScientistStepTraceSummary(),
+    loadScientistAutopilotStatusSummary(),
     readJsonFile(resolveWorkspacePath("docs/final_delivery_status_20260612.json")),
     readJsonFile(resolveWorkspacePath("docs/kaggle_new_competition_readiness.json")),
     readJsonFile(resolveWorkspacePath("docs/kaggle_dpapi_readiness.json")),
@@ -918,6 +1601,28 @@ export async function getWorkstationSummary() {
     runtime,
     runtime_by_task: runtimeByTask,
     terminal_agent: terminalAgent,
+    scientist_autopilot: scientistAutopilot,
+    scientist_action_queue: scientistActionQueue,
+    scientist_continuation_status: scientistContinuationStatus,
+    scientist_loop: scientistLoop,
+    scientist_loop_lessons: scientistLoopLessons,
+    scientist_memory_consolidation: scientistMemoryConsolidation,
+    scientist_self_audit: scientistSelfAudit,
+    scientist_readiness_report: scientistReadinessReport,
+    scientist_causal_diagnosis: scientistCausalDiagnosis,
+    scientist_strategy_optimizer: scientistStrategyOptimizer,
+    scientist_context_packet: scientistContextPacket,
+    scientist_innovation_backlog: scientistInnovationBacklog,
+    scientist_hypothesis_review: scientistHypothesisReview,
+    scientist_experiment_blueprint: scientistExperimentBlueprint,
+    scientist_situation_model: scientistSituationModel,
+    scientist_turn_plan: scientistTurnPlan,
+    scientist_workplan: scientistWorkplan,
+    scientist_repair_plan: scientistRepairPlan,
+    scientist_execution_contract: scientistExecutionContract,
+    scientist_turns: scientistTurns,
+    scientist_step_trace: scientistStepTrace,
+    scientist_autopilot_status: scientistAutopilotStatus,
     workspace_root: workspaceRoot
   };
 }

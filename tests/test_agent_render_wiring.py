@@ -5,6 +5,8 @@ build, message client, session) are faked so this is a fast, token-free unit tes
 of the branching in ``run_agent`` only."""
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from xsci import agent as xagent
@@ -12,6 +14,9 @@ from xsci import agent as xagent
 
 class _FakePlan:
     warnings: list[str] = []
+    task_name = "titanic"
+    compute = "local"
+    exp_dir = Path("exp/evolution/titanic_local_20260709_000000")
 
     def render(self) -> str:
         return "PLAN-WALL-SENTINEL: task/metric/compute/artifacts..."
@@ -49,6 +54,26 @@ def patched_agent(monkeypatch):
         return _FakeSession(on_event=event_renderer or (lambda e: None))
 
     monkeypatch.setattr(xagent, "_build_session", fake_build_session)
+    monkeypatch.setattr(
+        xagent, "_record_evolution_summary",
+        lambda root, summary, *, task="", events_path=None: captured.setdefault("evolution_records", []).append(
+            (root, summary, task, events_path)
+        ),
+    )
+    monkeypatch.setattr(
+        xagent,
+        "build_execution_contract_for_task",
+        lambda *a, **k: {
+            "ok": True,
+            "go_no_go": "go",
+            "agent_session_ready": True,
+            "model_training_ready": True,
+            "data_contract_status": "ready",
+            "execution_command": "evomind run titanic",
+            "no_training_started": True,
+            "official_submit": "blocked_until_explicit_human_approval",
+        },
+    )
     monkeypatch.setattr(xagent, "_banner", lambda *a, **k: "BANNER-SENTINEL")
 
     class _FakeClient:
@@ -71,6 +96,8 @@ def test_terminal_path_suppresses_plan_and_banner(patched_agent, capsys):
     assert "BANNER-SENTINEL" not in out             # no banner wall
     assert "[goal]" not in out and "[summary]" not in out  # no raw log lines
     assert seen == ["run_begin", "run_end"]         # events reached the renderer
+    assert patched_agent["evolution_records"][0][2] == "titanic"
+    assert str(patched_agent["evolution_records"][0][3]).endswith("events.jsonl")
 
 
 def test_standalone_path_still_shows_plan(patched_agent, capsys):
@@ -80,3 +107,5 @@ def test_standalone_path_still_shows_plan(patched_agent, capsys):
     assert "PLAN-WALL-SENTINEL" in out              # full plan preserved
     assert "BANNER-SENTINEL" in out
     assert patched_agent["event_renderer"] is None  # uses built-in raw renderer
+    assert patched_agent["evolution_records"][0][2] == "titanic"
+    assert str(patched_agent["evolution_records"][0][3]).endswith("events.jsonl")

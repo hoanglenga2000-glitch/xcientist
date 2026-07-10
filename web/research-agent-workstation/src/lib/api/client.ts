@@ -1,4 +1,4 @@
-import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
+import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
 
 async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { error?: string; ok?: boolean };
@@ -10,6 +10,252 @@ async function readJson<T>(response: Response): Promise<T> {
 
 export async function getWorkstationSummary() {
   return readJson<WorkstationSummary>(await fetch("/api/workstation-summary"));
+}
+
+export async function getScientistAutopilot() {
+  return readJson<{ ok: boolean; scientist_autopilot: ScientistAutopilotSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_workplan?: ScientistWorkplanSummary; scientist_repair_plan?: ScientistRepairPlanSummary; scientist_execution_contract?: ScientistExecutionContractSummary; scientist_turns?: ScientistTurnsSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_autopilot_status?: ScientistAutopilotStatusSummary }>(await fetch("/api/scientist/autopilot"));
+}
+
+export async function runScientistAutopilot() {
+  return readJson<{ ok: boolean; action: string; scientist_autopilot: ScientistAutopilotSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_workplan?: ScientistWorkplanSummary; scientist_repair_plan?: ScientistRepairPlanSummary; scientist_execution_contract?: ScientistExecutionContractSummary; scientist_turns?: ScientistTurnsSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_autopilot_status?: ScientistAutopilotStatusSummary }>(
+    await fetch("/api/scientist/autopilot", { method: "POST" })
+  );
+}
+
+export async function startScientistAutopilot() {
+  return readJson<{ ok: boolean; action: string; run_id: string; pid?: number | null; status_artifact: string; scientist_autopilot_status?: ScientistAutopilotStatusSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_repair_plan?: ScientistRepairPlanSummary; scientist_execution_contract?: ScientistExecutionContractSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/autopilot/start", { method: "POST" })
+  );
+}
+
+export async function runScientistNextAction() {
+  return readJson<{ ok: boolean; action: string; scientist_next_action: ScientistNextActionSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/next-action", { method: "POST" })
+  );
+}
+
+export async function getScientistContinuationStatus() {
+  return readJson<{ ok: boolean; action: string; scientist_continuation_status: ScientistContinuationStatusSummary; scientist_continuation?: Record<string, unknown>; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/continuation-status")
+  );
+}
+
+export async function refreshScientistContinuationStatus() {
+  return readJson<{ ok: boolean; action: string; scientist_continuation_status: ScientistContinuationStatusSummary; scientist_continuation?: Record<string, unknown>; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/continuation-status", { method: "POST" })
+  );
+}
+
+export async function getScientistContinuationResume() {
+  return readJson<{ ok: boolean; action: string; scientist_continuation_resume: ScientistContinuationResumeSummary; scientist_continuation_status?: ScientistContinuationStatusSummary; scientist_continuation?: Record<string, unknown>; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/continuation-resume")
+  );
+}
+
+export async function runScientistContinuationResume() {
+  return readJson<{ ok: boolean; action: string; scientist_continuation_resume: ScientistContinuationResumeSummary; scientist_continuation_status?: ScientistContinuationStatusSummary; scientist_continuation?: Record<string, unknown>; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/continuation-resume", { method: "POST" })
+  );
+}
+
+export async function getScientistRecovery() {
+  return readJson<{ ok: boolean; action: string; scientist_recovery: ScientistRecoverySummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/recovery")
+  );
+}
+
+export async function runScientistRecovery() {
+  return readJson<{ ok: boolean; action: string; scientist_recovery: ScientistRecoverySummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/recovery", { method: "POST" })
+  );
+}
+
+export async function getScientistLoop() {
+  return readJson<{ ok: boolean; action: string; scientist_loop: ScientistLoopSummary; scientist_loop_lessons?: ScientistLoopLessonsSummary; scientist_memory_consolidation?: ScientistMemoryConsolidationSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_recovery?: ScientistRecoverySummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/loop")
+  );
+}
+
+export async function runScientistLoop() {
+  return readJson<{ ok: boolean; action: string; scientist_loop: ScientistLoopSummary; scientist_loop_lessons?: ScientistLoopLessonsSummary; scientist_memory_consolidation?: ScientistMemoryConsolidationSummary; scientist_action_queue?: ScientistActionQueueSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_recovery?: ScientistRecoverySummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/loop", { method: "POST" })
+  );
+}
+
+export async function getScientistSelfAudit() {
+  return readJson<{ ok: boolean; action: string; scientist_self_audit: ScientistSelfAuditSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/self-audit")
+  );
+}
+
+export async function runScientistSelfAudit() {
+  return readJson<{ ok: boolean; action: string; scientist_self_audit: ScientistSelfAuditSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/self-audit", { method: "POST" })
+  );
+}
+
+export async function getScientistReadinessReport() {
+  return readJson<{ ok: boolean; action: string; scientist_readiness_report: ScientistReadinessReportSummary; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/readiness-report")
+  );
+}
+
+export async function runScientistReadinessReport() {
+  return readJson<{ ok: boolean; action: string; scientist_readiness_report: ScientistReadinessReportSummary; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/readiness-report", { method: "POST" })
+  );
+}
+
+export async function getScientistCausalDiagnosis() {
+  return readJson<{ ok: boolean; action: string; scientist_causal_diagnosis: ScientistCausalDiagnosisSummary; scientist_readiness_report?: ScientistReadinessReportSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/causal-diagnosis")
+  );
+}
+
+export async function runScientistCausalDiagnosis() {
+  return readJson<{ ok: boolean; action: string; scientist_causal_diagnosis: ScientistCausalDiagnosisSummary; scientist_readiness_report?: ScientistReadinessReportSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/causal-diagnosis", { method: "POST" })
+  );
+}
+
+export async function getScientistStrategyOptimizer() {
+  return readJson<{ ok: boolean; action: string; scientist_strategy_optimizer: ScientistStrategyOptimizerSummary; scientist_readiness_report?: ScientistReadinessReportSummary | null; scientist_causal_diagnosis?: ScientistCausalDiagnosisSummary | null; scientist_action_queue?: ScientistActionQueueSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/strategy-optimizer")
+  );
+}
+
+export async function runScientistStrategyOptimizer() {
+  return readJson<{ ok: boolean; action: string; scientist_strategy_optimizer: ScientistStrategyOptimizerSummary; scientist_readiness_report?: ScientistReadinessReportSummary | null; scientist_causal_diagnosis?: ScientistCausalDiagnosisSummary | null; scientist_action_queue?: ScientistActionQueueSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/strategy-optimizer", { method: "POST" })
+  );
+}
+
+export async function getScientistContextPacket() {
+  return readJson<{ ok: boolean; action: string; scientist_context_packet: ScientistContextPacketSummary; scientist_strategy_optimizer?: ScientistStrategyOptimizerSummary | null; scientist_readiness_report?: ScientistReadinessReportSummary | null; scientist_action_queue?: ScientistActionQueueSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/context-packet")
+  );
+}
+
+export async function runScientistContextPacket() {
+  return readJson<{ ok: boolean; action: string; scientist_context_packet: ScientistContextPacketSummary; scientist_strategy_optimizer?: ScientistStrategyOptimizerSummary | null; scientist_readiness_report?: ScientistReadinessReportSummary | null; scientist_action_queue?: ScientistActionQueueSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/context-packet", { method: "POST" })
+  );
+}
+
+export async function getScientistUpgradePlan() {
+  return readJson<{ ok: boolean; action: string; scientist_upgrade_plan: ScientistUpgradePlanSummary; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/upgrade-plan")
+  );
+}
+
+export async function runScientistUpgradePlan() {
+  return readJson<{ ok: boolean; action: string; scientist_upgrade_plan: ScientistUpgradePlanSummary; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/upgrade-plan", { method: "POST" })
+  );
+}
+
+export async function getScientistSelfUpgradeLoop() {
+  return readJson<{ ok: boolean; action: string; scientist_self_upgrade_loop: ScientistSelfUpgradeLoopSummary; scientist_upgrade_plan?: ScientistUpgradePlanSummary | null; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/self-upgrade")
+  );
+}
+
+export async function runScientistSelfUpgradeLoop() {
+  return readJson<{ ok: boolean; action: string; scientist_self_upgrade_loop: ScientistSelfUpgradeLoopSummary; scientist_upgrade_plan?: ScientistUpgradePlanSummary | null; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/self-upgrade", { method: "POST" })
+  );
+}
+
+export async function getScientistPatchWorkOrder() {
+  return readJson<{ ok: boolean; action: string; scientist_patch_work_order: ScientistPatchWorkOrderSummary; scientist_action_queue?: ScientistPatchActionQueueSummary | null; scientist_terminal_turn?: ScientistTerminalTurnSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/patch-work-order")
+  );
+}
+
+export async function runScientistPatchWorkOrder() {
+  return readJson<{ ok: boolean; action: string; scientist_patch_work_order: ScientistPatchWorkOrderSummary; scientist_action_queue?: ScientistPatchActionQueueSummary | null; scientist_terminal_turn?: ScientistTerminalTurnSummary | null; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/patch-work-order", { method: "POST" })
+  );
+}
+
+export async function getScientistInnovationBacklog() {
+  return readJson<{ ok: boolean; action: string; scientist_innovation_backlog: ScientistInnovationBacklogSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/innovation-backlog")
+  );
+}
+
+export async function runScientistInnovationBacklog() {
+  return readJson<{ ok: boolean; action: string; scientist_innovation_backlog: ScientistInnovationBacklogSummary; scientist_self_audit?: ScientistSelfAuditSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/innovation-backlog", { method: "POST" })
+  );
+}
+
+export async function getScientistHypothesisReview() {
+  return readJson<{ ok: boolean; action: string; scientist_hypothesis_review: ScientistHypothesisReviewSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/hypothesis-review")
+  );
+}
+
+export async function runScientistHypothesisReview() {
+  return readJson<{ ok: boolean; action: string; scientist_hypothesis_review: ScientistHypothesisReviewSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/hypothesis-review", { method: "POST" })
+  );
+}
+
+export async function getScientistExperimentBlueprint() {
+  return readJson<{ ok: boolean; action: string; scientist_experiment_blueprint: ScientistExperimentBlueprintSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/experiment-blueprint")
+  );
+}
+
+export async function runScientistExperimentBlueprint() {
+  return readJson<{ ok: boolean; action: string; scientist_experiment_blueprint: ScientistExperimentBlueprintSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/experiment-blueprint", { method: "POST" })
+  );
+}
+
+export async function getScientistSituationModel() {
+  return readJson<{ ok: boolean; action: string; scientist_situation_model: ScientistSituationModelSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/situation-model")
+  );
+}
+
+export async function runScientistSituationModel() {
+  return readJson<{ ok: boolean; action: string; scientist_situation_model: ScientistSituationModelSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/situation-model", { method: "POST" })
+  );
+}
+
+export async function getScientistTurnPlan() {
+  return readJson<{ ok: boolean; action: string; scientist_turn_plan: ScientistTurnPlanSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/turn-plan")
+  );
+}
+
+export async function runScientistTurnPlan() {
+  return readJson<{ ok: boolean; action: string; scientist_turn_plan: ScientistTurnPlanSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/turn-plan", { method: "POST" })
+  );
+}
+
+export async function getScientistTurn() {
+  return readJson<ScientistTerminalTurnResponse>(await fetch("/api/scientist/turn"));
+}
+
+export async function runScientistTurn(prompt: string, maxTools = 4) {
+  return readJson<ScientistTerminalTurnResponse>(
+    await fetch("/api/scientist/turn", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, max_tools: maxTools })
+    })
+  );
+}
+
+export async function getScientistStream() {
+  return readJson<{ ok: boolean; action: string; scientist_stream: ScientistStreamSummary; scientist_step_trace?: ScientistStepTraceSummary; scientist_turns?: ScientistTurnsSummary; scientist_terminal_turn?: ScientistTerminalTurnSummary; scientist_autopilot_status?: ScientistAutopilotStatusSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/stream")
+  );
 }
 
 export async function runLocalExperiment(taskId: string) {

@@ -38,7 +38,9 @@ class _FakeLoop:
         # execute_plan handed us, so the JSONL-persist + fan-out wiring is exercised.
         if self._on_event is not None:
             self._on_event({"seq": 1, "ts": "t", "type": "run_begin", "task": "titanic"})
-            self._on_event({"seq": 2, "ts": "t", "type": "run_end", "best_exp_id": "exp_003"})
+            self._on_event({"seq": 2, "ts": "t", "type": "repair", "failure_pattern": "timeout"})
+            self._on_event({"seq": 3, "ts": "t", "type": "lesson", "reusable_strategy": "gbm", "failure_pattern": ""})
+            self._on_event({"seq": 4, "ts": "t", "type": "run_end", "best_exp_id": "exp_003"})
         return {
             "best_exp_id": "exp_003", "best_cv_score": 0.912,
             "n_promotions": 2, "n_iterations": 3, "strategies": strategies,
@@ -80,6 +82,14 @@ def test_execute_plan_writes_artifacts(patched_engine, tmp_path):
     # summary.json round-trips
     on_disk = json.loads((plan.exp_dir / "summary.json").read_text(encoding="utf-8"))
     assert on_disk["best_cv_score"] == 0.912
+    tracker = json.loads((tmp_path / ".xsci" / "evolution_tracker.json").read_text(encoding="utf-8"))
+    latest = tracker["history"][-1]
+    assert latest["total_runs"] == 1
+    assert latest["total_promotions"] == 2
+    assert latest["repair_attempts"] == 1
+    assert latest["repair_successes"] == 1
+    assert latest["lessons_recorded"] == 1
+    assert latest["reusable_lessons"] == 1
 
 
 def test_execute_plan_local_uses_local_runner(patched_engine, tmp_path):
@@ -113,7 +123,7 @@ def test_execute_plan_persists_events_jsonl(patched_engine, tmp_path):
     events_path = plan.exp_dir / "events.jsonl"
     assert events_path.exists()
     events = ev.read_events(events_path)
-    assert [e["type"] for e in events] == [ev.RUN_BEGIN, ev.RUN_END]
+    assert [e["type"] for e in events] == [ev.RUN_BEGIN, ev.REPAIR, ev.LESSON, ev.RUN_END]
     # run_meta is threaded into the loop so the dashboard has compute context
     assert _FakeLoop.last_kwargs["run_meta"]["compute"] == "local"
 
@@ -127,5 +137,5 @@ def test_execute_plan_fans_out_to_live_renderer(patched_engine, tmp_path):
     plan = xengine.build_plan(cfg_path, cfg=xcfg.load_config(), compute="local",
                               iterations=3, mcgs=False, project_root=tmp_path)
     xengine.execute_plan(plan, on_event=lambda e: seen.append(e["type"]))
-    assert seen == [ev.RUN_BEGIN, ev.RUN_END]
+    assert seen == [ev.RUN_BEGIN, ev.REPAIR, ev.LESSON, ev.RUN_END]
     assert (plan.exp_dir / "events.jsonl").exists()

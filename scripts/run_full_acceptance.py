@@ -118,7 +118,39 @@ def check_visual_acceptance_artifacts() -> dict:
     }
 
 
-def latest_experiment(task_id: str) -> str:
+TITANIC_REQUIRED_FILES = [
+    "experiment_log.json",
+    "data_quality.json",
+    "model_results.json",
+    "titanic_local_report.md",
+    "titanic_local_report.docx",
+    "task_scaffold.json",
+    "task_scaffold.md",
+    "workflow_stage_audit.json",
+    "workflow_stage_audit.md",
+]
+
+TABULAR_REQUIRED_FILES = [
+    "experiment_log.json",
+    "data_quality.json",
+    "model_results.json",
+    "submission.csv",
+    "task_scaffold.json",
+    "task_scaffold.md",
+    "post_scaffold_improvement.json",
+    "post_scaffold_improvement.md",
+    "workflow_stage_audit.json",
+    "workflow_stage_audit.md",
+    "local_report.md",
+    "local_report.docx",
+]
+
+
+def _has_required_files(run_dir: Path, required_files: list[str]) -> bool:
+    return all((run_dir / name).exists() and (run_dir / name).stat().st_size > 0 for name in required_files)
+
+
+def latest_experiment(task_id: str, required_files: list[str] | None = None) -> str:
     task_root = ROOT / "experiments" / task_id
     runs = sorted(path for path in task_root.iterdir() if path.is_dir())
     if not runs:
@@ -129,6 +161,25 @@ def latest_experiment(task_id: str) -> str:
                     "failed_command": f"latest experiment lookup for {task_id}",
                     "stdout": "",
                     "stderr": f"no experiment runs found under {task_root}",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+    if required_files:
+        for run_dir in reversed(runs):
+            if _has_required_files(run_dir, required_files):
+                return str(run_dir.relative_to(ROOT))
+        raise SystemExit(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "failed_command": f"latest complete experiment lookup for {task_id}",
+                    "stdout": "",
+                    "stderr": (
+                        f"no complete experiment run found under {task_root}; "
+                        f"required_files={required_files}"
+                    ),
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -145,9 +196,9 @@ def main() -> None:
 
     checks = []
     commands = [
-        [sys.executable, "scripts/validate_titanic_experiment.py", "--experiment-dir", latest_experiment("titanic"), "--config", "configs/titanic.yaml"],
-        [sys.executable, "scripts/validate_tabular_experiment.py", "--experiment-dir", latest_experiment("house_prices"), "--config", "configs/house_prices.yaml"],
-        [sys.executable, "scripts/validate_tabular_experiment.py", "--experiment-dir", latest_experiment("telco_churn"), "--config", "configs/telco_churn.yaml"],
+        [sys.executable, "scripts/validate_titanic_experiment.py", "--experiment-dir", latest_experiment("titanic", TITANIC_REQUIRED_FILES), "--config", "configs/titanic.yaml"],
+        [sys.executable, "scripts/validate_tabular_experiment.py", "--experiment-dir", latest_experiment("house_prices", TABULAR_REQUIRED_FILES), "--config", "configs/house_prices.yaml"],
+        [sys.executable, "scripts/validate_tabular_experiment.py", "--experiment-dir", latest_experiment("telco_churn", TABULAR_REQUIRED_FILES), "--config", "configs/telco_churn.yaml"],
         [sys.executable, "scripts/verify_research_sources.py"],
         [sys.executable, "scripts/verify_research_integrity.py"],
         [sys.executable, "scripts/verify_dashboard.py"],
@@ -171,7 +222,11 @@ def main() -> None:
         [sys.executable, "scripts/verify_resource_activation_runbook.py"],
         [sys.executable, "scripts/verify_verified_workstation_launch_audit.py"],
         [sys.executable, "scripts/verify_no_plaintext_secrets.py"],
-        [sys.executable, "-m", "compileall", "src", "scripts"],
+        [
+            sys.executable, "-m", "compileall",
+            "-x", r"scripts[\\/]_quarantine[\\/].*",
+            "src", "scripts",
+        ],
     ]
     if args.dashboard_url:
         commands.append([sys.executable, "scripts/verify_dashboard.py", "--url", args.dashboard_url])

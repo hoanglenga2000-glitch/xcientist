@@ -174,6 +174,12 @@ def cmd_task(args: argparse.Namespace) -> int:
 def cmd_run(args: argparse.Namespace) -> int:
     from .tasks import resolve_task
     from .engine import build_plan, execute_plan
+    from .scientist_execution_gate import (
+        build_execution_gate_decision,
+        build_execution_contract_for_task,
+        contract_blocks_training,
+        render_execution_contract_lines,
+    )
     try:
         task_config = resolve_task(args.task)
     except FileNotFoundError as exc:
@@ -187,12 +193,28 @@ def cmd_run(args: argparse.Namespace) -> int:
         data_dir=args.data_dir,
     )
     print(plan.render())
+    contract = build_execution_contract_for_task(
+        args.task,
+        compute=plan.compute,
+        goal="xsci run",
+    )
+    print()
+    print("\n".join(render_execution_contract_lines(contract)))
     if args.dry_run:
         print("\n[dry-run] resolved only - nothing executed.")
         return 0
     blocking = [w for w in plan.warnings if "no LLM key" in w]
     if blocking:
         print("\nrefusing to run: " + "; ".join(blocking))
+        return 1
+    gate_decision = build_execution_gate_decision(contract, require_model_ready=True)
+    if contract_blocks_training(contract, require_model_ready=True):
+        print(
+            "\nrefusing to run: " + str(gate_decision.get("message") or "Scientist execution gate blocked training.")
+        )
+        safe_next = gate_decision.get("safe_next_commands") or []
+        if safe_next:
+            print("safe next: " + " | ".join(str(item) for item in safe_next[:3]))
         return 1
     print("\nstarting research loop (this spends API tokens"
           + (" and uses the remote GPU)" if plan.compute == "gpu" else ")") + " ...\n")

@@ -8,6 +8,23 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 
+REQUIRED_RUNTIME_FILES = [
+    "task_state_machine.json",
+    "agent_trace.jsonl",
+    "event_log.jsonl",
+    "artifact_manifest.json",
+    "evidence_index.json",
+    "experiment_graph.json",
+    "gate_engine.json",
+    "gate_audit_log.jsonl",
+    "runtime_snapshot.json",
+    "reflection.json",
+    "reflection.md",
+    "memory_records.json",
+    "orchestrator_run.json",
+    "validation_gate.json",
+]
+
 
 def fail(message: str) -> None:
     raise SystemExit(f"RUNTIME_COMPLETENESS_FAILED: {message}")
@@ -34,28 +51,15 @@ def latest_run(task_id: str) -> Path:
     runs = sorted(path for path in task_root.iterdir() if path.is_dir())
     if not runs:
         fail(f"no experiment runs found for {task_id}")
-    return runs[-1]
+    for run_dir in reversed(runs):
+        if all((run_dir / name).exists() and (run_dir / name).stat().st_size > 0 for name in REQUIRED_RUNTIME_FILES):
+            return run_dir
+    fail(f"no complete runtime run found for {task_id}")
 
 
 def verify_task(task_id: str) -> dict[str, Any]:
     run_dir = latest_run(task_id)
-    required = [
-        "task_state_machine.json",
-        "agent_trace.jsonl",
-        "event_log.jsonl",
-        "artifact_manifest.json",
-        "evidence_index.json",
-        "experiment_graph.json",
-        "gate_engine.json",
-        "gate_audit_log.jsonl",
-        "runtime_snapshot.json",
-        "reflection.json",
-        "reflection.md",
-        "memory_records.json",
-        "orchestrator_run.json",
-        "validation_gate.json",
-    ]
-    for name in required:
+    for name in REQUIRED_RUNTIME_FILES:
         path = run_dir / name
         if not path.exists() or path.stat().st_size == 0:
             fail(f"{task_id} missing runtime artifact: {path}")

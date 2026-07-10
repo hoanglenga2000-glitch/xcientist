@@ -85,6 +85,73 @@ def _strategies_for(ctx, data: dict[str, Any]) -> list[str]:
     return recommend_strategies(profile).strategies
 
 
+def _read_run_events(events_path: Path | None) -> list[dict[str, Any]]:
+    if events_path is None:
+        return []
+    path = Path(events_path)
+    if not path.exists():
+        return []
+    events: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(event, dict):
+            events.append(event)
+    return events
+
+
+def _record_evolution_summary(root: Path, summary: dict[str, Any], *, task: str = "",
+                              events_path: Path | None = None) -> None:
+    """Persist high-level learning stats after a completed run.
+
+    This bridges real run artifacts back into the terminal's self-evolution
+    tracker.  It deliberately records only summary-level metrics and never
+    reads credentials or raw data.
+    """
+    try:
+        from .evolution_tracker import EvolutionTracker
+
+        events = _read_run_events(events_path)
+        promotions = int(summary.get("n_promotions") or 0)
+        iterations = int(summary.get("n_iterations") or 0)
+        tracker = EvolutionTracker(root)
+        tracker.record_run(
+            success=bool(summary.get("best_exp_id")) or promotions > 0 or iterations > 0,
+            cv_score=summary.get("best_cv_score"),
+            promotions=promotions,
+            task=task or str(summary.get("task") or ""),
+        )
+        repair_events = [e for e in events if e.get("type") == "repair"]
+        promotion_events = [e for e in events if e.get("type") == "promote" and e.get("promoted")]
+        repair_succeeded = bool(promotion_events) or promotions > 0
+        for _event in repair_events:
+            tracker.record_repair(success=repair_succeeded)
+        for event in events:
+            if event.get("type") != "lesson":
+                continue
+            reusable = bool(event.get("reusable_strategy"))
+            failure = bool(event.get("failure_pattern"))
+            tracker.record_lesson(reusable=reusable, failure=failure)
+        if promotions > 0:
+            tracker.record_task_completed(task or str(summary.get("task") or ""))
+    except Exception:
+        pass
+
+
+def _workspace_root_from_exp_dir(exp_dir: Path) -> Path:
+    """Return workspace root for root/experiments/evolution/<run> paths."""
+    exp_dir = Path(exp_dir)
+    try:
+        return exp_dir.parents[2]
+    except IndexError:
+        return exp_dir.parent
+
+
 def build_plan(
     task_config: Path,
     *,
@@ -173,4 +240,10 @@ def execute_plan(plan: RunPlan, *, on_event: Callable[[dict], None] | None = Non
     if loop.best_code:
         (plan.exp_dir / "best_solution.py").write_text(loop.best_code, encoding="utf-8")
     loop.graph.export_json(plan.exp_dir / "search_graph.json")
+    _record_evolution_summary(
+        _workspace_root_from_exp_dir(plan.exp_dir),
+        summary,
+        task=ctx.task_name,
+        events_path=plan.exp_dir / "events.jsonl",
+    )
     return summary

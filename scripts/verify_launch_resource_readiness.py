@@ -60,6 +60,13 @@ CODE_AGENT_ENV = ["DEEPSEEK_API_KEY or ANTHROPIC_API_KEY"]
 GPU_ENV = ["GPU_SSH_HOST", "GPU_SSH_USER", "GPU_SSH_PASSWORD or GPU_SSH_KEY_PATH", "GPU_REMOTE_WORKSPACE"]
 KAGGLE_ENV = ["KAGGLE_USERNAME", "KAGGLE_KEY"]
 HPC_PROBE = ROOT / "workspace" / "hpc" / "web_terminal_probe.txt"
+LOCAL_READY_ARTIFACTS = [
+    "validation_gate.json",
+    "experiment_log.json",
+    "workflow_stage_audit.json",
+    "submission.csv",
+    "model_results.json",
+]
 
 
 def read_file_if_present(file_path: str | None) -> str:
@@ -140,6 +147,9 @@ def latest_experiment(root: Path) -> Path | None:
     if not root.exists():
         return None
     runs = sorted(path for path in root.iterdir() if path.is_dir())
+    for run_dir in reversed(runs):
+        if all((run_dir / name).exists() and (run_dir / name).stat().st_size > 0 for name in LOCAL_READY_ARTIFACTS):
+            return run_dir
     return runs[-1] if runs else None
 
 

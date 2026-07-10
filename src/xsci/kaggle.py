@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import getpass
+import io
 import json
 import os
 import sys
@@ -32,8 +33,35 @@ from .kaggle_session import MODE_CHAT, MODE_EXECUTING, MODE_PLANNING, SessionSta
 from .kaggle_stream import StageRenderer, thinking
 from .login import import_kaggle_json, save_kaggle_api_token, save_kaggle_credentials, save_llm_credentials
 from .tasks import add_task, list_tasks, resolve_task, slugify
+from .terminal_tools import TerminalTools
 
-_XSCI_COMMANDS = {"doctor", "config", "init", "login", "task", "run", "report", "watch", "dashboard", "memory", "evolution", "innovate"}
+_XSCI_COMMANDS = {
+    "doctor", "config", "init", "login", "task", "run", "report", "watch",
+    "dashboard", "memory", "evolution", "innovate", "scientist", "checkpoint",
+    "think", "brief", "decide", "decision", "autopilot", "diagnose",
+    "self-audit", "audit-agent", "capability", "intelligence",
+    "readiness-report", "launch-readiness", "scientist-readiness", "agent-readiness",
+    "causal-diagnosis", "cause-map", "root-cause-map", "causal-graph",
+    "strategy", "strategy-optimizer", "priority-plan", "intervention-plan", "decision-matrix",
+    "briefing", "context-packet", "scientist-context", "state-briefing",
+    "patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order",
+    "learn", "memory-consolidate", "consolidate-memory", "memory-writeback",
+    "innovate-plan", "innovation-backlog", "hypotheses", "proposals",
+    "review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique",
+    "blueprint", "experiment-blueprint", "plan-experiment", "candidate-blueprint",
+    "innovation-feedback", "trial-feedback", "feedback-innovation", "scientist-feedback",
+    "situation", "situation-model", "state-model", "scientist-state", "orient",
+    "workplan", "roadmap", "agenda", "repair", "fixplan", "diagnose-repair",
+    "self-repair", "contract", "execution-contract", "run-contract", "preflight-contract",
+    "trace", "steptrace", "steps", "live", "stream", "evidence-stream", "recovery", "recover", "context", "resume-context",
+    "ask", "turn", "turn-plan", "tool-plan", "plan-turn", "scientist-turn",
+    "loop", "scientist-loop", "autonomous-loop",
+    "continuation", "continuation-status", "continue-status", "turn-status",
+    "resume-continuation", "resume-safe", "finish-continuation", "finish-safe-tools",
+    "continue-tools", "auto-continue-tools",
+    "queue", "action-queue", "actions", "next", "next-action", "safe-next",
+    "act", "act-next", "continue-scientist",
+}
 _CONVERSATION: Optional[ConversationAgent] = None
 _DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8088/?page=control"
 
@@ -84,6 +112,15 @@ def _strong(text: str) -> str:
     return _ansi("97;1", text)
 
 
+def _safe_print(text: str = "") -> None:
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        encoding = sys.stdout.encoding or "utf-8"
+        safe = str(text).encode(encoding, errors="replace").decode(encoding, errors="replace")
+        print(safe)
+
+
 def logo() -> str:
     return "\n".join([
         _accent("   ______           __  ___ _           __"),
@@ -96,15 +133,15 @@ def logo() -> str:
 
 
 def _agent_reply(text: str, *, title: str = "EvoMind") -> None:
-    print()
-    print(_strong(title))
+    _safe_print()
+    _safe_print(_strong(title))
     for paragraph in text.strip().split("\n"):
         if not paragraph.strip():
-            print()
+            _safe_print()
             continue
         wrapped = textwrap.wrap(paragraph, width=88, replace_whitespace=False) or [""]
         for line in wrapped:
-            print(f"  {line}")
+            _safe_print(f"  {line}")
 
 
 def _has_llm(cfg=None) -> bool:
@@ -379,6 +416,7 @@ def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
 
     # Step 2: Check data
     effective_compute = compute or session.compute_backend
+    session.current_compute_override = effective_compute
     if effective_compute == "gpu":
         # Data is on remote GPU — check gpu_data_dir config
         gpu_dir = task_info.get("gpu_data_dir", "")
@@ -411,11 +449,31 @@ def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
         )
         return 1
 
-    # Step 4: Run preflight + training
-    goal = (
-        f"Autonomous research on {task}: inspect data, establish a strong baseline "
-        f"with appropriate preprocessing and model selection, then report results."
-    )
+    # Step 4: Ask the scientist decision layer for the next branch/code mode.
+    decision_result = TerminalTools.dispatch("research_decision", session, root)
+    decision = decision_result.get("decision", {}) if isinstance(decision_result, dict) else {}
+    artifact = decision_result.get("artifact_path", "") if isinstance(decision_result, dict) else ""
+    if artifact:
+        print(_dim(f"  Decision artifact: {artifact}"))
+    contract_result = TerminalTools.dispatch("scientist_execution_contract", session, root)
+    contract_artifact = contract_result.get("artifact_path", "") if isinstance(contract_result, dict) else ""
+    if contract_artifact:
+        print(_dim(f"  Execution contract: {contract_artifact}"))
+    if contract_result.get("go_no_go") == "no_go":
+        _agent_reply(
+            "Autonomous research is blocked by the execution contract.\n"
+            f"Root causes: {', '.join(contract_result.get('root_causes', []) or ['unknown'])}",
+            title="Auto blocked",
+        )
+        return 1
+
+    # Step 5: Run preflight + training
+    goal = str(contract_result.get("enriched_goal") or (
+        f"Autonomous research on {task}: action={decision.get('selected_action', 'run_audited_baseline')}; "
+        f"branch={decision.get('selected_branch', 'baseline')}; "
+        f"code_generation_mode={decision.get('code_generation_mode', 'Base')}. "
+        "Produce all workstation artifacts and do not submit to official Kaggle."
+    ))
     _print_preflight_stream(session, compute=effective_compute, goal=goal)
 
     if _execution_blocker_reply(session, compute=effective_compute):
@@ -425,7 +483,7 @@ def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
     rc = _run_agent(task, root, goal=goal, compute=effective_compute)
     session.current_mode = MODE_CHAT
 
-    # Step 5: Brief post-run analysis
+    # Step 6: Brief post-run analysis
     session.refresh_recent_run(root)
     if session.recent_run_id:
         cv_str = f"{session.recent_best_cv:.4f}" if session.recent_best_cv is not None else "N/A"
@@ -529,6 +587,332 @@ def _execution_blocker_reply(session: SessionState, *, compute: Optional[str] = 
         title="Setup needed",
     )
     return True
+
+
+def _show_scientist_checkpoint(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_checkpoint", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist checkpoint")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_research_decision(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("research_decision", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Research decision")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_autopilot(session: SessionState, root: Path) -> int:
+    from .terminal_events import TerminalEventEmitter, render_scientist_autopilot_summary
+    from .terminal_tools import run_scientist_autopilot
+
+    stage_labels = {
+        "system_status": "Observe system",
+        "inspect_task": "Inspect task",
+        "data_check": "Check data",
+        "recent_run": "Read latest run",
+        "evolution_status": "Read memory",
+        "scientist_checkpoint": "Checkpoint",
+        "research_decision": "Choose branch",
+        "scientist_hypothesis_review": "Review hypotheses",
+        "scientist_experiment_blueprint": "Build experiment blueprint",
+        "scientist_workplan": "Build workplan",
+        "scientist_repair_plan": "Repair plan",
+        "scientist_execution_contract": "Execution contract",
+    }
+    emitter = TerminalEventEmitter(root, colour=True, jsonl_path=root / ".xsci" / "terminal_events.jsonl")
+
+    def live_event(event: dict) -> None:
+        phase = str(event.get("phase") or "")
+        tool = str(event.get("tool") or "")
+        if phase == "autopilot_start":
+            emitter.emit(
+                "AI Scientist",
+                "starting bounded multi-tool diagnosis; no training or Kaggle submit will start",
+                status="running",
+            )
+            return
+        if phase == "tool_started":
+            emitter.emit(stage_labels.get(tool, tool), "calling tool", status="running")
+            return
+        if phase in {"tool_completed", "tool_blocked"}:
+            status = "passed" if phase == "tool_completed" else "blocked"
+            message = str(event.get("message") or "completed").replace("\n", " ")[:220]
+            artifact = str(event.get("artifact_path") or "") or None
+            emitter.emit(stage_labels.get(tool, tool), message, status=status, artifact=artifact)
+            return
+        if phase == "autopilot_complete":
+            status = "passed" if event.get("status") == "completed" else "blocked"
+            artifact = str(event.get("artifact_path") or "") or None
+            emitter.emit("AI Scientist", "diagnosis complete; artifacts persisted", status=status, artifact=artifact)
+
+    result = run_scientist_autopilot(session, root, observer=live_event)
+    _agent_reply("\n".join(render_scientist_autopilot_summary(result)), title="Scientist autopilot")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_loop(session: SessionState, root: Path) -> int:
+    from .terminal_events import TerminalEventEmitter, render_scientist_loop_summary
+    from .terminal_tools import run_scientist_loop
+
+    emitter = TerminalEventEmitter(root, colour=True, jsonl_path=root / ".xsci" / "terminal_events.jsonl")
+
+    def live_event(event: dict) -> None:
+        phase = str(event.get("phase") or "")
+        status = str(event.get("status") or "running")
+        message = str(event.get("message") or "").replace("\n", " ")[:260]
+        artifact = str(event.get("artifact_path") or "") or None
+        stage = {
+            "loop_start": "AI Scientist loop",
+            "loop_observe": "Observe and decide",
+            "loop_next_action": "Safe next action",
+            "loop_refresh": "Refresh evidence",
+            "loop_repetition_escalation": "Escalate repeated action",
+            "loop_complete": "Learn and stop",
+        }.get(phase, "AI Scientist loop")
+        rendered_status = "passed" if status in {"passed", "completed"} else "blocked" if status == "blocked" else "running"
+        emitter.emit(stage, message or phase, status=rendered_status, artifact=artifact)
+
+    result = run_scientist_loop(session, root, observer=live_event)
+    _agent_reply("\n".join(render_scientist_loop_summary(result)), title="Scientist loop")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_self_audit(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_self_audit_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_self_audit", session, root)
+    _agent_reply("\n".join(render_scientist_self_audit_summary(result)), title="Scientist self-audit")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_readiness_report(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_readiness_report_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_readiness_report", session, root)
+    _agent_reply("\n".join(render_scientist_readiness_report_summary(result)), title="Scientist readiness report")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_causal_diagnosis(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_causal_diagnosis_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_causal_diagnosis", session, root)
+    _agent_reply("\n".join(render_scientist_causal_diagnosis_summary(result)), title="Scientist causal diagnosis")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_strategy_optimizer(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_strategy_optimizer_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_strategy_optimizer", session, root)
+    _agent_reply("\n".join(render_scientist_strategy_optimizer_summary(result)), title="Scientist strategy optimizer")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_context_packet(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_context_packet_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_context_packet", session, root)
+    _agent_reply("\n".join(render_scientist_context_packet_summary(result)), title="Scientist context packet")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_upgrade_plan(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_upgrade_plan_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_upgrade_plan", session, root)
+    _agent_reply("\n".join(render_scientist_upgrade_plan_summary(result)), title="Scientist upgrade plan")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_self_upgrade_loop(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_self_upgrade_loop_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_self_upgrade_loop", session, root)
+    _agent_reply("\n".join(render_scientist_self_upgrade_loop_summary(result)), title="Scientist self-upgrade loop")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_patch_work_order(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_patch_work_order_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_patch_work_order", session, root)
+    _agent_reply("\n".join(render_scientist_patch_work_order_summary(result)), title="Scientist patch work order")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_memory_consolidation(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_memory_consolidation_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_memory_consolidation", session, root)
+    _agent_reply("\n".join(render_scientist_memory_consolidation_summary(result)), title="Scientist memory consolidation")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_innovation_backlog(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_innovation_backlog_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_innovation_backlog", session, root)
+    _agent_reply("\n".join(render_scientist_innovation_backlog_summary(result)), title="Scientist innovation backlog")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_hypothesis_review(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_hypothesis_review_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_hypothesis_review", session, root)
+    _agent_reply("\n".join(render_scientist_hypothesis_review_summary(result)), title="Scientist hypothesis review")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_experiment_blueprint(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_experiment_blueprint_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_experiment_blueprint", session, root)
+    _agent_reply("\n".join(render_scientist_experiment_blueprint_summary(result)), title="Scientist experiment blueprint")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_innovation_trial_feedback(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_innovation_trial_feedback_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_innovation_trial_feedback", session, root)
+    _agent_reply("\n".join(render_scientist_innovation_trial_feedback_summary(result)), title="Scientist innovation feedback")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_situation_model(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_situation_model_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_situation_model", session, root)
+    _agent_reply("\n".join(render_scientist_situation_model_summary(result)), title="Scientist situation model")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_turn_plan(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_turn_plan_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_turn_plan", session, root)
+    _agent_reply("\n".join(render_scientist_turn_plan_summary(result)), title="Scientist turn plan")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_workplan(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_workplan", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist workplan")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_repair_plan(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_repair_plan", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist repair plan")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_execution_contract(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_execution_contract", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist execution contract")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_step_trace(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_step_trace_timeline
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_step_trace", session, root)
+    _agent_reply("\n".join(render_scientist_step_trace_timeline(result)), title="Scientist live timeline")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_recovery(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_recovery_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_recovery", session, root)
+    _agent_reply("\n".join(render_scientist_recovery_summary(result)), title="Scientist recovery")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_action_queue(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_action_queue", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist action queue")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_continuation_status(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_continuation_status_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_continuation_status", session, root)
+    _agent_reply("\n".join(render_scientist_continuation_status_summary(result)), title="Scientist continuation")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_next_action(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_tool_result_as_lines
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_next_action", session, root)
+    _agent_reply("\n".join(render_tool_result_as_lines(result)), title="Scientist next action")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_continuation_resume(session: SessionState, root: Path) -> int:
+    from .terminal_events import TerminalEventEmitter, render_scientist_continuation_resume_summary
+    from .terminal_tools import run_scientist_continuation_resume
+
+    emitter = TerminalEventEmitter(root, colour=True, jsonl_path=root / ".xsci" / "terminal_events.jsonl")
+
+    def live_event(event: dict) -> None:
+        phase = str(event.get("phase") or "")
+        status = str(event.get("status") or "running")
+        message = str(event.get("message") or "").replace("\n", " ")[:260]
+        artifact = str(event.get("artifact_path") or "") or None
+        stage = {
+            "continuation_resume_start": "Continuation resume",
+            "continuation_resume_step_started": "Safe continuation step",
+            "continuation_resume_step_completed": "Safe continuation step",
+            "continuation_resume_complete": "Continuation resume",
+        }.get(phase, "Continuation resume")
+        rendered_status = "passed" if status in {"passed", "closed", "completed"} else "blocked" if status in {"blocked", "blocked_by_gate", "stalled"} else "running"
+        emitter.emit(stage, message or phase, status=rendered_status, artifact=artifact)
+
+    result = run_scientist_continuation_resume(session, root, observer=live_event)
+    _agent_reply("\n".join(render_scientist_continuation_resume_summary(result)), title="Scientist continuation resume")
+    return 0 if result.get("ok", True) else 1
 
 
 def _delegate_xsci(argv: list[str], root: Path) -> int:
@@ -640,8 +1024,62 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         tracker = EvolutionTracker(Path(session.workspace_root) if session.workspace_root else root)
         _agent_reply(tracker.report(), title="Self-Evolution")
         return 0, False
-    if verb in {"innovate", "innovation"}:
-        return _show_innovations(session, root), False
+    if verb in {"innovate", "innovation", "innovate-plan", "innovation-backlog", "hypotheses", "proposals"}:
+        return _show_scientist_innovation_backlog(session, root), False
+    if verb in {"review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique"}:
+        return _show_scientist_hypothesis_review(session, root), False
+    if verb in {"blueprint", "experiment-blueprint", "plan-experiment", "candidate-blueprint"}:
+        return _show_scientist_experiment_blueprint(session, root), False
+    if verb in {"innovation-feedback", "trial-feedback", "feedback-innovation", "scientist-feedback"}:
+        return _show_scientist_innovation_trial_feedback(session, root), False
+    if verb in {"situation", "situation-model", "state-model", "scientist-state", "orient"}:
+        return _show_scientist_situation_model(session, root), False
+    if verb in {"turn-plan", "tool-plan", "plan-turn", "scientist-turn"}:
+        return _show_scientist_turn_plan(session, root), False
+    if verb in {"scientist", "checkpoint", "think", "brief"}:
+        return _show_scientist_checkpoint(session, root), False
+    if verb in {"decide", "decision"}:
+        return _show_research_decision(session, root), False
+    if verb in {"autopilot", "diagnose"}:
+        return _show_scientist_autopilot(session, root), False
+    if verb in {"loop", "scientist-loop", "autonomous-loop"}:
+        return _show_scientist_loop(session, root), False
+    if verb in {"self-audit", "audit-agent", "capability", "intelligence"}:
+        return _show_scientist_self_audit(session, root), False
+    if verb in {"readiness-report", "launch-readiness", "scientist-readiness", "agent-readiness"}:
+        return _show_scientist_readiness_report(session, root), False
+    if verb in {"causal-diagnosis", "cause-map", "root-cause-map", "causal-graph"}:
+        return _show_scientist_causal_diagnosis(session, root), False
+    if verb in {"strategy", "strategy-optimizer", "priority-plan", "intervention-plan", "decision-matrix"}:
+        return _show_scientist_strategy_optimizer(session, root), False
+    if verb in {"briefing", "context-packet", "scientist-context", "state-briefing"}:
+        return _show_scientist_context_packet(session, root), False
+    if verb in {"upgrade-plan", "agent-upgrade", "capability-upgrade", "upgrade-backlog"}:
+        return _show_scientist_upgrade_plan(session, root), False
+    if verb in {"self-upgrade", "self-upgrade-loop", "upgrade-loop", "capability-loop"}:
+        return _show_scientist_self_upgrade_loop(session, root), False
+    if verb in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
+        return _show_scientist_patch_work_order(session, root), False
+    if verb in {"learn", "memory-consolidate", "consolidate-memory", "memory-writeback"}:
+        return _show_scientist_memory_consolidation(session, root), False
+    if verb in {"workplan", "roadmap", "agenda"}:
+        return _show_scientist_workplan(session, root), False
+    if verb in {"repair", "fixplan", "diagnose-repair", "self-repair"}:
+        return _show_scientist_repair_plan(session, root), False
+    if verb in {"contract", "execution-contract", "run-contract", "preflight-contract"}:
+        return _show_scientist_execution_contract(session, root), False
+    if verb in {"trace", "steptrace", "steps", "live", "stream", "evidence-stream"}:
+        return _show_scientist_step_trace(session, root), False
+    if verb in {"recovery", "recover", "context", "resume-context"}:
+        return _show_scientist_recovery(session, root), False
+    if verb in {"queue", "action-queue", "actions"}:
+        return _show_scientist_action_queue(session, root), False
+    if verb in {"continuation", "continuation-status", "continue-status", "turn-status"}:
+        return _show_scientist_continuation_status(session, root), False
+    if verb in {"resume-continuation", "resume-safe", "finish-continuation", "finish-safe-tools", "continue-tools", "auto-continue-tools"}:
+        return _show_scientist_continuation_resume(session, root), False
+    if verb in {"next", "next-action", "safe-next", "act", "act-next", "continue-scientist"}:
+        return _show_scientist_next_action(session, root), False
     if verb in {"watch", "report", "memory", "run", "doctor", "config", "init", "login"}:
         if verb == "run":
             task = (rest[0] if rest else None) or session.selected_task
@@ -801,13 +1239,32 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             session.last_action = "training_blocked"
             return 1, False
         compute = _infer_compute_override(raw)
+        session.current_compute_override = compute or session.compute_backend
         resume = (intent.payload == "resume")
         _print_preflight_stream(session, compute=compute, goal=raw)
         if _execution_blocker_reply(session, compute=compute):
             session.last_action = "training_blocked"
             return 1, False
+        decision_result = TerminalTools.dispatch("research_decision", session, root)
+        decision = decision_result.get("decision", {}) if isinstance(decision_result, dict) else {}
+        artifact = decision_result.get("artifact_path", "") if isinstance(decision_result, dict) else ""
+        if artifact:
+            print(_dim(f"  Decision artifact: {artifact}"))
+        contract_result = TerminalTools.dispatch("scientist_execution_contract", session, root)
+        contract_artifact = contract_result.get("artifact_path", "") if isinstance(contract_result, dict) else ""
+        if contract_artifact:
+            print(_dim(f"  Execution contract: {contract_artifact}"))
+        if contract_result.get("go_no_go") == "no_go":
+            _agent_reply(
+                "Execution contract returned no_go, so EvoMind will not start training.\n"
+                f"Root causes: {', '.join(contract_result.get('root_causes', []) or ['unknown'])}",
+                title="Execution blocked",
+            )
+            session.last_action = "training_blocked"
+            return 1, False
+        enriched_goal = f"{raw}\n\n{contract_result.get('enriched_goal', '')}".strip()
         session.current_mode = MODE_EXECUTING
-        rc = _run_agent(session.selected_task, root, goal=raw, compute=compute, resume=resume)
+        rc = _run_agent(session.selected_task, root, goal=enriched_goal, compute=compute, resume=resume)
         session.current_mode = MODE_CHAT
         session.last_action = "training"
         session.refresh_recent_run(root)
@@ -815,10 +1272,12 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return rc, False
 
     session.current_mode = MODE_CHAT
-    with thinking("thinking"):
-        reply = _conversation().reply(raw, session)
-    _agent_reply(reply)
-    return 0, False
+    result = TerminalAgent().handle_scientist_turn(raw, session, root)
+    _agent_reply(result.summary, title="AI Scientist Turn")
+    session.last_action = result.action
+    if result.artifacts:
+        session.last_artifact = result.artifacts[-1]
+    return result.rc, False
 
 
 def _show_innovations(session: SessionState, root: Path) -> int:
@@ -909,6 +1368,27 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  run [task]               start training")
     print("  resume [task]            continue previous run")
     print("  auto [task]              autonomous research: inspect→baseline→train→report")
+    print("  scientist / think        show Observe→Analyze→Propose→Gate→Act checkpoint")
+    print("  decide                   persist next experiment branch/code-mode decision")
+    print("  loop                     run bounded safe Scientist loop and write lesson")
+    print("  self-audit               score EvoMind capabilities and write upgrade backlog")
+    print("  readiness-report         write unified capability/execution/claim readiness report")
+    print("  causal-diagnosis         build symptom/root-cause/evidence/intervention graph")
+    print("  strategy                 rank safe interventions by impact/evidence/cost/risk/gates")
+    print("  briefing                 build per-turn Scientist context packet")
+    print("  upgrade-plan             convert self-audit backlog into an engineering plan")
+    print("  self-upgrade             create a safe work order for the next P0 capability upgrade")
+    print("  patch-order              turn latest failure/blocker evidence into a code-agent patch work order")
+    print("  memory-consolidate       write Scientist lessons into retrospective memory")
+    print("  innovate-plan            generate memory-guided proposal backlog before training")
+    print("  review-hypotheses        rank proposed research hypotheses before training")
+    print("  blueprint                generate gated experiment blueprint from reviewed hypothesis")
+    print("  innovation-feedback      write hypothesis/blueprint gate outcome into innovation memory")
+    print("  situation                synthesize evidence, blockers, uncertainty, strategy, and memory")
+    print("  live                     show recent Scientist tool/gate/artifact timeline")
+    print("  recovery                 rebuild restart/context recovery snapshot")
+    print("  queue / continuation     show action queue or incomplete-turn continuation status")
+    print("  next                     execute safe read-only next action")
     print("  watch / report / memory  engine views")
     print("  dashboard                manage the 8088 workstation")
     print("  official <args...>       Kaggle CLI passthrough")
@@ -994,7 +1474,37 @@ def _print_help() -> None:
     print("  evomind task add <url>      register a Kaggle/MLE-Bench task")
     print("  evomind download <task>     download competition data")
     print("  evomind agent <task>        open the deep research agent on a task")
+    print("  evomind ask \"goal\"          run one auditable AI Scientist turn")
+    print("  evomind turn \"goal\"         alias for `evomind ask`")
     print("  evomind run <task>          run the audited evolution loop")
+    print("  evomind scientist           show the AI Scientist checkpoint")
+    print("  evomind autopilot           live multi-tool AI Scientist diagnosis chain")
+    print("  evomind loop                run bounded safe Scientist loop and write lesson")
+    print("  evomind self-audit          score EvoMind capabilities and write upgrade backlog")
+    print("  evomind readiness-report    write unified capability/execution/claim readiness report")
+    print("  evomind causal-diagnosis    build symptom/root-cause/evidence/intervention graph")
+    print("  evomind strategy            rank safe interventions by impact/evidence/cost/risk/gates")
+    print("  evomind briefing            build per-turn Scientist context packet")
+    print("  evomind upgrade-plan        convert self-audit backlog into engineering plan")
+    print("  evomind self-upgrade        create a safe work order for the next P0 capability upgrade")
+    print("  evomind patch-order         create a code-agent patch work order from latest evidence")
+    print("  evomind memory-consolidate  write Scientist lessons into retrospective memory")
+    print("  evomind innovate-plan       generate memory-guided proposal backlog before training")
+    print("  evomind review-hypotheses   rank proposed hypotheses against evidence/gates")
+    print("  evomind blueprint           turn reviewed hypothesis into gated experiment plan")
+    print("  evomind innovation-feedback record gate feedback into innovation memory")
+    print("  evomind situation           synthesize the current AI Scientist situation model")
+    print("  evomind decide              persist the next audited experiment decision")
+    print("  evomind workplan            persist the multi-step Scientist workplan")
+    print("  evomind repair              build the self-repair/root-cause plan")
+    print("  evomind contract            build the pre-execution go/no-go contract")
+    print("  evomind live                show the recent Scientist tool/gate/artifact timeline")
+    print("  evomind trace               alias for `evomind live`")
+    print("  evomind recovery            build a restart/context recovery snapshot")
+    print("  evomind queue               show the Scientist action queue")
+    print("  evomind continuation-status show remaining tools from an incomplete Scientist turn")
+    print("  evomind resume-continuation run remaining safe continuation tools until closed/gated")
+    print("  evomind next                execute the next safe read-only action or block at gates")
     print("  evomind watch -f            follow the latest event stream")
     print("  evomind memory              inspect retrospective memory")
     print("  evomind dashboard start     open/manage the 8088 workstation")
@@ -1028,6 +1538,8 @@ def _dispatch(argv: list[str], root: Path) -> int:
         if not argv[1:]:
             return run_console(root)
         return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
+    if cmd in {"ask", "turn"}:
+        return _run_scientist_turn_command(argv[1:], root)
     if cmd == "competitions":
         return _competitions_cmd(argv[1:])
     if cmd == "download":
@@ -1042,11 +1554,92 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"evolution", "evolve", "self-evolution"}:
         from .evolution_tracker import EvolutionTracker
         tracker = EvolutionTracker(root)
-        print(tracker.report())
+        _safe_print(tracker.report())
         return 0
-    if cmd in {"innovate", "innovation"}:
+    if cmd in {"innovate", "innovation", "innovate-plan", "innovation-backlog", "hypotheses", "proposals"}:
         session = SessionState.from_root(root, cfg=load_config(root))
-        return _show_innovations(session, root)
+        return _show_scientist_innovation_backlog(session, root)
+    if cmd in {"review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_hypothesis_review(session, root)
+    if cmd in {"blueprint", "experiment-blueprint", "plan-experiment", "candidate-blueprint"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_experiment_blueprint(session, root)
+    if cmd in {"innovation-feedback", "trial-feedback", "feedback-innovation", "scientist-feedback"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_innovation_trial_feedback(session, root)
+    if cmd in {"situation", "situation-model", "state-model", "scientist-state", "orient"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_situation_model(session, root)
+    if cmd in {"turn-plan", "tool-plan", "plan-turn", "scientist-turn"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_turn_plan(session, root)
+    if cmd in {"scientist", "checkpoint", "think", "brief"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_checkpoint(session, root)
+    if cmd in {"decide", "decision"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_research_decision(session, root)
+    if cmd in {"autopilot", "diagnose"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_autopilot(session, root)
+    if cmd in {"loop", "scientist-loop", "autonomous-loop"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_loop(session, root)
+    if cmd in {"self-audit", "audit-agent", "capability", "intelligence"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_self_audit(session, root)
+    if cmd in {"readiness-report", "launch-readiness", "scientist-readiness", "agent-readiness"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_readiness_report(session, root)
+    if cmd in {"causal-diagnosis", "cause-map", "root-cause-map", "causal-graph"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_causal_diagnosis(session, root)
+    if cmd in {"strategy", "strategy-optimizer", "priority-plan", "intervention-plan", "decision-matrix"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_strategy_optimizer(session, root)
+    if cmd in {"briefing", "context-packet", "scientist-context", "state-briefing"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_context_packet(session, root)
+    if cmd in {"upgrade-plan", "agent-upgrade", "capability-upgrade", "upgrade-backlog"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_upgrade_plan(session, root)
+    if cmd in {"self-upgrade", "self-upgrade-loop", "upgrade-loop", "capability-loop"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_self_upgrade_loop(session, root)
+    if cmd in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_patch_work_order(session, root)
+    if cmd in {"learn", "memory-consolidate", "consolidate-memory", "memory-writeback"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_memory_consolidation(session, root)
+    if cmd in {"workplan", "roadmap", "agenda"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_workplan(session, root)
+    if cmd in {"repair", "fixplan", "diagnose-repair", "self-repair"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_repair_plan(session, root)
+    if cmd in {"contract", "execution-contract", "run-contract", "preflight-contract"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_execution_contract(session, root)
+    if cmd in {"trace", "steptrace", "steps", "live", "stream", "evidence-stream"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_step_trace(session, root)
+    if cmd in {"recovery", "recover", "context", "resume-context"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_recovery(session, root)
+    if cmd in {"queue", "action-queue", "actions"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_action_queue(session, root)
+    if cmd in {"continuation", "continuation-status", "continue-status", "turn-status"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_continuation_status(session, root)
+    if cmd in {"resume-continuation", "resume-safe", "finish-continuation", "finish-safe-tools", "continue-tools", "auto-continue-tools"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_continuation_resume(session, root)
+    if cmd in {"next", "next-action", "safe-next", "act", "act-next", "continue-scientist"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_next_action(session, root)
     if cmd == "task":
         sub = argv[1].lower() if len(argv) > 1 else "list"
         if sub in {"add", "register"} and len(argv) >= 3:
@@ -1079,6 +1672,96 @@ def _dispatch(argv: list[str], root: Path) -> int:
         goal = " ".join(argv[idx + 1:])
     task = _register_task(source, root) if source.startswith(("http://", "https://")) else slugify(source)
     return _run_agent(task, root, goal=goal)
+
+
+def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
+    """Run one non-interactive AI Scientist turn from the command line.
+
+    This gives installed users a Claude-Code-like one-shot command:
+    `evomind ask "inspect the current task and tell me the next safe step"`.
+    It deliberately reuses the safe Scientist Turn path, so it writes evidence
+    artifacts and stops before training, downloads, or official submission.
+    """
+    args = list(argv)
+    json_mode = False
+    max_tools = 4
+    cleaned: list[str] = []
+    i = 0
+    while i < len(args):
+        item = args[i]
+        if item == "--json":
+            json_mode = True
+            i += 1
+            continue
+        if item == "--max-tools":
+            if i + 1 >= len(args):
+                print("Usage: evomind ask [--json] [--max-tools N] <research-goal>")
+                return 1
+            try:
+                max_tools = max(1, min(8, int(args[i + 1])))
+            except ValueError:
+                print("Usage: evomind ask [--json] [--max-tools N] <research-goal>")
+                return 1
+            i += 2
+            continue
+        cleaned.append(item)
+        i += 1
+
+    prompt = " ".join(cleaned).strip()
+    if not prompt and not sys.stdin.isatty():
+        prompt = sys.stdin.read().strip()
+    if not prompt:
+        print("Usage: evomind ask [--json] [--max-tools N] <research-goal>")
+        print('Example: evomind ask "analyze the selected task and propose the next safe experiment"')
+        return 1
+
+    cfg = load_config(root)
+    inject_engine_env(cfg)
+    session = SessionState.from_root(root, cfg=cfg)
+    if json_mode:
+        with contextlib.redirect_stdout(io.StringIO()):
+            result = TerminalAgent().handle_scientist_turn(prompt, session, root, max_tools=max_tools)
+    else:
+        result = TerminalAgent().handle_scientist_turn(prompt, session, root, max_tools=max_tools)
+    session.last_action = result.action
+    session.last_goal = prompt
+    if result.artifacts:
+        session.last_artifact = result.artifacts[-1]
+    session.persist(root)
+
+    if json_mode:
+        turn_artifact = root / ".xsci" / "scientist_terminal_turn.json"
+        turn_payload = {}
+        if turn_artifact.exists():
+            with contextlib.suppress(Exception):
+                turn_payload = json.loads(turn_artifact.read_text(encoding="utf-8"))
+        payload = {
+            "ok": result.rc == 0 and not result.blocked,
+            "action": result.action,
+            "selected_task": result.selected_task or "",
+            "summary": result.summary,
+            "artifacts": result.artifacts,
+            "blocked": result.blocked,
+            "execution_ready": bool(turn_payload.get("execution_ready")),
+            "execution_blocked": bool(turn_payload.get("execution_blocked")),
+            "blocking_gates": turn_payload.get("blocking_gates") or [],
+            "scientific_critique": turn_payload.get("scientific_critique") or {},
+            "requirement_ledger": turn_payload.get("requirement_ledger") or {},
+            "tool_budget": turn_payload.get("tool_budget") or {},
+            "deferred_tools": turn_payload.get("deferred_tools") or [],
+            "must_run_deferred_tools": turn_payload.get("must_run_deferred_tools") or [],
+            "budget_exhausted": bool(turn_payload.get("budget_exhausted")),
+            "continuation": turn_payload.get("continuation") or {},
+            "continuation_artifact_path": turn_payload.get("continuation_artifact_path") or "",
+            "parity_lifecycle": turn_payload.get("parity_lifecycle") or {},
+            "parity_loop_artifact": turn_payload.get("parity_loop_artifact") or "",
+            "no_training_started": True,
+            "official_submit": "blocked_until_explicit_human_approval",
+        }
+        _safe_print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        _agent_reply(result.summary, title="AI Scientist Turn")
+    return result.rc
 
 
 # ── Setup wizard ─────────────────────────────────────────────

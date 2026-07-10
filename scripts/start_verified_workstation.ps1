@@ -2,7 +2,7 @@ param(
   [ValidateSet("restart", "start", "status", "smoke")]
   [string]$Command = "restart",
   [int]$Port = 8088,
-  [string]$DeepSeekModel = "deepseek-v4-flash",
+  [string]$DeepSeekModel = "deepseek-v4-pro",
   [string]$ClaudeModel = "claude-opus-4-8",
   [switch]$AllowRealExternal,
   [switch]$AllowResourceBlockers,

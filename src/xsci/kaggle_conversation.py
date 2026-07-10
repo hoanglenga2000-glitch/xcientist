@@ -88,9 +88,323 @@ RULES（硬性规则）:
 
 _TOOL_HINT_RE = re.compile(
     r'\[(?:tool|check|检查|查看):\s*(model_status|system_status|task_list|inspect_task|'
-    r'data_check|recent_run|gpu_status|kaggle_status|dashboard|next_steps|switch_task)]',
+    r'data_check|recent_run|gpu_status|kaggle_status|dashboard|next_steps|'
+    r'evolution_status|scientist_checkpoint|research_decision|scientist_workplan|scientist_turn_plan|scientist_repair_plan|scientist_execution_contract|scientist_step_trace|scientist_recovery|scientist_action_queue|scientist_next_action|scientist_autopilot|scientist_loop|scientist_self_audit|scientist_upgrade_plan|scientist_self_upgrade_loop|scientist_memory_consolidation|scientist_innovation_backlog|scientist_hypothesis_review|scientist_experiment_blueprint|scientist_situation_model|switch_task)]',
     re.IGNORECASE,
 )
+
+
+def _forced_tool_hints(user: str) -> list[str]:
+    """Return read-only tools that should run before broad AI Scientist answers."""
+    text = (user or "").lower()
+    turn_plan_tokens = (
+        "turn plan",
+        "tool plan",
+        "per-turn plan",
+        "plan this turn",
+        "plan your tools",
+        "what tools will you use",
+        "before you answer, plan",
+        "本轮计划",
+        "工具计划",
+        "行动计划",
+        "你准备调用什么工具",
+        "先规划本轮",
+        "本次回合",
+    )
+    if any(token in text for token in turn_plan_tokens):
+        return ["scientist_turn_plan"]
+    innovation_tokens = (
+        "innovation backlog",
+        "innovate plan",
+        "innovation plan",
+        "innovation hypothesis",
+        "innovation hypotheses",
+        "research hypotheses",
+        "memory guided innovation",
+        "memory-guided innovation",
+        "novel branch",
+        "novel combination",
+        "propose innovation",
+        "generate innovation",
+        "generate hypotheses",
+        "创新假设",
+        "创新计划",
+        "创新分支",
+        "生成创新",
+        "生成假设",
+        "根据记忆创新",
+        "复用记忆",
+        "记忆复用",
+        "跨任务创新",
+    )
+    if any(token in text for token in innovation_tokens):
+        return ["scientist_innovation_backlog"]
+    review_tokens = (
+        "review hypotheses",
+        "review hypothesis",
+        "hypothesis review",
+        "rank hypotheses",
+        "rank hypothesis",
+        "critique hypotheses",
+        "critique hypothesis",
+        "score hypotheses",
+        "proposal review",
+        "review proposals",
+        "rank proposals",
+        "评审假设",
+        "假设评审",
+        "假设排序",
+        "排序假设",
+        "评估假设",
+        "最佳假设",
+        "评审方案",
+        "排序方案",
+    )
+    if any(token in text for token in review_tokens):
+        return ["scientist_hypothesis_review"]
+    blueprint_tokens = (
+        "experiment blueprint",
+        "candidate blueprint",
+        "execution blueprint",
+        "plan experiment",
+        "gated experiment plan",
+        "实验蓝图",
+        "执行蓝图",
+        "实验方案",
+        "执行方案",
+        "生成实验蓝图",
+        "生成实验计划",
+        "把假设落地",
+        "可执行实验",
+        "实验设计",
+    )
+    if any(token in text for token in blueprint_tokens):
+        return ["scientist_experiment_blueprint"]
+    situation_tokens = (
+        "situation model",
+        "scientist situation",
+        "state model",
+        "current situation",
+        "research situation",
+        "orient",
+        "why are we blocked",
+        "what should the scientist do next",
+        "analyze the current situation",
+        "scientist state",
+        "局势",
+        "情境",
+        "态势",
+        "当前状态模型",
+        "科学家状态",
+        "现在局面",
+        "现在卡在哪里",
+        "为什么卡住",
+        "下一步判断",
+        "综合证据",
+    )
+    if any(token in text for token in situation_tokens):
+        return ["scientist_situation_model"]
+    self_upgrade_tokens = (
+        "self-upgrade loop",
+        "self upgrade loop",
+        "upgrade loop",
+        "capability work order",
+        "self-upgrade work order",
+        "execute self-upgrade",
+        "run self-upgrade",
+        "自升级闭环",
+        "自我升级闭环",
+        "能力自升级",
+        "生成自升级工单",
+        "创建自升级工单",
+        "能力缺口转成工单",
+        "把 p0 能力缺口转成工单",
+        "自进化工程工单",
+    )
+    if any(token in text for token in self_upgrade_tokens):
+        return ["scientist_self_upgrade_loop"]
+    upgrade_tokens = (
+        "upgrade plan",
+        "upgrade backlog",
+        "self upgrade",
+        "agent upgrade",
+        "capability upgrade",
+        "close upgrade backlog",
+        "engineering plan",
+        "升级计划",
+        "能力升级计划",
+        "系统升级计划",
+        "自我升级",
+        "修复升级项",
+        "升级 backlog",
+        "修复 backlog",
+        "工程升级计划",
+    )
+    if any(token in text for token in upgrade_tokens):
+        return ["scientist_upgrade_plan"]
+    self_audit_tokens = (
+        "self audit",
+        "self-audit",
+        "capability audit",
+        "agent audit",
+        "agent capability",
+        "intelligence audit",
+        "how close to claude code",
+        "what is missing from claude code",
+        "自我审计",
+        "能力审计",
+        "能力评估",
+        "智能度评估",
+        "系统能力差距",
+        "agent 能力",
+        "和 claude code 差距",
+        "像 claude code 还差什么",
+        "像 codex 还差什么",
+    )
+    if any(token in text for token in self_audit_tokens):
+        return ["scientist_self_audit"]
+    loop_tokens = (
+        "scientist loop",
+        "agent loop",
+        "autonomous loop",
+        "像claude code一样",
+        "像 claude code 一样",
+        "像codex一样",
+        "像 codex 一样",
+        "持续优化",
+        "继续优化",
+        "自动推进",
+        "自主循环",
+        "自主回合",
+        "多步回合",
+        "连续诊断",
+    )
+    if any(token in text for token in loop_tokens):
+        return ["scientist_loop"]
+    recovery_tokens = (
+        "recovery snapshot",
+        "recovery guard",
+        "recover context",
+        "resume context",
+        "compaction recovery",
+        "restart recovery",
+        "恢复现场",
+        "恢复状态",
+        "恢复上下文",
+        "上下文恢复",
+        "上下文丢了",
+        "断点恢复",
+        "重启后恢复",
+        "从哪里继续",
+    )
+    if any(token in text for token in recovery_tokens):
+        return ["scientist_recovery"]
+    next_action_tokens = (
+        "next action",
+        "safe next",
+        "act next",
+        "安全下一步",
+        "执行安全下一步",
+        "推进下一步",
+        "继续行动",
+        "下一步行动",
+    )
+    if any(token in text for token in next_action_tokens):
+        return ["scientist_next_action"]
+    action_queue_tokens = (
+        "action queue",
+        "queue",
+        "行动队列",
+        "动作队列",
+        "下一步队列",
+        "下一步命令",
+    )
+    if any(token in text for token in action_queue_tokens):
+        return ["scientist_action_queue"]
+    workplan_tokens = (
+        "workplan",
+        "roadmap",
+        "agenda",
+        "multi-step plan",
+        "工作计划",
+        "执行计划",
+        "路线图",
+        "多步计划",
+        "拆解步骤",
+        "持续推进",
+    )
+    if any(token in text for token in workplan_tokens):
+        return ["scientist_workplan"]
+    repair_tokens = (
+        "repair plan",
+        "fix plan",
+        "self repair",
+        "root cause",
+        "why blocked",
+        "修复计划",
+        "自我修复",
+        "自修复",
+        "怎么修",
+        "如何修复",
+        "哪里卡住",
+        "卡在哪里",
+        "阻塞原因",
+        "失败归因",
+        "修复路线",
+    )
+    if any(token in text for token in repair_tokens):
+        return ["scientist_repair_plan"]
+    contract_tokens = (
+        "execution contract",
+        "run contract",
+        "pre-execution",
+        "preflight contract",
+        "执行合同",
+        "执行契约",
+        "执行前检查",
+        "运行前检查",
+        "开跑前检查",
+        "能不能跑",
+        "可以训练吗",
+        "可以开跑吗",
+        "训练合同",
+    )
+    if any(token in text for token in contract_tokens):
+        return ["scientist_execution_contract"]
+    trace_tokens = (
+        "step trace",
+        "steptrace",
+        "trace",
+        "tool trace",
+        "步骤轨迹",
+        "运行轨迹",
+        "工具轨迹",
+        "工具调用过程",
+        "执行证据流",
+    )
+    if any(token in text for token in trace_tokens):
+        return ["scientist_step_trace"]
+    autopilot_tokens = (
+        "autopilot",
+        "diagnose",
+        "diagnosis",
+        "not smart",
+        "complex problem",
+        "ai scientist",
+        "what should we do next",
+        "全面诊断",
+        "自动诊断",
+        "主动分析",
+        "自主分析",
+        "不够智能",
+        "下一步",
+        "科学家",
+        "复杂问题",
+    )
+    if any(token in text for token in autopilot_tokens):
+        return ["scientist_autopilot"]
+    return []
 
 
 # ── Helper: build a rich context block ───────────────────────────────
@@ -155,6 +469,46 @@ def _rich_context(session: "SessionState") -> str:
     return "\n".join(lines)
 
 
+def _format_turn_plan_context(plan: dict[str, Any] | None) -> str:
+    """Compact prompt block for the latest per-turn Scientist plan."""
+    if not isinstance(plan, dict):
+        return ""
+    intent = plan.get("intent") if isinstance(plan.get("intent"), dict) else {}
+    readiness = plan.get("readiness") if isinstance(plan.get("readiness"), dict) else {}
+    lines = [
+        "",
+        "[AI SCIENTIST TURN PLAN]",
+        f"Intent: {intent.get('kind') or 'unknown'}"
+        + (f" payload={intent.get('payload')}" if intent.get("payload") else ""),
+        f"Autonomy: {plan.get('autonomy_level') or 'unknown'}",
+        f"Can execute: {readiness.get('can_execute')}",
+    ]
+    blockers = readiness.get("blocking_gates") if isinstance(readiness, dict) else []
+    if blockers:
+        lines.append("Blocking gates:")
+        lines.extend(f"  - {item}" for item in blockers[:4])
+    tools = plan.get("selected_tools") or []
+    if tools:
+        lines.append("Selected tools:")
+        for item in tools[:6]:
+            if isinstance(item, dict):
+                lines.append(
+                    f"  - {item.get('tool')} "
+                    f"(confidence={item.get('confidence')}, gate={item.get('gate')}): "
+                    f"{item.get('why')}"
+                )
+    stops = plan.get("stop_conditions") or []
+    if stops:
+        lines.append("Stop conditions:")
+        lines.extend(f"  - {item}" for item in stops[:4])
+    if plan.get("next_safe_command"):
+        lines.append(f"Next safe command: {plan.get('next_safe_command')}")
+    if plan.get("artifact_path"):
+        lines.append(f"Turn-plan artifact: {plan.get('artifact_path')}")
+    lines.append("No training or official Kaggle submit may start from this plan alone.")
+    return "\n".join(lines)
+
+
 def _scan_all_experiment_results(session: "SessionState") -> list[str]:
     """Scan ALL experiment directories for results, not just the selected task."""
     import json
@@ -216,6 +570,12 @@ def _execute_terminal_tool(name: str, session: "SessionState") -> str:
         return f"[TOOL RESULT: switch_task]\nstatus: FAILED\nmessage: no matching task found in: {[s for s,_ in tasks]}"
 
     result = TerminalTools.dispatch(name, session, root)
+    try:
+        from .tool_ledger import ToolLedger
+        summary = str(result.get("message") or result.get("mode") or "")[:240]
+        ToolLedger(root).record(name, result, ok=bool(result.get("ok", True)), summary=summary)
+    except Exception:
+        pass
 
     lines = [f"[TOOL RESULT: {name}]"]
     ok = result.get("ok", True)
@@ -259,6 +619,69 @@ def _terminal_tool_specs():
         ToolSpec("gpu_status", "GPU/HPC config + manifest blocker status.", no_args),
         ToolSpec("kaggle_status", "Kaggle API configuration status.", no_args),
         ToolSpec("next_steps", "Blocking gates + the suggested next action.", no_args),
+        ToolSpec("evolution_status",
+                 "Durable self-evolution evidence: tracker, memory, innovation logs.",
+                 no_args),
+        ToolSpec("scientist_checkpoint",
+                 "Structured Observe/Analyze/Propose/Gate/Act research checkpoint.",
+                 no_args),
+        ToolSpec("research_decision",
+                 "Persisted next experiment decision: branch, code mode, gates, rollback.",
+                 no_args),
+        ToolSpec("scientist_workplan",
+                 "Recoverable multi-step AI Scientist workplan: steps, gates, evidence, focus, and resume commands. Read-only.",
+                 no_args),
+        ToolSpec("scientist_turn_plan",
+                 "Per-turn AI Scientist control plan: intent, selected tools, rationale, gates, expected artifacts, and stop conditions. Read-only.",
+                 no_args),
+        ToolSpec("scientist_repair_plan",
+                 "Read-only self-repair plan: diagnoses blockers, root causes, repair steps, and safe next command. Never trains.",
+                 no_args),
+        ToolSpec("scientist_execution_contract",
+                 "Read-only pre-execution contract: go/no-go, branch, rollback, required artifacts, and claim boundary. Never trains.",
+                 no_args),
+        ToolSpec("scientist_step_trace",
+                 "Recent step-level AI Scientist event stream: tool calls, gates, artifacts, blockers, and no-training boundary. Read-only.",
+                 no_args),
+        ToolSpec("scientist_recovery",
+                 "Long-horizon recovery snapshot: recovery guard, turn ledger, step trace, latest plans, blockers, and resume commands. Read-only.",
+                 no_args),
+        ToolSpec("scientist_action_queue",
+                 "Read-only action queue: next command, gate, autonomy, risk, expected artifacts, and rollback.",
+                 no_args),
+        ToolSpec("scientist_next_action",
+                 "Executes only the next safe read-only action from the queue; blocks at training/download/submit/user gates.",
+                 no_args),
+        ToolSpec("scientist_autopilot",
+                 "Bounded multi-tool AI Scientist diagnosis chain: status, task, data, recent run, memory, gates, and next decision. Read-only.",
+                 no_args),
+        ToolSpec("scientist_loop",
+                 "Bounded autonomous safe loop: run diagnosis, execute only read-only next actions, stop at gates, and write reusable lessons. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_self_audit",
+                 "Read-only capability audit of EvoMind itself: scores, gaps, evidence sources, and system-upgrade backlog. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_upgrade_plan",
+                 "Read-only engineering planner for the self-audit upgrade backlog: files to inspect, acceptance checks, closure gates, and safe next commands. Never edits, trains, or submits.",
+                 no_args),
+        ToolSpec("scientist_self_upgrade_loop",
+                 "Safe self-upgrade bridge: selects the highest-priority capability backlog item and writes a code-agent work order, action queue, trace, and lesson. Never edits source code, trains, downloads, or submits.",
+                 no_args),
+        ToolSpec("scientist_memory_consolidation",
+                 "Read-only memory writeback: consolidates Scientist loop, trace, contracts, and lessons into retrospective memory. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_innovation_backlog",
+                 "Read-only memory-guided innovation planner: proposes auditable branches, risk controls, artifacts, and gates before training. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_hypothesis_review",
+                 "Read-only Scientist review board: scores and ranks innovation hypotheses by evidence, readiness, impact, risk, and gates. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_experiment_blueprint",
+                 "Read-only experiment blueprint builder: turns the reviewed hypothesis into branch/code/resource/artifact/rollback/memory-writeback gates. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_situation_model",
+                 "Read-only situation model: synthesizes evidence, uncertainty, blockers, strategy, memory, and the next safe tool sequence. Never trains or submits.",
+                 no_args),
         ToolSpec("switch_task", "Switch the selected task to a registered slug.",
                  {"type": "object",
                   "properties": {"task": {"type": "string", "description": "slug to switch to"}},
@@ -377,6 +800,17 @@ class ConversationAgent:
         durable anchor for compaction/restart recovery.
         """
         guard = self._make_guard(session)
+        answer = ""
+        route = "rule"
+        forced_tools = _forced_tool_hints(text)
+        turn_plan: dict[str, Any] | None = None
+        try:
+            from .scientist_turn_planner import build_scientist_turn_plan
+
+            root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
+            turn_plan = build_scientist_turn_plan(session, root, text, persist=True)
+        except Exception:
+            turn_plan = None
         if guard is not None:
             guard.emit(session, event="UserPromptSubmit")
         try:
@@ -384,20 +818,87 @@ class ConversationAgent:
                 history = _load_history()
                 history.append({"role": "user", "content": text})
 
-                answer = self._scientist_loop(session, text, history)
+                answer = self._scientist_loop(session, text, history, turn_plan=turn_plan)
                 if answer:
+                    route = "llm_tool_loop"
                     history.append({"role": "assistant", "content": answer[:2000]})
                     _save_history(history)
                     return answer
-            return self._rule_reply(text, session)
+            answer = self._rule_reply(text, session)
+            return answer
         finally:
+            self._record_turn(text, answer, session, route=route, forced_tools=forced_tools, turn_plan=turn_plan)
             if guard is not None:
                 guard.record_tool(f"reply: task={session.selected_task or '(none)'}")
                 guard.emit(session, event="PostReply")
 
+    def _record_turn(self, user: str, answer: str, session: "SessionState", *,
+                     route: str, forced_tools: list[str],
+                     turn_plan: dict[str, Any] | None = None) -> None:
+        """Persist a sanitized scientist turn for dashboard/recovery visibility."""
+        try:
+            from .scientist_turns import record_scientist_turn
+            from .tool_ledger import ToolLedger
+
+            root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
+            recent_tools = ToolLedger(root).recent(limit=8)
+            latest_autopilot = root / ".xsci" / "scientist_autopilot.json"
+            decision: dict[str, Any] = {}
+            blockers: list[str] = []
+            next_actions: list[str] = []
+            mode = ""
+            artifacts: list[str] = []
+            if latest_autopilot.exists():
+                try:
+                    autopilot = json.loads(latest_autopilot.read_text(encoding="utf-8"))
+                    if isinstance(autopilot, dict):
+                        decision = autopilot.get("decision", {}) if isinstance(autopilot.get("decision"), dict) else {}
+                        blockers = [str(x) for x in autopilot.get("blockers", [])] if isinstance(autopilot.get("blockers"), list) else []
+                        next_actions = [str(x) for x in autopilot.get("next_actions", [])] if isinstance(autopilot.get("next_actions"), list) else []
+                        mode = str(autopilot.get("mode") or "")
+                        artifacts.append(str(latest_autopilot))
+                except (json.JSONDecodeError, OSError):
+                    pass
+            if isinstance(turn_plan, dict):
+                plan_artifact = str(turn_plan.get("artifact_path") or "")
+                if plan_artifact:
+                    artifacts.append(plan_artifact)
+                plan_tools = [str(x) for x in (turn_plan.get("tool_sequence") or [])]
+                forced_tools = list(dict.fromkeys([*forced_tools, "scientist_turn_plan", *plan_tools]))
+                plan_readiness = turn_plan.get("readiness") if isinstance(turn_plan.get("readiness"), dict) else {}
+                if plan_readiness and not blockers:
+                    blockers = [str(x) for x in (plan_readiness.get("blocking_gates") or [])]
+                if not next_actions and turn_plan.get("next_safe_command"):
+                    next_actions = [str(turn_plan.get("next_safe_command"))]
+                if not mode and turn_plan.get("autonomy_level"):
+                    mode = str(turn_plan.get("autonomy_level"))
+                if not decision:
+                    decision = {
+                        "intent": (turn_plan.get("intent") or {}).get("kind") if isinstance(turn_plan.get("intent"), dict) else "",
+                        "next_safe_command": turn_plan.get("next_safe_command"),
+                        "tool_sequence": plan_tools,
+                    }
+            record_scientist_turn(root, {
+                "task": session.selected_task or "",
+                "route": route,
+                "user": user,
+                "forced_tools": forced_tools,
+                "executed_tools": recent_tools,
+                "mode": mode,
+                "decision": decision,
+                "blockers": blockers,
+                "next_actions": next_actions,
+                "artifacts": artifacts,
+                "answer_preview": answer,
+                "no_training_started": True,
+            })
+        except Exception:
+            pass
+
     # ── Scientist tool-use loop ──────────────────────────────────────
 
-    def _real_tool_loop(self, session: "SessionState", user: str) -> str:
+    def _real_tool_loop(self, session: "SessionState", user: str,
+                        turn_plan: dict[str, Any] | None = None) -> str:
         """Plan B: a real Anthropic tool-use loop (send → tool_use → tool_result).
 
         Returns the model's final text, or "" to signal the caller to fall back
@@ -429,7 +930,20 @@ class ConversationAgent:
         if recovery:
             system += "\n\n" + recovery
 
-        messages = [{"role": "user", "content": _rich_context(session) + "\n\n[USER]\n" + user}]
+        forced_results = ""
+        for name in _forced_tool_hints(user):
+            forced_results += _execute_terminal_tool(name, session) + "\n\n"
+
+        messages = [{
+            "role": "user",
+            "content": (
+                _rich_context(session)
+                + _format_turn_plan_context(turn_plan)
+                + (f"\n\n[REQUIRED PRECHECK]\n{forced_results}" if forced_results else "")
+                + "\n\n[USER]\n"
+                + user
+            )
+        }]
 
         max_rounds = 3
         last_text = ""
@@ -470,17 +984,18 @@ class ConversationAgent:
             return last_text
 
     def _scientist_loop(self, session: "SessionState", user: str,
-                        history: list[dict[str, Any]]) -> str:
+                        history: list[dict[str, Any]],
+                        turn_plan: dict[str, Any] | None = None) -> str:
         """Prefer a real Anthropic tool-use loop (Plan B); on any miss, fall back
         to the two-pass text protocol (reason → parse [tool:] → synthesize)."""
-        real = self._real_tool_loop(session, user)
+        real = self._real_tool_loop(session, user, turn_plan=turn_plan)
         if real:
             return real
         client = self._get_client()
         if client is None:
             return ""
 
-        ctx = _rich_context(session)
+        ctx = _rich_context(session) + _format_turn_plan_context(turn_plan)
 
         # Pass 1: LLM reasons about the user's question, may request tools
         pass1_prompt = (
@@ -490,7 +1005,12 @@ class ConversationAgent:
             "something (model status, data, recent results, GPU, etc.), write "
             "[tool: <name>] on its own line. Available tools: model_status, "
             "system_status, task_list, inspect_task, data_check, recent_run, "
-            "gpu_status, kaggle_status, dashboard, next_steps.\n\n"
+            "gpu_status, kaggle_status, dashboard, next_steps, evolution_status, "
+            "scientist_checkpoint, research_decision, scientist_workplan, "
+            "scientist_turn_plan, scientist_repair_plan, scientist_execution_contract, scientist_step_trace, "
+            "scientist_autopilot, scientist_self_audit, scientist_innovation_backlog, "
+            "scientist_hypothesis_review, scientist_experiment_blueprint, "
+            "scientist_situation_model.\n\n"
             "Be concise. Think like a scientist — what do we know, what do we "
             "need to check, what should we do next?"
         )
@@ -508,7 +1028,7 @@ class ConversationAgent:
             return ""
 
         # Extract tool hints from pass 1
-        hints = _TOOL_HINT_RE.findall(pass1_text)
+        hints = _forced_tool_hints(user) + _TOOL_HINT_RE.findall(pass1_text)
         hints = list(dict.fromkeys(h))  # dedup, preserve order
 
         # Execute tools and collect results
@@ -607,6 +1127,170 @@ class ConversationAgent:
         task = session.selected_task
         gaps = session.missing_setup()
         normalized = (text or "").strip().lower()
+
+        if _forced_tool_hints(text):
+            from .terminal_tools import TerminalTools
+            root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
+            tool_name = _forced_tool_hints(text)[0]
+            if tool_name == "scientist_turn_plan":
+                from .scientist_turn_planner import build_scientist_turn_plan
+
+                result = build_scientist_turn_plan(session, root, text, persist=True)
+            else:
+                result = TerminalTools.dispatch(tool_name, session, root)
+            display_name = {
+                "scientist_autopilot": "Scientist Autopilot",
+                "scientist_repair_plan": "Scientist Repair Plan",
+                "scientist_execution_contract": "Scientist Execution Contract",
+                "scientist_workplan": "Scientist Workplan",
+                "scientist_step_trace": "Scientist Step Trace",
+                "scientist_recovery": "Scientist Recovery Snapshot",
+                "scientist_action_queue": "Scientist Action Queue",
+                "scientist_next_action": "Scientist Next Action",
+                "scientist_self_audit": "Scientist Self Audit",
+                "scientist_upgrade_plan": "Scientist Upgrade Plan",
+                "scientist_self_upgrade_loop": "Scientist Self-Upgrade Loop",
+                "scientist_innovation_backlog": "Scientist Innovation Backlog",
+                "scientist_hypothesis_review": "Scientist Hypothesis Review",
+                "scientist_experiment_blueprint": "Scientist Experiment Blueprint",
+                "scientist_situation_model": "Scientist Situation Model",
+                "scientist_turn_plan": "Scientist Turn Plan",
+            }.get(tool_name, tool_name)
+            lines = [f"EvoMind {display_name} completed a read-only analysis."]
+            lines.extend(str(item) for item in result.get("summary_lines", []))
+            situation_model = result.get("situation_model")
+            if isinstance(situation_model, dict):
+                lines.append(
+                    "Situation: "
+                    f"status={result.get('situation_status')}; "
+                    f"readiness_score={result.get('readiness_score')}; "
+                    f"posture={situation_model.get('posture')}."
+                )
+                research_question = situation_model.get("research_question")
+                if research_question:
+                    lines.append(f"Research question: {research_question}")
+                readiness_checks = situation_model.get("readiness_checks")
+                if isinstance(readiness_checks, dict):
+                    passed = [key for key, value in readiness_checks.items() if value]
+                    missing = [key for key, value in readiness_checks.items() if not value]
+                    lines.append(f"Readiness: passed={len(passed)}, missing={len(missing)}")
+                    if missing:
+                        lines.append("Missing readiness:")
+                        lines.extend(f"- {item}" for item in missing[:6])
+                blocker_model = situation_model.get("blocker_model")
+                if isinstance(blocker_model, list) and blocker_model:
+                    lines.append("Blocker model:")
+                    for item in blocker_model[:5]:
+                        if isinstance(item, dict):
+                            lines.append(
+                                "- "
+                                f"{item.get('category', 'unknown')}: "
+                                f"{item.get('blocker', '')} "
+                                f"(repair={item.get('repair_command', '')})"
+                            )
+                uncertainties = situation_model.get("uncertainties")
+                if isinstance(uncertainties, list) and uncertainties:
+                    lines.append("Uncertainties:")
+                    lines.extend(f"- {item}" for item in uncertainties[:5])
+                recommended = situation_model.get("recommended_tool_sequence")
+                if isinstance(recommended, list) and recommended:
+                    lines.append("Recommended safe tool sequence:")
+                    lines.extend(f"- {item}" for item in recommended[:5])
+            blockers = result.get("blockers", [])
+            if blockers:
+                lines.append("Blockers:")
+                lines.extend(f"- {item}" for item in blockers[:6])
+            root_causes = result.get("root_causes", [])
+            if root_causes:
+                lines.append("Root causes:")
+                lines.extend(f"- {item}" for item in root_causes[:6])
+            repair_steps = result.get("repair_steps", [])
+            if repair_steps:
+                lines.append("Repair steps:")
+                for step in repair_steps[:5]:
+                    if isinstance(step, dict):
+                        lines.append(f"- {step.get('id')}: {step.get('title')} ({step.get('status')})")
+            next_actions = result.get("next_actions", [])
+            if next_actions:
+                lines.append("Next actions:")
+                lines.extend(f"- {item}" for item in next_actions[:6])
+            hypotheses = result.get("innovation_hypotheses", [])
+            if hypotheses:
+                lines.append("Innovation hypotheses:")
+                for item in hypotheses[:4]:
+                    if isinstance(item, dict):
+                        lines.append(
+                            "- "
+                            f"{item.get('strategy_name', item.get('id', 'hypothesis'))}: "
+                            f"branch={item.get('proposed_branch_type', '')}; "
+                            f"gate={item.get('gate', '')}"
+                        )
+            reviews = result.get("reviews", [])
+            if reviews:
+                lines.append("Hypothesis review:")
+                for item in reviews[:4]:
+                    if isinstance(item, dict):
+                        lines.append(
+                            "- "
+                            f"#{item.get('rank')} {item.get('strategy_name', item.get('hypothesis_id', 'hypothesis'))}: "
+                            f"score={item.get('score')}; status={item.get('status')}; risk={item.get('risk_level')}"
+                        )
+            selected_hypothesis = result.get("selected_hypothesis")
+            if isinstance(selected_hypothesis, dict):
+                lines.append(
+                    "Selected hypothesis: "
+                    f"{selected_hypothesis.get('strategy_name', selected_hypothesis.get('hypothesis_id', 'hypothesis'))}; "
+                    f"score={selected_hypothesis.get('score')}; "
+                    f"next_gate={selected_hypothesis.get('next_gate')}."
+                )
+            blueprint = result.get("experiment_blueprint")
+            if isinstance(blueprint, dict):
+                lines.append(
+                    "Experiment blueprint: "
+                    f"id={blueprint.get('blueprint_id')}; "
+                    f"branch={blueprint.get('branch_type')}; "
+                    f"mode={blueprint.get('code_generation_mode')}; "
+                    f"run_command={blueprint.get('run_command')}."
+                )
+            actions = result.get("actions", []) or result.get("action_queue", [])
+            if actions:
+                lines.append("Action queue:")
+                for action in actions[:5]:
+                    if isinstance(action, dict):
+                        lines.append(
+                            "- "
+                            f"{action.get('title', action.get('id', 'action'))}: "
+                            f"command={action.get('command', '')}; "
+                            f"gate={action.get('gate', '')}; "
+                            f"status={action.get('status', '')}"
+                        )
+            selected_action = result.get("selected_action")
+            if isinstance(selected_action, dict):
+                lines.append(
+                    "Selected next action: "
+                    f"{selected_action.get('title', selected_action.get('id', 'action'))}; "
+                    f"command={selected_action.get('command', '')}; "
+                    f"gate={selected_action.get('gate', '')}."
+                )
+            safe_next = result.get("safe_next_command")
+            if safe_next:
+                lines.append(f"Safe next command: {safe_next}")
+            if result.get("message"):
+                lines.append(str(result.get("message")))
+            go_no_go = result.get("go_no_go")
+            if go_no_go:
+                lines.append(f"Go/No-Go: {go_no_go}")
+            decision = result.get("decision", {})
+            if isinstance(decision, dict) and decision:
+                lines.append(
+                    "Decision: "
+                    f"action={decision.get('selected_action')}, "
+                    f"branch={decision.get('selected_branch')}, "
+                    f"mode={decision.get('code_generation_mode')}"
+                )
+            lines.append(f"Artifact: {result.get('artifact_path', f'.xsci/{tool_name}.json')}")
+            lines.append("No training or official Kaggle submission was started.")
+            return "\n".join(lines)
 
         # ── Status ──
         if normalized in {"status", "/status", "ready", "就绪", "状态"}:

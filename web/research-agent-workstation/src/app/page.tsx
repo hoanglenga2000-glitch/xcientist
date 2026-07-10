@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/workstation/AppShell";
+import { AiControlConsole } from "@/components/workstation/AiControlConsole";
 import { EvolutionConsole } from "@/components/workstation/EvolutionConsole";
 import * as api from "@/lib/api/client";
 import type { WorkstationSummary } from "@/lib/api/types";
 import {
   AgentRuntime,
-  AiControlConsole,
   CodeRunner,
   DataKagglePipeline,
   DesignSystem,
@@ -68,8 +68,14 @@ function text(locale: Locale, zh: string, en: string) {
   return locale === "zh-CN" ? zh : en;
 }
 
-export default function Home() {
-  const [activePage, setActivePage] = useState<PageId>("overview");
+type HomeProps = {
+  searchParams?: {
+    page?: string;
+  };
+};
+
+export default function Home({ searchParams }: HomeProps) {
+  const [activePage, setActivePage] = useState<PageId>(() => parsePageId(searchParams?.page) ?? "overview");
   const [selectedTask, setSelectedTask] = useState("playground_series_s6e6");
   const [selectedStage, setSelectedStage] = useState("stage-7");
   const [selectedExperiment, setSelectedExperiment] = useState("exp_20250606_192030");
@@ -305,4 +311,3 @@ export default function Home() {
     </AppShell>
   );
 }
-

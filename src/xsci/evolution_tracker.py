@@ -30,13 +30,16 @@ class EvolutionSnapshot:
     repair_successes: int = 0
     innovations_tried: int = 0
     innovation_successes: int = 0
+    lessons_recorded: int = 0
+    reusable_lessons: int = 0
+    failure_lessons: int = 0
     tasks_completed: int = 0
     cross_task_transfers: int = 0
     skill_level: str = "novice"   # novice → apprentice → competent → expert → master
 
 
 _SKILL_THRESHOLDS = {
-    "novice":      (0,     "First steps — basic training runs working"),
+    "novice":      (0,     "First steps - basic training runs working"),
     "apprentice":  (5,     "Consistent baselines, first repairs succeeding"),
     "competent":   (15,    "Multiple tasks, cross-task transfer active"),
     "expert":      (30,    "Innovations succeeding, deep domain knowledge"),
@@ -86,6 +89,7 @@ class EvolutionTracker:
         snap["ts"] = datetime.now().isoformat(timespec="seconds")
         snap["skill_level"] = self._compute_skill(snap)
         self._history.append(dict(snap))
+        self._save()
 
     def record_repair(self, success: bool) -> None:
         snap = self._latest()
@@ -102,6 +106,18 @@ class EvolutionTracker:
         snap["innovations_tried"] = snap.get("innovations_tried", 0) + 1
         if success:
             snap["innovation_successes"] = snap.get("innovation_successes", 0) + 1
+        snap["ts"] = datetime.now().isoformat(timespec="seconds")
+        snap["skill_level"] = self._compute_skill(snap)
+        self._history.append(dict(snap))
+        self._save()
+
+    def record_lesson(self, *, reusable: bool = False, failure: bool = False) -> None:
+        snap = self._latest()
+        snap["lessons_recorded"] = snap.get("lessons_recorded", 0) + 1
+        if reusable:
+            snap["reusable_lessons"] = snap.get("reusable_lessons", 0) + 1
+        if failure:
+            snap["failure_lessons"] = snap.get("failure_lessons", 0) + 1
         snap["ts"] = datetime.now().isoformat(timespec="seconds")
         snap["skill_level"] = self._compute_skill(snap)
         self._history.append(dict(snap))
@@ -124,10 +140,29 @@ class EvolutionTracker:
 
     # ── Current state ─────────────────────────────────────────────────
 
+    def _empty_snapshot(self) -> dict:
+        return {
+            "ts": "",
+            "total_runs": 0,
+            "total_promotions": 0,
+            "best_cv_ever": None,
+            "repair_attempts": 0,
+            "repair_successes": 0,
+            "innovations_tried": 0,
+            "innovation_successes": 0,
+            "lessons_recorded": 0,
+            "reusable_lessons": 0,
+            "failure_lessons": 0,
+            "tasks_completed": 0,
+            "cross_task_transfers": 0,
+            "skill_level": "novice",
+        }
+
     def _latest(self) -> dict:
+        snap = self._empty_snapshot()
         if self._history:
-            return dict(self._history[-1])
-        return {}
+            snap.update(dict(self._history[-1]))
+        return snap
 
     def current_snapshot(self) -> EvolutionSnapshot:
         snap = self._latest()
@@ -140,6 +175,9 @@ class EvolutionTracker:
             repair_successes=snap.get("repair_successes", 0),
             innovations_tried=snap.get("innovations_tried", 0),
             innovation_successes=snap.get("innovation_successes", 0),
+            lessons_recorded=snap.get("lessons_recorded", 0),
+            reusable_lessons=snap.get("reusable_lessons", 0),
+            failure_lessons=snap.get("failure_lessons", 0),
             tasks_completed=snap.get("tasks_completed", 0),
             cross_task_transfers=snap.get("cross_task_transfers", 0),
             skill_level=snap.get("skill_level", "novice"),
@@ -151,6 +189,8 @@ class EvolutionTracker:
         score += snap.get("total_promotions", 0) * 2
         score += snap.get("repair_successes", 0) * 3
         score += snap.get("innovation_successes", 0) * 5
+        score += snap.get("reusable_lessons", 0)
+        score += snap.get("failure_lessons", 0)
         score += snap.get("tasks_completed", 0) * 3
         score += snap.get("cross_task_transfers", 0) * 2
 
@@ -166,26 +206,29 @@ class EvolutionTracker:
         snap = self.current_snapshot()
         level_desc = _SKILL_THRESHOLDS.get(snap.skill_level, ("", ""))[1]
 
-        lines = ["🧬 EvoMind Self-Evolution Report", "=" * 45]
+        lines = ["EvoMind Self-Evolution Report", "=" * 45]
         lines.append(f"Skill Level: {snap.skill_level.upper()}")
         lines.append(f"  {level_desc}")
         lines.append("")
 
-        lines.append("📊 Performance Metrics:")
+        lines.append("Performance Metrics:")
         lines.append(f"  Total runs:            {snap.total_runs}")
         lines.append(f"  Promotions (improved):  {snap.total_promotions}")
         lines.append(f"  Best CV ever:           {snap.best_cv_ever or 'N/A'}")
         lines.append(f"  Tasks completed:        {snap.tasks_completed}")
+        lines.append(f"  Lessons recorded:       {snap.lessons_recorded}")
+        lines.append(f"  Reusable lessons:       {snap.reusable_lessons}")
+        lines.append(f"  Failure lessons:        {snap.failure_lessons}")
         lines.append("")
 
-        lines.append("🔧 Self-Repair:")
+        lines.append("Self-Repair:")
         repair_rate = (snap.repair_successes / max(snap.repair_attempts, 1) * 100)
         lines.append(f"  Repair attempts:  {snap.repair_attempts}")
         lines.append(f"  Repair successes: {snap.repair_successes}")
         lines.append(f"  Success rate:     {repair_rate:.1f}%")
         lines.append("")
 
-        lines.append("💡 Innovation:")
+        lines.append("Innovation:")
         inno_rate = (snap.innovation_successes / max(snap.innovations_tried, 1) * 100)
         lines.append(f"  Innovations tried:  {snap.innovations_tried}")
         lines.append(f"  Innovation hits:    {snap.innovation_successes}")
@@ -195,16 +238,16 @@ class EvolutionTracker:
 
         # Growth projection
         if snap.skill_level in ("novice", "apprentice"):
-            lines.append("📈 Next milestone: Reach 'competent' by completing 2+ tasks "
+            lines.append("Next milestone: Reach 'competent' by completing 2+ tasks "
                          "with successful repairs.")
         elif snap.skill_level == "competent":
-            lines.append("📈 Next milestone: Reach 'expert' by generating and "
+            lines.append("Next milestone: Reach 'expert' by generating and "
                          "validating novel innovations.")
         elif snap.skill_level == "expert":
-            lines.append("📈 Next milestone: Reach 'master' by consistently "
+            lines.append("Next milestone: Reach 'master' by consistently "
                          "producing innovations that outperform baselines across tasks.")
         else:
-            lines.append("🏆 You've reached MASTER level. EvoMind is now a self-improving scientist.")
+            lines.append("You've reached MASTER level. EvoMind is now a self-improving scientist.")
 
         return "\n".join(lines)
 

@@ -96,6 +96,18 @@ def _gpu_manifest(root: Path) -> dict[str, str]:
     return result
 
 
+def _same_task(candidate: str, selected_task: str) -> bool:
+    if not selected_task:
+        return True
+
+    def norm(value: str) -> str:
+        return (value or "").lower().replace("-", "").replace("_", "").replace(" ", "")
+
+    c = norm(candidate)
+    s = norm(selected_task)
+    return c == s or c.startswith(s) or s in c
+
+
 @dataclass
 class SessionState:
     workspace_root: str = ""
@@ -212,13 +224,34 @@ class SessionState:
         self.task_brief = " | ".join(parts)
 
     def refresh_recent_run(self, root: Path) -> None:
+        self.recent_run_id = ""
+        self.recent_events_path = ""
+        self.recent_best_cv = None
         base = Path(root) / "experiments" / "evolution"
         if not base.is_dir():
             return
         run_dirs = [d for d in base.iterdir() if d.is_dir()]
         if not run_dirs:
             return
-        newest = max(run_dirs, key=lambda d: d.name[-15:])
+        candidates: list[Path] = []
+        for run_dir in run_dirs:
+            if not self.selected_task:
+                candidates.append(run_dir)
+                continue
+            summary = run_dir / "summary.json"
+            task_name = run_dir.name
+            if summary.exists():
+                try:
+                    payload = json.loads(summary.read_text(encoding="utf-8"))
+                    if isinstance(payload, dict):
+                        task_name = str(payload.get("task") or payload.get("task_id") or task_name)
+                except (json.JSONDecodeError, OSError):
+                    task_name = run_dir.name
+            if _same_task(task_name, self.selected_task) or _same_task(run_dir.name, self.selected_task):
+                candidates.append(run_dir)
+        if not candidates:
+            return
+        newest = max(candidates, key=lambda d: d.name)
         self.recent_run_id = newest.name
         events = newest / "events.jsonl"
         if events.exists():
