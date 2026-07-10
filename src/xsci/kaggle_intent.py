@@ -438,6 +438,32 @@ def _contains(text: str, needles) -> bool:
     return any(n in text for n in needles)
 
 
+_NEGATED_EXECUTION_PATTERNS = (
+    r"不要(?:再|立刻|立即|现在|马上)?(?:开始|启动|执行|运行|进行)?(?:任何)?(?:训练|建模|运行|执行|自进化|提交)",
+    r"不(?:要|需要|用|必|必需|必須)?(?:开始|启动|执行|运行|进行)?(?:任何)?(?:训练|建模|运行|执行|自进化|提交)",
+    r"无需(?:开始|启动|执行|运行|进行)?(?:训练|建模|运行|执行|自进化|提交)",
+    r"只(?:做|要|需|需要)?(?:分析|规划|研究|检查|比较|诊断)",
+    r"仅(?:做|要|需|需要)?(?:分析|规划|研究|检查|比较|诊断)",
+    r"(?:do not|don't|dont|without)\s+(?:start(?:ing)?\s+)?(?:train(?:ing)?|run(?:ning)?|execute|submit)",
+    r"(?:analysis|planning|research)\s+only",
+)
+
+
+def _mask_negated_execution(text: str) -> str:
+    """Remove explicit no-execution clauses before intent scoring.
+
+    Research prompts often contain words such as "training" only to forbid the
+    action. Treating those words as an execution request makes the Scientist
+    ignore the actual analysis task and collapse into resource-gate reporting.
+    """
+    import re
+
+    masked = text
+    for pattern in _NEGATED_EXECUTION_PATTERNS:
+        masked = re.sub(pattern, " ", masked, flags=re.IGNORECASE)
+    return masked
+
+
 def _first_token(text: str) -> str:
     return text.strip().split(maxsplit=1)[0].lower() if text.strip() else ""
 
@@ -584,9 +610,23 @@ def classify(text: str) -> Intent:
     if (_contains(low, _MEMORY) or _contains(low, _REAL_MEMORY)) and not (_contains(low, _EXECUTION) or _contains(low, _REAL_EXECUTION)):
         return Intent(MEMORY)
 
-    hard_now = _contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW)
-    wants_plan = _contains(low, _PLANNING) or _contains(low, _REAL_PLANNING)
-    wants_exec = _contains(low, _EXECUTION) or _contains(low, _REAL_EXECUTION)
+    execution_scoring_text = _mask_negated_execution(low)
+    hard_now = (
+        _contains(execution_scoring_text, _HARD_NOW)
+        or _contains(execution_scoring_text, _REAL_HARD_NOW)
+    )
+    wants_plan = (
+        _contains(low, _PLANNING)
+        or _contains(low, _REAL_PLANNING)
+        or (
+            execution_scoring_text != low
+            and any(term in low for term in ("分析", "假设", "比较", "诊断", "研究", "analyze", "hypoth", "compare", "diagnos"))
+        )
+    )
+    wants_exec = (
+        _contains(execution_scoring_text, _EXECUTION)
+        or _contains(execution_scoring_text, _REAL_EXECUTION)
+    )
 
     if wants_plan and not hard_now:
         return Intent(PLANNING)

@@ -853,6 +853,61 @@ def render_scientist_context_packet_summary(result: dict) -> list[str]:
     return lines
 
 
+def render_scientist_reasoning_synthesis_summary(result: dict) -> list[str]:
+    """Render the evidence-grounded answer contract for one Scientist turn."""
+    ok = result.get("ok", True)
+    lines = [f"[tool:scientist_reasoning_synthesis] {'OK' if ok else 'BLOCKED'}"]
+    lines.append(f"  selected_task: {result.get('selected_task') or '(none)'}")
+    lines.append(f"  reasoning_mode: {result.get('reasoning_mode') or 'unknown'}")
+    quality = result.get("reasoning_quality") if isinstance(result.get("reasoning_quality"), dict) else {}
+    if quality:
+        lines.append(
+            "  reasoning_quality: "
+            f"score={quality.get('score', 0)} "
+            f"status={quality.get('status') or 'unknown'} "
+            f"hypotheses={quality.get('hypotheses_produced', 0)}/"
+            f"{quality.get('hypotheses_requested', 0)}"
+        )
+        missing = quality.get("missing_contract_items") if isinstance(quality.get("missing_contract_items"), list) else []
+        if missing:
+            lines.append(f"  missing_contract_items: {', '.join(str(item) for item in missing[:8])}")
+    if result.get("direct_answer"):
+        lines.append(f"  direct_answer: {_short(result.get('direct_answer'), limit=280)}")
+    hypotheses = result.get("hypotheses") if isinstance(result.get("hypotheses"), list) else []
+    if hypotheses:
+        lines.append("  hypotheses:")
+        for item in hypotheses[:6]:
+            if isinstance(item, dict):
+                lines.append(
+                    f"    - {item.get('id')}: {_short(item.get('title'), limit=100)} "
+                    f"[risk={item.get('risk')}; cost={item.get('cost')}]"
+                )
+    if result.get("selected_hypothesis_id"):
+        lines.append(f"  selected_hypothesis: {result.get('selected_hypothesis_id')}")
+    next_action = result.get("next_safe_action") if isinstance(result.get("next_safe_action"), dict) else {}
+    if next_action:
+        lines.append(
+            f"  next_safe_action: {next_action.get('command') or '(none)'} "
+            f"gate={next_action.get('gate') or '(unknown)'}"
+        )
+    llm = result.get("llm") if isinstance(result.get("llm"), dict) else {}
+    if llm:
+        lines.append(
+            "  llm: "
+            f"used={llm.get('used')} provider={llm.get('provider') or '(none)'} "
+            f"model={llm.get('model') or '(none)'} cache_read={llm.get('cache_read_tokens', 0)}"
+        )
+    artifacts = [result.get("artifact_path"), result.get("markdown_artifact_path")]
+    artifacts = [str(path) for path in artifacts if path]
+    if artifacts:
+        lines.append("  artifacts:")
+        for path in dict.fromkeys(artifacts):
+            lines.append(f"    - {path}")
+    lines.append(f"  no_training_started: {result.get('no_training_started', True)}")
+    lines.append(f"  official_submit: {result.get('official_submit') or 'blocked_until_explicit_human_approval'}")
+    return lines
+
+
 def render_scientist_upgrade_plan_summary(result: dict) -> list[str]:
     """Render the self-audit upgrade backlog as an executable engineering plan."""
     ok = result.get("ok", True)

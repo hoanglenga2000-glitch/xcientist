@@ -976,6 +976,8 @@ export type ScientistToolBudget = {
   requested_max_tools?: number;
   effective_max_tools?: number;
   executed_tool_count?: number;
+  context_packet_auto_executed?: boolean;
+  reasoning_synthesis_auto_executed?: boolean;
   must_run_deferred_count?: number;
 };
 
@@ -1057,6 +1059,80 @@ export type ScientistTerminalTurnTool = {
   message?: string;
 };
 
+export type ScientistReasoningHypothesisSummary = {
+  id?: string;
+  title?: string;
+  mechanism?: string;
+  falsifiable_prediction?: string;
+  required_evidence?: string[];
+  experiment?: string;
+  success_threshold?: string;
+  disconfirming_result?: string;
+  evidence_strength?: string;
+  risk?: string;
+  cost?: string;
+  expected_value?: string;
+  epistemic_status?: string;
+};
+
+export type ScientistReasoningSynthesisSummary = {
+  present?: boolean;
+  ok?: boolean;
+  schema?: string;
+  tool?: string;
+  generated_at?: string;
+  selected_task?: string | null;
+  user_goal?: string;
+  reasoning_mode?: string;
+  direct_answer?: string;
+  problem_frame?: Record<string, unknown>;
+  hypotheses?: ScientistReasoningHypothesisSummary[];
+  comparison?: Array<Record<string, unknown>>;
+  selected_hypothesis_id?: string;
+  selected_rationale?: string;
+  next_safe_action?: {
+    action?: string;
+    command?: string;
+    gate?: string;
+    expected_evidence?: string[];
+  };
+  unresolved_questions?: string[];
+  claim_boundaries?: string[];
+  answer_markdown?: string;
+  reasoning_quality?: {
+    score?: number;
+    status?: string;
+    checks?: Record<string, boolean>;
+    missing_contract_items?: string[];
+    hypotheses_requested?: number;
+    hypotheses_produced?: number;
+    complete_falsifiable_hypotheses?: number;
+  };
+  llm?: {
+    used?: boolean;
+    provider?: string;
+    model?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_tokens?: number;
+    error?: string;
+  };
+  cache_hit?: boolean;
+  cache_stats?: {
+    requests?: number;
+    hits?: number;
+    misses?: number;
+    hit_ratio?: number;
+    last_result?: string;
+  };
+  cache_stats_path?: string;
+  epistemic_status?: string;
+  artifact_path?: string;
+  markdown_artifact_path?: string;
+  no_training_started?: boolean;
+  official_submit?: string;
+};
+
 export type ScientistTerminalTurnSummary = {
   present?: boolean;
   ok?: boolean;
@@ -1081,6 +1157,9 @@ export type ScientistTerminalTurnSummary = {
   execution_ready?: boolean;
   execution_blocked?: boolean;
   blocking_gates?: string[];
+  reasoning_synthesis?: ScientistReasoningSynthesisSummary;
+  answer_markdown?: string;
+  reasoning_quality?: ScientistReasoningSynthesisSummary["reasoning_quality"];
   artifacts?: string[];
   artifact_path?: string;
   no_training_started?: boolean;
@@ -1094,6 +1173,7 @@ export type ScientistTerminalTurnResponse = {
   cli_result?: Record<string, unknown>;
   scientist_terminal_turn: ScientistTerminalTurnSummary;
   scientist_turn?: ScientistTerminalTurnSummary;
+  scientist_reasoning_synthesis?: ScientistReasoningSynthesisSummary | null;
   scientist_context_packet?: ScientistContextPacketSummary | null;
   scientist_strategy_optimizer?: ScientistStrategyOptimizerSummary | null;
   scientist_action_queue?: ScientistActionQueueSummary | null;
@@ -1350,6 +1430,7 @@ export type WorkstationSummary = {
   scientist_situation_model?: ScientistSituationModelSummary;
   scientist_turn_plan?: ScientistTurnPlanSummary;
   scientist_terminal_turn?: ScientistTerminalTurnSummary;
+  scientist_reasoning_synthesis?: ScientistReasoningSynthesisSummary;
   scientist_workplan?: ScientistWorkplanSummary;
   scientist_repair_plan?: ScientistRepairPlanSummary;
   scientist_execution_contract?: ScientistExecutionContractSummary;

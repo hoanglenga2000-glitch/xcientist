@@ -663,6 +663,8 @@ type ScientistToolBudgetView = {
   requested_max_tools?: number;
   effective_max_tools?: number;
   executed_tool_count?: number;
+  context_packet_auto_executed?: boolean;
+  reasoning_synthesis_auto_executed?: boolean;
   must_run_deferred_count?: number;
 };
 
@@ -744,6 +746,70 @@ type ScientistTerminalTurnToolView = {
   message?: string;
 };
 
+type ScientistReasoningHypothesisView = {
+  id?: string;
+  title?: string;
+  mechanism?: string;
+  falsifiable_prediction?: string;
+  experiment?: string;
+  success_threshold?: string;
+  disconfirming_result?: string;
+  evidence_strength?: string;
+  risk?: string;
+  cost?: string;
+  expected_value?: string;
+};
+
+type ScientistReasoningSynthesisView = {
+  present?: boolean;
+  ok?: boolean;
+  reasoning_mode?: string;
+  direct_answer?: string;
+  hypotheses?: ScientistReasoningHypothesisView[];
+  comparison?: Array<Record<string, unknown>>;
+  selected_hypothesis_id?: string;
+  selected_rationale?: string;
+  next_safe_action?: {
+    action?: string;
+    command?: string;
+    gate?: string;
+    expected_evidence?: string[];
+  };
+  claim_boundaries?: string[];
+  answer_markdown?: string;
+  reasoning_quality?: {
+    score?: number;
+    status?: string;
+    hypotheses_requested?: number;
+    hypotheses_produced?: number;
+    complete_falsifiable_hypotheses?: number;
+    missing_contract_items?: string[];
+  };
+  llm?: {
+    used?: boolean;
+    provider?: string;
+    model?: string;
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_read_tokens?: number;
+    error?: string;
+  };
+  cache_hit?: boolean;
+  cache_stats?: {
+    requests?: number;
+    hits?: number;
+    misses?: number;
+    hit_ratio?: number;
+    last_result?: string;
+  };
+  cache_stats_path?: string;
+  epistemic_status?: string;
+  artifact_path?: string;
+  markdown_artifact_path?: string;
+  no_training_started?: boolean;
+  official_submit?: string;
+};
+
 type ScientistTerminalTurnView = {
   present?: boolean;
   ok?: boolean;
@@ -768,6 +834,9 @@ type ScientistTerminalTurnView = {
   execution_ready?: boolean;
   execution_blocked?: boolean;
   blocking_gates?: string[];
+  reasoning_synthesis?: ScientistReasoningSynthesisView;
+  answer_markdown?: string;
+  reasoning_quality?: ScientistReasoningSynthesisView["reasoning_quality"];
   artifacts?: string[];
   artifact_path?: string;
   no_training_started?: boolean;
@@ -1645,6 +1714,7 @@ export function AiControlConsole({
   const [scientistExperimentBlueprint, setScientistExperimentBlueprint] = useState<ScientistExperimentBlueprintView | null>(null);
   const [scientistSituationModel, setScientistSituationModel] = useState<ScientistSituationModelView | null>(null);
   const [scientistTerminalTurn, setScientistTerminalTurn] = useState<ScientistTerminalTurnView | null>(null);
+  const [scientistReasoningSynthesis, setScientistReasoningSynthesis] = useState<ScientistReasoningSynthesisView | null>(null);
   const [scientistTurnPlan, setScientistTurnPlan] = useState<ScientistTurnPlanView | null>(null);
   const [scientistWorkplan, setScientistWorkplan] = useState<ScientistWorkplanView | null>(null);
   const [scientistRepairPlan, setScientistRepairPlan] = useState<ScientistRepairPlanView | null>(null);
@@ -1837,9 +1907,17 @@ export function AiControlConsole({
     api.getScientistTurn()
       .then((payload) => {
         if (alive) setScientistTerminalTurn(payload.scientist_terminal_turn ?? null);
+        if (alive) {
+          setScientistReasoningSynthesis(
+            (payload.scientist_reasoning_synthesis as ScientistReasoningSynthesisView | null | undefined)
+            ?? payload.scientist_terminal_turn?.reasoning_synthesis
+            ?? null
+          );
+        }
       })
       .catch(() => {
         if (alive) setScientistTerminalTurn(null);
+        if (alive) setScientistReasoningSynthesis(null);
       });
     return () => {
       alive = false;
@@ -1858,7 +1936,12 @@ export function AiControlConsole({
     if (payload.scientist_turns) setScientistTurns(payload.scientist_turns);
     const latestTerminalTurn = payload.scientist_terminal_turn
       ?? (payload.scientist_stream?.latest_terminal_turn as ScientistTerminalTurnView | undefined);
-    if (latestTerminalTurn) setScientistTerminalTurn(latestTerminalTurn);
+    if (latestTerminalTurn) {
+      setScientistTerminalTurn(latestTerminalTurn);
+      if (latestTerminalTurn.reasoning_synthesis) {
+        setScientistReasoningSynthesis(latestTerminalTurn.reasoning_synthesis);
+      }
+    }
     if (payload.scientist_autopilot_status) setScientistAutopilotStatus(payload.scientist_autopilot_status);
     if (transport) updateScientistStreamTransport(transport);
   }
@@ -2185,6 +2268,11 @@ export function AiControlConsole({
       if (data?.scientist_experiment_blueprint) setScientistExperimentBlueprint(data.scientist_experiment_blueprint as ScientistExperimentBlueprintView);
       if (data?.scientist_situation_model) setScientistSituationModel(data.scientist_situation_model as ScientistSituationModelView);
       if (data?.scientist_terminal_turn) setScientistTerminalTurn(data.scientist_terminal_turn as ScientistTerminalTurnView);
+      if (data?.scientist_reasoning_synthesis) {
+        setScientistReasoningSynthesis(data.scientist_reasoning_synthesis as ScientistReasoningSynthesisView);
+      } else if ((data?.scientist_terminal_turn as ScientistTerminalTurnView | undefined)?.reasoning_synthesis) {
+        setScientistReasoningSynthesis((data?.scientist_terminal_turn as ScientistTerminalTurnView).reasoning_synthesis ?? null);
+      }
       if (data?.scientist_turn_plan) setScientistTurnPlan(data.scientist_turn_plan as ScientistTurnPlanView);
       if (data?.scientist_step_trace) setScientistStepTrace(data.scientist_step_trace as ScientistStepTraceView);
       setLastResult({
@@ -2479,6 +2567,11 @@ export function AiControlConsole({
         4
       );
       setScientistTerminalTurn(result.scientist_terminal_turn ?? null);
+      setScientistReasoningSynthesis(
+        (result.scientist_reasoning_synthesis as ScientistReasoningSynthesisView | null | undefined)
+        ?? result.scientist_terminal_turn?.reasoning_synthesis
+        ?? null
+      );
       if (result.scientist_context_packet) setScientistContextPacket(result.scientist_context_packet);
       if (result.scientist_strategy_optimizer) setScientistStrategyOptimizer(result.scientist_strategy_optimizer);
       if (result.scientist_action_queue) setScientistActionQueue(result.scientist_action_queue);
@@ -2649,6 +2742,10 @@ export function AiControlConsole({
   const terminalTurnTools = scientistTerminalTurn?.executed_tools ?? [];
   const terminalTurnBlockers = scientistTerminalTurn?.blocking_gates ?? [];
   const terminalTurnArtifacts = scientistTerminalTurn?.artifacts ?? [];
+  const reasoningSynthesis = scientistReasoningSynthesis ?? scientistTerminalTurn?.reasoning_synthesis ?? null;
+  const reasoningHypotheses = reasoningSynthesis?.hypotheses ?? [];
+  const reasoningQuality = reasoningSynthesis?.reasoning_quality;
+  const reasoningNextAction = reasoningSynthesis?.next_safe_action;
   const terminalTurnStatus = scientistTerminalTurn?.execution_blocked
     ? "blocked"
     : scientistTerminalTurn?.execution_ready
@@ -2847,6 +2944,96 @@ export function AiControlConsole({
                 <div className="text-xs text-slate-400">{tx(locale, "Run an AI Scientist turn to derive the requirement ledger.", "运行一次 AI Scientist 回合以生成需求闭环清单。")}</div>
               )}
             </div>
+          </div>
+          <div className="lg:col-span-2 rounded-md border border-emerald-200 bg-emerald-50/50 p-3">
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <div className="text-xs font-bold uppercase text-emerald-800">
+                  {tx(locale, "Evidence-Grounded Scientist Answer", "基于证据的科学家回答")}
+                </div>
+                <div className="mt-1 text-xs leading-5 text-slate-600">
+                  {tx(
+                    locale,
+                    "Answers the requested research question after tool use, then records falsifiable hypotheses, comparison, selection rationale, and the next gated action.",
+                    "工具调用完成后直接回答研究问题，并记录可证伪假设、对比、选择理由和下一步受控动作。"
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge tone={(reasoningQuality?.score ?? 0) >= 85 ? "green" : (reasoningQuality?.score ?? 0) >= 70 ? "amber" : "red"}>
+                  {reasoningQuality?.status ?? "not_run"} · {reasoningQuality?.score ?? 0}
+                </StatusBadge>
+                <StatusBadge tone={reasoningSynthesis?.llm?.used ? "blue" : "slate"}>
+                  {reasoningSynthesis?.llm?.model ?? "deterministic fallback"}
+                </StatusBadge>
+              </div>
+            </div>
+            {reasoningSynthesis ? (
+              <div className="space-y-3">
+                <div className="rounded-md border border-white bg-white p-3 text-sm leading-6 text-slate-800">
+                  {reasoningSynthesis.direct_answer || tx(locale, "No direct answer was produced.", "尚未生成直接回答。")}
+                </div>
+                <div className="grid gap-3 xl:grid-cols-[1.45fr_0.55fr]">
+                  <div className="grid gap-2 md:grid-cols-3">
+                    {reasoningHypotheses.slice(0, 6).map((hypothesis, index) => (
+                      <div key={`${hypothesis.id ?? "hypothesis"}-${index}`} className="min-w-0 rounded-md border border-emerald-100 bg-white p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <div className="font-mono text-[11px] font-bold text-emerald-700">{hypothesis.id ?? `H${index + 1}`}</div>
+                            <div className="mt-1 text-sm font-bold text-slate-900">{hypothesis.title ?? "Untitled hypothesis"}</div>
+                          </div>
+                          <StatusBadge tone={hypothesis.risk === "high" ? "red" : hypothesis.risk === "medium" ? "amber" : "green"}>
+                            {hypothesis.risk ?? "unknown"}
+                          </StatusBadge>
+                        </div>
+                        <div className="mt-2 text-xs leading-5 text-slate-600">{hypothesis.mechanism ?? ""}</div>
+                        <div className="mt-2 rounded border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-900">
+                          <span className="font-bold">{tx(locale, "Prediction", "可证伪预测")}:</span> {hypothesis.falsifiable_prediction ?? ""}
+                        </div>
+                        <div className="mt-2 rounded border border-red-100 bg-red-50 p-2 text-xs leading-5 text-red-800">
+                          <span className="font-bold">{tx(locale, "Reject when", "否证条件")}:</span> {hypothesis.disconfirming_result ?? ""}
+                        </div>
+                        <div className="mt-2 text-[11px] text-slate-500">
+                          evidence={hypothesis.evidence_strength ?? "unknown"} · cost={hypothesis.cost ?? "unknown"} · value={hypothesis.expected_value ?? "unknown"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-md border border-emerald-100 bg-white p-3">
+                    <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Decision", "科研决策")}</div>
+                    <div className="mt-2 font-mono text-sm font-bold text-emerald-800">
+                      {reasoningSynthesis.selected_hypothesis_id ?? "(none)"}
+                    </div>
+                    <div className="mt-2 text-xs leading-5 text-slate-700">
+                      {reasoningSynthesis.selected_rationale ?? ""}
+                    </div>
+                    <div className="mt-3 border-t border-slate-100 pt-3">
+                      <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Next Safe Action", "下一步安全动作")}</div>
+                      <div className="mt-2 text-xs leading-5 text-slate-700">{reasoningNextAction?.action ?? ""}</div>
+                      <div className="mt-2 break-all rounded bg-slate-950 px-2 py-2 font-mono text-xs text-white">
+                        {reasoningNextAction?.command ?? "evomind briefing"}
+                      </div>
+                      <div className="mt-2 break-all font-mono text-[11px] text-amber-700">
+                        gate={reasoningNextAction?.gate ?? "unknown"}
+                      </div>
+                    </div>
+                    <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                      hypotheses={reasoningQuality?.hypotheses_produced ?? 0}/{reasoningQuality?.hypotheses_requested ?? 0}
+                      {" · "}falsifiable={reasoningQuality?.complete_falsifiable_hypotheses ?? 0}
+                      {" · "}cache={reasoningSynthesis.cache_hit ? "hit" : "miss"}
+                      {" · "}ratio={Math.round((reasoningSynthesis.cache_stats?.hit_ratio ?? 0) * 100)}%
+                    </div>
+                    <div className="mt-2 break-all font-mono text-[10px] text-slate-500">
+                      {reasoningSynthesis.artifact_path ?? ".xsci/scientist_reasoning_synthesis.json"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded border border-dashed border-emerald-200 bg-white/70 p-3 text-xs text-slate-500">
+                {tx(locale, "Run a Scientist Turn to generate the evidence-grounded answer.", "运行一次科学家回合以生成基于证据的研究回答。")}
+              </div>
+            )}
           </div>
           <div className="lg:col-span-2 rounded-md border border-indigo-100 bg-indigo-50/60 p-3">
             <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">

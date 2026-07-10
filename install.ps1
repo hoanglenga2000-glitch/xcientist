@@ -23,7 +23,11 @@ try {
 }
 $Root = Split-Path -Parent $PSCommandPath
 $Web = Join-Path $Root "web\research-agent-workstation"
-$ShimDir = Join-Path $env:USERPROFILE ".xsci\bin"
+$ShimDir = if ($env:XSCI_SHIM_DIR) {
+  $env:XSCI_SHIM_DIR
+} else {
+  Join-Path $env:USERPROFILE ".xsci\bin"
+}
 $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
 
 function Write-Step([string]$Text) {

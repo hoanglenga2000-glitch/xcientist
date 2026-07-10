@@ -638,18 +638,125 @@ def _memory_schema_record(
     }
 
 
-def _innovation_source_records(root: Path, task_type: str) -> dict[str, Any]:
+def _memory_relevance(record: dict[str, Any], task: dict[str, Any]) -> tuple[int, list[str]]:
+    profile = record.get("dataset_profile") if isinstance(record.get("dataset_profile"), dict) else {}
+    task_slug = str(task.get("task_slug") or "").strip().lower().replace("_", "-")
+    record_slug = str(
+        profile.get("task_slug")
+        or record.get("task")
+        or record.get("task_id")
+        or record.get("task_name")
+        or ""
+    ).strip().lower().replace("_", "-")
+    task_type = str(task.get("task_type") or "").strip().lower()
+    record_type = str(record.get("task_type") or profile.get("task_type") or "").strip().lower()
+    modality = str(task.get("modality") or "").strip().lower()
+    record_modality = str(profile.get("modality") or record.get("modality") or "").strip().lower()
+    metric = str(task.get("metric") or "").strip().lower()
+    record_metric = str(profile.get("metric") or record.get("metric") or "").strip().lower()
+
+    score = 0
+    reasons: list[str] = []
+    if task_slug and record_slug == task_slug:
+        score += 70
+        reasons.append("same_task")
+    elif task_slug and record_slug and (task_slug in record_slug or record_slug in task_slug):
+        score += 50
+        reasons.append("task_slug_overlap")
+    if task_type and record_type == task_type:
+        score += 20
+        reasons.append("same_task_type")
+    if modality and record_modality == modality:
+        score += 15
+        reasons.append("same_modality")
+    if metric and record_metric == metric:
+        score += 10
+        reasons.append("same_metric")
+    if not record_slug and not record_modality:
+        score += 4
+        reasons.append("generic_record")
+
+    method_text = " ".join(
+        str(record.get(field) or "")
+        for field in ("method", "reusable_strategy", "what_worked", "hypothesis")
+    ).lower()
+    incompatible_markers = {
+        "tabular": ("rna", "base-pair", "tf-idf", "essay", "tokenizer", "image augmentation", "backbone"),
+        "image": ("tf-idf", "target encoding", "lag feature", "rna"),
+        "text": ("image augmentation", "lag feature", "rna base-pair"),
+        "time_series": ("tf-idf", "image augmentation", "rna base-pair"),
+    }
+    modality_key = (
+        "time_series"
+        if "time" in modality or "forecast" in task_type
+        else "image"
+        if "image" in modality or "vision" in modality
+        else "text"
+        if "text" in modality or "nlp" in modality
+        else "tabular"
+    )
+    if record_slug != task_slug and any(marker in method_text for marker in incompatible_markers[modality_key]):
+        score -= 60
+        reasons.append("cross_modality_method_penalty")
+    return score, reasons
+
+
+def _record_matches_selected_task(record: dict[str, Any], task_slug: str) -> bool:
+    if not task_slug:
+        return True
+    record_task = str(
+        record.get("task")
+        or record.get("task_id")
+        or record.get("selected_task")
+        or ""
+    ).strip().lower().replace("_", "-")
+    if not record_task:
+        return True
+    expected = task_slug.strip().lower().replace("_", "-")
+    return record_task == expected or record_task in expected or expected in record_task
+
+
+def _innovation_source_records(root: Path, task: dict[str, Any]) -> dict[str, Any]:
     xsci = root / ".xsci"
     memory_path = root / "experiments" / "evolution" / "retrospective_memory.json"
     memory_records = _memory_records_from_payload(_read_json_payload(memory_path))
+    task_type = str(task.get("task_type") or "")
+    task_slug = str(task.get("task_slug") or "")
     same_type = [
         item for item in memory_records
         if not task_type or str(item.get("task_type") or "").lower() == task_type.lower()
     ]
-    if same_type:
-        selected_memory = same_type[-30:]
-    else:
-        selected_memory = memory_records[-30:]
+    ranked_memory: list[tuple[int, int, dict[str, Any], list[str]]] = []
+    for index, item in enumerate(memory_records):
+        score, reasons = _memory_relevance(item, task)
+        ranked_memory.append((score, index, item, reasons))
+    ranked_memory.sort(key=lambda row: (-row[0], -row[1]))
+    selected_memory: list[dict[str, Any]] = []
+    for score, _, item, reasons in ranked_memory:
+        if score < 20:
+            continue
+        enriched = dict(item)
+        enriched["_memory_relevance"] = {"score": score, "reasons": reasons}
+        selected_memory.append(enriched)
+        if len(selected_memory) >= 30:
+            break
+    if not selected_memory:
+        selected_memory = same_type[-12:] if same_type else memory_records[-8:]
+
+    def filtered_tail(name: str, limit: int) -> list[dict[str, Any]]:
+        records = _read_jsonl_tail(xsci / name, limit=limit * 3)
+        return [
+            record
+            for record in records
+            if isinstance(record, dict) and _record_matches_selected_task(record, task_slug)
+        ][-limit:]
+
+    autopilot = _read_json_artifact(xsci / "scientist_autopilot.json")
+    if isinstance(autopilot, dict) and not _record_matches_selected_task(autopilot, task_slug):
+        autopilot = None
+    workplan = _read_json_artifact(xsci / "scientist_workplan.json")
+    if isinstance(workplan, dict) and not _record_matches_selected_task(workplan, task_slug):
+        workplan = None
 
     return {
         "retrospective_memory": {
@@ -657,26 +764,33 @@ def _innovation_source_records(root: Path, task_type: str) -> dict[str, Any]:
             "records": selected_memory,
             "total_records": len(memory_records),
             "matched_task_type_records": len(same_type),
+            "relevant_records": len(selected_memory),
+            "exact_task_records": sum(
+                1
+                for item in selected_memory
+                if "same_task" in ((item.get("_memory_relevance") or {}).get("reasons") or [])
+            ),
+            "rejected_irrelevant_records": max(0, len(memory_records) - len(selected_memory)),
         },
         "loop_lessons": {
             "path": str(xsci / "scientist_loop_lessons.jsonl"),
-            "records": _read_jsonl_tail(xsci / "scientist_loop_lessons.jsonl", limit=40),
+            "records": filtered_tail("scientist_loop_lessons.jsonl", 40),
         },
         "turns": {
             "path": str(xsci / "scientist_turns.jsonl"),
-            "records": _read_jsonl_tail(xsci / "scientist_turns.jsonl", limit=30),
+            "records": filtered_tail("scientist_turns.jsonl", 30),
         },
         "steps": {
             "path": str(xsci / "scientist_step_trace.jsonl"),
-            "records": _read_jsonl_tail(xsci / "scientist_step_trace.jsonl", limit=40),
+            "records": filtered_tail("scientist_step_trace.jsonl", 40),
         },
         "autopilot": {
             "path": str(xsci / "scientist_autopilot.json"),
-            "record": _read_json_artifact(xsci / "scientist_autopilot.json"),
+            "record": autopilot,
         },
         "workplan": {
             "path": str(xsci / "scientist_workplan.json"),
-            "record": _read_json_artifact(xsci / "scientist_workplan.json"),
+            "record": workplan,
         },
     }
 
@@ -932,7 +1046,7 @@ def _build_current_memory_reuse_plan(session: SessionState, root: Path) -> dict[
     modality = str(task.get("modality") or "tabular")
     metric = str(task.get("metric") or "accuracy")
     defaults = _default_strategy_components(task_type, modality, metric)
-    sources = _innovation_source_records(root, task_type)
+    sources = _innovation_source_records(root, task)
     components, _ = _collect_strategy_signals(sources, defaults)
     if len(components) < 4:
         components = list(dict.fromkeys([*components, *defaults]))
@@ -1350,7 +1464,7 @@ def get_scientist_innovation_backlog(session: SessionState, root: Path) -> dict[
     metric = str(task.get("metric") or "accuracy")
     metric_direction = str(task.get("metric_direction") or "maximize")
     defaults = _default_strategy_components(task_type, modality, metric)
-    sources = _innovation_source_records(root, task_type)
+    sources = _innovation_source_records(root, task)
     components, evidence = _collect_strategy_signals(sources, defaults)
     if len(components) < 4:
         components = list(dict.fromkeys([*components, *defaults]))
@@ -1434,6 +1548,9 @@ def get_scientist_innovation_backlog(session: SessionState, root: Path) -> dict[
     memory_summary = {
         "retrospective_memory_records": sources["retrospective_memory"]["total_records"],
         "matched_task_type_records": sources["retrospective_memory"]["matched_task_type_records"],
+        "task_relevant_records": sources["retrospective_memory"].get("relevant_records", 0),
+        "exact_task_records": sources["retrospective_memory"].get("exact_task_records", 0),
+        "rejected_irrelevant_records": sources["retrospective_memory"].get("rejected_irrelevant_records", 0),
         "loop_lessons": len(sources["loop_lessons"]["records"]),
         "turns_considered": len(sources["turns"]["records"]),
         "step_events_considered": len(sources["steps"]["records"]),
@@ -2538,6 +2655,8 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     innovation = _read_json_artifact(xsci / "innovation_log.json")
     hypothesis_review = _read_json_artifact(xsci / "scientist_hypothesis_review.json")
     experiment_blueprint = _read_json_artifact(xsci / "scientist_experiment_blueprint.json")
+    reasoning_synthesis = _read_json_artifact(xsci / "scientist_reasoning_synthesis.json")
+    reasoning_cache_stats = _read_json_artifact(xsci / "scientist_reasoning_cache_stats_llm.json")
     turns = _read_jsonl_tail(xsci / "scientist_turns.jsonl", limit=80)
     steps = _read_jsonl_tail(xsci / "scientist_step_trace.jsonl", limit=120)
     lessons = _read_jsonl_tail(xsci / "scientist_loop_lessons.jsonl", limit=80)
@@ -2685,6 +2804,33 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     memory_reuse_ready = _memory_reuse_plan_has_content(active_memory_reuse_plan)
     memory_reuse_rule_count = len(active_memory_reuse_plan.get("reuse_rules") or []) if isinstance(active_memory_reuse_plan, dict) else 0
     memory_reuse_avoid_count = len(active_memory_reuse_plan.get("avoid_patterns") or []) if isinstance(active_memory_reuse_plan, dict) else 0
+    reasoning_quality = (
+        reasoning_synthesis.get("reasoning_quality")
+        if isinstance(reasoning_synthesis, dict) and isinstance(reasoning_synthesis.get("reasoning_quality"), dict)
+        else {}
+    )
+    reasoning_quality_score = int(reasoning_quality.get("score") or 0)
+    reasoning_checks = reasoning_quality.get("checks") if isinstance(reasoning_quality.get("checks"), dict) else {}
+    reasoning_hypotheses = (
+        reasoning_synthesis.get("hypotheses")
+        if isinstance(reasoning_synthesis, dict) and isinstance(reasoning_synthesis.get("hypotheses"), list)
+        else []
+    )
+    reasoning_next_action = (
+        reasoning_synthesis.get("next_safe_action")
+        if isinstance(reasoning_synthesis, dict) and isinstance(reasoning_synthesis.get("next_safe_action"), dict)
+        else {}
+    )
+    reasoning_cache_ratio = (
+        float(reasoning_cache_stats.get("hit_ratio") or 0.0)
+        if isinstance(reasoning_cache_stats, dict)
+        else 0.0
+    )
+    reasoning_cache_requests = (
+        int(reasoning_cache_stats.get("requests") or 0)
+        if isinstance(reasoning_cache_stats, dict)
+        else 0
+    )
 
     capabilities = [
         _score_capability("context_recovery", [
@@ -2740,6 +2886,16 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             ("execute/readiness mode is explicit", 5, isinstance(autopilot, dict) and bool(autopilot.get("mode"))),
             ("hard setup gates are clear before training", 5, not hard_setup_blocked),
         ]),
+        _score_capability("scientific_reasoning_quality", [
+            ("reasoning synthesis artifact exists", 10, isinstance(reasoning_synthesis, dict)),
+            ("latest turn directly answers the research question", 15, bool(reasoning_synthesis.get("direct_answer")) if isinstance(reasoning_synthesis, dict) else False),
+            ("reasoning contract score is strong", 20, reasoning_quality_score >= 85),
+            ("requested hypotheses are complete and falsifiable", 20, bool(reasoning_checks.get("hypothesis_count")) and bool(reasoning_checks.get("falsifiability"))),
+            ("evidence/risk/cost comparison is present", 10, bool(reasoning_checks.get("comparison"))),
+            ("a hypothesis is selected with rationale", 10, bool(reasoning_synthesis.get("selected_hypothesis_id")) and bool(reasoning_synthesis.get("selected_rationale")) if isinstance(reasoning_synthesis, dict) else False),
+            ("next action is explicit and gated", 10, bool(reasoning_next_action.get("command")) and bool(reasoning_next_action.get("gate"))),
+            ("reasoning cache hit ratio is at least 80 percent", 5, reasoning_cache_requests >= 5 and reasoning_cache_ratio >= 0.8),
+        ]),
         _score_capability("capability_gap_management", [
             ("self-audit artifact is generated now", 20, True),
             ("upgrade backlog is generated now", 20, True),
@@ -2753,7 +2909,8 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             ("act: safe next action queue exists", 10, isinstance(next_action, dict) or len(action_items) > 0),
             ("reflect: loop lessons and retrospective memory exist", 10, len(lessons) > 0 and memory_records > 0),
             ("improve: active memory reuse and tried innovations exist", 10, memory_reuse_ready and innovation_tried > 0),
-            ("parity lifecycle records cover observe-plan-act-reflect-improve", 20, completed_parity_records > 0),
+            ("parity lifecycle records cover observe-plan-act-reflect-improve", 10, completed_parity_records > 0),
+            ("behavioral reasoning contract is strong", 10, reasoning_quality_score >= 85),
             ("surface: frontend exposes self-audit and upgrade-plan controls", 10, "scientist_self_audit" in ui_console_text and "scientist_upgrade_plan" in ui_console_text),
             ("execute: compute/data gates are either clear or hard-blocked with a contract", 20, runtime_execution_ready or setup_gate_enforced),
         ]),
@@ -2837,6 +2994,19 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "evomind contract",
             [".xsci/scientist_execution_contract.json", ".xsci/scientist_action_queue.json"],
         )
+    if any(gap["capability"] == "scientific_reasoning_quality" for gap in gaps):
+        add_backlog(
+            "evidence_grounded_reasoning_synthesis",
+            "Make every Scientist turn directly satisfy the user's scientific deliverables",
+            "P0",
+            "Tool traces and gates do not prove intelligence unless the turn produces a direct, falsifiable, evidence-grounded answer.",
+            "evomind ask \"analyze the current task and propose falsifiable hypotheses\"",
+            [
+                ".xsci/scientist_reasoning_synthesis.json",
+                ".xsci/scientist_reasoning_synthesis.md",
+                ".xsci/scientist_reasoning_history.jsonl",
+            ],
+        )
     if hard_setup_blocked or gpu_blocked:
         add_backlog(
             "resource_gate_truthfulness",
@@ -2912,6 +3082,19 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "active_memory_reuse_plan": memory_reuse_ready,
             "upgrade_plan_route_present": upgrade_plan_route.exists(),
             "upgrade_plan_ui_present": "scientist_upgrade_plan" in ui_console_text,
+        },
+        "reasoning_synthesis": {
+            "path": str(xsci / "scientist_reasoning_synthesis.json"),
+            "markdown_path": str(xsci / "scientist_reasoning_synthesis.md"),
+            "present": isinstance(reasoning_synthesis, dict),
+            "quality_score": reasoning_quality_score,
+            "quality_status": reasoning_quality.get("status") if isinstance(reasoning_quality, dict) else "",
+            "hypotheses": len(reasoning_hypotheses),
+            "selected_hypothesis_id": reasoning_synthesis.get("selected_hypothesis_id") if isinstance(reasoning_synthesis, dict) else "",
+            "next_safe_command": reasoning_next_action.get("command") if isinstance(reasoning_next_action, dict) else "",
+            "cache_stats_path": str(xsci / "scientist_reasoning_cache_stats_llm.json"),
+            "cache_requests": reasoning_cache_requests,
+            "cache_hit_ratio": reasoning_cache_ratio,
         },
     }
     next_safe_commands = [
@@ -4612,7 +4795,19 @@ def get_scientist_context_packet(session: SessionState, root: Path) -> dict[str,
     memory_path = root / "experiments" / "evolution" / "retrospective_memory.json"
     memory_records = _memory_records_from_payload(_read_json_payload(memory_path))
     recent_lessons: list[str] = []
-    for record in memory_records[-8:]:
+    ranked_memory = sorted(
+        (
+            (*_memory_relevance(record, task_profile), index, record)
+            for index, record in enumerate(memory_records)
+        ),
+        key=lambda row: (-row[0], -row[2]),
+    )
+    relevant_memory_records = [
+        record
+        for score, _, _, record in ranked_memory
+        if score >= 20
+    ][:12]
+    for record in relevant_memory_records:
         lesson = _redacted_memory_text(
             record.get("reusable_strategy") or record.get("what_worked") or record.get("failure_pattern") or "",
             limit=220,
@@ -4627,11 +4822,13 @@ def get_scientist_context_packet(session: SessionState, root: Path) -> dict[str,
         "scientist_memory_records_total": memory_consolidation.get("records_total"),
         "scientist_memory_artifact_path": memory_consolidation.get("artifact_path") or "",
         "recent_lessons": recent_lessons[:5],
+        "task_relevant_records": len(relevant_memory_records),
     }
 
     artifact_names = [
         "scientist_turn_plan.json",
         "scientist_terminal_turn.json",
+        "scientist_reasoning_synthesis.json",
         "scientist_situation_model.json",
         "scientist_strategy_optimizer.json",
         "scientist_action_queue.json",

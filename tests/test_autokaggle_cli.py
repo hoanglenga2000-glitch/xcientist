@@ -3424,6 +3424,9 @@ def test_ask_command_json_returns_machine_readable_result(isolated_autokaggle, m
     assert payload["parity_lifecycle"]["schema"] == "evomind.ai_scientist.parity_lifecycle.v1"
     assert payload["parity_loop_artifact"].endswith(".xsci\\scientist_parity_loop.jsonl") or payload["parity_loop_artifact"].endswith(".xsci/scientist_parity_loop.jsonl")
     assert [item["phase"] for item in payload["parity_lifecycle"]["phases"]] == ["observe", "plan", "act", "reflect", "improve"]
+    assert payload["scientist_reasoning_synthesis"]["reasoning_quality"]["score"] >= 70
+    assert payload["answer_markdown"]
+    assert payload["tool_budget"]["reasoning_synthesis_auto_executed"] is True
     assert payload["no_training_started"] is True
     assert payload["official_submit"] == "blocked_until_explicit_human_approval"
     assert payload["artifacts"]
@@ -3737,9 +3740,13 @@ def test_ask_json_respects_explicit_small_budget_and_records_deferred_tools(isol
     assert payload["parity_lifecycle"]["budget_exhausted"] is True
     assert payload["deferred_tools"]
     assert "scientist_context_packet" in executed
-    budgeted_executed = [tool for tool in executed if tool != "scientist_context_packet"]
+    budgeted_executed = [
+        tool for tool in executed
+        if tool not in {"scientist_context_packet", "scientist_reasoning_synthesis"}
+    ]
     assert len(budgeted_executed) == 2
     assert payload["tool_budget"]["context_packet_auto_executed"] is True
+    assert payload["tool_budget"]["reasoning_synthesis_auto_executed"] is True
     assert "scientist_autopilot" in payload["deferred_tools"]
     small_budget_requirements = {
         item["id"]: item
@@ -4575,3 +4582,94 @@ def test_auto_repair_diagnosis_for_all_patterns(isolated_autokaggle):
         assert diag.failure_pattern, f"No pattern for: {error}"
         # Every pattern must have a repair strategy
         assert diag.repair_strategy, f"No strategy for pattern: {diag.failure_pattern}"
+
+
+def test_negated_training_request_routes_to_planning():
+    goal = (
+        "\u4e0d\u8981\u5f00\u59cb\u8bad\u7ec3\uff0c\u53ea\u5206\u6790\u5f53\u524d\u8bc1\u636e"
+        "\u5e76\u63d0\u51fa\u4e09\u4e2a\u53ef\u8bc1\u4f2a\u5047\u8bbe"
+    )
+    assert ki.classify(goal).kind == ki.PLANNING
+    assert ki.classify("\u73b0\u5728\u5f00\u59cb\u8bad\u7ec3").kind == ki.EXECUTION
+
+
+def test_reasoning_synthesis_fulfills_falsifiable_hypothesis_contract(isolated_autokaggle):
+    from xsci.scientist_reasoning import build_scientist_reasoning_synthesis
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "house-prices"
+    state.llm_ready = False
+    goal = (
+        "\u4e0d\u8981\u5f00\u59cb\u8bad\u7ec3\uff0c\u53ea\u5206\u6790\u5f53\u524d\u8bc1\u636e\uff0c"
+        "\u63d0\u51fa\u4e09\u4e2a\u53ef\u8bc1\u4f2a\u5047\u8bbe\uff0c"
+        "\u6bd4\u8f83\u8bc1\u636e\u3001\u98ce\u9669\u548c\u6210\u672c\uff0c"
+        "\u9009\u62e9\u4e0b\u4e00\u6b65\u5b89\u5168\u52a8\u4f5c\u3002"
+    )
+    evidence = {
+        "task_profile": {
+            "task_slug": "house-prices",
+            "task_type": "regression",
+            "modality": "tabular",
+            "metric": "rmse",
+            "target_column": "SalePrice",
+        },
+        "readiness": {"blocking_gates": ["gpu gate blocked"]},
+    }
+    result = build_scientist_reasoning_synthesis(
+        state,
+        root,
+        goal=goal,
+        evidence=evidence,
+    )
+    cached = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=evidence)
+
+    assert result["reasoning_quality"]["score"] >= 85
+    assert result["reasoning_quality"]["hypotheses_requested"] == 3
+    assert result["reasoning_quality"]["complete_falsifiable_hypotheses"] >= 3
+    assert len(result["hypotheses"]) >= 3
+    assert all(item["disconfirming_result"] for item in result["hypotheses"][:3])
+    assert result["next_safe_action"]["command"] == "evomind repair"
+    assert result["no_training_started"] is True
+    assert result["official_submit"] == "blocked_until_explicit_human_approval"
+    assert cached["cache_hit"] is True
+    assert cached["cache_stats"]["hits"] >= 1
+    assert cached["cache_stats"]["hit_ratio"] > 0
+    assert (root / ".xsci" / "scientist_reasoning_synthesis.json").exists()
+    assert (root / ".xsci" / "scientist_reasoning_synthesis.md").exists()
+    assert (root / ".xsci" / "scientist_reasoning_cache_stats_deterministic.json").exists()
+
+
+def test_memory_relevance_prefers_same_task_and_penalizes_cross_modality():
+    from xsci.terminal_tools import _memory_relevance
+
+    task = {
+        "task_slug": "house-prices",
+        "task_type": "regression",
+        "modality": "tabular",
+        "metric": "rmse",
+    }
+    same_task = {
+        "task_type": "regression",
+        "dataset_profile": {
+            "task_slug": "house-prices",
+            "modality": "tabular",
+            "metric": "rmse",
+        },
+        "reusable_strategy": "log1p target and leakage-safe OOF blend",
+    }
+    cross_task = {
+        "task_type": "regression",
+        "dataset_profile": {
+            "task_slug": "stanford-covid-vaccine",
+            "modality": "sequence",
+            "metric": "mcrmse",
+        },
+        "reusable_strategy": "RNA base-pair features and sequence window expansion",
+    }
+
+    same_score, same_reasons = _memory_relevance(same_task, task)
+    cross_score, cross_reasons = _memory_relevance(cross_task, task)
+    assert same_score > cross_score
+    assert "same_task" in same_reasons
+    assert "cross_modality_method_penalty" in cross_reasons

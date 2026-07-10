@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 const execFileAsync = promisify(execFile);
 const terminalTurnPath = ".xsci/scientist_terminal_turn.json";
 const contextPacketPath = ".xsci/scientist_context_packet.json";
+const reasoningSynthesisPath = ".xsci/scientist_reasoning_synthesis.json";
 const strategyPath = ".xsci/scientist_strategy_optimizer.json";
 const actionQueuePath = ".xsci/scientist_action_queue.json";
 const stepTracePath = ".xsci/scientist_step_trace.jsonl";
@@ -86,6 +87,7 @@ async function buildPayload(action: string, ok = true, error?: string, cliPayloa
     ...(cliPayload ? { cli_result: sanitizeClientJson(cliPayload) } : {}),
     scientist_terminal_turn: scientistTerminalTurn,
     scientist_turn: scientistTerminalTurn,
+    scientist_reasoning_synthesis: await readJsonArtifact(reasoningSynthesisPath),
     scientist_context_packet: await readJsonArtifact(contextPacketPath),
     scientist_strategy_optimizer: await readJsonArtifact(strategyPath),
     scientist_action_queue: await readJsonArtifact(actionQueuePath),

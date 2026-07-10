@@ -31,6 +31,7 @@ SOURCE_FILES = [
     ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "scientist" / "readiness-report" / "route.ts",
     ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "scientist" / "causal-diagnosis" / "route.ts",
     ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "scientist" / "strategy-optimizer" / "route.ts",
+    ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "scientist" / "turn" / "route.ts",
     ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "literature" / "search" / "route.ts",
     ROOT / "web" / "research-agent-workstation" / "src" / "app" / "api" / "tasks" / "[taskId]" / "generate-report-draft" / "route.ts",
 ]
@@ -69,6 +70,11 @@ SOURCE_TERMS = [
     "科学家策略优化",
     "intervention_ranking",
     "decision_matrix",
+    "scientist_reasoning_synthesis",
+    "Evidence-Grounded Scientist Answer",
+    "基于证据的科学家回答",
+    "reasoning_quality",
+    ".xsci/scientist_reasoning_synthesis.json",
     "scientist_loop",
     "科学家回合账本",
     "科学家步骤轨迹",
@@ -107,6 +113,7 @@ SOURCE_GROUPS = {
     "scientist_readiness_report_api": ["/api/scientist/readiness-report", "scientist_readiness_report", "Scientist Readiness Report"],
     "scientist_causal_diagnosis_api": ["/api/scientist/causal-diagnosis", "scientist_causal_diagnosis", "Scientist Causal Diagnosis"],
     "scientist_strategy_optimizer_api": ["/api/scientist/strategy-optimizer", "scientist_strategy_optimizer", "Scientist Strategy Optimizer"],
+    "scientist_reasoning_synthesis": ["scientist_reasoning_synthesis", "Evidence-Grounded Scientist Answer", "基于证据的科学家回答"],
     "workstation_action_log": ["runWorkstationAction", "metadata: { source:"],
     "report_export": ["exportReport", "exportMarkdown", "导出完整 Markdown"],
     "literature_rag": ["literature_rag", "文献与知识库", "/api/literature/search"],
@@ -116,7 +123,7 @@ SOURCE_GROUPS = {
 
 
 LIVE_HTML_TERMS = ["EvoMind", "_next/static/css"]
-SUMMARY_TERMS = ["Code Agent", "GPU", "Kaggle", "scientist_loop", "scientist_self_audit", "scientist_readiness_report", "scientist_causal_diagnosis", "scientist_strategy_optimizer", "scientist_continuation_status"]
+SUMMARY_TERMS = ["Code Agent", "GPU", "Kaggle", "scientist_loop", "scientist_self_audit", "scientist_readiness_report", "scientist_causal_diagnosis", "scientist_strategy_optimizer", "scientist_reasoning_synthesis", "scientist_continuation_status"]
 SCIENTIST_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_next_action"]
 SCIENTIST_RECOVERY_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_recovery"]
 SCIENTIST_LOOP_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_loop", "scientist_loop_lessons"]
@@ -126,6 +133,7 @@ SCIENTIST_SELF_AUDIT_API_TERMS = ["no_training_started", "blocked_until_explicit
 SCIENTIST_READINESS_REPORT_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_readiness_report", "claim_readiness", "rank_or_medal_claim"]
 SCIENTIST_CAUSAL_DIAGNOSIS_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_causal_diagnosis", "causal_graph", "root_causes"]
 SCIENTIST_STRATEGY_OPTIMIZER_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_strategy_optimizer", "intervention_ranking", "decision_matrix", "rank_or_medal"]
+SCIENTIST_TURN_API_TERMS = ["no_training_started", "blocked_until_explicit_human_approval", "scientist_reasoning_synthesis", "reasoning_quality", "answer_markdown"]
 
 
 def fail(message: str, evidence: dict) -> None:
@@ -263,6 +271,12 @@ def main() -> None:
         if absent_strategy_optimizer_terms:
             fail("Scientist strategy-optimizer API is missing gate/safety markers", {"url": strategy_optimizer_url, "missing_terms": absent_strategy_optimizer_terms})
 
+        scientist_turn_url = f"{origin}/api/scientist/turn"
+        scientist_turn_text = fetch(scientist_turn_url)
+        absent_scientist_turn_terms = missing_terms(SCIENTIST_TURN_API_TERMS, scientist_turn_text)
+        if absent_scientist_turn_terms:
+            fail("Scientist turn API is missing reasoning synthesis markers", {"url": scientist_turn_url, "missing_terms": absent_scientist_turn_terms})
+
         live_result = {
             "url": args.url,
             "origin": origin,
@@ -277,6 +291,7 @@ def main() -> None:
             "scientist_readiness_report_api_terms": SCIENTIST_READINESS_REPORT_API_TERMS,
             "scientist_causal_diagnosis_api_terms": SCIENTIST_CAUSAL_DIAGNOSIS_API_TERMS,
             "scientist_strategy_optimizer_api_terms": SCIENTIST_STRATEGY_OPTIMIZER_API_TERMS,
+            "scientist_turn_api_terms": SCIENTIST_TURN_API_TERMS,
         }
 
     print(json.dumps({

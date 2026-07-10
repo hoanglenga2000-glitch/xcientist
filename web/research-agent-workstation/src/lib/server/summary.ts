@@ -586,6 +586,43 @@ async function loadScientistContextPacketSummary() {
   });
 }
 
+async function loadScientistReasoningSynthesisSummary() {
+  const relativePath = ".xsci/scientist_reasoning_synthesis.json";
+  const markdownPath = ".xsci/scientist_reasoning_synthesis.md";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      markdown_artifact_path: markdownPath,
+      tool: "scientist_reasoning_synthesis",
+      reasoning_mode: "not_run",
+      direct_answer: "",
+      hypotheses: [],
+      comparison: [],
+      reasoning_quality: {
+        score: 0,
+        status: "not_run",
+        hypotheses_requested: 0,
+        hypotheses_produced: 0,
+        complete_falsifiable_hypotheses: 0
+      },
+      next_safe_action: {
+        command: "evomind ask \"analyze the current task\"",
+        gate: "safe_scientist_turn"
+      },
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    markdown_artifact_path: markdownPath,
+    ...payload
+  });
+}
+
 async function loadScientistInnovationBacklogSummary() {
   const relativePath = ".xsci/scientist_innovation_backlog.json";
   const innovationLogPath = ".xsci/innovation_log.json";
@@ -1241,7 +1278,7 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
 
 export async function getWorkstationSummary() {
   await ensureWorkstationSeeded();
-  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
+  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
     prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
@@ -1263,6 +1300,7 @@ export async function getWorkstationSummary() {
     loadScientistCausalDiagnosisSummary(),
     loadScientistStrategyOptimizerSummary(),
     loadScientistContextPacketSummary(),
+    loadScientistReasoningSynthesisSummary(),
     loadScientistInnovationBacklogSummary(),
     loadScientistHypothesisReviewSummary(),
     loadScientistExperimentBlueprintSummary(),
@@ -1612,6 +1650,7 @@ export async function getWorkstationSummary() {
     scientist_causal_diagnosis: scientistCausalDiagnosis,
     scientist_strategy_optimizer: scientistStrategyOptimizer,
     scientist_context_packet: scientistContextPacket,
+    scientist_reasoning_synthesis: scientistReasoningSynthesis,
     scientist_innovation_backlog: scientistInnovationBacklog,
     scientist_hypothesis_review: scientistHypothesisReview,
     scientist_experiment_blueprint: scientistExperimentBlueprint,

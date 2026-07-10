@@ -40,6 +40,7 @@ from .terminal_events import (
     render_scientist_memory_consolidation_summary,
     render_scientist_recovery_summary,
     render_scientist_readiness_report_summary,
+    render_scientist_reasoning_synthesis_summary,
     render_scientist_self_audit_summary,
     render_scientist_strategy_optimizer_summary,
     render_scientist_patch_work_order_summary,
@@ -355,6 +356,7 @@ class TerminalAgent:
         }]
         rendered_sections = ["\n".join(render_scientist_turn_plan_summary(plan))]
         artifacts = [plan_artifact] if plan_artifact else []
+        evidence_results: dict[str, Any] = {"turn_plan": plan}
 
         emitter.emit("Scientist context", "building per-turn context packet", status="running")
         context_packet = TerminalTools.dispatch("scientist_context_packet", session, root)
@@ -382,6 +384,7 @@ class TerminalAgent:
         if context_packet.get("markdown_artifact_path"):
             artifacts.append(str(context_packet.get("markdown_artifact_path")))
         rendered_sections.append("\n".join(render_scientist_context_packet_summary(context_packet)))
+        evidence_results["context_packet"] = context_packet
 
         for tool_name in tool_sequence:
             if tool_name in {"scientist_turn_plan", "scientist_context_packet"}:
@@ -416,6 +419,7 @@ class TerminalAgent:
                 pass
 
             result = TerminalTools.dispatch(tool_name, session, root)
+            evidence_results[tool_name] = result
             ok = bool(result.get("ok", True))
             artifact = str(result.get("artifact_path") or "")
             message = str(result.get("message") or result.get("mode") or result.get("status") or "")[:260]
@@ -451,6 +455,63 @@ class TerminalAgent:
                 artifacts.append(artifact)
             rendered_sections.append("\n".join(self._render_scientist_tool_summary(tool_name, result)))
 
+        emitter.emit("Scientist reasoning", "synthesizing evidence into a direct research answer", status="running")
+        try:
+            from .scientist_reasoning import build_scientist_reasoning_synthesis
+
+            reasoning = build_scientist_reasoning_synthesis(
+                session,
+                root,
+                goal=raw,
+                evidence=evidence_results,
+                persist=True,
+            )
+        except Exception as exc:
+            reasoning = {
+                "ok": False,
+                "tool": "scientist_reasoning_synthesis",
+                "message": f"Reasoning synthesis failed: {type(exc).__name__}",
+                "answer_markdown": "",
+                "reasoning_quality": {
+                    "score": 0,
+                    "status": "insufficient",
+                    "missing_contract_items": ["reasoning_synthesis"],
+                },
+                "no_training_started": True,
+                "official_submit": "blocked_until_explicit_human_approval",
+            }
+        reasoning_ok = bool(reasoning.get("ok", True))
+        reasoning_artifact = str(reasoning.get("artifact_path") or "")
+        reasoning_message = (
+            f"quality={((reasoning.get('reasoning_quality') or {}) if isinstance(reasoning.get('reasoning_quality'), dict) else {}).get('score', 0)}; "
+            f"hypotheses={len(reasoning.get('hypotheses') or [])}"
+        )
+        self._ledger.record(
+            "scientist_reasoning_synthesis",
+            reasoning,
+            ok=reasoning_ok,
+            summary=reasoning_message,
+        )
+        emitter.emit(
+            "Scientist reasoning",
+            reasoning_message,
+            status="passed" if reasoning_ok else "blocked",
+            artifact=reasoning_artifact or None,
+        )
+        executed.append(
+            {
+                "tool": "scientist_reasoning_synthesis",
+                "ok": reasoning_ok,
+                "artifact_path": reasoning_artifact,
+                "message": reasoning_message,
+            }
+        )
+        if reasoning_artifact:
+            artifacts.append(reasoning_artifact)
+        if reasoning.get("markdown_artifact_path"):
+            artifacts.append(str(reasoning.get("markdown_artifact_path")))
+        rendered_sections.append("\n".join(render_scientist_reasoning_synthesis_summary(reasoning)))
+
         readiness = plan.get("readiness") if isinstance(plan.get("readiness"), dict) else {}
         blockers = [str(item) for item in (readiness.get("blocking_gates") or [])] if readiness else []
         executed_tool_names = {
@@ -471,8 +532,13 @@ class TerminalAgent:
             **plan_tool_budget,
             "requested_max_tools": max_tools,
             "effective_max_tools": effective_max_tools,
-            "executed_tool_count": len([tool for tool in executed_tool_names if tool != "scientist_context_packet"]),
+            "executed_tool_count": len([
+                tool
+                for tool in executed_tool_names
+                if tool not in {"scientist_context_packet", "scientist_reasoning_synthesis"}
+            ]),
             "context_packet_auto_executed": "scientist_context_packet" in executed_tool_names,
+            "reasoning_synthesis_auto_executed": "scientist_reasoning_synthesis" in executed_tool_names,
             "must_run_deferred_count": len(must_run_deferred_tools),
         }
         try:
@@ -623,6 +689,9 @@ class TerminalAgent:
             "execution_ready": not blockers,
             "execution_blocked": bool(blockers),
             "blocking_gates": blockers,
+            "reasoning_synthesis": reasoning,
+            "answer_markdown": reasoning.get("answer_markdown") or "",
+            "reasoning_quality": reasoning.get("reasoning_quality") or {},
             "artifacts": list(dict.fromkeys([path for path in artifacts if path])),
             "no_training_started": True,
             "official_submit": "blocked_until_explicit_human_approval",
@@ -640,7 +709,20 @@ class TerminalAgent:
             **plan,
             "requirement_ledger": resolved_requirement_ledger,
         }
-        summary = self._build_scientist_turn_summary(raw, session, summary_plan, executed, artifacts, parity_lifecycle)
+        control_summary = self._build_scientist_turn_summary(
+            raw,
+            session,
+            summary_plan,
+            executed,
+            artifacts,
+            parity_lifecycle,
+        )
+        answer_markdown = str(reasoning.get("answer_markdown") or "").strip()
+        summary = (
+            answer_markdown + "\n\n---\n\n" + control_summary
+            if answer_markdown
+            else control_summary
+        )
         try:
             record_scientist_turn(root, {
                 "task": session.selected_task or "",
@@ -714,7 +796,7 @@ class TerminalAgent:
             should_exit=False,
             selected_task=session.selected_task,
             action="scientist_turn",
-            summary=summary + "\n\n" + "\n\n".join(rendered_sections[:3]),
+            summary=summary + "\n\n" + "\n\n".join(rendered_sections[:2]) + "\n\n" + rendered_sections[-1],
             artifacts=list(dict.fromkeys([path for path in artifacts if path])),
             blocked=not payload.get("ok", True),
         )

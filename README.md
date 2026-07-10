@@ -15,6 +15,11 @@ http://127.0.0.1:8088/?page=control
 
 - **Terminal Agent**: `evomind` opens a Claude-Code-like research
   terminal for task selection, planning, readiness checks, and gated execution.
+- **Evidence-Grounded Scientist Reasoning**: every `evomind ask` turn answers the
+  requested research question after tool use, records falsifiable hypotheses,
+  evidence/risk/cost comparison, a selected decision, and the next gated action.
+  Semantic synthesis caching separates Opus and deterministic responses and is
+  audited through cache-hit statistics.
 - **Web Workstation**: a Next.js workstation gateway with pages for control, tasks,
   data, GPU, evidence, literature, workflow, code, runtime, experiments,
   reports, gates, and settings.

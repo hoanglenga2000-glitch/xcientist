@@ -1755,6 +1755,9 @@ def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
             "continuation_artifact_path": turn_payload.get("continuation_artifact_path") or "",
             "parity_lifecycle": turn_payload.get("parity_lifecycle") or {},
             "parity_loop_artifact": turn_payload.get("parity_loop_artifact") or "",
+            "scientist_reasoning_synthesis": turn_payload.get("reasoning_synthesis") or {},
+            "answer_markdown": turn_payload.get("answer_markdown") or "",
+            "reasoning_quality": turn_payload.get("reasoning_quality") or {},
             "no_training_started": True,
             "official_submit": "blocked_until_explicit_human_approval",
         }

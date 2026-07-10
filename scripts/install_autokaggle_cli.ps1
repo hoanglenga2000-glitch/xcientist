@@ -36,7 +36,11 @@ if ($LASTEXITCODE -ne 0) {
 
 if ($shouldInstallAlias) {
     $userProfile = [Environment]::GetFolderPath("UserProfile")
-    $shimDir = Join-Path $userProfile ".xsci\bin"
+    $shimDir = if ($env:XSCI_SHIM_DIR) {
+        $env:XSCI_SHIM_DIR
+    } else {
+        Join-Path $userProfile ".xsci\bin"
+    }
     New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
 
     @"
