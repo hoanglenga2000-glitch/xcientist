@@ -21,7 +21,9 @@ import argparse
 import compileall
 import importlib
 import io
+import os
 import pkgutil
+import shutil
 import subprocess
 import sys
 import time
@@ -85,16 +87,51 @@ def gate_imports(quiet: bool) -> tuple[bool, str]:
     return True, f"{total} modules import cleanly"
 
 
+def _pytest_command() -> tuple[list[str] | None, str]:
+    candidates: list[Path] = []
+    configured = os.environ.get("PYTEST_PYTHON")
+    if configured:
+        candidates.append(Path(configured))
+    candidates.extend([
+        ROOT / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"),
+        ROOT / "venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"),
+    ])
+    candidates.append(Path(sys.executable))
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = str(candidate)
+        if key in seen or not candidate.exists():
+            continue
+        seen.add(key)
+        probe = subprocess.run(
+            [str(candidate), "-c", "import pytest"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+        )
+        if probe.returncode == 0:
+            return [str(candidate), "-m", "pytest"], str(candidate)
+    pytest_executable = shutil.which("pytest")
+    if pytest_executable:
+        return [pytest_executable], pytest_executable
+    return None, ""
+
+
 def gate_tests(quiet: bool) -> tuple[bool, str]:
-    try:
-        import pytest  # noqa: F401
-    except ImportError:
-        return False, "pytest not installed (pip install -r requirements-dev.txt)"
+    pytest_command, runner = _pytest_command()
+    if not pytest_command:
+        return False, "pytest not available in current Python, project venv, PYTEST_PYTHON, or PATH"
+    test_env = os.environ.copy()
+    for key in ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX"):
+        test_env.pop(key, None)
+    existing_pythonpath = test_env.get("PYTHONPATH", "")
+    test_env["PYTHONPATH"] = str(SRC) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
     # Count collected tests up front; some pytest builds omit the summary line
     # when stdout is piped, so we don't rely on parsing it.
     collect = subprocess.run(
-        [sys.executable, "-m", "pytest", "--collect-only", "-q"],
+        [*pytest_command, "--collect-only", "-q"],
         cwd=str(ROOT),
+        env=test_env,
         capture_output=True,
         text=True,
     )
@@ -114,13 +151,17 @@ def gate_tests(quiet: bool) -> tuple[bool, str]:
     collected = str(total) if matched else "?"
 
     proc = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q", "--no-header"],
+        [*pytest_command, "-q", "--no-header"],
         cwd=str(ROOT),
+        env=test_env,
         capture_output=True,
         text=True,
     )
     ok = proc.returncode == 0
-    detail = f"{collected} tests collected, suite {'green' if ok else 'RED (exit ' + str(proc.returncode) + ')'}"
+    detail = (
+        f"{collected} tests collected via {runner}, "
+        f"suite {'green' if ok else 'RED (exit ' + str(proc.returncode) + ')'}"
+    )
     if not ok:
         output = (proc.stdout or "") + (proc.stderr or "")
         failing = [ln.strip() for ln in output.splitlines() if ln.strip().startswith("FAILED")]
@@ -151,6 +192,8 @@ def main() -> int:
         status = "PASS" if ok else "FAIL"
         results.append((name, ok, detail, elapsed))
         _print(f"[{status}] {name:<8} ({elapsed:5.2f}s)  {detail}", args.quiet)
+        if args.quiet and not ok:
+            print(f"[FAIL] {name}: {detail}")
 
     all_ok = all(ok for _, ok, _, _ in results)
     _print("=" * 64, args.quiet)

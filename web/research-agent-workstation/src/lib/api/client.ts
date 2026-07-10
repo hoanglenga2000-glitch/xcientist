@@ -1,4 +1,4 @@
-import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
+import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistEngineeringLoopResponse, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
 
 async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { error?: string; ok?: boolean };
@@ -175,6 +175,32 @@ export async function getScientistPatchWorkOrder() {
 export async function runScientistPatchWorkOrder() {
   return readJson<{ ok: boolean; action: string; scientist_patch_work_order: ScientistPatchWorkOrderSummary; scientist_action_queue?: ScientistPatchActionQueueSummary | null; scientist_terminal_turn?: ScientistTerminalTurnSummary | null; no_training_started?: boolean; official_submit?: string }>(
     await fetch("/api/scientist/patch-work-order", { method: "POST" })
+  );
+}
+
+export async function getScientistEngineeringLoop() {
+  return readJson<ScientistEngineeringLoopResponse>(
+    await fetch("/api/scientist/engineering-loop")
+  );
+}
+
+export async function runScientistEngineeringLoop(options?: {
+  generatePatch?: boolean;
+  patchPath?: string;
+  workOrderPath?: string;
+  timeoutSeconds?: number;
+}) {
+  return readJson<ScientistEngineeringLoopResponse>(
+    await fetch("/api/scientist/engineering-loop", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        generate_patch: options?.generatePatch ?? false,
+        patch_path: options?.patchPath,
+        work_order_path: options?.workOrderPath,
+        timeout_seconds: options?.timeoutSeconds ?? 240
+      })
+    })
   );
 }
 

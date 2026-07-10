@@ -20,6 +20,10 @@ http://127.0.0.1:8088/?page=control
   evidence/risk/cost comparison, a selected decision, and the next gated action.
   Semantic synthesis caching separates Opus and deterministic responses and is
   audited through cache-hit statistics.
+- **Isolated Engineering Loop**: `evomind engineer --generate` asks the
+  configured read-only Code Agent for a reviewable diff, applies it only in a
+  detached Git worktree, runs allowlisted checks, proves the main worktree
+  stayed unchanged, and stops at a human merge gate.
 - **Web Workstation**: a Next.js workstation gateway with pages for control, tasks,
   data, GPU, evidence, literature, workflow, code, runtime, experiments,
   reports, gates, and settings.
@@ -106,6 +110,8 @@ evomind setup                   # Configure LLM/Kaggle/compute
 evomind competitions titanic    # Browse/search Kaggle competitions
 evomind task add <KaggleURL>    # Register a competition task
 evomind ask "research goal"     # Run one auditable AI Scientist turn
+evomind engineer               # Validate the latest patch in an isolated worktree
+evomind engineer --generate    # Generate a diff, validate it, never auto-merge
 evomind run <task>              # Start gated audited execution
 evomind watch -f                # Follow event stream
 evomind memory                  # Inspect retrospective memory

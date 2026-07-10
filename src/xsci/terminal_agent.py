@@ -32,6 +32,7 @@ from .terminal_events import (
     render_scientist_context_packet_summary,
     render_scientist_continuation_resume_summary,
     render_scientist_continuation_status_summary,
+    render_scientist_engineering_loop_summary,
     render_scientist_experiment_blueprint_summary,
     render_scientist_hypothesis_review_summary,
     render_scientist_innovation_backlog_summary,
@@ -850,6 +851,8 @@ class TerminalAgent:
             return render_scientist_strategy_optimizer_summary(result)
         if tool_name == "scientist_patch_work_order":
             return render_scientist_patch_work_order_summary(result)
+        if tool_name == "scientist_engineering_loop":
+            return render_scientist_engineering_loop_summary(result)
         if tool_name == "scientist_upgrade_plan":
             return render_scientist_upgrade_plan_summary(result)
         if tool_name == "scientist_self_upgrade_loop":
@@ -1034,6 +1037,7 @@ class TerminalAgent:
             "scientist_upgrade_plan": "scientist_upgrade_plan",
             "scientist_self_upgrade_loop": "scientist_self_upgrade_loop",
             "scientist_patch_work_order": "scientist_patch_work_order",
+            "scientist_engineering_loop": "scientist_engineering_loop",
             "scientist_memory_consolidation": "scientist_memory_consolidation",
             "scientist_innovation_backlog": "scientist_innovation_backlog",
             "scientist_situation_model": "scientist_situation_model",

@@ -623,6 +623,32 @@ async function loadScientistReasoningSynthesisSummary() {
   });
 }
 
+async function loadScientistEngineeringLoopSummary() {
+  const relativePath = ".xsci/scientist_engineering_loop.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_engineering_loop",
+      status: "not_run",
+      changed_files: [],
+      acceptance_checks: [],
+      main_worktree_modified: false,
+      merge_ready: false,
+      next_safe_command: "evomind patch-order",
+      human_gate: "review_candidate_before_merge",
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
 async function loadScientistInnovationBacklogSummary() {
   const relativePath = ".xsci/scientist_innovation_backlog.json";
   const innovationLogPath = ".xsci/innovation_log.json";
@@ -1278,7 +1304,7 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
 
 export async function getWorkstationSummary() {
   await ensureWorkstationSeeded();
-  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
+  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistEngineeringLoop, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
     prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
@@ -1301,6 +1327,7 @@ export async function getWorkstationSummary() {
     loadScientistStrategyOptimizerSummary(),
     loadScientistContextPacketSummary(),
     loadScientistReasoningSynthesisSummary(),
+    loadScientistEngineeringLoopSummary(),
     loadScientistInnovationBacklogSummary(),
     loadScientistHypothesisReviewSummary(),
     loadScientistExperimentBlueprintSummary(),
@@ -1651,6 +1678,7 @@ export async function getWorkstationSummary() {
     scientist_strategy_optimizer: scientistStrategyOptimizer,
     scientist_context_packet: scientistContextPacket,
     scientist_reasoning_synthesis: scientistReasoningSynthesis,
+    scientist_engineering_loop: scientistEngineeringLoop,
     scientist_innovation_backlog: scientistInnovationBacklog,
     scientist_hypothesis_review: scientistHypothesisReview,
     scientist_experiment_blueprint: scientistExperimentBlueprint,

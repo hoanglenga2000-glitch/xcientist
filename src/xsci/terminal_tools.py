@@ -1094,6 +1094,8 @@ def get_scientist_memory_consolidation(session: SessionState, root: Path) -> dic
     patch_work_order = _read_json_artifact(xsci / "scientist_patch_work_order.json") or {}
     patch_action_queue = _read_json_artifact(xsci / "scientist_patch_action_queue.json") or {}
     patch_trials = _read_jsonl_tail(xsci / "scientist_patch_trials.jsonl", limit=10)
+    engineering_loop = _read_json_artifact(xsci / "scientist_engineering_loop.json") or {}
+    engineering_trials = _read_jsonl_tail(xsci / "scientist_engineering_trials.jsonl", limit=10)
     continuation_resume = _read_json_artifact(xsci / "scientist_continuation_resume.json") or {}
 
     candidates: list[dict[str, Any]] = []
@@ -1245,6 +1247,91 @@ def get_scientist_memory_consolidation(session: SessionState, root: Path) -> dic
             linked_exp_ids=[str(item.get("source") or "scientist_patch_work_order")],
         ))
 
+    if engineering_loop:
+        engineering_status = str(engineering_loop.get("status") or "unknown")
+        changed_files = [
+            str(item)
+            for item in (engineering_loop.get("changed_files") or [])
+            if str(item)
+        ]
+        checks = [
+            item
+            for item in (engineering_loop.get("acceptance_checks") or [])
+            if isinstance(item, dict)
+        ]
+        passed = sum(1 for item in checks if item.get("passed") is True)
+        main_unchanged = engineering_loop.get("main_worktree_modified") is False
+        merge_ready = engineering_loop.get("merge_ready") is True
+        if engineering_status == "passed_review_candidate" and merge_ready and main_unchanged:
+            what_worked = (
+                f"Code Agent patch changed {len(changed_files)} scoped file(s), passed {passed}/{len(checks)} "
+                "allowlisted checks in a detached Git worktree, and left the main worktree unchanged."
+            )
+            what_failed = "The candidate is not merged; human review remains required."
+            reusable = (
+                "Before applying any self-upgrade, validate the diff in a detached Git worktree, enforce files_to_edit, "
+                "run allowlisted acceptance checks, compare main-file hashes, and keep a human merge gate."
+            )
+        else:
+            what_worked = "Engineering loop preserved the main worktree and recorded a blocked or failed patch trial."
+            what_failed = str(engineering_loop.get("message") or engineering_status)
+            reusable = (
+                "Treat failed or blocked engineering candidates as non-applied evidence; regenerate the work order or patch, "
+                "then rerun isolated validation before merge."
+            )
+        candidates.append(_memory_schema_record(
+            memory_id=_stable_memory_id(
+                "scientist_engineering",
+                task_slug,
+                engineering_loop.get("run_id"),
+                engineering_status,
+                changed_files,
+                passed,
+                len(checks),
+            ),
+            task_type=task_type,
+            dataset_profile=dataset_profile,
+            method="isolated_engineering_validation",
+            what_worked=what_worked,
+            what_failed=what_failed,
+            reusable_strategy=reusable,
+            failure_pattern=engineering_status,
+            linked_exp_ids=[
+                str(engineering_loop.get("run_id") or ""),
+                str(engineering_loop.get("candidate_diff_path") or ""),
+                str(engineering_loop.get("run_manifest_path") or ""),
+            ],
+        ))
+
+    for item in engineering_trials[-5:]:
+        if not isinstance(item, dict):
+            continue
+        trial_status = str(item.get("status") or "unknown")
+        candidates.append(_memory_schema_record(
+            memory_id=_stable_memory_id(
+                "scientist_engineering_trial",
+                task_slug,
+                item.get("run_id"),
+                trial_status,
+                item.get("candidate_diff_path"),
+            ),
+            task_type=task_type,
+            dataset_profile=dataset_profile,
+            method="isolated_engineering_trial",
+            what_worked=(
+                "Isolated engineering trial passed its recorded checks without modifying the main worktree."
+                if item.get("acceptance_passed") and item.get("main_worktree_modified") is False
+                else "Engineering trial preserved a reviewable failure record without applying it to the main worktree."
+            ),
+            what_failed="" if trial_status == "passed_review_candidate" else trial_status,
+            reusable_strategy="Require isolated validation and human review before merging any Code Agent patch.",
+            failure_pattern=trial_status,
+            linked_exp_ids=[
+                str(item.get("run_id") or ""),
+                str(item.get("candidate_diff_path") or ""),
+            ],
+        ))
+
     if continuation_resume:
         resume_status = str(continuation_resume.get("status") or "")
         stop_reason = str(continuation_resume.get("stop_reason") or resume_status or "unknown")
@@ -1363,6 +1450,8 @@ def get_scientist_memory_consolidation(session: SessionState, root: Path) -> dic
         "patch_work_order_present": bool(patch_work_order),
         "patch_action_queue_present": bool(patch_action_queue),
         "patch_trials": len(patch_trials),
+        "engineering_loop_present": bool(engineering_loop),
+        "engineering_trials": len(engineering_trials),
         "continuation_resume_present": bool(continuation_resume),
     }
     payload: dict[str, Any] = {
@@ -2657,6 +2746,8 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     experiment_blueprint = _read_json_artifact(xsci / "scientist_experiment_blueprint.json")
     reasoning_synthesis = _read_json_artifact(xsci / "scientist_reasoning_synthesis.json")
     reasoning_cache_stats = _read_json_artifact(xsci / "scientist_reasoning_cache_stats_llm.json")
+    engineering_loop = _read_json_artifact(xsci / "scientist_engineering_loop.json")
+    engineering_trials = _read_jsonl_tail(xsci / "scientist_engineering_trials.jsonl", limit=40)
     turns = _read_jsonl_tail(xsci / "scientist_turns.jsonl", limit=80)
     steps = _read_jsonl_tail(xsci / "scientist_step_trace.jsonl", limit=120)
     lessons = _read_jsonl_tail(xsci / "scientist_loop_lessons.jsonl", limit=80)
@@ -2831,6 +2922,23 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         if isinstance(reasoning_cache_stats, dict)
         else 0
     )
+    engineering_checks = (
+        engineering_loop.get("acceptance_checks")
+        if isinstance(engineering_loop, dict) and isinstance(engineering_loop.get("acceptance_checks"), list)
+        else []
+    )
+    engineering_passed_checks = sum(
+        1
+        for item in engineering_checks
+        if isinstance(item, dict) and item.get("passed") is True
+    )
+    engineering_candidate_ready = bool(
+        isinstance(engineering_loop, dict)
+        and engineering_loop.get("merge_ready") is True
+        and engineering_loop.get("main_worktree_modified") is False
+        and engineering_checks
+        and engineering_passed_checks == len(engineering_checks)
+    )
 
     capabilities = [
         _score_capability("context_recovery", [
@@ -2895,6 +3003,16 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             ("a hypothesis is selected with rationale", 10, bool(reasoning_synthesis.get("selected_hypothesis_id")) and bool(reasoning_synthesis.get("selected_rationale")) if isinstance(reasoning_synthesis, dict) else False),
             ("next action is explicit and gated", 10, bool(reasoning_next_action.get("command")) and bool(reasoning_next_action.get("gate"))),
             ("reasoning cache hit ratio is at least 80 percent", 5, reasoning_cache_requests >= 5 and reasoning_cache_ratio >= 0.8),
+        ]),
+        _score_capability("engineering_execution", [
+            ("isolated engineering executor source exists", 10, (root / "src" / "xsci" / "scientist_engineering.py").exists()),
+            ("engineering tool is registered", 10, "scientist_engineering_loop" in TerminalTools.list_tool_names()),
+            ("engineering API route exists", 10, (api_dir / "engineering-loop" / "route.ts").exists()),
+            ("engineering loop artifact exists", 10, isinstance(engineering_loop, dict)),
+            ("patch was applied only in an isolated worktree", 15, bool(isinstance(engineering_loop, dict) and engineering_loop.get("patch_applied_in_isolated_worktree"))),
+            ("allowlisted acceptance checks passed", 20, bool(engineering_checks) and engineering_passed_checks == len(engineering_checks)),
+            ("main worktree remained unchanged", 15, bool(isinstance(engineering_loop, dict) and engineering_loop.get("main_worktree_modified") is False)),
+            ("review candidate and human merge gate are recorded", 10, engineering_candidate_ready and bool(engineering_loop.get("human_gate") or (engineering_loop.get("work_order") or {}).get("human_gate")) if isinstance(engineering_loop, dict) else False),
         ]),
         _score_capability("capability_gap_management", [
             ("self-audit artifact is generated now", 20, True),
@@ -3007,6 +3125,20 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
                 ".xsci/scientist_reasoning_history.jsonl",
             ],
         )
+    if any(gap["capability"] == "engineering_execution" for gap in gaps):
+        add_backlog(
+            "isolated_engineering_execution_loop",
+            "Generate, validate, and audit Code Agent patches in an isolated Git worktree",
+            "P0",
+            "Codex/Claude-Code-like behavior requires tested source changes, rollback evidence, and a human merge gate rather than work-order generation alone.",
+            "evomind engineer --generate",
+            [
+                ".xsci/scientist_engineering_loop.json",
+                ".xsci/scientist_engineering_trials.jsonl",
+                ".xsci/engineering_runs/<run_id>/candidate.diff",
+                ".xsci/engineering_runs/<run_id>/manifest.json",
+            ],
+        )
     if hard_setup_blocked or gpu_blocked:
         add_backlog(
             "resource_gate_truthfulness",
@@ -3095,6 +3227,18 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "cache_stats_path": str(xsci / "scientist_reasoning_cache_stats_llm.json"),
             "cache_requests": reasoning_cache_requests,
             "cache_hit_ratio": reasoning_cache_ratio,
+        },
+        "engineering_execution": {
+            "path": str(xsci / "scientist_engineering_loop.json"),
+            "trials_path": str(xsci / "scientist_engineering_trials.jsonl"),
+            "present": isinstance(engineering_loop, dict),
+            "status": engineering_loop.get("status") if isinstance(engineering_loop, dict) else "not_run",
+            "acceptance_checks": len(engineering_checks),
+            "acceptance_passed": engineering_passed_checks,
+            "main_worktree_modified": engineering_loop.get("main_worktree_modified") if isinstance(engineering_loop, dict) else None,
+            "merge_ready": engineering_candidate_ready,
+            "trial_records": len(engineering_trials),
+            "candidate_diff_path": engineering_loop.get("candidate_diff_path") if isinstance(engineering_loop, dict) else "",
         },
     }
     next_safe_commands = [
@@ -8252,6 +8396,13 @@ def run_scientist_loop(
 
 # ── Dispatcher ──────────────────────────────────────────────────────────
 
+def get_scientist_engineering_loop(session: SessionState, root: Path) -> dict[str, Any]:
+    """Validate the latest Code Agent patch in an isolated Git worktree."""
+    from .scientist_engineering import run_scientist_engineering_loop
+
+    return run_scientist_engineering_loop(session, root, generate_patch=False)
+
+
 class TerminalTools:
     """Namespace / dispatcher for the terminal's lightweight tool set.
 
@@ -8285,6 +8436,7 @@ class TerminalTools:
         "scientist_upgrade_plan": get_scientist_upgrade_plan,
         "scientist_self_upgrade_loop": get_scientist_self_upgrade_loop,
         "scientist_patch_work_order": get_scientist_patch_work_order,
+        "scientist_engineering_loop": get_scientist_engineering_loop,
         "scientist_memory_consolidation": get_scientist_memory_consolidation,
         "scientist_innovation_backlog": get_scientist_innovation_backlog,
         "scientist_hypothesis_review": get_scientist_hypothesis_review,

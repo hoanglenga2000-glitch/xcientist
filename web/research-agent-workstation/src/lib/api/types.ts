@@ -781,6 +781,66 @@ export type ScientistPatchWorkOrderSummary = {
   message?: string;
 };
 
+export type ScientistEngineeringCheckSummary = {
+  command?: string;
+  allowed?: boolean;
+  exit_code?: number | null;
+  passed?: boolean;
+  log_path?: string;
+  output_tail?: string;
+};
+
+export type ScientistEngineeringLoopSummary = {
+  present?: boolean;
+  ok?: boolean;
+  schema?: string;
+  tool?: string;
+  generated_at?: string;
+  run_id?: string;
+  selected_task?: string | null;
+  status?: string;
+  message?: string;
+  work_order_path?: string;
+  work_order?: {
+    id?: string;
+    title?: string;
+    files_to_edit?: string[];
+    rollback_condition?: string;
+    human_gate?: string;
+  };
+  patch_path?: string;
+  patch_sha256?: string;
+  changed_files?: string[];
+  patch_applied_in_isolated_worktree?: boolean;
+  acceptance_checks?: ScientistEngineeringCheckSummary[];
+  candidate_diff_path?: string;
+  candidate_diff_sha256?: string;
+  code_agent?: Record<string, unknown>;
+  cleanup_ok?: boolean;
+  main_head_before?: string;
+  main_head_after?: string;
+  main_worktree_modified?: boolean;
+  merge_ready?: boolean;
+  next_safe_command?: string;
+  epistemic_status?: string;
+  human_gate?: string;
+  artifact_path?: string;
+  run_manifest_path?: string;
+  trials_path?: string;
+  no_training_started?: boolean;
+  official_submit?: string;
+};
+
+export type ScientistEngineeringLoopResponse = {
+  ok: boolean;
+  action: string;
+  cli_result?: Record<string, unknown>;
+  cli_error?: string;
+  scientist_engineering_loop: ScientistEngineeringLoopSummary;
+  no_training_started?: boolean;
+  official_submit?: string;
+};
+
 export type ScientistInnovationHypothesis = {
   id?: string;
   strategy_name?: string;
@@ -1424,6 +1484,7 @@ export type WorkstationSummary = {
   scientist_upgrade_plan?: ScientistUpgradePlanSummary;
   scientist_self_upgrade_loop?: ScientistSelfUpgradeLoopSummary;
   scientist_patch_work_order?: ScientistPatchWorkOrderSummary;
+  scientist_engineering_loop?: ScientistEngineeringLoopSummary;
   scientist_innovation_backlog?: ScientistInnovationBacklogSummary;
   scientist_hypothesis_review?: ScientistHypothesisReviewSummary;
   scientist_experiment_blueprint?: ScientistExperimentBlueprintSummary;

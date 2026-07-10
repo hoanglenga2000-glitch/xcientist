@@ -4676,3 +4676,80 @@ def test_memory_relevance_prefers_same_task_and_penalizes_cross_modality():
     assert same_score > cross_score
     assert "same_task" in same_reasons
     assert "cross_modality_method_penalty" in cross_reasons
+
+
+def test_engineering_aliases_route_to_isolated_loop(isolated_autokaggle, monkeypatch):
+    calls = []
+
+    def fake_engineering(argv, root):
+        calls.append((list(argv), str(root)))
+        return 0
+
+    monkeypatch.setattr(ak, "_run_scientist_engineering_command", fake_engineering)
+    for alias in ("engineer", "engineering-loop", "validate-patch", "execute-upgrade"):
+        assert ak.main([alias]) == 0
+    assert len(calls) == 4
+
+
+def test_engineering_intent_routes_before_self_upgrade():
+    for text in (
+        "validate patch in isolated worktree",
+        "\u9a8c\u8bc1\u8865\u4e01",
+        "\u6267\u884c\u5de5\u7a0b\u95ed\u73af",
+        "\u6267\u884c\u81ea\u5347\u7ea7\u8865\u4e01",
+    ):
+        intent = ki.classify(text)
+        assert intent.kind == ki.TOOL_QUERY
+        assert intent.payload == "scientist_engineering_loop"
+
+
+def test_memory_consolidation_records_isolated_engineering_evidence(isolated_autokaggle):
+    from xsci.terminal_tools import TerminalTools
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "house-prices"
+    xsci = root / ".xsci"
+    xsci.mkdir(parents=True, exist_ok=True)
+    engineering = {
+        "tool": "scientist_engineering_loop",
+        "run_id": "engineering_test",
+        "status": "passed_review_candidate",
+        "changed_files": ["src/xsci/demo.py"],
+        "acceptance_checks": [
+            {"command": "python -m py_compile src/xsci/demo.py", "passed": True},
+            {"command": "git diff --check", "passed": True},
+        ],
+        "main_worktree_modified": False,
+        "merge_ready": True,
+        "candidate_diff_path": ".xsci/engineering_runs/engineering_test/candidate.diff",
+        "run_manifest_path": ".xsci/engineering_runs/engineering_test/manifest.json",
+        "human_gate": "review_candidate_before_merge",
+        "no_training_started": True,
+        "official_submit": "blocked_until_explicit_human_approval",
+    }
+    (xsci / "scientist_engineering_loop.json").write_text(
+        json.dumps(engineering),
+        encoding="utf-8",
+    )
+    with (xsci / "scientist_engineering_trials.jsonl").open("w", encoding="utf-8") as handle:
+        handle.write(json.dumps({
+            "run_id": "engineering_test",
+            "status": "passed_review_candidate",
+            "acceptance_passed": True,
+            "main_worktree_modified": False,
+            "candidate_diff_path": engineering["candidate_diff_path"],
+        }) + "\n")
+
+    result = TerminalTools.dispatch("scientist_memory_consolidation", state, root)
+    records = json.loads(
+        (root / "experiments" / "evolution" / "retrospective_memory.json").read_text(encoding="utf-8")
+    )
+
+    assert result["ok"] is True
+    assert result["source_counts"]["engineering_loop_present"] is True
+    assert result["source_counts"]["engineering_trials"] == 1
+    assert any(item.get("method") == "isolated_engineering_validation" for item in records)
+    assert any(item.get("method") == "isolated_engineering_trial" for item in records)
+    assert result["no_training_started"] is True
+    assert result["official_submit"] == "blocked_until_explicit_human_approval"

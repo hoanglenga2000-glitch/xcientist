@@ -1121,6 +1121,49 @@ def render_scientist_patch_work_order_summary(result: dict) -> list[str]:
     return lines
 
 
+def render_scientist_engineering_loop_summary(result: dict) -> list[str]:
+    """Render an isolated patch validation run."""
+    ok = result.get("ok", False)
+    lines = [f"[tool:scientist_engineering_loop] {'OK' if ok else 'BLOCKED'}"]
+    lines.append(f"  selected_task: {result.get('selected_task') or '(none)'}")
+    lines.append(f"  status: {result.get('status') or 'unknown'}")
+    if result.get("message"):
+        lines.append(f"  message: {_short(result.get('message'), limit=260)}")
+    work_order = result.get("work_order") if isinstance(result.get("work_order"), dict) else {}
+    if work_order:
+        lines.append(f"  work_order: {work_order.get('id') or '(none)'}")
+        lines.append(f"  human_gate: {work_order.get('human_gate') or result.get('human_gate') or '(none)'}")
+    changed = result.get("changed_files") if isinstance(result.get("changed_files"), list) else []
+    if changed:
+        lines.append("  changed_files:")
+        for path in changed[:10]:
+            lines.append(f"    - {path}")
+    checks = result.get("acceptance_checks") if isinstance(result.get("acceptance_checks"), list) else []
+    if checks:
+        passed = sum(1 for item in checks if isinstance(item, dict) and item.get("passed"))
+        lines.append(f"  acceptance_checks: {passed}/{len(checks)} passed")
+        for item in checks[:8]:
+            if isinstance(item, dict):
+                lines.append(
+                    f"    - {'PASS' if item.get('passed') else 'FAIL'} "
+                    f"{_short(item.get('command'), limit=180)}"
+                )
+    lines.append(f"  main_worktree_modified: {result.get('main_worktree_modified', False)}")
+    lines.append(f"  merge_ready: {result.get('merge_ready', False)}")
+    if result.get("candidate_diff_path"):
+        lines.append(f"  candidate_diff: {result.get('candidate_diff_path')}")
+    if result.get("run_manifest_path"):
+        lines.append(f"  manifest: {result.get('run_manifest_path')}")
+    if result.get("next_safe_command"):
+        lines.append(f"  next_safe_command: {result.get('next_safe_command')}")
+    lines.append(f"  no_training_started: {result.get('no_training_started', True)}")
+    lines.append(
+        "  official_submit: "
+        + str(result.get("official_submit") or "blocked_until_explicit_human_approval")
+    )
+    return lines
+
+
 def render_scientist_memory_consolidation_summary(result: dict) -> list[str]:
     """Render Scientist memory writeback as a compact terminal report."""
     ok = result.get("ok", True)

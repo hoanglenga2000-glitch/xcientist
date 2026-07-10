@@ -487,6 +487,49 @@ type ScientistPatchWorkOrderView = {
   message?: string;
 };
 
+type ScientistEngineeringLoopView = {
+  present?: boolean;
+  ok?: boolean;
+  tool?: string;
+  generated_at?: string;
+  run_id?: string;
+  selected_task?: string | null;
+  status?: string;
+  message?: string;
+  work_order_path?: string;
+  work_order?: {
+    id?: string;
+    title?: string;
+    files_to_edit?: string[];
+    rollback_condition?: string;
+    human_gate?: string;
+  };
+  patch_path?: string;
+  changed_files?: string[];
+  patch_applied_in_isolated_worktree?: boolean;
+  acceptance_checks?: Array<{
+    command?: string;
+    allowed?: boolean;
+    exit_code?: number | null;
+    passed?: boolean;
+    log_path?: string;
+    output_tail?: string;
+  }>;
+  candidate_diff_path?: string;
+  cleanup_ok?: boolean;
+  main_head_before?: string;
+  main_head_after?: string;
+  main_worktree_modified?: boolean;
+  merge_ready?: boolean;
+  next_safe_command?: string;
+  epistemic_status?: string;
+  human_gate?: string;
+  artifact_path?: string;
+  run_manifest_path?: string;
+  no_training_started?: boolean;
+  official_submit?: string;
+};
+
 type ScientistInnovationBacklogView = {
   present?: boolean;
   ok?: boolean;
@@ -1709,6 +1752,7 @@ export function AiControlConsole({
   const [scientistUpgradePlan, setScientistUpgradePlan] = useState<ScientistUpgradePlanView | null>(null);
   const [scientistSelfUpgradeLoop, setScientistSelfUpgradeLoop] = useState<ScientistSelfUpgradeLoopView | null>(null);
   const [scientistPatchWorkOrder, setScientistPatchWorkOrder] = useState<ScientistPatchWorkOrderView | null>(null);
+  const [scientistEngineeringLoop, setScientistEngineeringLoop] = useState<ScientistEngineeringLoopView | null>(null);
   const [scientistInnovationBacklog, setScientistInnovationBacklog] = useState<ScientistInnovationBacklogView | null>(null);
   const [scientistHypothesisReview, setScientistHypothesisReview] = useState<ScientistHypothesisReviewView | null>(null);
   const [scientistExperimentBlueprint, setScientistExperimentBlueprint] = useState<ScientistExperimentBlueprintView | null>(null);
@@ -1737,6 +1781,7 @@ export function AiControlConsole({
   const [scientistUpgradePlanBusy, setScientistUpgradePlanBusy] = useState(false);
   const [scientistSelfUpgradeBusy, setScientistSelfUpgradeBusy] = useState(false);
   const [scientistPatchWorkOrderBusy, setScientistPatchWorkOrderBusy] = useState(false);
+  const [scientistEngineeringBusy, setScientistEngineeringBusy] = useState(false);
   const [scientistInnovationBusy, setScientistInnovationBusy] = useState(false);
   const [scientistHypothesisReviewBusy, setScientistHypothesisReviewBusy] = useState(false);
   const [scientistExperimentBlueprintBusy, setScientistExperimentBlueprintBusy] = useState(false);
@@ -1868,6 +1913,13 @@ export function AiControlConsole({
       })
       .catch(() => {
         if (alive) setScientistPatchWorkOrder(null);
+      });
+    api.getScientistEngineeringLoop()
+      .then((payload) => {
+        if (alive) setScientistEngineeringLoop(payload.scientist_engineering_loop ?? null);
+      })
+      .catch(() => {
+        if (alive) setScientistEngineeringLoop(null);
       });
     api.getScientistInnovationBacklog()
       .then((payload) => {
@@ -2268,6 +2320,7 @@ export function AiControlConsole({
       if (data?.scientist_experiment_blueprint) setScientistExperimentBlueprint(data.scientist_experiment_blueprint as ScientistExperimentBlueprintView);
       if (data?.scientist_situation_model) setScientistSituationModel(data.scientist_situation_model as ScientistSituationModelView);
       if (data?.scientist_terminal_turn) setScientistTerminalTurn(data.scientist_terminal_turn as ScientistTerminalTurnView);
+      if (data?.scientist_engineering_loop) setScientistEngineeringLoop(data.scientist_engineering_loop as ScientistEngineeringLoopView);
       if (data?.scientist_reasoning_synthesis) {
         setScientistReasoningSynthesis(data.scientist_reasoning_synthesis as ScientistReasoningSynthesisView);
       } else if ((data?.scientist_terminal_turn as ScientistTerminalTurnView | undefined)?.reasoning_synthesis) {
@@ -2511,6 +2564,21 @@ export function AiControlConsole({
       return result;
     } finally {
       setScientistPatchWorkOrderBusy(false);
+    }
+  }
+
+  async function runScientistEngineeringLoop(generatePatch: boolean) {
+    setScientistEngineeringBusy(true);
+    try {
+      const result = await api.runScientistEngineeringLoop({
+        generatePatch,
+        timeoutSeconds: 300
+      });
+      setScientistEngineeringLoop(result.scientist_engineering_loop ?? null);
+      await refreshScientistStream().catch(() => null);
+      return result;
+    } finally {
+      setScientistEngineeringBusy(false);
     }
   }
 
@@ -2770,6 +2838,16 @@ export function AiControlConsole({
     : scientistPatchStatus === "blocked_external_gate"
       ? "red"
       : scientistPatchWorkOrder?.present
+        ? "amber"
+        : "slate";
+  const scientistEngineeringStatus = scientistEngineeringLoop?.status ?? "not_run";
+  const scientistEngineeringChecks = scientistEngineeringLoop?.acceptance_checks ?? [];
+  const scientistEngineeringPassed = scientistEngineeringChecks.filter((item) => item.passed).length;
+  const scientistEngineeringTone: StatusTone = scientistEngineeringLoop?.merge_ready
+    ? "green"
+    : scientistEngineeringStatus.startsWith("blocked") || scientistEngineeringStatus.startsWith("failed")
+      ? "red"
+      : scientistEngineeringLoop?.present
         ? "amber"
         : "slate";
 
@@ -3415,6 +3493,98 @@ export function AiControlConsole({
                   ) : null}
                 </div>
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>{tx(locale, "Isolated Engineering Loop", "隔离工程执行闭环")}</CardTitle>
+            <CardDescription>
+              {tx(
+                locale,
+                "Generates or validates a Code Agent diff inside a detached Git worktree, runs allowlisted acceptance checks, proves the main worktree stayed unchanged, and stops before merge.",
+                "在独立 Git worktree 中生成或验证 Code Agent 补丁，运行白名单验收测试，证明主工作区未被修改，并在合并前停止。"
+              )}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="secondary" onClick={() => void runScientistEngineeringLoop(false)} disabled={scientistEngineeringBusy}>
+              {scientistEngineeringBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {tx(locale, "Validate Patch", "验证已有补丁")}
+            </Button>
+            <Button size="sm" onClick={() => void runScientistEngineeringLoop(true)} disabled={scientistEngineeringBusy}>
+              {scientistEngineeringBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
+              {tx(locale, "Generate + Validate", "生成并隔离验证")}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Row label={tx(locale, "Status", "状态")} value={<StatusBadge tone={scientistEngineeringTone}>{scientistEngineeringStatus}</StatusBadge>} />
+            <Row label={tx(locale, "Task", "任务")} value={scientistEngineeringLoop?.selected_task || selectedTask || "(none)"} />
+            <Row label={tx(locale, "Checks", "验收测试")} value={`${scientistEngineeringPassed}/${scientistEngineeringChecks.length}`} />
+            <Row label={tx(locale, "Patch Applied", "隔离应用补丁")} value={String(scientistEngineeringLoop?.patch_applied_in_isolated_worktree ?? false)} />
+            <Row label={tx(locale, "Main Changed", "主工作区被修改")} value={String(scientistEngineeringLoop?.main_worktree_modified ?? false)} />
+            <Row label={tx(locale, "Merge Ready", "可进入合并审查")} value={String(scientistEngineeringLoop?.merge_ready ?? false)} />
+            <Row label={tx(locale, "Human Gate", "人工门禁")} value={scientistEngineeringLoop?.work_order?.human_gate ?? scientistEngineeringLoop?.human_gate ?? "review_candidate_before_merge"} />
+            <Row label={tx(locale, "Next", "下一步")} value={scientistEngineeringLoop?.next_safe_command ?? "evomind patch-order"} />
+            <Row label={tx(locale, "Artifact", "证据文件")} value={scientistEngineeringLoop?.artifact_path ?? ".xsci/scientist_engineering_loop.json"} />
+            <Row label={tx(locale, "Candidate Diff", "候选补丁")} value={scientistEngineeringLoop?.candidate_diff_path ?? "(none)"} />
+            <Row label={tx(locale, "Training", "训练")} value={scientistEngineeringLoop?.no_training_started === false ? "started" : "not_started"} />
+            <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistEngineeringLoop?.official_submit ?? "blocked_until_explicit_human_approval"} />
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Patch Scope", "补丁范围")}</div>
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                {(scientistEngineeringLoop?.changed_files ?? []).length === 0 ? (
+                  <div className="text-xs leading-5 text-slate-500">
+                    {scientistEngineeringLoop?.message ?? tx(locale, "No isolated engineering run yet.", "尚未运行隔离工程验证。")}
+                  </div>
+                ) : null}
+                {(scientistEngineeringLoop?.changed_files ?? []).slice(0, 12).map((file) => (
+                  <div key={file} className="break-all rounded border border-blue-100 bg-blue-50 px-2 py-1.5 font-mono text-[11px] text-blue-800">{file}</div>
+                ))}
+                {scientistEngineeringLoop?.patch_path ? (
+                  <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">{scientistEngineeringLoop.patch_path}</div>
+                ) : null}
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Acceptance Checks", "隔离验收测试")}</div>
+              <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
+                {scientistEngineeringChecks.length === 0 ? <div className="text-xs text-slate-400">{tx(locale, "No checks recorded.", "尚未记录验收测试。")}</div> : null}
+                {scientistEngineeringChecks.slice(0, 10).map((check, index) => (
+                  <div key={`${check.command ?? "check"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="break-all font-mono text-[11px] text-slate-800">{check.command ?? "unknown check"}</span>
+                      <StatusBadge tone={check.passed ? "green" : "red"}>{check.passed ? "pass" : "fail"}</StatusBadge>
+                    </div>
+                    {check.log_path ? <div className="mt-1 break-all font-mono text-[10px] text-slate-500">{check.log_path}</div> : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 md:col-span-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="text-xs font-bold uppercase text-emerald-800">{tx(locale, "Isolation Evidence", "隔离与回滚证据")}</div>
+                  <div className="mt-1 text-xs leading-5 text-emerald-900">
+                    {scientistEngineeringLoop?.main_worktree_modified
+                      ? tx(locale, "Main worktree protection failed. Candidate must not be merged.", "主工作区保护失败，候选补丁不得合并。")
+                      : tx(locale, "The main worktree remains unchanged. A passing candidate still requires human review before merge.", "主工作区保持不变；即使候选通过测试，仍需人工审查后才能合并。")}
+                  </div>
+                </div>
+                <StatusBadge tone={scientistEngineeringLoop?.merge_ready ? "green" : "amber"}>
+                  {scientistEngineeringLoop?.epistemic_status ?? "not_validated"}
+                </StatusBadge>
+              </div>
+              {scientistEngineeringLoop?.run_manifest_path ? (
+                <div className="mt-2 break-all font-mono text-[11px] text-emerald-800">{scientistEngineeringLoop.run_manifest_path}</div>
+              ) : null}
             </div>
           </div>
         </CardContent>

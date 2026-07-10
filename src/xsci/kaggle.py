@@ -45,6 +45,7 @@ _XSCI_COMMANDS = {
     "strategy", "strategy-optimizer", "priority-plan", "intervention-plan", "decision-matrix",
     "briefing", "context-packet", "scientist-context", "state-briefing",
     "patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order",
+    "engineer", "engineering-loop", "validate-patch", "execute-upgrade",
     "learn", "memory-consolidate", "consolidate-memory", "memory-writeback",
     "innovate-plan", "innovation-backlog", "hypotheses", "proposals",
     "review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique",
@@ -755,6 +756,51 @@ def _show_scientist_patch_work_order(session: SessionState, root: Path) -> int:
     return 0 if result.get("ok", True) else 1
 
 
+def _run_scientist_engineering_command(argv: list[str], root: Path) -> int:
+    from .scientist_engineering import run_scientist_engineering_loop
+    from .terminal_events import render_scientist_engineering_loop_summary
+
+    generate_patch = "--generate" in argv
+    json_mode = "--json" in argv
+    dashboard_url = "http://127.0.0.1:8088"
+    patch_path: Path | None = None
+    work_order_path: Path | None = None
+    timeout_seconds = 180
+    for index, value in enumerate(argv):
+        if value == "--patch" and index + 1 < len(argv):
+            patch_path = Path(argv[index + 1])
+        elif value == "--work-order" and index + 1 < len(argv):
+            work_order_path = Path(argv[index + 1])
+        elif value == "--dashboard-url" and index + 1 < len(argv):
+            dashboard_url = argv[index + 1]
+        elif value == "--timeout" and index + 1 < len(argv):
+            with contextlib.suppress(ValueError):
+                timeout_seconds = max(30, min(900, int(argv[index + 1])))
+
+    cfg = load_config(root)
+    inject_engine_env(cfg)
+    session = SessionState.from_root(root, cfg=cfg)
+    if work_order_path is None:
+        TerminalTools.dispatch("scientist_patch_work_order", session, root)
+    result = run_scientist_engineering_loop(
+        session,
+        root,
+        work_order_path=work_order_path,
+        patch_path=patch_path,
+        generate_patch=generate_patch,
+        dashboard_url=dashboard_url,
+        timeout_seconds=timeout_seconds,
+    )
+    if json_mode:
+        _safe_print(json.dumps(result, ensure_ascii=False, indent=2))
+    else:
+        _agent_reply(
+            "\n".join(render_scientist_engineering_loop_summary(result)),
+            title="Scientist engineering loop",
+        )
+    return 0 if result.get("ok", False) else 1
+
+
 def _show_scientist_memory_consolidation(session: SessionState, root: Path) -> int:
     from .terminal_events import render_scientist_memory_consolidation_summary
     from .terminal_tools import TerminalTools
@@ -1060,6 +1106,8 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return _show_scientist_self_upgrade_loop(session, root), False
     if verb in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
         return _show_scientist_patch_work_order(session, root), False
+    if verb in {"engineer", "engineering-loop", "validate-patch", "execute-upgrade"}:
+        return _run_scientist_engineering_command(parts[1:], root), False
     if verb in {"learn", "memory-consolidate", "consolidate-memory", "memory-writeback"}:
         return _show_scientist_memory_consolidation(session, root), False
     if verb in {"workplan", "roadmap", "agenda"}:
@@ -1379,6 +1427,7 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  upgrade-plan             convert self-audit backlog into an engineering plan")
     print("  self-upgrade             create a safe work order for the next P0 capability upgrade")
     print("  patch-order              turn latest failure/blocker evidence into a code-agent patch work order")
+    print("  engineer [--generate]    validate a patch in an isolated Git worktree; never auto-merge")
     print("  memory-consolidate       write Scientist lessons into retrospective memory")
     print("  innovate-plan            generate memory-guided proposal backlog before training")
     print("  review-hypotheses        rank proposed research hypotheses before training")
@@ -1488,6 +1537,8 @@ def _print_help() -> None:
     print("  evomind upgrade-plan        convert self-audit backlog into engineering plan")
     print("  evomind self-upgrade        create a safe work order for the next P0 capability upgrade")
     print("  evomind patch-order         create a code-agent patch work order from latest evidence")
+    print("  evomind engineer            validate the latest patch in an isolated Git worktree")
+    print("  evomind engineer --generate ask Code Agent for a diff, validate it, and stop before merge")
     print("  evomind memory-consolidate  write Scientist lessons into retrospective memory")
     print("  evomind innovate-plan       generate memory-guided proposal backlog before training")
     print("  evomind review-hypotheses   rank proposed hypotheses against evidence/gates")
@@ -1610,6 +1661,8 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_patch_work_order(session, root)
+    if cmd in {"engineer", "engineering-loop", "validate-patch", "execute-upgrade"}:
+        return _run_scientist_engineering_command(argv[1:], root)
     if cmd in {"learn", "memory-consolidate", "consolidate-memory", "memory-writeback"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_memory_consolidation(session, root)

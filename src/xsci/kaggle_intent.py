@@ -372,6 +372,14 @@ _REAL_SCIENTIST_PATCH_WORK_ORDER = (
     "生成代码修复工单", "创建代码修复工单", "把失败转成补丁", "把问题转成补丁",
     "把问题转成工程修复", "代码agent修复工单", "代码 agent 修复工单",
 )
+_REAL_SCIENTIST_ENGINEERING_LOOP = (
+    "engineering loop", "execute engineering loop", "validate patch",
+    "test patch", "apply patch in worktree", "isolated worktree",
+    "execute generated patch", "run code-agent patch", "verify code-agent patch",
+    "工程闭环", "执行工程闭环", "验证补丁", "测试补丁",
+    "隔离验证补丁", "隔离工作树", "执行已生成补丁", "验证代码agent补丁",
+    "验证 code agent 补丁", "运行补丁测试", "执行自升级补丁",
+)
 _REAL_SCIENTIST_MEMORY_CONSOLIDATION = (
     "巩固记忆", "沉淀经验", "沉淀记忆", "写入记忆", "写进记忆", "长期记忆",
     "经验入库", "记忆入库", "复盘入库", "学习经验", "把经验存起来",
@@ -499,6 +507,8 @@ def classify(text: str) -> Intent:
     if (_contains(low, _REAL_EVOLUTION_STATUS)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="evolution_status")
+    if _contains(low, _REAL_SCIENTIST_ENGINEERING_LOOP):
+        return Intent(TOOL_QUERY, payload="scientist_engineering_loop")
     if _contains(low, _REAL_SCIENTIST_SELF_UPGRADE_LOOP):
         return Intent(TOOL_QUERY, payload="scientist_self_upgrade_loop")
     if _contains(low, _REAL_SCIENTIST_PATCH_WORK_ORDER):
