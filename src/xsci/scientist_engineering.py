@@ -162,6 +162,51 @@ def _patch_changed_files(patch_text: str) -> list[str]:
     return files
 
 
+def _repair_unified_diff_counts(patch_text: str) -> tuple[str, bool]:
+    """Recount malformed LLM hunk lengths without changing patch semantics."""
+    lines = patch_text.replace("\r\n", "\n").replace("\r", "\n").splitlines()
+    repaired = list(lines)
+    changed = not patch_text.endswith("\n")
+    hunk_re = re.compile(
+        r"^@@ -(?P<old_start>\d+)(?:,\d+)? \+(?P<new_start>\d+)(?:,\d+)? @@(?P<suffix>.*)$"
+    )
+    index = 0
+    while index < len(lines):
+        match = hunk_re.match(lines[index])
+        if not match:
+            index += 1
+            continue
+        end = index + 1
+        old_count = 0
+        new_count = 0
+        while end < len(lines):
+            line = lines[end]
+            if line.startswith("@@ ") or line.startswith("diff --git ") or line.startswith("--- "):
+                break
+            if line.startswith("\\ No newline at end of file"):
+                end += 1
+                continue
+            if line.startswith(" "):
+                old_count += 1
+                new_count += 1
+            elif line.startswith("-"):
+                old_count += 1
+            elif line.startswith("+"):
+                new_count += 1
+            else:
+                break
+            end += 1
+        replacement = (
+            f"@@ -{match.group('old_start')},{old_count} "
+            f"+{match.group('new_start')},{new_count} @@{match.group('suffix')}"
+        )
+        if replacement != lines[index]:
+            repaired[index] = replacement
+            changed = True
+        index = max(end, index + 1)
+    return "\n".join(repaired) + "\n", changed
+
+
 def _work_order_body(payload: dict[str, Any]) -> dict[str, Any]:
     body = payload.get("work_order")
     return body if isinstance(body, dict) else payload
@@ -446,18 +491,24 @@ def run_scientist_engineering_loop(
         return base
 
     patch_text = resolved_patch.read_text(encoding="utf-8", errors="replace")
-    changed_files = _patch_changed_files(patch_text)
+    normalized_patch_text, patch_normalized = _repair_unified_diff_counts(patch_text)
+    artifact_root.mkdir(parents=True, exist_ok=True)
+    normalized_patch_path = artifact_root / "normalized_input.diff"
+    normalized_patch_path.write_text(normalized_patch_text, encoding="utf-8")
+    changed_files = _patch_changed_files(normalized_patch_text)
     unsafe_patch_paths = [path for path in changed_files if not _path_is_safe(path)]
     outside_work_order = [
         path
         for path in changed_files
         if files_to_edit and path not in files_to_edit
     ]
-    if not patch_text.strip() or not changed_files or unsafe_patch_paths or outside_work_order:
+    if not normalized_patch_text.strip() or not changed_files or unsafe_patch_paths or outside_work_order:
         base.update({
             "status": "blocked_patch_scope_violation",
             "message": "Patch failed path/scope validation.",
             "patch_path": str(resolved_patch),
+            "normalized_patch_path": str(normalized_patch_path),
+            "patch_normalized": patch_normalized,
             "changed_files": changed_files,
             "unsafe_paths": unsafe_patch_paths,
             "outside_work_order": outside_work_order,
@@ -481,10 +532,10 @@ def run_scientist_engineering_loop(
         added = _git(root, "worktree", "add", "--detach", str(worktree), "HEAD", timeout=180)
         if added.returncode != 0:
             raise RuntimeError(f"git worktree add failed: {_safe_text(added.stdout, limit=1000)}")
-        checked = _git(worktree, "apply", "--check", str(resolved_patch), timeout=120)
+        checked = _git(worktree, "apply", "--recount", "--check", str(normalized_patch_path), timeout=120)
         if checked.returncode != 0:
-            raise RuntimeError(f"git apply --check failed: {_safe_text(checked.stdout, limit=1500)}")
-        applied = _git(worktree, "apply", str(resolved_patch), timeout=120)
+            raise RuntimeError(f"git apply --recount --check failed: {_safe_text(checked.stdout, limit=1500)}")
+        applied = _git(worktree, "apply", "--recount", str(normalized_patch_path), timeout=120)
         if applied.returncode != 0:
             raise RuntimeError(f"git apply failed: {_safe_text(applied.stdout, limit=1500)}")
         patch_applied = True
@@ -540,6 +591,9 @@ def run_scientist_engineering_loop(
         },
         "patch_path": str(resolved_patch),
         "patch_sha256": _sha256(resolved_patch),
+        "normalized_patch_path": str(normalized_patch_path),
+        "normalized_patch_sha256": _sha256(normalized_patch_path),
+        "patch_normalized": patch_normalized,
         "changed_files": changed_files,
         "patch_applied_in_isolated_worktree": patch_applied,
         "acceptance_checks": acceptance_results,

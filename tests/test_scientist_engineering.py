@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -139,3 +140,28 @@ def test_engineering_loop_blocks_external_resource_issue_as_non_code(tmp_path: P
     assert result["status"] == "blocked_external_gate_not_code"
     assert result["next_safe_command"] == "evomind ready"
     assert (root / "src" / "demo.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_engineering_loop_recounts_incorrect_llm_hunk_lengths(tmp_path: Path):
+    root = _repo(tmp_path)
+    patch = _patch(root, "VALUE = 5\n")
+    malformed = re.sub(
+        r"@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@",
+        r"@@ -\1,9 +\2,17 @@",
+        patch.read_text(encoding="utf-8"),
+        count=1,
+    )
+    patch.write_text(malformed.rstrip("\n"), encoding="utf-8")
+    order = _work_order(root)
+
+    result = run_scientist_engineering_loop(
+        SessionState(selected_task="test-task"),
+        root,
+        work_order_path=order,
+        patch_path=patch,
+    )
+
+    assert result["ok"] is True
+    assert result["status"] == "passed_review_candidate"
+    assert result["main_worktree_modified"] is False
+    assert result["merge_ready"] is True
