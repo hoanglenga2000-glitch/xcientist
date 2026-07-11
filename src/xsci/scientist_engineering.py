@@ -294,11 +294,20 @@ def _generate_patch_via_code_agent(
     work_order: dict[str, Any],
     dashboard_url: str,
     timeout_seconds: int,
+    repair_context: dict[str, Any] | None = None,
 ) -> tuple[Path | None, dict[str, Any]]:
     endpoint = dashboard_url.rstrip("/") + "/api/code-agents/claude/sessions"
+    prompt = str(work_order.get("code_agent_prompt") or work_order.get("objective") or "")
+    if repair_context:
+        prompt = (
+            f"{prompt}\n\n"
+            "The previous isolated candidate failed. Produce a replacement unified diff, not an incremental diff. "
+            "Use the validation evidence below and stay inside files_to_edit.\n"
+            f"{json.dumps(repair_context, ensure_ascii=False, indent=2)}"
+        )
     body = {
         "task_id": session.selected_task or "system",
-        "prompt": str(work_order.get("code_agent_prompt") or work_order.get("objective") or ""),
+        "prompt": prompt,
         "model": os.environ.get("CLAUDE_CODE_MODEL", "claude-opus-4-8"),
         "max_turns": 5,
         "timeout_seconds": timeout_seconds,
@@ -319,8 +328,36 @@ def _generate_patch_via_code_agent(
             "manifest_path": result.get("manifest_path"),
             "patch_path": relative,
             "error": _safe_text(result.get("error"), limit=500),
+            "repair_context_supplied": bool(repair_context),
         },
     )
+
+
+def _repair_context(
+    *,
+    attempt: int,
+    changed_files: list[str],
+    candidate_diff: str,
+    acceptance_results: list[dict[str, Any]],
+    message: str,
+) -> dict[str, Any]:
+    failures = [
+        {
+            "command": str(item.get("command") or ""),
+            "exit_code": item.get("exit_code"),
+            "output_tail": _safe_text(item.get("output_tail"), limit=1600),
+        }
+        for item in acceptance_results
+        if item.get("passed") is not True
+    ]
+    return {
+        "previous_attempt": attempt,
+        "message": _safe_text(message, limit=1600),
+        "changed_files": changed_files,
+        "failed_checks": failures,
+        "previous_candidate_diff": _safe_text(candidate_diff, limit=12000),
+        "required_response": "complete replacement unified diff",
+    }
 
 
 def _command_is_allowed(command: str) -> bool:
@@ -400,6 +437,7 @@ def run_scientist_engineering_loop(
     generate_patch: bool = False,
     dashboard_url: str = "http://127.0.0.1:8088",
     timeout_seconds: int = 180,
+    max_patch_attempts: int = 2,
 ) -> dict[str, Any]:
     root = Path(root).resolve()
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
@@ -413,7 +451,7 @@ def run_scientist_engineering_loop(
 
     base: dict[str, Any] = {
         "ok": False,
-        "schema": "evomind.ai_scientist.engineering_loop.v1",
+        "schema": "evomind.ai_scientist.engineering_loop.v2",
         "tool": "scientist_engineering_loop",
         "generated_at": generated_at,
         "run_id": run_id,
@@ -431,6 +469,8 @@ def run_scientist_engineering_loop(
         "human_gate": "review_candidate_before_merge",
         "no_training_started": True,
         "official_submit": "blocked_until_explicit_human_approval",
+        "max_patch_attempts": max(1, min(int(max_patch_attempts), 4)),
+        "attempts": [],
     }
     if not work_order_payload:
         base.update({
@@ -470,6 +510,7 @@ def run_scientist_engineering_loop(
         _write_json(artifact_path, base)
         return base
 
+    max_attempts = max(1, min(int(max_patch_attempts), 4))
     code_agent: dict[str, Any] = {"status": "not_requested"}
     resolved_patch = _resolve_patch_path(root, patch_path)
     if generate_patch:
@@ -490,92 +531,170 @@ def run_scientist_engineering_loop(
         _write_json(artifact_path, base)
         return base
 
-    patch_text = resolved_patch.read_text(encoding="utf-8", errors="replace")
-    normalized_patch_text, patch_normalized = _repair_unified_diff_counts(patch_text)
     artifact_root.mkdir(parents=True, exist_ok=True)
-    normalized_patch_path = artifact_root / "normalized_input.diff"
-    normalized_patch_path.write_text(normalized_patch_text, encoding="utf-8")
-    changed_files = _patch_changed_files(normalized_patch_text)
-    unsafe_patch_paths = [path for path in changed_files if not _path_is_safe(path)]
-    outside_work_order = [
-        path
-        for path in changed_files
-        if files_to_edit and path not in files_to_edit
-    ]
-    if not normalized_patch_text.strip() or not changed_files or unsafe_patch_paths or outside_work_order:
-        base.update({
-            "status": "blocked_patch_scope_violation",
-            "message": "Patch failed path/scope validation.",
-            "patch_path": str(resolved_patch),
-            "normalized_patch_path": str(normalized_patch_path),
-            "patch_normalized": patch_normalized,
-            "changed_files": changed_files,
-            "unsafe_paths": unsafe_patch_paths,
-            "outside_work_order": outside_work_order,
-            "code_agent": code_agent,
-            "next_safe_command": "evomind patch-order",
-        })
-        _write_json(artifact_path, base)
-        return base
-
     main_head_before = _git(root, "rev-parse", "HEAD").stdout.strip()
-    main_hashes_before = {path: _sha256(root / path) for path in changed_files}
-    temp_parent = Path(tempfile.mkdtemp(prefix="evomind-engineering-"))
-    worktree = temp_parent / "worktree"
+    main_hashes_before = {path: _sha256(root / path) for path in files_to_edit}
+    attempts: list[dict[str, Any]] = []
     acceptance_results: list[dict[str, Any]] = []
+    changed_files: list[str] = []
     patch_applied = False
     cleanup_ok = False
     status = "failed_rolled_back"
     message = ""
     candidate_diff = ""
-    try:
-        added = _git(root, "worktree", "add", "--detach", str(worktree), "HEAD", timeout=180)
-        if added.returncode != 0:
-            raise RuntimeError(f"git worktree add failed: {_safe_text(added.stdout, limit=1000)}")
-        checked = _git(worktree, "apply", "--recount", "--check", str(normalized_patch_path), timeout=120)
-        if checked.returncode != 0:
-            raise RuntimeError(f"git apply --recount --check failed: {_safe_text(checked.stdout, limit=1500)}")
-        applied = _git(worktree, "apply", "--recount", str(normalized_patch_path), timeout=120)
-        if applied.returncode != 0:
-            raise RuntimeError(f"git apply failed: {_safe_text(applied.stdout, limit=1500)}")
-        patch_applied = True
-        actual_changed = [
-            _normalize_repo_path(line)
-            for line in _git(worktree, "diff", "--name-only").stdout.splitlines()
-            if line.strip()
-        ]
-        unexpected = [path for path in actual_changed if path not in changed_files]
-        if unexpected:
-            raise RuntimeError(f"Applied patch changed unexpected files: {unexpected}")
+    patch_normalized = False
+    normalized_patch_path = artifact_root / "normalized_input.diff"
+    repair_evidence: dict[str, Any] | None = None
 
-        commands = [str(item) for item in work_order.get("acceptance_checks") or [] if str(item).strip()]
-        if not commands:
-            commands = ["git diff --check"]
-        acceptance_results, all_passed = _run_acceptance_checks(
-            worktree=worktree,
-            commands=commands,
-            logs_dir=artifact_root / "checks",
-        )
-        candidate_diff = _git(worktree, "diff", "--binary", "--").stdout
-        artifact_root.mkdir(parents=True, exist_ok=True)
-        candidate_diff_path.write_text(candidate_diff, encoding="utf-8")
-        if all_passed:
-            status = "passed_review_candidate"
-            message = "Patch passed isolated worktree checks and is ready for human review; it was not merged."
-        else:
+    for attempt_number in range(1, max_attempts + 1):
+        if attempt_number > 1:
+            if not generate_patch:
+                break
+            repair_patch, code_agent = _generate_patch_via_code_agent(
+                root=root,
+                session=session,
+                work_order=work_order,
+                dashboard_url=dashboard_url,
+                timeout_seconds=timeout_seconds,
+                repair_context=repair_evidence,
+            )
+            if not repair_patch:
+                message = "Code Agent did not return a repair patch after isolated validation failed."
+                break
+            resolved_patch = repair_patch
+
+        attempt_root = artifact_root / f"attempt_{attempt_number:02d}"
+        attempt_root.mkdir(parents=True, exist_ok=True)
+        normalized_patch_path = attempt_root / "normalized_input.diff"
+        attempt_candidate_diff_path = attempt_root / "candidate.diff"
+        patch_text = resolved_patch.read_text(encoding="utf-8", errors="replace")
+        normalized_patch_text, patch_normalized = _repair_unified_diff_counts(patch_text)
+        normalized_patch_path.write_text(normalized_patch_text, encoding="utf-8")
+        changed_files = _patch_changed_files(normalized_patch_text)
+        for path in changed_files:
+            main_hashes_before.setdefault(path, _sha256(root / path))
+        unsafe_patch_paths = [path for path in changed_files if not _path_is_safe(path)]
+        outside_work_order = [path for path in changed_files if files_to_edit and path not in files_to_edit]
+        if not normalized_patch_text.strip() or not changed_files or unsafe_patch_paths or outside_work_order:
+            status = "blocked_patch_scope_violation"
+            message = "Patch failed path/scope validation."
+            attempt_payload = {
+                "attempt": attempt_number,
+                "status": status,
+                "message": message,
+                "patch_path": str(resolved_patch),
+                "normalized_patch_path": str(normalized_patch_path),
+                "changed_files": changed_files,
+                "unsafe_paths": unsafe_patch_paths,
+                "outside_work_order": outside_work_order,
+                "code_agent": code_agent,
+                "main_worktree_modified": False,
+                "rollback_verified": True,
+                "manifest_path": str(attempt_root / "manifest.json"),
+            }
+            _write_json(attempt_root / "manifest.json", attempt_payload)
+            attempts.append(attempt_payload)
+            break
+
+        temp_parent = Path(tempfile.mkdtemp(prefix="evomind-engineering-"))
+        worktree = temp_parent / "worktree"
+        acceptance_results = []
+        attempt_patch_applied = False
+        attempt_cleanup_ok = False
+        candidate_diff = ""
+        try:
+            added = _git(root, "worktree", "add", "--detach", str(worktree), "HEAD", timeout=180)
+            if added.returncode != 0:
+                raise RuntimeError(f"git worktree add failed: {_safe_text(added.stdout, limit=1000)}")
+            checked = _git(worktree, "apply", "--recount", "--check", str(normalized_patch_path), timeout=120)
+            if checked.returncode != 0:
+                raise RuntimeError(f"git apply --recount --check failed: {_safe_text(checked.stdout, limit=1500)}")
+            applied = _git(worktree, "apply", "--recount", str(normalized_patch_path), timeout=120)
+            if applied.returncode != 0:
+                raise RuntimeError(f"git apply failed: {_safe_text(applied.stdout, limit=1500)}")
+            attempt_patch_applied = True
+            actual_changed = [
+                _normalize_repo_path(line)
+                for line in _git(worktree, "diff", "--name-only").stdout.splitlines()
+                if line.strip()
+            ]
+            unexpected = [path for path in actual_changed if path not in changed_files]
+            if unexpected:
+                raise RuntimeError(f"Applied patch changed unexpected files: {unexpected}")
+            commands = [str(item) for item in work_order.get("acceptance_checks") or [] if str(item).strip()]
+            acceptance_results, all_passed = _run_acceptance_checks(
+                worktree=worktree,
+                commands=commands or ["git diff --check"],
+                logs_dir=attempt_root / "checks",
+            )
+            candidate_diff = _git(worktree, "diff", "--binary", "--").stdout
+            attempt_candidate_diff_path.write_text(candidate_diff, encoding="utf-8")
+            candidate_diff_path.write_text(candidate_diff, encoding="utf-8")
+            if all_passed:
+                status = "passed_review_candidate"
+                message = "Patch passed isolated worktree checks and is ready for human review; it was not merged."
+            else:
+                status = "failed_rolled_back"
+                message = "Patch failed one or more isolated acceptance checks; the temporary worktree is discarded."
+        except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
             status = "failed_rolled_back"
-            message = "Patch failed one or more isolated acceptance checks; the temporary worktree is discarded."
-    except (RuntimeError, OSError, subprocess.TimeoutExpired) as exc:
-        message = _safe_text(exc, limit=1600)
-    finally:
-        if worktree.exists():
-            removed = _git(root, "worktree", "remove", "--force", str(worktree), timeout=180)
-            cleanup_ok = removed.returncode == 0
-        _git(root, "worktree", "prune", timeout=60)
-        shutil.rmtree(temp_parent, ignore_errors=True)
+            message = _safe_text(exc, limit=1600)
+        finally:
+            if worktree.exists():
+                removed = _git(root, "worktree", "remove", "--force", str(worktree), timeout=180)
+                attempt_cleanup_ok = removed.returncode == 0
+            _git(root, "worktree", "prune", timeout=60)
+            shutil.rmtree(temp_parent, ignore_errors=True)
+
+        attempt_main_head_after = _git(root, "rev-parse", "HEAD").stdout.strip()
+        attempt_main_hashes_after = {path: _sha256(root / path) for path in main_hashes_before}
+        attempt_main_unchanged = (
+            main_head_before == attempt_main_head_after
+            and main_hashes_before == attempt_main_hashes_after
+        )
+        if not attempt_main_unchanged:
+            status = "failed_main_worktree_changed"
+            message = "Engineering attempt changed the main worktree; automatic repair stopped."
+        patch_applied = attempt_patch_applied
+        cleanup_ok = attempt_cleanup_ok
+        attempt_payload = {
+            "attempt": attempt_number,
+            "status": status,
+            "message": message,
+            "patch_path": str(resolved_patch),
+            "patch_sha256": _sha256(resolved_patch),
+            "normalized_patch_path": str(normalized_patch_path),
+            "changed_files": changed_files,
+            "patch_applied_in_isolated_worktree": attempt_patch_applied,
+            "acceptance_checks": acceptance_results,
+            "candidate_diff_path": str(attempt_candidate_diff_path),
+            "cleanup_ok": attempt_cleanup_ok,
+            "code_agent": code_agent,
+            "main_head_before": main_head_before,
+            "main_head_after": attempt_main_head_after,
+            "main_file_hashes_before": main_hashes_before,
+            "main_file_hashes_after": attempt_main_hashes_after,
+            "main_worktree_modified": not attempt_main_unchanged,
+            "rollback_verified": attempt_main_unchanged,
+            "manifest_path": str(attempt_root / "manifest.json"),
+        }
+        _write_json(attempt_root / "manifest.json", attempt_payload)
+        attempts.append(attempt_payload)
+        if status == "passed_review_candidate":
+            candidate_diff_path.write_text(candidate_diff, encoding="utf-8")
+            break
+        if not attempt_main_unchanged:
+            break
+        repair_evidence = _repair_context(
+            attempt=attempt_number,
+            changed_files=changed_files,
+            candidate_diff=candidate_diff,
+            acceptance_results=acceptance_results,
+            message=message,
+        )
 
     main_head_after = _git(root, "rev-parse", "HEAD").stdout.strip()
-    main_hashes_after = {path: _sha256(root / path) for path in changed_files}
+    main_hashes_after = {path: _sha256(root / path) for path in main_hashes_before}
     main_unchanged = main_head_before == main_head_after and main_hashes_before == main_hashes_after
     payload = {
         **base,
@@ -590,16 +709,21 @@ def run_scientist_engineering_loop(
             "human_gate": work_order.get("human_gate") or "review_patch_before_merge",
         },
         "patch_path": str(resolved_patch),
-        "patch_sha256": _sha256(resolved_patch),
+        "patch_sha256": _sha256(resolved_patch) if resolved_patch else "missing",
         "normalized_patch_path": str(normalized_patch_path),
         "normalized_patch_sha256": _sha256(normalized_patch_path),
         "patch_normalized": patch_normalized,
         "changed_files": changed_files,
+        "unsafe_paths": attempts[-1].get("unsafe_paths", []) if attempts else [],
+        "outside_work_order": attempts[-1].get("outside_work_order", []) if attempts else [],
         "patch_applied_in_isolated_worktree": patch_applied,
         "acceptance_checks": acceptance_results,
         "candidate_diff_path": str(candidate_diff_path),
         "candidate_diff_sha256": hashlib.sha256(candidate_diff.encode("utf-8")).hexdigest() if candidate_diff else "",
         "code_agent": code_agent,
+        "attempts": attempts,
+        "attempt_count": len(attempts),
+        "repair_attempted": len(attempts) > 1,
         "cleanup_ok": cleanup_ok,
         "main_head_before": main_head_before,
         "main_head_after": main_head_after,
@@ -610,7 +734,7 @@ def run_scientist_engineering_loop(
         "next_safe_command": (
             "review candidate diff before merge"
             if status == "passed_review_candidate"
-            else "evomind patch-order"
+            else "evomind engineer --generate" if generate_patch else "evomind patch-order"
         ),
         "epistemic_status": (
             "validated_in_isolated_worktree_not_merged"
@@ -631,6 +755,8 @@ def run_scientist_engineering_loop(
             "acceptance_passed": all(item.get("passed") for item in acceptance_results) if acceptance_results else False,
             "main_worktree_modified": payload["main_worktree_modified"],
             "candidate_diff_path": str(candidate_diff_path),
+            "attempt_count": len(attempts),
+            "repair_attempted": len(attempts) > 1,
             "epistemic_status": payload["epistemic_status"],
             "no_training_started": True,
             "official_submit": "blocked_until_explicit_human_approval",

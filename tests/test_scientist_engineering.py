@@ -5,6 +5,7 @@ import re
 import subprocess
 from pathlib import Path
 
+import xsci.scientist_engineering as engineering
 from xsci.kaggle_session import SessionState
 from xsci.scientist_engineering import run_scientist_engineering_loop
 
@@ -165,3 +166,50 @@ def test_engineering_loop_recounts_incorrect_llm_hunk_lengths(tmp_path: Path):
     assert result["status"] == "passed_review_candidate"
     assert result["main_worktree_modified"] is False
     assert result["merge_ready"] is True
+
+
+def test_engineering_loop_feeds_failure_evidence_into_second_patch_attempt(tmp_path: Path, monkeypatch):
+    root = _repo(tmp_path)
+    (root / "tests").mkdir()
+    (root / "tests" / "test_demo.py").write_text(
+        "from src.demo import VALUE\n\ndef test_value():\n    assert VALUE == 2\n",
+        encoding="utf-8",
+    )
+    _git(root, "add", ".")
+    _git(root, "commit", "-m", "add acceptance test")
+    bad_patch = _patch(root, "VALUE = 3\n", "bad.diff")
+    good_patch = _patch(root, "VALUE = 2\n", "good.diff")
+    order = _work_order(root)
+    payload = json.loads(order.read_text(encoding="utf-8"))
+    payload["acceptance_checks"] = ["python -m pytest tests/test_demo.py -q"]
+    order.write_text(json.dumps(payload), encoding="utf-8")
+    calls: list[dict] = []
+
+    def fake_generate(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get("repair_context"):
+            return good_patch, {"status": "completed", "repair_context_supplied": True}
+        return bad_patch, {"status": "completed", "repair_context_supplied": False}
+
+    monkeypatch.setattr(engineering, "_generate_patch_via_code_agent", fake_generate)
+
+    result = run_scientist_engineering_loop(
+        SessionState(selected_task="test-task"),
+        root,
+        work_order_path=order,
+        generate_patch=True,
+        max_patch_attempts=2,
+    )
+
+    assert result["ok"] is True
+    assert result["attempt_count"] == 2
+    assert result["repair_attempted"] is True
+    assert result["attempts"][0]["status"] == "failed_rolled_back"
+    assert result["attempts"][1]["status"] == "passed_review_candidate"
+    assert result["attempts"][0]["rollback_verified"] is True
+    assert Path(result["attempts"][0]["manifest_path"]).exists()
+    assert Path(result["attempts"][0]["candidate_diff_path"]).exists()
+    assert Path(result["attempts"][0]["acceptance_checks"][0]["log_path"]).exists()
+    assert calls[1]["repair_context"]["failed_checks"][0]["command"].startswith("python -m pytest")
+    assert "assert VALUE == 2" in calls[1]["repair_context"]["failed_checks"][0]["output_tail"]
+    assert (root / "src" / "demo.py").read_text(encoding="utf-8") == "VALUE = 1\n"

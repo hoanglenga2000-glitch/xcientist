@@ -20,22 +20,23 @@ have simply moved from "hardcoded in the ladder" to "hardcoded in the guardrail"
 from __future__ import annotations
 
 import json
+import math
 import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .memory_library import MemoryLibrary
-from .messaging import ToolSpec
 from ..claim_audit import audit_claim
-from ..evolution_loop import _clean_error_for_feedback, _classify_failure, _is_transient_infra
+from ..evolution_loop import _classify_failure, _clean_error_for_feedback, _is_transient_infra
 from ..mcgs_selector import ExpansionPlan, MCGSSelector
 from ..retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 from ..search_graph import ExperimentNode, SearchGraph
 from ..strategy_selector import TaskProfile, recommend_strategies
 from ..validation_contract import check_required_artifacts, create_contract, evaluate_acceptance
 from ..variation_generator import TaskContext
+from .memory_library import MemoryLibrary
+from .messaging import ToolSpec
 
 # What decide_promotion requires on disk before a candidate may be promoted.
 _REQUIRED_ARTIFACTS = ["metrics.json", "submission.csv"]
@@ -661,22 +662,56 @@ class ResearchToolbox:
         exp_id = args.get("exp_id") or "unknown"
         node = self.graph.nodes.get(exp_id)
         delta = node.promotion_delta if node else None
+        promoted = bool(node and node.run_success and node.promoted)
+        validated = bool(
+            promoted
+            and node is not None
+            and node.parent_score is not None
+            and delta is not None
+            and math.isfinite(delta)
+            and delta > 0
+        )
+        evidence_level = "validated" if validated else "observed" if promoted else "failure"
+        requested_strategy = (args.get("reusable_strategy") or "").strip()
+        reusable_strategy = requested_strategy if promoted else ""
+        worked = (args.get("what_worked") or "").strip() if promoted else ""
+        failed = (args.get("what_failed") or "").strip()
+        if node is not None and not promoted and not failed:
+            failed = node.promotion_reason or "experiment was not promoted; treat the lesson as failure evidence"
         record = MemoryRecord(
             memory_id=f"{self.context.task_name}:{exp_id}",
             task_type=self.context.task_type,
-            dataset_profile={"modality": self.context.modality, "n_train": self.context.n_train},
+            dataset_profile={
+                "modality": self.context.modality,
+                "n_train": self.context.n_train,
+                "run_success": bool(node and node.run_success),
+                "promoted": promoted,
+                "evidence_level": evidence_level,
+                "outcome_status": "promoted" if promoted else "held_or_failed",
+            },
             method=(node.branch_type if node else "agent"),
-            what_worked=(args.get("what_worked") or "").strip(),
-            what_failed=(args.get("what_failed") or "").strip(),
+            what_worked=worked,
+            what_failed=failed,
             metric_delta=delta,
-            reusable_strategy=(args.get("reusable_strategy") or "").strip(),
+            reusable_strategy=reusable_strategy,
             failure_pattern=(args.get("failure_pattern") or "").strip().lower(),
             linked_exp_ids=[exp_id],
         )
         self.library.add(record)
         self.emit("lesson", exp_id=exp_id, failure_pattern=record.failure_pattern,
                   reusable_strategy=record.reusable_strategy, metric_delta=delta)
-        return ToolOutcome(f"lesson recorded for {exp_id}.", f"lesson for {exp_id}", ok=True)
+        qualification = (
+            "validated strategy"
+            if validated
+            else "observed first promotion; no comparative gain yet"
+            if promoted
+            else "failure evidence; strategy not promoted"
+        )
+        return ToolOutcome(
+            f"lesson recorded for {exp_id} as {qualification}.",
+            f"lesson for {exp_id}: {qualification}",
+            ok=True,
+        )
 
     def _tool_audit_conclusion(self, args: dict[str, Any]) -> ToolOutcome:
         exp_id = args.get("exp_id") or ""

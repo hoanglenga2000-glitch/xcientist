@@ -12,13 +12,12 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
 
 from research_os import events as ev
 from research_os.agent.messaging import AssistantTurn, ToolCall
 from research_os.agent.session import AgentSession, AgentSessionConfig
 from research_os.agent.tools import ResearchToolbox
-from research_os.evolution_loop import LocalSubprocessRunner
+from research_os.evolution_loop import LocalSubprocessRunner, RunResult
 from research_os.variation_generator import TaskContext
 
 # A tiny but contract-honoring solution: prints CV_SCORE and writes both artifacts.
@@ -153,6 +152,65 @@ def test_agent_session_stops_at_turn_budget(tmp_path):
     summary = session.run("go forever")
     assert summary["turns_used"] == 3
     assert summary["finished_by_agent"] is False
+    assert summary["needs_continuation"] is True
+    assert summary["stop_reason"] == "turn_budget_exhausted"
+
+
+def test_agent_session_nudges_text_only_turn_then_requires_finish(tmp_path):
+    exp_dir = tmp_path / "exp"
+    toolbox = ResearchToolbox(
+        _ctx(), data_dir=str(tmp_path / "data"), work_dir=exp_dir,
+        runner=LocalSubprocessRunner(exp_dir / "runs", timeout=30),
+    )
+    client = _ScriptedClient([
+        _turn("I think this is done.", [], "end_turn"),
+        _turn("Done honestly.", [ToolCall("finish", "finish", {"summary": "blocked: no experiment"})], "tool_use"),
+    ])
+    session = AgentSession(context=_ctx(), toolbox=toolbox, exp_dir=exp_dir, client=client)
+
+    summary = session.run("inspect and finish")
+
+    assert client.sends == 2
+    assert summary["finished_by_agent"] is True
+    assert summary["needs_continuation"] is False
+    assert summary["stop_reason"] == "finished"
+    assert any(
+        message.get("role") == "user" and "not complete until you call finish" in str(message.get("content"))
+        for message in session.messages
+    )
+
+
+def test_agent_session_marks_repeated_text_only_turn_as_continuation(tmp_path):
+    exp_dir = tmp_path / "exp"
+    toolbox = ResearchToolbox(
+        _ctx(), data_dir=str(tmp_path / "data"), work_dir=exp_dir,
+        runner=LocalSubprocessRunner(exp_dir / "runs", timeout=30),
+    )
+    client = _ScriptedClient([
+        _turn("Maybe done.", [], "end_turn"),
+        _turn("Still no finish.", [], "end_turn"),
+    ])
+    session = AgentSession(context=_ctx(), toolbox=toolbox, exp_dir=exp_dir, client=client)
+
+    summary = session.run("inspect and finish")
+
+    assert summary["finished_by_agent"] is False
+    assert summary["needs_continuation"] is True
+    assert summary["stop_reason"] == "text_only_without_finish"
+
+
+def test_cli_run_once_returns_nonzero_for_unfinished_session(tmp_path, monkeypatch):
+    from xsci import agent as agent_cli
+
+    class _Session:
+        exp_dir = tmp_path / "exp"
+
+        def run(self, goal):
+            self.exp_dir.mkdir(parents=True, exist_ok=True)
+            return {"finished_by_agent": False, "needs_continuation": True, "stop_reason": "provider_error"}
+
+    monkeypatch.setattr(agent_cli, "_record_evolution_summary", lambda *args, **kwargs: None)
+    assert agent_cli._run_once(_Session(), "continue", quiet_summary=True, task_name="demo") == 2
 
 
 def test_agent_session_halts_on_consecutive_tool_failures(tmp_path):

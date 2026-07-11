@@ -306,6 +306,49 @@ def _semantic_cache_projection(evidence: dict[str, Any]) -> dict[str, Any]:
     add("repair.root_causes", repair.get("root_causes"))
     add("repair.selected_action", read_path(repair, "decision", "selected_action"))
 
+    adaptive = source("adaptive_tool_loop")
+    for key in (
+        "status", "stop_reason", "executed_tools", "dynamic_tool_selection",
+        "failure_observed", "replanned_after_failure", "open_requirements",
+    ):
+        add(f"adaptive.{key}", adaptive.get(key))
+    for item in adaptive.get("tool_calls") or []:
+        if not isinstance(item, dict):
+            continue
+        tool_name = _safe_text(item.get("tool"), limit=120)
+        if not tool_name:
+            continue
+        add(f"adaptive.tool.{tool_name}.ok", item.get("ok"))
+        add(f"adaptive.tool.{tool_name}.summary", item.get("summary"))
+        add(f"adaptive.tool.{tool_name}.artifact_path", item.get("artifact_path"))
+
+    continuation_resume = source("continuation_resume")
+    for key in (
+        "status", "stop_reason", "executed_tools", "remaining_safe_tools",
+    ):
+        add(f"continuation_resume.{key}", continuation_resume.get(key))
+    for item in continuation_resume.get("steps") or []:
+        if not isinstance(item, dict):
+            continue
+        index = item.get("index")
+        if index in (None, ""):
+            continue
+        for key in (
+            "status", "executed_tool", "selected_action_id",
+            "before_remaining_safe_tools", "after_remaining_safe_tools",
+        ):
+            add(f"continuation_resume.step.{index}.{key}", item.get(key))
+
+    for source_name in (
+        "scientist_self_audit",
+        "scientist_causal_diagnosis",
+        "scientist_engineering_loop",
+        "scientist_memory_consolidation",
+    ):
+        payload = source(source_name)
+        for key in ("status", "mode", "message", "artifact_path", "overall_score", "next_safe_command"):
+            add(f"{source_name}.{key}", payload.get(key))
+
     recent = source("recent_run")
     for key in ("run_id", "recent_run_id", "cv_score", "best_score", "status"):
         add(f"recent.{key}", recent.get(key))

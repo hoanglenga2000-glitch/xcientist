@@ -908,9 +908,9 @@ def test_scientist_checkpoint_console_query_does_not_train(isolated_autokaggle, 
 
 
 def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
     from xsci.scientist_trace import load_recent_scientist_step_events
     from xsci.scientist_turns import load_recent_scientist_turns
+    from xsci.terminal_tools import TerminalTools
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -924,6 +924,26 @@ def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autok
     task = json.loads(task_path.read_text(encoding="utf-8"))
     task["local_data_dir"] = str(data_dir)
     task_path.write_text(json.dumps(task, ensure_ascii=False, indent=2), encoding="utf-8")
+    memory_dir = root / "experiments" / "evolution"
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    (memory_dir / "retrospective_memory.json").write_text(json.dumps({
+        "records": [
+            {
+                "memory_id": "autopilot_mem_001",
+                "task": "spaceship-titanic",
+                "task_type": "classification",
+                "reusable_strategy": "OOF blend with fold stability audit",
+                "what_worked": "calibrated probabilities improved same-split validation",
+            },
+            {
+                "memory_id": "autopilot_mem_002",
+                "task": "spaceship-titanic",
+                "task_type": "classification",
+                "reusable_strategy": "feature interaction ablation ladder",
+                "what_worked": "isolated ablations prevented false promotion",
+            },
+        ]
+    }), encoding="utf-8")
 
     state = SessionState.from_root(root)
     result = TerminalTools.dispatch("scientist_autopilot", state, root)
@@ -945,7 +965,7 @@ def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autok
         assert 0.0 < row["confidence"] <= 1.0
         assert isinstance(row.get("evidence_signal"), str)
         assert row["evidence_signal"]
-    assert result["decision"]["selected_action"] == "run_audited_baseline"
+    assert result["decision"]["selected_action"] == "run_memory_guided_baseline"
     assert result["selected_hypothesis"]
     assert result["hypothesis_review_artifact_path"].endswith("scientist_hypothesis_review.json")
     assert result["action_queue"]
@@ -957,11 +977,20 @@ def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autok
     assert memory_action["metadata"]["memory_reuse_plan"]["reuse_rules"]
     assert any(action["id"] == "run_gated_candidate" for action in result["action_queue"])
     run_action = next(action for action in result["action_queue"] if action["id"] == "run_gated_candidate")
-    assert run_action["command"] == "evomind run spaceship-titanic"
+    blueprint = result["experiment_blueprint"]
+    exact_approval_command = (
+        f"evomind run spaceship-titanic --innovation-blueprint-id {blueprint['blueprint_id']}"
+    )
+    assert blueprint["schema"] == "evomind.innovation_blueprint/v1"
+    assert blueprint["innovation_approval_command"] == exact_approval_command
+    assert blueprint["run_command"] == "evomind run spaceship-titanic"
+    assert blueprint["run_command"] != blueprint["innovation_approval_command"]
+    assert run_action["command"] == exact_approval_command
     assert run_action["gate"] == "human_run_command_required"
     assert run_action["autonomy"] == "requires_user_run_command"
     assert run_action["metadata"]["selected_hypothesis"]
     assert run_action["metadata"]["memory_reuse_plan"]["reuse_rules"]
+    assert run_action["metadata"]["innovation_blueprint_approval"] is True
     assert (root / ".xsci" / "scientist_autopilot.json").exists()
     assert (root / ".xsci" / "scientist_action_queue.json").exists()
     assert (root / ".xsci" / "scientist_hypothesis_review.json").exists()
@@ -1142,7 +1171,11 @@ def test_scientist_next_action_blocks_training_gate_without_training(isolated_au
     assert result["ok"] is True
     assert result["status"] == "blocked_by_gate"
     assert result["selected_action"]["id"] == "run_gated_candidate"
-    assert result["selected_action"]["command"] == "evomind run spaceship-titanic"
+    selected_blueprint = result["selected_action"]["metadata"]["experiment_blueprint"]
+    assert result["selected_action"]["command"] == (
+        "evomind run spaceship-titanic --innovation-blueprint-id "
+        f"{selected_blueprint['blueprint_id']}"
+    )
     assert result["no_training_started"] is True
     assert (root / ".xsci" / "scientist_next_action.json").exists()
     assert rc == 0
@@ -1772,6 +1805,168 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
     assert result["no_training_started"] is True
 
 
+@pytest.mark.parametrize(
+    ("report", "trusted", "expected_cases", "expected_cap", "expected_status"),
+    [
+        (
+            {
+                "benchmark": "evomind_agentic_capability",
+                "cases_run": 12,
+                "total_cases": 12,
+                "task_success_rate": 1.0,
+                "scope_violations": 0,
+                "unsupported_claims": 0,
+            },
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "blocked",
+                "provider": "deepseek",
+                "cases_run": 0,
+                "total_cases": 12,
+                "task_success_rate": None,
+                "scope_violations": 0,
+                "unsupported_claims": 0,
+            },
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "",
+                "cases_run": 12,
+                "total_cases": 12,
+                "task_success_rate": 1.0,
+                "scope_violations": 0,
+                "unsupported_claims": 0,
+            },
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "deepseek",
+                "cases_run": 0,
+                "total_cases": 12,
+                "task_success_rate": None,
+                "scope_violations": 0,
+                "unsupported_claims": 0,
+            },
+            True,
+            0,
+            59,
+            "not_measured",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "deepseek",
+                "cases_run": 6,
+                "total_cases": 12,
+                "task_success_rate": 0.60,
+                "scope_violations": 0,
+                "unsupported_claims": 1,
+            },
+            True,
+            6,
+            69,
+            "partial_agentic_benchmark_evidence",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "deepseek",
+                "cases_run": 12,
+                "total_cases": 12,
+                "task_success_rate": 0.75,
+                "scope_violations": 0,
+                "unsupported_claims": 1,
+            },
+            True,
+            12,
+            69,
+            "partial_agentic_benchmark_evidence",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "deepseek",
+                "cases_run": 12,
+                "total_cases": 12,
+                "task_success_rate": 0.75,
+                "scope_violations": 1,
+                "unsupported_claims": 0,
+            },
+            True,
+            12,
+            59,
+            "insufficient_agentic_benchmark_performance",
+        ),
+        (
+            {
+                "adapter": "workspace_agent_subprocess_v1",
+                "execution_status": "completed",
+                "provider": "deepseek",
+                "cases_run": 12,
+                "total_cases": 12,
+                "task_success_rate": 0.75,
+                "scope_violations": 0,
+                "unsupported_claims": 0,
+            },
+            True,
+            12,
+            84,
+            "offline_agentic_benchmark_passed",
+        ),
+    ],
+)
+def test_scientist_self_audit_only_counts_completed_production_agent_benchmark(
+    isolated_autokaggle,
+    report,
+    trusted,
+    expected_cases,
+    expected_cap,
+    expected_status,
+):
+    from xsci.terminal_tools import TerminalTools
+
+    root = xcfg.active_root()
+    xsci_dir = root / ".xsci"
+    xsci_dir.mkdir(parents=True, exist_ok=True)
+    (xsci_dir / "agentic_capability_benchmark.json").write_text(
+        json.dumps(report, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    state = SessionState.from_root(root)
+
+    result = TerminalTools.dispatch("scientist_self_audit", state, root)
+    behavior = result["evidence_sources"]["agentic_behavior_benchmark"]
+
+    assert behavior["trusted_evidence"] is trusted
+    assert behavior["reported_cases_run"] == report["cases_run"]
+    assert behavior["cases_run"] == expected_cases
+    assert behavior["behavior_score_cap"] == expected_cap
+    assert behavior["status"] == expected_status
+    assert result["behavior_score_cap"] == expected_cap
+    assert result["overall_score"] <= expected_cap
+
+
 def test_scientist_self_audit_appends_capability_trend(isolated_autokaggle):
     from xsci.terminal_tools import TerminalTools
 
@@ -2246,8 +2441,8 @@ def test_scientist_upgrade_plan_intent_routes_before_training():
 
 
 def test_scientist_upgrade_plan_writes_engineering_plan_without_training(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
     from xsci.scientist_turns import load_recent_scientist_turns
+    from xsci.terminal_tools import TerminalTools
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -2452,6 +2647,11 @@ def test_scientist_hypothesis_review_ranks_proposals_without_training(isolated_a
     assert result["tool"] == "scientist_hypothesis_review"
     assert result["reviews"]
     assert result["selected_hypothesis"]
+    assert result["selected_hypothesis"]["components"]
+    assert result["selected_hypothesis"]["evidence_records"]
+    assert result["selected_hypothesis"]["source_memory_ids"]
+    assert result["selected_hypothesis"]["source_proposal_id"] == result["selected_hypothesis"]["hypothesis_id"]
+    assert result["selected_hypothesis"]["proposal_lineage_digest"].startswith("sha256:")
     assert result["memory_reuse_plan"]["reuse_rules"]
     assert result["memory_reuse_plan"]["avoid_patterns"]
     assert result["selected_hypothesis"]["memory_reuse_plan"]["gate"] == "memory_reuse_before_execution"
@@ -2464,8 +2664,8 @@ def test_scientist_hypothesis_review_ranks_proposals_without_training(isolated_a
     assert "sk-TEST-SHOULD-NOT-LEAK" not in serialized
 
 
-def test_scientist_review_refreshes_stale_backlog_memory_plan(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
+def test_scientist_review_refreshes_memory_plan_and_blueprint_blocks_stale_lineage(isolated_autokaggle):
+    from xsci.terminal_tools import TerminalTools, _build_scientist_action_queue
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -2508,22 +2708,30 @@ def test_scientist_review_refreshes_stale_backlog_memory_plan(isolated_autokaggl
     state = SessionState.from_root(root)
 
     review = TerminalTools.dispatch("scientist_hypothesis_review", state, root)
-    (xsci / "scientist_hypothesis_review.json").write_text(json.dumps({
-        "ok": True,
-        "tool": "scientist_hypothesis_review",
-        "selected_task": "spaceship-titanic",
-        "memory_reuse_plan": {},
-        "selected_hypothesis": {
-            "hypothesis_id": "stale_h1",
-            "strategy_name": "stale_without_memory",
-            "branch_type": "feature_engineering",
-            "code_generation_mode": "stepwise",
-            "memory_reuse_plan": {},
-        },
-        "no_training_started": True,
-        "official_submit": "blocked_until_explicit_human_approval",
-    }, ensure_ascii=False), encoding="utf-8")
+    current_backlog = json.loads((xsci / "scientist_innovation_backlog.json").read_text(encoding="utf-8"))
+    selected_id = review["selected_hypothesis"]["source_proposal_id"]
+    selected_proposal = next(
+        item for item in current_backlog["innovation_hypotheses"] if item["id"] == selected_id
+    )
+    selected_proposal["components"].append("post-review lineage mutation")
+    (xsci / "scientist_innovation_backlog.json").write_text(
+        json.dumps(current_backlog, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
     blueprint = TerminalTools.dispatch("scientist_experiment_blueprint", state, root)
+    stale_queue = _build_scientist_action_queue(
+        session=state,
+        root=root,
+        decision={},
+        workplan_result={},
+        repair_result={},
+        contract_result={"go_no_go": "go"},
+        hypothesis_review=review,
+        experiment_blueprint=blueprint,
+        blockers=[],
+        data_ready=True,
+        can_execute=True,
+    )
     audit = TerminalTools.dispatch("scientist_self_audit", state, root)
     serialized = json.dumps({"review": review, "blueprint": blueprint, "audit": audit}, ensure_ascii=False)
     backlog_ids = {item["id"] for item in audit["upgrade_backlog"]}
@@ -2534,6 +2742,14 @@ def test_scientist_review_refreshes_stale_backlog_memory_plan(isolated_autokaggl
     assert review["selected_hypothesis"]["memory_reuse_plan"]["reuse_rules"]
     assert blueprint["memory_reuse_plan"]["reuse_rules"]
     assert blueprint["experiment_blueprint"]["memory_reuse_plan"]["avoid_patterns"]
+    assert blueprint["blueprint_status"] == "blocked_stale_lineage"
+    assert blueprint["gate_summary"]["lineage_matches_current_backlog"] is False
+    assert blueprint["gate_summary"]["reviewed_lineage_digest"] != blueprint["gate_summary"]["current_lineage_digest"]
+    assert "innovation_approval_command" not in blueprint["experiment_blueprint"]
+    assert not any("--innovation-blueprint-id" in command for command in blueprint["next_safe_commands"])
+    assert any(action["id"] == "refresh_innovation_lineage" for action in stale_queue)
+    assert not any(action["id"] == "run_gated_candidate" for action in stale_queue)
+    assert not any("--innovation-blueprint-id" in action["command"] for action in stale_queue)
     assert audit["evidence_sources"]["memory"]["active_reuse_plan"] is True
     assert audit["evidence_sources"]["memory"]["reuse_rules"] > 0
     assert "memory_reuse_before_each_run" not in backlog_ids
@@ -2600,6 +2816,13 @@ def test_scientist_experiment_blueprint_writes_gated_plan_without_training(isola
     assert result["tool"] == "scientist_experiment_blueprint"
     assert result["selected_hypothesis"]
     assert result["experiment_blueprint"]["blueprint_id"]
+    assert result["experiment_blueprint"]["schema"] == "evomind.innovation_blueprint/v1"
+    assert result["experiment_blueprint"]["strategy_components"]
+    assert result["experiment_blueprint"]["source_memory_ids"]
+    assert result["experiment_blueprint"]["source_proposal_id"] == result["selected_hypothesis"]["source_proposal_id"]
+    assert result["experiment_blueprint"]["source_review_generated_at"]
+    assert result["experiment_blueprint"]["selected_hypothesis_id"] == result["selected_hypothesis"]["hypothesis_id"]
+    assert result["experiment_blueprint"]["run_command_kind"] == "ordinary_task_run_not_innovation_approval"
     assert result["experiment_blueprint"]["branch_type"]
     assert result["experiment_blueprint"]["code_generation_mode"]
     assert result["experiment_blueprint"]["resource_mode"]
@@ -3527,6 +3750,7 @@ def test_scientist_continuation_status_reports_remaining_progress(isolated_autok
     (xsci_dir / "scientist_continuation.json").write_text(json.dumps({
         "schema": "evomind.ai_scientist.continuation.v1",
         "tool": "scientist_continuation",
+        "user_goal": "Explain whether the agent is ready after all required evidence is collected.",
         "status": "needs_more_tools",
         "must_run_deferred_tools": ["scientist_self_audit", "scientist_memory_consolidation"],
         "remaining_safe_tools": ["scientist_memory_consolidation"],
@@ -3547,7 +3771,6 @@ def test_scientist_continuation_status_reports_remaining_progress(isolated_autok
         "official_submit": "blocked_until_explicit_human_approval",
     }, ensure_ascii=False), encoding="utf-8")
     state = SessionState.from_root(root)
-
     result = TerminalTools.dispatch("scientist_continuation_status", state, root)
 
     assert result["ok"] is True
@@ -3574,6 +3797,7 @@ def test_scientist_continuation_resume_reports_no_artifact(isolated_autokaggle):
     assert result["status"] == "no_continuation"
     assert result["steps_executed"] == 0
     assert result["remaining_safe_tools"] == []
+    assert result["reasoning_resynthesized"] is False
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
     assert (root / ".xsci" / "scientist_continuation_resume.json").exists()
@@ -3589,6 +3813,7 @@ def test_scientist_continuation_resume_closes_remaining_safe_tools(isolated_auto
     continuation_path.write_text(json.dumps({
         "schema": "evomind.ai_scientist.continuation.v1",
         "tool": "scientist_continuation",
+        "user_goal": "Explain whether the agent is ready after all required evidence is collected.",
         "status": "needs_more_tools",
         "must_run_deferred_tools": ["scientist_self_audit", "scientist_memory_consolidation"],
         "remaining_safe_tools": ["scientist_self_audit", "scientist_memory_consolidation"],
@@ -3602,6 +3827,14 @@ def test_scientist_continuation_resume_closes_remaining_safe_tools(isolated_auto
         "official_submit": "blocked_until_explicit_human_approval",
     }, ensure_ascii=False), encoding="utf-8")
     state = SessionState.from_root(root)
+    (xsci_dir / "scientist_terminal_turn.json").write_text(json.dumps({
+        "user_goal": "Explain whether the agent is ready after all required evidence is collected.",
+        "reasoning_synthesis": {"answer_markdown": "old answer", "cache_facts": {"old": True}},
+        "answer_markdown": "old answer",
+        "continuation": {"status": "needs_more_tools"},
+        "budget_exhausted": True,
+        "must_run_deferred_tools": ["scientist_self_audit", "scientist_memory_consolidation"],
+    }), encoding="utf-8")
 
     result = TerminalTools.dispatch("scientist_continuation_resume", state, root)
     updated = json.loads(continuation_path.read_text(encoding="utf-8"))
@@ -3612,6 +3845,13 @@ def test_scientist_continuation_resume_closes_remaining_safe_tools(isolated_auto
     assert result["steps_executed"] == 2
     assert result["executed_tools"] == ["scientist_self_audit", "scientist_memory_consolidation"]
     assert result["remaining_safe_tools"] == []
+    assert result["reasoning_resynthesized"] is True
+    assert result["answer_markdown"]
+    refreshed_turn = json.loads((xsci_dir / "scientist_terminal_turn.json").read_text(encoding="utf-8"))
+    assert refreshed_turn["answer_markdown"] == result["answer_markdown"]
+    assert refreshed_turn["answer_markdown"] != "old answer"
+    assert refreshed_turn["budget_exhausted"] is False
+    assert refreshed_turn["must_run_deferred_tools"] == []
     assert updated["status"] == "closed"
     assert updated["remaining_safe_tools"] == []
     assert len(updated["progress_history"]) == 2
@@ -4111,8 +4351,8 @@ def test_research_decision_closes_scientist_critique_budget_before_training(isol
 
 
 def test_scientist_workplan_persists_steps_and_gates_without_secret(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
     from xsci.scientist_trace import load_recent_scientist_step_events
+    from xsci.terminal_tools import TerminalTools
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -4147,9 +4387,9 @@ def test_scientist_workplan_persists_steps_and_gates_without_secret(isolated_aut
 
 
 def test_scientist_repair_plan_diagnoses_data_blocker_without_training(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
     from xsci.scientist_trace import load_recent_scientist_step_events
     from xsci.scientist_turns import load_recent_scientist_turns
+    from xsci.terminal_tools import TerminalTools
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -4197,9 +4437,9 @@ def test_scientist_repair_plan_console_query_does_not_train(isolated_autokaggle,
 
 
 def test_scientist_execution_contract_goes_ready_without_training(isolated_autokaggle):
-    from xsci.terminal_tools import TerminalTools
     from xsci.scientist_trace import load_recent_scientist_step_events
     from xsci.scientist_turns import load_recent_scientist_turns
+    from xsci.terminal_tools import TerminalTools
 
     root = xcfg.active_root()
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
@@ -4401,8 +4641,7 @@ def test_preflight_stages_appear_in_output(isolated_autokaggle, monkeypatch, cap
 
 def test_recovery_guard_produces_artifact(isolated_autokaggle):
     """Verify RecoveryGuard actually writes recovery_guard.md to disk."""
-    from xsci.recovery_guard import RecoveryGuard, GUARD_START, GUARD_END
-    from pathlib import Path
+    from xsci.recovery_guard import GUARD_END, GUARD_START, RecoveryGuard
 
     root = xcfg.active_root()
     state = SessionState.from_root(root)
@@ -4428,8 +4667,6 @@ def test_recovery_guard_produces_artifact(isolated_autokaggle):
 def test_tool_ledger_produces_artifact(isolated_autokaggle):
     """Verify ToolLedger writes tool_ledger.jsonl."""
     from xsci.tool_ledger import ToolLedger
-    import json
-    from pathlib import Path
 
     root = xcfg.active_root()
     ledger = ToolLedger(root)
@@ -4456,8 +4693,6 @@ def test_tool_ledger_produces_artifact(isolated_autokaggle):
 def test_evolution_tracker_produces_artifact(isolated_autokaggle):
     """Verify EvolutionTracker tracks metrics correctly and produces a report."""
     from xsci.evolution_tracker import EvolutionTracker
-    import json
-    from pathlib import Path
 
     root = xcfg.active_root()
     tracker = EvolutionTracker(root)
@@ -4491,9 +4726,7 @@ def test_evolution_tracker_produces_artifact(isolated_autokaggle):
 
 def test_recovery_guard_never_leaks_secrets(isolated_autokaggle):
     """RecoveryGuard must NEVER write API keys, tokens, or passwords."""
-    import os
     from xsci.recovery_guard import RecoveryGuard
-    from pathlib import Path
 
     root = xcfg.active_root()
     state = SessionState.from_root(root)
@@ -4514,7 +4747,6 @@ def test_recovery_guard_never_leaks_secrets(isolated_autokaggle):
 def test_terminal_agent_integration_persists_all(isolated_autokaggle):
     """TerminalAgent.handle() should persist: recovery_guard + tool_ledger."""
     from xsci.terminal_agent import TerminalAgent
-    from pathlib import Path
 
     root = xcfg.active_root()
     xcfg.set_global("llm", "provider", "anthropic")
@@ -4538,7 +4770,7 @@ def test_terminal_agent_integration_persists_all(isolated_autokaggle):
 
 def test_context_rescue_handles_edge_cases(isolated_autokaggle):
     """Context rescue: below threshold keeps all, above trims correctly."""
-    from xsci.context_rescue import auto_rescue_context, estimate_body_bytes
+    from xsci.context_rescue import auto_rescue_context
 
     # Below threshold: nothing dropped
     short_msgs = [
@@ -4563,9 +4795,49 @@ def test_context_rescue_handles_edge_cases(isolated_autokaggle):
     assert len(kept) == 0
 
 
+def test_context_rescue_never_orphans_tool_results(isolated_autokaggle):
+    from xsci.context_rescue import auto_rescue_context
+
+    messages = [
+        {"role": "user", "content": "seed"},
+        {"role": "assistant", "content": [
+            {"type": "tool_use", "id": "tool_1", "name": "data_check", "input": {}},
+        ]},
+        {"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": "tool_1", "content": "X" * 8000},
+        ]},
+        {"role": "assistant", "content": "final answer"},
+        {"role": "user", "content": "new goal"},
+    ]
+    kept, report = auto_rescue_context(
+        messages,
+        target_bytes=1000,
+        min_keep_messages=3,
+    )
+    assert report["dropped"] >= 2
+    for index, message in enumerate(kept):
+        content = message.get("content", [])
+        if not isinstance(content, list):
+            continue
+        for block in content:
+            if not isinstance(block, dict) or block.get("type") != "tool_result":
+                continue
+            tool_use_id = block["tool_use_id"]
+            assert any(
+                isinstance(previous.get("content"), list)
+                and any(
+                    isinstance(item, dict)
+                    and item.get("type") == "tool_use"
+                    and item.get("id") == tool_use_id
+                    for item in previous["content"]
+                )
+                for previous in kept[:index]
+            )
+
+
 def test_auto_repair_diagnosis_for_all_patterns(isolated_autokaggle):
     """Auto-repair: every failure pattern maps to a repair strategy."""
-    from xsci.auto_repair import diagnose_failure, _REPAIR_TEMPLATES
+    from xsci.auto_repair import diagnose_failure
 
     patterns = [
         ("Timeout after 1800s", "timeout"),
@@ -4641,6 +4913,100 @@ def test_reasoning_synthesis_fulfills_falsifiable_hypothesis_contract(isolated_a
     assert persisted["cache_stats"]["hits"] >= 1
     assert (root / ".xsci" / "scientist_reasoning_synthesis.md").exists()
     assert (root / ".xsci" / "scientist_reasoning_cache_stats_deterministic.json").exists()
+
+
+def test_reasoning_cache_invalidates_when_adaptive_evidence_changes(isolated_autokaggle):
+    from xsci.scientist_reasoning import build_scientist_reasoning_synthesis
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "house-prices"
+    state.llm_ready = False
+    goal = "Inspect the data gate and give the next safe action."
+    base = {
+        "context_packet": {"task_profile": {"task_slug": "house-prices", "task_type": "regression"}},
+        "adaptive_tool_loop": {
+            "status": "needs_continuation",
+            "executed_tools": ["data_check"],
+            "tool_calls": [{
+                "tool": "data_check",
+                "ok": False,
+                "summary": "train.csv missing",
+                "artifact_path": ".xsci/data_check.json",
+            }],
+            "open_requirements": ["repair_missing_data"],
+        },
+    }
+    first = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=base)
+    cached = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=base)
+    changed = {
+        **base,
+        "adaptive_tool_loop": {
+            "status": "completed",
+            "executed_tools": ["data_check", "scientist_repair_plan"],
+            "tool_calls": [{
+                "tool": "scientist_repair_plan",
+                "ok": True,
+                "summary": "repair plan created",
+                "artifact_path": ".xsci/scientist_repair_plan.json",
+            }],
+            "open_requirements": [],
+            "replanned_after_failure": True,
+        },
+    }
+    updated = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=changed)
+
+    assert first["cache_hit"] is False
+    assert cached["cache_hit"] is True
+    assert updated["cache_hit"] is False
+    assert updated["cache_key"] != first["cache_key"]
+
+
+def test_reasoning_cache_invalidates_when_continuation_resume_closes(isolated_autokaggle):
+    from xsci.scientist_reasoning import build_scientist_reasoning_synthesis
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "house-prices"
+    state.llm_ready = False
+    goal = "Summarize the final state after deferred tools finish."
+    pending = {
+        "continuation_resume": {
+            "status": "needs_more_tools",
+            "stop_reason": "max_steps_reached",
+            "executed_tools": ["scientist_self_audit"],
+            "remaining_safe_tools": ["scientist_memory_consolidation"],
+            "steps": [{
+                "index": 1,
+                "status": "executed_read_only_tool",
+                "executed_tool": "scientist_self_audit",
+                "after_remaining_safe_tools": ["scientist_memory_consolidation"],
+            }],
+        },
+    }
+    first = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=pending)
+    cached = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=pending)
+    closed = {
+        "continuation_resume": {
+            "status": "closed",
+            "stop_reason": "closed",
+            "executed_tools": ["scientist_self_audit", "scientist_memory_consolidation"],
+            "remaining_safe_tools": [],
+            "steps": [{
+                "index": 2,
+                "status": "executed_read_only_tool",
+                "executed_tool": "scientist_memory_consolidation",
+                "after_remaining_safe_tools": [],
+            }],
+        },
+    }
+    updated = build_scientist_reasoning_synthesis(state, root, goal=goal, evidence=closed)
+
+    assert first["cache_hit"] is False
+    assert cached["cache_hit"] is True
+    assert updated["cache_hit"] is False
+    assert updated["cache_key"] != first["cache_key"]
+    assert updated["cache_facts"]["continuation_resume.status"] == "closed"
 
 
 def test_memory_relevance_prefers_same_task_and_penalizes_cross_modality():

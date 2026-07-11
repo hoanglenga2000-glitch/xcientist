@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -125,7 +124,7 @@ def main() -> None:
         "web_env_template_completeness": {
             "file": "web_env_example",
             "terms": [
-                "DATABASE_URL=\"file:./prisma/workstation.db\"",
+                "DATABASE_URL=\"file:./workstation.db\"",
                 "ANTHROPIC_API_KEY_FILE",
                 "DEEPSEEK_API_KEY_FILE",
                 "DEEPSEEK_MODEL",

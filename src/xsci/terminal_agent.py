@@ -12,6 +12,7 @@ model queries, gate checks, and the decision of whether to enter training.
 from __future__ import annotations
 
 import json
+import os
 import re
 import textwrap
 from dataclasses import dataclass, field
@@ -20,10 +21,14 @@ from pathlib import Path
 from typing import Any, Optional
 
 from .kaggle_intent import (
-    CAPABILITY, CHAT, EXECUTION, GREETING, OFFICIAL, PLANNING, REPORT, MEMORY,
-    STATUS, TASK_ADD, TASK_USE, TOOL_QUERY, classify,
+    CHAT,
+    EXECUTION,
+    GREETING,
+    PLANNING,
+    TOOL_QUERY,
+    classify,
 )
-from .kaggle_session import SessionState, MODE_CHAT, MODE_EXECUTING, MODE_PLANNING
+from .kaggle_session import SessionState
 from .recovery_guard import RecoveryGuard
 from .terminal_events import (
     TerminalEventEmitter,
@@ -39,20 +44,25 @@ from .terminal_events import (
     render_scientist_innovation_trial_feedback_summary,
     render_scientist_loop_summary,
     render_scientist_memory_consolidation_summary,
-    render_scientist_recovery_summary,
+    render_scientist_patch_work_order_summary,
     render_scientist_readiness_report_summary,
     render_scientist_reasoning_synthesis_summary,
+    render_scientist_recovery_summary,
     render_scientist_self_audit_summary,
-    render_scientist_strategy_optimizer_summary,
-    render_scientist_patch_work_order_summary,
     render_scientist_self_upgrade_loop_summary,
     render_scientist_situation_model_summary,
     render_scientist_step_trace_timeline,
+    render_scientist_strategy_optimizer_summary,
     render_scientist_turn_plan_summary,
     render_scientist_upgrade_plan_summary,
     render_tool_result_as_lines,
 )
-from .terminal_tools import TerminalTools, run_scientist_autopilot, run_scientist_continuation_resume, run_scientist_loop
+from .terminal_tools import (
+    TerminalTools,
+    run_scientist_autopilot,
+    run_scientist_continuation_resume,
+    run_scientist_loop,
+)
 from .tool_ledger import ToolLedger
 
 
@@ -69,7 +79,8 @@ class TerminalResult:
 
 
 def _ansi(code: str, text: str) -> str:
-    import os, sys
+    import os
+    import sys
     if os.environ.get("NO_COLOR") or not sys.stdout.isatty():
         return text
     return f"\033[{code}m{text}\033[0m"
@@ -83,12 +94,56 @@ def _dim(text: str) -> str:
     return _ansi("90", text)
 
 
+_ARTIFACT_COMPLETION_GATES = {
+    "capability_audit_gate",
+    "context_grounding_gate",
+    "hypothesis_review_gate",
+    "memory_reuse_gate",
+    "memory_writeback_gate",
+    "observe_orient_gate",
+    "scientist_parity_gate",
+    "workplan_gate",
+}
+
+
+def _tool_result_blocking_signals(result: Any) -> list[str]:
+    if not isinstance(result, dict):
+        return ["missing_structured_tool_result"]
+    signals: list[str] = []
+    if result.get("ok") is False:
+        signals.append("ok=false")
+    for key in ("needs_continuation", "budget_exhausted", "execution_blocked"):
+        if result.get(key) is True:
+            signals.append(f"{key}=true")
+    for key in ("blockers", "blocking_gates", "open_requirements", "must_run_deferred_tools"):
+        values = result.get(key)
+        if isinstance(values, list) and values:
+            signals.append(f"{key}:{', '.join(str(item) for item in values[:3])}")
+    gate = result.get("gate") if isinstance(result.get("gate"), dict) else {}
+    if gate.get("can_execute") is False:
+        signals.append("gate.can_execute=false")
+    if isinstance(gate.get("blockers"), list) and gate.get("blockers"):
+        signals.append("gate.blockers:" + ", ".join(str(item) for item in gate.get("blockers")[:3]))
+    for key in ("status", "mode", "epistemic_status"):
+        value = str(result.get(key) or "").strip().lower().replace("-", "_")
+        if any(token in value for token in (
+            "blocked", "failed", "error", "insufficient", "needs_attention",
+            "needs_continuation", "needs_more", "not_configured", "not_ready", "unavailable",
+        )):
+            signals.append(f"{key}={value}")
+    go_no_go = str(result.get("go_no_go") or "").strip().lower().replace("_", "-")
+    if go_no_go in {"no-go", "blocked"}:
+        signals.append(f"go_no_go={go_no_go}")
+    return list(dict.fromkeys(signal for signal in signals if signal))
+
+
 def _resolve_requirement_ledger_after_tools(
     ledger: dict[str, Any],
     *,
     executed: list[dict[str, Any]],
     artifacts: list[str],
     blockers: list[str],
+    tool_results: dict[str, Any] | None = None,
     no_training_started: bool = True,
     official_submit: str = "blocked_until_explicit_human_approval",
 ) -> dict[str, Any]:
@@ -107,6 +162,13 @@ def _resolve_requirement_ledger_after_tools(
         for item in executed
         if item.get("ok") and str(item.get("tool") or "") != "scientist_turn_plan"
     }
+    result_map = tool_results if isinstance(tool_results, dict) else {}
+    tool_blocking_signals: dict[str, list[str]] = {}
+    for tool in executed_ok:
+        result = result_map.get(tool)
+        if result is None and tool.startswith("scientist_"):
+            result = result_map.get(tool.removeprefix("scientist_"))
+        tool_blocking_signals[tool] = _tool_result_blocking_signals(result)
     artifact_set = {
         candidate
         for item in artifacts
@@ -122,6 +184,12 @@ def _resolve_requirement_ledger_after_tools(
         current = str(item.get("status") or "pending")
         mapped_tools = [str(tool) for tool in (item.get("mapped_tools") or []) if str(tool)]
         mapped_tool_hits = [tool for tool in mapped_tools if tool in executed_ok]
+        mapped_tool_clear_hits = [tool for tool in mapped_tool_hits if not tool_blocking_signals.get(tool)]
+        mapped_tool_blockers = {
+            tool: tool_blocking_signals.get(tool, [])
+            for tool in mapped_tool_hits
+            if tool_blocking_signals.get(tool)
+        }
         evidence_needed = [str(value) for value in (item.get("evidence_needed") or []) if str(value)]
         evidence_hits = [
             evidence
@@ -143,12 +211,16 @@ def _resolve_requirement_ledger_after_tools(
             reason = "Training and official submit remained blocked for this Scientist turn."
         elif req_id in {"secret_safety", "claim_boundary", "selected_task_context"} and current == "satisfied":
             status = "satisfied"
-        elif mapped_tool_hits:
+        elif str(item.get("gate") or "") in _ARTIFACT_COMPLETION_GATES and evidence_hits:
             status = "satisfied"
-            reason = f"Closed by executed safe tool(s): {', '.join(mapped_tool_hits[:4])}."
-        elif evidence_hits and current != "blocked":
+            reason = f"Closed by current-turn artifact evidence: {', '.join(evidence_hits[:3])}."
+        elif mapped_tool_clear_hits and (evidence_hits or not evidence_needed):
             status = "satisfied"
-            reason = f"Closed by artifact evidence: {', '.join(evidence_hits[:3])}."
+            reason = f"Closed by clear tool result(s): {', '.join(mapped_tool_clear_hits[:4])}."
+        elif mapped_tool_hits and mapped_tool_blockers:
+            status = "blocked"
+            flattened = [signal for values in mapped_tool_blockers.values() for signal in values]
+            reason = "Tool executed but completion evidence is blocked: " + "; ".join(flattened[:4])
         elif current == "planned":
             status = "pending"
             reason = reason or "Planned tool did not run in the current tool budget."
@@ -157,6 +229,8 @@ def _resolve_requirement_ledger_after_tools(
         item["reason"] = reason
         item["execution_evidence"] = {
             "mapped_tool_hits": mapped_tool_hits,
+            "mapped_tool_clear_hits": mapped_tool_clear_hits,
+            "mapped_tool_blockers": mapped_tool_blockers,
             "artifact_hits": evidence_hits,
         }
         requirements.append(item)
@@ -182,6 +256,7 @@ def _resolve_requirement_ledger_after_tools(
             "executed_tools": sorted(executed_ok),
             "artifact_count": len(artifact_set),
             "blocker_count": len(blockers),
+            "blocked_tool_results": tool_blocking_signals,
             "no_training_started": no_training_started,
             "official_submit": official_submit,
         },
@@ -312,8 +387,8 @@ class TerminalAgent:
         emitter = self._get_emitter(root)
         generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
-        from .scientist_turn_planner import build_scientist_turn_plan
         from .scientist_trace import record_scientist_step_event
+        from .scientist_turn_planner import build_scientist_turn_plan
         from .scientist_turns import record_scientist_parity_loop, record_scientist_turn
 
         session.last_goal = raw
@@ -387,8 +462,114 @@ class TerminalAgent:
         rendered_sections.append("\n".join(render_scientist_context_packet_summary(context_packet)))
         evidence_results["context_packet"] = context_packet
 
+        adaptive_loop: dict[str, Any] = {}
+        adaptive_llm_enabled = not os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("EVOMIND_TEST_LLM") == "1"
+        if session.llm_ready and adaptive_llm_enabled:
+            emitter.emit(
+                "Adaptive tool loop",
+                "letting the configured model choose, observe, and replan bounded read-only tools",
+                status="running",
+            )
+
+            def adaptive_event(event: dict[str, Any]) -> None:
+                status = str(event.get("status") or "running")
+                emitter.emit(
+                    "Adaptive tool loop",
+                    str(event.get("message") or event.get("phase") or "adaptive step")[:700],
+                    status=(
+                        "passed" if status in {"passed", "completed"}
+                        else "blocked" if status in {"blocked", "failed"}
+                        else "running"
+                    ),
+                    artifact=str((event.get("details") or {}).get("artifact_path") or "") or None,
+                )
+
+            try:
+                from .scientist_adaptive_loop import run_adaptive_scientist_tool_loop
+
+                adaptive_loop = run_adaptive_scientist_tool_loop(
+                    session,
+                    root,
+                    goal=raw,
+                    turn_plan=plan,
+                    initial_evidence={"context_packet": context_packet},
+                    max_rounds=min(6, max(3, effective_max_tools)),
+                    max_tool_calls=effective_max_tools,
+                    observer=adaptive_event,
+                    persist=True,
+                )
+            except Exception as exc:
+                adaptive_loop = {
+                    "ok": False,
+                    "available": False,
+                    "used": False,
+                    "tool": "scientist_adaptive_tool_loop",
+                    "stop_reason": f"controller_error:{type(exc).__name__}",
+                    "runtime_results": {},
+                    "no_training_started": True,
+                    "official_submit": "blocked_until_explicit_human_approval",
+                }
+
+            adaptive_used = bool(adaptive_loop.get("used"))
+            adaptive_artifact = str(adaptive_loop.get("artifact_path") or "")
+            adaptive_runtime = (
+                adaptive_loop.get("runtime_results")
+                if isinstance(adaptive_loop.get("runtime_results"), dict)
+                else {}
+            )
+            adaptive_evidence = {
+                key: value
+                for key, value in adaptive_loop.items()
+                if key != "runtime_results"
+            }
+            evidence_results["adaptive_tool_loop"] = adaptive_evidence
+            if adaptive_artifact and adaptive_used:
+                artifacts.append(adaptive_artifact)
+            for call in adaptive_loop.get("tool_calls") or []:
+                if not isinstance(call, dict) or not call.get("executed"):
+                    continue
+                tool_name = str(call.get("tool") or "")
+                result = adaptive_runtime.get(tool_name)
+                if not tool_name or not isinstance(result, dict):
+                    continue
+                evidence_results[tool_name] = result
+                ok = bool(result.get("ok", True))
+                artifact = str(result.get("artifact_path") or result.get("path") or "")
+                message = str(
+                    result.get("message") or result.get("mode") or result.get("status") or ""
+                )[:260]
+                self._ledger.record(tool_name, result, ok=ok, summary=message)
+                executed.append({
+                    "tool": tool_name,
+                    "ok": ok,
+                    "artifact_path": artifact,
+                    "message": message,
+                    "selected_by": "adaptive_model_tool_loop",
+                    "round": call.get("round"),
+                })
+                if artifact:
+                    artifacts.append(artifact)
+                rendered_sections.append("\n".join(self._render_scientist_tool_summary(tool_name, result)))
+            emitter.emit(
+                "Adaptive tool loop",
+                (
+                    f"stop={adaptive_loop.get('stop_reason')}; "
+                    f"tools={len(adaptive_loop.get('executed_tools') or [])}; "
+                    f"replanned_after_failure={bool(adaptive_loop.get('replanned_after_failure'))}"
+                ),
+                status="passed" if adaptive_used and adaptive_loop.get("ok", True) else "blocked",
+                artifact=adaptive_artifact or None,
+            )
+
         for tool_name in tool_sequence:
             if tool_name in {"scientist_turn_plan", "scientist_context_packet"}:
+                continue
+            already_attempted = {
+                str(item.get("tool") or "")
+                for item in executed
+                if item.get("tool")
+            }
+            if tool_name in already_attempted:
                 continue
             budgeted_executed = [
                 item for item in executed
@@ -553,6 +734,8 @@ class TerminalAgent:
             "tool": "scientist_continuation",
             "generated_at": generated_at,
             "selected_task": session.selected_task or "",
+            "user_goal": raw,
+            "source_terminal_turn_path": str(root / ".xsci" / "scientist_terminal_turn.json"),
             "status": continuation_status,
             "reason": (
                 "The Scientist turn hit an explicit or bounded tool budget before all must-run read-only tools completed."
@@ -644,6 +827,11 @@ class TerminalAgent:
             executed=executed,
             artifacts=artifacts,
             blockers=blockers,
+            tool_results={
+                **evidence_results,
+                "scientist_context_packet": context_packet,
+                "scientist_reasoning_synthesis": reasoning,
+            },
             no_training_started=True,
             official_submit="blocked_until_explicit_human_approval",
         )
@@ -691,6 +879,11 @@ class TerminalAgent:
             "execution_blocked": bool(blockers),
             "blocking_gates": blockers,
             "reasoning_synthesis": reasoning,
+            "adaptive_tool_loop": {
+                key: value
+                for key, value in adaptive_loop.items()
+                if key != "runtime_results"
+            },
             "answer_markdown": reasoning.get("answer_markdown") or "",
             "reasoning_quality": reasoning.get("reasoning_quality") or {},
             "artifacts": list(dict.fromkeys([path for path in artifacts if path])),

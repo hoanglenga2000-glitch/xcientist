@@ -6,9 +6,10 @@ be considered production-stable, and prints one pass/fail summary. Designed for
 CI, pre-commit, or a quick local sanity check.
 
 Gates:
-  1. compile   - byte-compile all first-party Python (src/ + scripts/, minus _quarantine)
-  2. imports    - import every module in research_os and research_agent_workstation
-  3. tests      - run the pytest suite under tests/
+  1. secrets    - scan launch-critical source/config files for plaintext credentials
+  2. compile    - byte-compile all first-party Python (src/ + scripts/, minus _quarantine)
+  3. imports    - import every module in research_os, research_agent_workstation, and xsci
+  4. tests      - run the pytest suite under tests/
 
 Exit code is non-zero if any gate fails.
 
@@ -38,6 +39,22 @@ QUARANTINE = ROOT / "scripts" / "_quarantine"
 def _print(msg: str, quiet: bool) -> None:
     if not quiet:
         print(msg)
+
+
+def gate_secrets(quiet: bool) -> tuple[bool, str]:
+    scanner = ROOT / "scripts" / "verify_no_plaintext_secrets.py"
+    proc = subprocess.run(
+        [sys.executable, str(scanner)],
+        cwd=str(ROOT),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if proc.returncode == 0:
+        return True, "plaintext-secret scan passed"
+    output = ((proc.stdout or "") + (proc.stderr or "")).strip()
+    return False, output[:800] or f"secret scanner exited with code {proc.returncode}"
 
 
 def gate_compile(quiet: bool) -> tuple[bool, str]:
@@ -70,7 +87,7 @@ def gate_imports(quiet: bool) -> tuple[bool, str]:
         sys.path.insert(0, str(SRC))
     failures: list[str] = []
     total = 0
-    for package_name in ("research_os", "research_agent_workstation"):
+    for package_name in ("research_os", "research_agent_workstation", "xsci"):
         try:
             names = _walk(package_name)
         except Exception as exc:  # noqa: BLE001
@@ -176,7 +193,7 @@ def main() -> int:
     parser.add_argument("--quiet", action="store_true", help="reduce output")
     args = parser.parse_args()
 
-    gates = [("compile", gate_compile), ("imports", gate_imports)]
+    gates = [("secrets", gate_secrets), ("compile", gate_compile), ("imports", gate_imports)]
     if not args.skip_tests:
         gates.append(("tests", gate_tests))
 

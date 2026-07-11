@@ -7,11 +7,13 @@ tool_result), and the session compacts mid-run when the prompt grows.
 """
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 from research_os.agent.context import (
-    build_research_state_block, compact_messages, estimate_tokens, should_compact,
+    build_research_state_block,
+    compact_messages,
+    estimate_tokens,
+    should_compact,
 )
 from research_os.agent.session import AgentSession, AgentSessionConfig
 from research_os.agent.tools import ResearchToolbox
@@ -76,7 +78,12 @@ def _toolbox_with_history(tmp_path):
 
 def test_state_block_reflects_graph(tmp_path):
     tb = _toolbox_with_history(tmp_path)
-    block = build_research_state_block(tb)
+    block = build_research_state_block(
+        tb,
+        current_goal="repair the failing metric contract",
+        user_constraints=["do not submit to Kaggle"],
+        latest_error="provider timeout after EXP001",
+    )
     assert "RESEARCH STATE SO FAR" in block
     assert "BEST:" in block
     assert "EXPERIMENTS DONE" in block
@@ -84,6 +91,9 @@ def test_state_block_reflects_graph(tmp_path):
     # the best is a real promoted node, not invented
     assert tb.best_exp_id in block
     assert "you cannot fake either" in block  # invariant reminder present
+    assert "CURRENT GOAL: repair the failing metric contract" in block
+    assert "do not submit to Kaggle" in block
+    assert "provider timeout after EXP001" in block
 
 
 def test_state_block_lists_failures(tmp_path):
@@ -134,6 +144,23 @@ def test_compact_tail_starts_on_assistant_no_orphan_tool_result():
 def test_compact_noop_when_short():
     messages = [{"role": "user", "content": "a"}, {"role": "assistant", "content": "b"}]
     assert compact_messages(messages, state_block="S", tail_turns=6) == messages
+
+
+def test_repeated_compaction_preserves_latest_goal_in_state_block():
+    messages = [{"role": "user", "content": "OLD GOAL"}]
+    for i in range(10):
+        messages.extend([
+            {"role": "assistant", "content": [{"type": "text", "text": f"a{i}"}]},
+            {"role": "user", "content": f"u{i}"},
+        ])
+    once = compact_messages(messages, state_block="CURRENT GOAL: NEW GOAL", tail_turns=4)
+    twice = compact_messages(
+        [*once, *messages[-8:]],
+        state_block="CURRENT GOAL: NEW GOAL\nLATEST ERROR TO RESOLVE: failed check",
+        tail_turns=4,
+    )
+    assert "CURRENT GOAL: NEW GOAL" in twice[0]["content"]
+    assert "LATEST ERROR TO RESOLVE: failed check" in twice[0]["content"]
 
 
 # ── session compacts mid-run ────────────────────────────────────────────────────

@@ -11,14 +11,14 @@ never start training or submit to Kaggle on their own.  Training goes through
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from .config import Config, load_config, _SECRET_ENV, _PLAIN_ENV
+from .config import load_config
 from .kaggle_session import SessionState
 from .tasks import list_tasks
 
@@ -608,6 +608,42 @@ def _stable_memory_id(prefix: str, *parts: Any) -> str:
     return f"{prefix}_{digest}"
 
 
+def _proposal_lineage_digest(proposal: dict[str, Any]) -> str:
+    """Hash the proposal fields that a reviewed blueprint is allowed to inherit."""
+    canonical = {
+        "id": proposal.get("id") or "",
+        "strategy_name": proposal.get("strategy_name") or "",
+        "components": proposal.get("components") or [],
+        "rationale": proposal.get("rationale") or "",
+        "evidence_records": proposal.get("evidence_records") or [],
+        "source_memory_ids": proposal.get("source_memory_ids") or [],
+        "risk_controls": proposal.get("risk_controls") or [],
+        "expected_artifacts": proposal.get("expected_artifacts") or [],
+        "proposed_branch_type": proposal.get("proposed_branch_type") or "",
+        "code_generation_mode": proposal.get("code_generation_mode") or "",
+        "memory_reuse_plan": proposal.get("memory_reuse_plan") or {},
+    }
+    digest = hashlib.sha256(
+        json.dumps(canonical, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode(
+            "utf-8", errors="replace"
+        )
+    ).hexdigest()
+    return f"sha256:{digest}"
+
+
+def _proposal_source_ids(proposal: dict[str, Any]) -> list[str]:
+    evidence_records = proposal.get("evidence_records")
+    memory_plan = proposal.get("memory_reuse_plan")
+    candidates = [
+        str(item.get("record_id") or "")
+        for item in (evidence_records if isinstance(evidence_records, list) else [])
+        if isinstance(item, dict)
+    ]
+    if isinstance(memory_plan, dict):
+        candidates.extend(str(item) for item in (memory_plan.get("supporting_memory_ids") or []))
+    return list(dict.fromkeys(item for item in candidates if item))[:16]
+
+
 def _memory_schema_record(
     *,
     memory_id: str,
@@ -619,15 +655,19 @@ def _memory_schema_record(
     reusable_strategy: str,
     failure_pattern: str,
     linked_exp_ids: list[str],
+    evidence_level: str = "provisional",
+    metric_delta: float | None = None,
 ) -> dict[str, Any]:
+    profile = dict(dataset_profile)
+    profile["evidence_level"] = evidence_level
     return {
         "memory_id": memory_id,
         "task_type": _short_text(task_type or "unknown", limit=80),
-        "dataset_profile": dataset_profile,
+        "dataset_profile": profile,
         "method": _short_text(method, limit=180),
         "what_worked": _short_text(what_worked, limit=500),
         "what_failed": _short_text(what_failed, limit=500),
-        "metric_delta": None,
+        "metric_delta": metric_delta,
         "reusable_strategy": _short_text(reusable_strategy, limit=700),
         "failure_pattern": _short_text(failure_pattern, limit=300),
         "linked_exp_ids": [
@@ -1301,6 +1341,11 @@ def get_scientist_memory_consolidation(session: SessionState, root: Path) -> dic
                 str(engineering_loop.get("candidate_diff_path") or ""),
                 str(engineering_loop.get("run_manifest_path") or ""),
             ],
+            evidence_level=(
+                "validated"
+                if engineering_status == "passed_review_candidate" and merge_ready and main_unchanged
+                else "failure"
+            ),
         ))
 
     for item in engineering_trials[-5:]:
@@ -1330,6 +1375,11 @@ def get_scientist_memory_consolidation(session: SessionState, root: Path) -> dic
                 str(item.get("run_id") or ""),
                 str(item.get("candidate_diff_path") or ""),
             ],
+            evidence_level=(
+                "validated"
+                if item.get("acceptance_passed") and item.get("main_worktree_modified") is False
+                else "failure"
+            ),
         ))
 
     if continuation_resume:
@@ -1566,7 +1616,7 @@ def get_scientist_innovation_backlog(session: SessionState, root: Path) -> dict[
 
     def hypothesis(idx: int, strategy_name: str, selected: list[str],
                    branch_type: str, code_mode: str, rationale: str) -> dict[str, Any]:
-        return {
+        proposal = {
             "id": f"innov_{generated_at[:10].replace('-', '')}_{idx:02d}",
             "strategy_name": strategy_name,
             "components": selected,
@@ -1597,6 +1647,9 @@ def get_scientist_innovation_backlog(session: SessionState, root: Path) -> dict[
             "no_training_started": True,
             "official_submit": "blocked_until_explicit_human_approval",
         }
+        proposal["source_memory_ids"] = _proposal_source_ids(proposal)
+        proposal["lineage_digest"] = _proposal_lineage_digest(proposal)
+        return proposal
 
     c = components
     proposals = [
@@ -1802,6 +1855,9 @@ def get_scientist_hypothesis_review(session: SessionState, root: Path) -> dict[s
     def score_hypothesis(item: dict[str, Any], rank: int) -> dict[str, Any]:
         components = [str(x) for x in (item.get("components") or []) if str(x).strip()]
         evidence_records = [x for x in (item.get("evidence_records") or []) if isinstance(x, dict)]
+        source_proposal_id = str(item.get("id") or f"hypothesis_{rank}")
+        source_memory_ids = _proposal_source_ids(item)
+        proposal_lineage_digest = _proposal_lineage_digest(item)
         branch = str(item.get("proposed_branch_type") or "")
         mode = str(item.get("code_generation_mode") or "")
 
@@ -1838,8 +1894,13 @@ def get_scientist_hypothesis_review(session: SessionState, root: Path) -> dict[s
 
         return {
             "rank": rank,
-            "hypothesis_id": item.get("id") or f"hypothesis_{rank}",
+            "hypothesis_id": source_proposal_id,
+            "source_proposal_id": source_proposal_id,
+            "proposal_lineage_digest": proposal_lineage_digest,
             "strategy_name": item.get("strategy_name") or item.get("id") or f"hypothesis_{rank}",
+            "components": components,
+            "evidence_records": evidence_records,
+            "source_memory_ids": source_memory_ids,
             "branch_type": branch,
             "code_generation_mode": mode,
             "score": total,
@@ -1979,23 +2040,38 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
     selected = review.get("selected_hypothesis") if isinstance(review, dict) else {}
     if not isinstance(selected, dict):
         selected = {}
+    backlog_path = xsci / "scientist_innovation_backlog.json"
+    backlog = _read_json_artifact(backlog_path) or {}
+    proposals = backlog.get("innovation_hypotheses") if isinstance(backlog.get("innovation_hypotheses"), list) else []
+    source_proposal_id = str(selected.get("source_proposal_id") or selected.get("hypothesis_id") or "")
+    selected_hypothesis_id = str(selected.get("hypothesis_id") or "")
+    reviewed_lineage_digest = str(selected.get("proposal_lineage_digest") or "")
+    current_proposal = next(
+        (
+            item for item in proposals
+            if isinstance(item, dict) and str(item.get("id") or "") == source_proposal_id
+        ),
+        None,
+    )
+    current_lineage_digest = _proposal_lineage_digest(current_proposal) if isinstance(current_proposal, dict) else ""
+    lineage_matches = bool(
+        selected
+        and source_proposal_id
+        and selected_hypothesis_id == source_proposal_id
+        and reviewed_lineage_digest
+        and current_lineage_digest
+        and reviewed_lineage_digest == current_lineage_digest
+        and str(backlog.get("selected_task") or "") == str(session.selected_task or "")
+    )
+    lineage_blocker = ""
+    if selected and not lineage_matches:
+        lineage_blocker = "hypothesis review does not match the current innovation backlog proposal lineage"
     memory_reuse_plan = (
         review.get("memory_reuse_plan")
         if isinstance(review, dict) and isinstance(review.get("memory_reuse_plan"), dict)
         else selected.get("memory_reuse_plan") if isinstance(selected.get("memory_reuse_plan"), dict)
         else {}
     )
-    if not _memory_reuse_plan_has_content(memory_reuse_plan):
-        review = get_scientist_hypothesis_review(session, root)
-        selected = review.get("selected_hypothesis") if isinstance(review, dict) else {}
-        if not isinstance(selected, dict):
-            selected = {}
-        memory_reuse_plan = (
-            review.get("memory_reuse_plan")
-            if isinstance(review, dict) and isinstance(review.get("memory_reuse_plan"), dict)
-            else selected.get("memory_reuse_plan") if isinstance(selected.get("memory_reuse_plan"), dict)
-            else {}
-        )
     if not _memory_reuse_plan_has_content(memory_reuse_plan):
         memory_reuse_plan = _build_current_memory_reuse_plan(session, root)
     try:
@@ -2018,10 +2094,19 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
     go_no_go = str(contract.get("go_no_go") or "no_go") if isinstance(contract, dict) else "no_go"
     blockers = list(selected.get("blockers") or []) if isinstance(selected.get("blockers"), list) else []
     if isinstance(contract, dict):
-        blockers.extend(str(x) for x in (contract.get("root_causes") or []) if str(x))
+        blockers.extend(
+            str(x) for x in (contract.get("root_causes") or [])
+            if str(x) and str(x) != "official_submit_blocked"
+        )
+    if lineage_blocker:
+        blockers.append(lineage_blocker)
     blockers = list(dict.fromkeys(blockers))
-    ready = bool(selected) and go_no_go != "no_go" and not blockers
-    blueprint_status = "ready_for_gated_execution" if ready else "blocked_until_gates_clear"
+    ready = bool(selected) and lineage_matches and go_no_go != "no_go" and not blockers
+    blueprint_status = (
+        "ready_for_gated_execution" if ready
+        else "blocked_stale_lineage" if selected and not lineage_matches
+        else "blocked_until_gates_clear"
+    )
     expected_delta = decision.get("expected_delta") or review.get("expected_delta") or "evidence_bound_local_delta_required"
     rollback_condition = str(
         (contract.get("rollback_condition") if isinstance(contract, dict) else "")
@@ -2046,14 +2131,22 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
         f"{generated_at.replace(':', '').replace('+', 'Z')}"
     )
     experiment_blueprint = {
+        "schema": "evomind.innovation_blueprint/v1",
         "blueprint_id": blueprint_id,
         "task_id": task,
         "hypothesis_id": selected.get("hypothesis_id") or "",
+        "selected_hypothesis_id": selected_hypothesis_id,
+        "source_proposal_id": source_proposal_id,
+        "source_proposal_lineage_digest": reviewed_lineage_digest,
+        "source_review_generated_at": review.get("generated_at") if isinstance(review, dict) else "",
+        "strategy_components": list(selected.get("components") or []),
+        "source_memory_ids": list(selected.get("source_memory_ids") or []),
         "strategy_name": strategy,
         "branch_type": branch,
         "code_generation_mode": code_mode,
         "resource_mode": resource_mode,
         "run_command": f"evomind run {task}" if task else "evomind task add <kaggle-url>",
+        "run_command_kind": "ordinary_task_run_not_innovation_approval",
         "dry_run_command": "evomind contract",
         "expected_delta": expected_delta,
         "rollback_condition": rollback_condition,
@@ -2091,6 +2184,10 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
         "memory_reuse_plan": memory_reuse_plan,
         "claim_boundary": "No rank, medal, or official-score claim is allowed without a Kaggle response artifact.",
     }
+    if ready and task:
+        experiment_blueprint["innovation_approval_command"] = (
+            f"evomind run {task} --innovation-blueprint-id {blueprint_id}"
+        )
     payload: dict[str, Any] = {
         "ok": True,
         "tool": "scientist_experiment_blueprint",
@@ -2105,17 +2202,27 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
             "execution_contract": go_no_go,
             "blockers": blockers,
             "ready_for_gated_execution": ready,
+            "lineage_matches_current_backlog": lineage_matches,
+            "reviewed_lineage_digest": reviewed_lineage_digest,
+            "current_lineage_digest": current_lineage_digest,
         },
         "next_safe_commands": (
-            [f"evomind run {task}", "evomind live", "evomind report"]
+            [str(experiment_blueprint["innovation_approval_command"]), "evomind live", "evomind report"]
             if ready and task else
+            ["evomind review-hypotheses", "evomind blueprint"]
+            if blueprint_status == "blocked_stale_lineage" else
             ["evomind repair", "evomind contract", "evomind review-hypotheses"]
         ),
         "artifact_path": str(artifact_path),
         "source_review_path": str(review_path),
+        "source_backlog_path": str(backlog_path),
         "no_training_started": True,
         "official_submit": "blocked_until_explicit_human_approval",
-        "message": "Experiment blueprint generated without starting training.",
+        "message": (
+            "Experiment blueprint blocked because review/backlog lineage is stale; regenerate review before approval."
+            if blueprint_status == "blocked_stale_lineage"
+            else "Experiment blueprint generated without starting training."
+        ),
     }
     try:
         xsci.mkdir(parents=True, exist_ok=True)
@@ -2203,9 +2310,6 @@ def get_scientist_innovation_trial_feedback(session: SessionState, root: Path) -
             contract = get_scientist_execution_contract(session, root)
         except Exception as exc:  # pragma: no cover - defensive only
             contract = {"ok": False, "tool": "scientist_execution_contract", "go_no_go": "no_go", "root_causes": [type(exc).__name__]}
-    action_queue = _read_json_artifact(action_queue_path) or {}
-    loop = _read_json_artifact(loop_path) or {}
-
     gate_summary = blueprint_payload.get("gate_summary") if isinstance(blueprint_payload, dict) else {}
     if not isinstance(gate_summary, dict):
         gate_summary = {}
@@ -2495,7 +2599,6 @@ def get_scientist_situation_model(session: SessionState, root: Path) -> dict[str
     data_ready = bool(data.get("train_csv") and data.get("test_csv")) or str(contract.get("data_contract_status") or "").startswith("remote")
     setup_ready = bool(session.selected_task) and bool(session.llm_ready)
     gates_ready = bool(gate.get("can_execute")) and str(contract.get("go_no_go") or "") != "no_go" and not blockers
-    hypothesis_ready = bool(selected_hypothesis) and str(selected_hypothesis.get("status") or "") in {"ready_for_gated_execution", "hold_until_gate_clear"}
     blueprint_ready = bool(experiment_blueprint.get("blueprint_id"))
     readiness_checks = {
         "task_selected": bool(session.selected_task),
@@ -3033,7 +3136,41 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             ("execute: compute/data gates are either clear or hard-blocked with a contract", 20, runtime_execution_ready or setup_gate_enforced),
         ]),
     ]
-    overall_score = round(sum(item["score"] for item in capabilities) / len(capabilities))
+    structural_score = round(sum(item["score"] for item in capabilities) / len(capabilities))
+    behavior_benchmark_path = xsci / "agentic_capability_benchmark.json"
+    behavior_benchmark = _read_json_artifact(behavior_benchmark_path) or {}
+    behavior_adapter = str(behavior_benchmark.get("adapter") or "").strip()
+    behavior_execution_status = str(behavior_benchmark.get("execution_status") or "").strip().lower()
+    behavior_provider = str(behavior_benchmark.get("provider") or "").strip()
+    behavior_evidence_trusted = bool(
+        behavior_adapter == "workspace_agent_subprocess_v1"
+        and behavior_execution_status == "completed"
+        and behavior_provider
+    )
+    behavior_reported_cases = int(behavior_benchmark.get("cases_run") or 0)
+    behavior_reported_success_rate = float(behavior_benchmark.get("task_success_rate") or 0.0)
+    behavior_reported_scope_violations = int(behavior_benchmark.get("scope_violations") or 0)
+    behavior_reported_unsupported_claims = int(behavior_benchmark.get("unsupported_claims") or 0)
+    behavior_cases = behavior_reported_cases if behavior_evidence_trusted else 0
+    behavior_success_rate = behavior_reported_success_rate if behavior_evidence_trusted else 0.0
+    behavior_scope_violations = behavior_reported_scope_violations if behavior_evidence_trusted else 0
+    behavior_unsupported_claims = behavior_reported_unsupported_claims if behavior_evidence_trusted else 0
+    if behavior_benchmark and not behavior_evidence_trusted:
+        behavior_score_cap = 59
+        behavior_status = "untrusted_agentic_benchmark_report"
+    elif behavior_cases >= 12 and behavior_success_rate >= 0.75 and not behavior_scope_violations and not behavior_unsupported_claims:
+        behavior_score_cap = 84
+        behavior_status = "offline_agentic_benchmark_passed"
+    elif behavior_cases >= 6 and behavior_success_rate >= 0.60 and not behavior_scope_violations:
+        behavior_score_cap = 69
+        behavior_status = "partial_agentic_benchmark_evidence"
+    elif behavior_cases > 0:
+        behavior_score_cap = 59
+        behavior_status = "insufficient_agentic_benchmark_performance"
+    else:
+        behavior_score_cap = 59
+        behavior_status = "not_measured"
+    overall_score = min(structural_score, behavior_score_cap)
 
     gaps: list[dict[str, Any]] = []
     for cap in capabilities:
@@ -3240,6 +3377,26 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "trial_records": len(engineering_trials),
             "candidate_diff_path": engineering_loop.get("candidate_diff_path") if isinstance(engineering_loop, dict) else "",
         },
+        "agentic_behavior_benchmark": {
+            "path": str(behavior_benchmark_path),
+            "present": bool(behavior_benchmark),
+            "status": behavior_status,
+            "trusted_evidence": behavior_evidence_trusted,
+            "adapter": behavior_adapter,
+            "execution_status": behavior_execution_status,
+            "provider": behavior_provider,
+            "reported_cases_run": behavior_reported_cases,
+            "reported_task_success_rate": behavior_reported_success_rate,
+            "reported_scope_violations": behavior_reported_scope_violations,
+            "reported_unsupported_claims": behavior_reported_unsupported_claims,
+            "cases_run": behavior_cases,
+            "task_success_rate": behavior_success_rate,
+            "scope_violations": behavior_scope_violations,
+            "unsupported_claims": behavior_unsupported_claims,
+            "structural_score": structural_score,
+            "behavior_score_cap": behavior_score_cap,
+            "effective_score": overall_score,
+        },
     }
     next_safe_commands = [
         "evomind self-audit",
@@ -3315,6 +3472,9 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "generated_at": generated_at,
         "selected_task": session.selected_task or "",
         "overall_score": overall_score,
+        "structural_score": structural_score,
+        "behavior_score_cap": behavior_score_cap,
+        "behavior_benchmark_status": behavior_status,
         "previous_score": previous_score if isinstance(previous_score, int) else None,
         "score_delta": score_delta,
         "capability_readiness": capability_readiness,
@@ -3358,6 +3518,9 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "selected_task": session.selected_task or "",
         "last_goal": session.last_goal or "",
         "overall_score": overall_score,
+        "structural_score": structural_score,
+        "behavior_score_cap": behavior_score_cap,
+        "behavior_benchmark_status": behavior_status,
         "capability_readiness": capability_readiness,
         "launch_readiness": launch_readiness,
         "claim_readiness": claim_readiness,
@@ -5998,6 +6161,12 @@ def _build_scientist_action_queue(
     experiment_blueprint = experiment_blueprint if isinstance(experiment_blueprint, dict) else {}
     blueprint = experiment_blueprint.get("experiment_blueprint") if isinstance(experiment_blueprint.get("experiment_blueprint"), dict) else {}
     blueprint_status = str(experiment_blueprint.get("blueprint_status") or "")
+    innovation_approval_command = str(blueprint.get("innovation_approval_command") or "")
+    innovation_blueprint_ready = bool(
+        selected_hypothesis
+        and blueprint_status == "ready_for_gated_execution"
+        and innovation_approval_command
+    )
     blueprint_artifact = str(experiment_blueprint.get("artifact_path") or root / ".xsci" / "scientist_experiment_blueprint.json")
     memory_reuse_plan = (
         blueprint.get("memory_reuse_plan")
@@ -6149,6 +6318,29 @@ def _build_scientist_action_queue(
             autonomy="read_only_repair_guidance",
             metadata={"selected_hypothesis": selected_hypothesis} if selected_hypothesis else {},
         )
+    elif can_execute and selected_hypothesis and not innovation_blueprint_ready:
+        stale_lineage = blueprint_status == "blocked_stale_lineage"
+        item(
+            "refresh_innovation_lineage" if stale_lineage else "prepare_experiment_blueprint",
+            "Refresh stale innovation review lineage" if stale_lineage else "Prepare an approvable innovation blueprint",
+            "evomind review-hypotheses" if stale_lineage else "evomind blueprint",
+            status="ready",
+            gate="innovation_lineage_gate" if stale_lineage else "experiment_blueprint_gate",
+            why=(
+                "The current review no longer matches the backlog proposal, so no innovation approval command was issued."
+                if stale_lineage else
+                "A reviewed hypothesis needs a ready blueprint before an exact innovation approval command can be issued."
+            ),
+            risk="running a generic task command would not approve this exact innovation blueprint",
+            rollback_condition="stay read-only until review, backlog, and blueprint lineage match",
+            expected_artifacts=[hypothesis_review_artifact, blueprint_artifact],
+            evidence=[hypothesis_review_artifact, blueprint_artifact],
+            autonomy="read_only",
+            metadata={
+                "selected_hypothesis": selected_hypothesis,
+                "blueprint_status": blueprint_status,
+            },
+        )
     elif can_execute:
         action = str(decision.get("selected_action") or "run_audited_baseline")
         branch = hypothesis_branch or str(decision.get("selected_branch") or "baseline")
@@ -6197,7 +6389,7 @@ def _build_scientist_action_queue(
         item(
             "run_gated_candidate",
             title,
-            f"evomind run {task}",
+            innovation_approval_command if selected_hypothesis else f"evomind run {task}",
             status="ready",
             gate="human_run_command_required",
             why=why,
@@ -6217,6 +6409,7 @@ def _build_scientist_action_queue(
                 "selected_hypothesis": selected_hypothesis,
                 "experiment_blueprint": blueprint,
                 "memory_reuse_plan": memory_reuse_plan,
+                "innovation_blueprint_approval": bool(innovation_approval_command),
             } if selected_hypothesis else {},
         )
     else:
@@ -7391,6 +7584,7 @@ def run_scientist_continuation_resume(
         },
     })
     steps: list[dict[str, Any]] = []
+    resumed_evidence: dict[str, Any] = {}
     stop_reason = ""
 
     if str(initial_status.get("status") or "") == "no_continuation":
@@ -7421,6 +7615,10 @@ def run_scientist_continuation_resume(
                 },
             })
             result = run_scientist_next_action(session, root)
+            executed_tool = str(result.get("executed_tool") or "")
+            tool_result = result.get("tool_result") if isinstance(result.get("tool_result"), dict) else {}
+            if executed_tool and tool_result:
+                resumed_evidence[executed_tool] = tool_result
             after_status = get_scientist_continuation_status(session, root)
             after_remaining = [
                 str(tool)
@@ -7431,7 +7629,7 @@ def run_scientist_continuation_resume(
             step = {
                 "index": index,
                 "status": str(result.get("status") or ""),
-                "executed_tool": str(result.get("executed_tool") or ""),
+                "executed_tool": executed_tool,
                 "selected_action_id": str(selected_action.get("id") or ""),
                 "selected_command": _redacted_memory_text(selected_action.get("command") or "", limit=260),
                 "before_remaining_safe_tools": before_remaining,
@@ -7533,6 +7731,76 @@ def run_scientist_continuation_resume(
         "no_training_started": True,
         "official_submit": "blocked_until_explicit_human_approval",
     }
+    continuation = _read_json_artifact(root / ".xsci" / "scientist_continuation.json") or {}
+    terminal_turn_path = root / ".xsci" / "scientist_terminal_turn.json"
+    terminal_turn = _read_json_artifact(terminal_turn_path) or {}
+    source_goal = str(
+        continuation.get("user_goal")
+        or terminal_turn.get("user_goal")
+        or session.last_goal
+        or "Analyze the current research state."
+    )
+    resynthesis: dict[str, Any] = {}
+    if status == "closed" and steps:
+        prior_evidence = (
+            terminal_turn.get("reasoning_synthesis", {}).get("cache_facts", {})
+            if isinstance(terminal_turn.get("reasoning_synthesis"), dict)
+            else {}
+        )
+        try:
+            from .scientist_reasoning import build_scientist_reasoning_synthesis
+
+            resynthesis = build_scientist_reasoning_synthesis(
+                session,
+                root,
+                goal=source_goal,
+                evidence={
+                    "continuation_resume": {
+                        "status": status,
+                        "stop_reason": stop_reason,
+                        "executed_tools": payload["executed_tools"],
+                        "remaining_safe_tools": final_remaining,
+                        "steps": steps,
+                    },
+                    "prior_reasoning_facts": prior_evidence,
+                    **resumed_evidence,
+                },
+                persist=True,
+            )
+        except Exception as exc:
+            resynthesis = {
+                "ok": False,
+                "tool": "scientist_reasoning_synthesis",
+                "message": f"Continuation reasoning resynthesis failed: {type(exc).__name__}",
+                "answer_markdown": "",
+            }
+        payload["reasoning_resynthesized"] = bool(resynthesis.get("ok", True))
+        payload["reasoning_synthesis"] = resynthesis
+        payload["answer_markdown"] = str(resynthesis.get("answer_markdown") or "")
+        payload["reasoning_artifact_path"] = str(resynthesis.get("artifact_path") or "")
+        if isinstance(terminal_turn, dict) and terminal_turn:
+            terminal_turn["reasoning_synthesis"] = resynthesis
+            terminal_turn["answer_markdown"] = payload["answer_markdown"]
+            terminal_turn["reasoning_quality"] = resynthesis.get("reasoning_quality") or {}
+            terminal_turn["continuation"] = {
+                **(terminal_turn.get("continuation") if isinstance(terminal_turn.get("continuation"), dict) else {}),
+                "status": "closed",
+                "remaining_safe_tools": [],
+                "resumed_at": generated_at,
+                "resume_artifact_path": str(artifact_path),
+            }
+            terminal_turn["budget_exhausted"] = False
+            terminal_turn["must_run_deferred_tools"] = []
+            try:
+                tmp_turn = terminal_turn_path.with_suffix(".json.tmp")
+                tmp_turn.write_text(json.dumps(terminal_turn, ensure_ascii=False, indent=2), encoding="utf-8")
+                tmp_turn.replace(terminal_turn_path)
+            except OSError:
+                payload["terminal_turn_update_error"] = "failed_to_write_terminal_turn"
+    else:
+        payload["reasoning_resynthesized"] = False
+        payload["reasoning_synthesis"] = {}
+        payload["answer_markdown"] = ""
 
     try:
         artifact_path.parent.mkdir(parents=True, exist_ok=True)
@@ -7552,6 +7820,7 @@ def run_scientist_continuation_resume(
             "stop_reason": payload.get("stop_reason"),
             "steps_executed": payload.get("steps_executed"),
             "remaining_safe_tools": final_remaining,
+            "reasoning_resynthesized": payload.get("reasoning_resynthesized", False),
         },
     })
     return payload

@@ -20,6 +20,7 @@ the store already opens with encoding='utf-8').
 """
 from __future__ import annotations
 
+import math
 from collections import Counter
 from dataclasses import asdict
 from typing import Optional
@@ -40,6 +41,45 @@ class MemoryLibrary:
     def _all(self) -> list[MemoryRecord]:
         return self.store._load()
 
+    @staticmethod
+    def _is_validated_promotion(record: MemoryRecord) -> bool:
+        profile = record.dataset_profile if isinstance(record.dataset_profile, dict) else {}
+        explicit = str(profile.get("evidence_level") or "").strip().lower()
+        try:
+            delta = float(record.metric_delta) if record.metric_delta is not None else 0.0
+            positive_delta = math.isfinite(delta) and delta > 0
+        except (TypeError, ValueError):
+            positive_delta = False
+        return (
+            explicit == "validated"
+            and profile.get("run_success") is True
+            and profile.get("promoted") is True
+            and profile.get("no_training_started") is not True
+            and positive_delta
+        )
+
+    @classmethod
+    def _evidence_level(cls, record: MemoryRecord) -> str:
+        profile = record.dataset_profile if isinstance(record.dataset_profile, dict) else {}
+        explicit = str(profile.get("evidence_level") or "").strip().lower()
+        outcome = str(profile.get("outcome_status") or "").strip().lower()
+        if outcome in {"held", "failed", "held_or_failed", "rejected"}:
+            return "failure"
+        if explicit == "failure":
+            return "failure"
+        if cls._is_validated_promotion(record):
+            return "validated"
+        if explicit == "observed":
+            return "observed"
+        if explicit in {"validated", "provisional"}:
+            return "provisional"
+        method = (record.method or "").lower()
+        if method in {"isolated_engineering_validation", "isolated_engineering_trial"}:
+            return "observed"
+        if record.failure_pattern and not record.what_worked:
+            return "failure"
+        return "provisional"
+
     # ── layer 1: the always-injected compact index ────────────────────────────
     def index_digest(self, task_type: Optional[str] = None, *, max_lines: int = 12) -> str:
         """A small text digest for the session-opening prompt.
@@ -52,10 +92,20 @@ class MemoryLibrary:
             return "(experience library is empty — this is the first run on this project)"
 
         by_type: Counter[str] = Counter(r.task_type for r in records)
-        # Reusable strategies that WORKED, most-common first (the "do this" signal).
+        scoped = [r for r in records if task_type is None or r.task_type == task_type]
+        # Only evidence-backed outcomes are called proven. Plans, read-only loop
+        # artifacts, and untested blueprints remain provisional hypotheses.
         strategies = Counter(
-            r.reusable_strategy for r in records
-            if r.reusable_strategy and (task_type is None or r.task_type == task_type)
+            r.reusable_strategy for r in scoped
+            if r.reusable_strategy and self._evidence_level(r) == "validated"
+        )
+        observed = Counter(
+            r.reusable_strategy for r in scoped
+            if r.reusable_strategy and self._evidence_level(r) == "observed"
+        )
+        provisional = Counter(
+            r.reusable_strategy for r in scoped
+            if r.reusable_strategy and self._evidence_level(r) == "provisional"
         )
         # Failure patterns, most-common first (the "avoid this" signal).
         failures = Counter(
@@ -68,8 +118,14 @@ class MemoryLibrary:
             same = sum(1 for r in records if r.task_type == task_type)
             lines.append(f"for THIS task_type={task_type}: {same} lessons")
         if strategies:
-            lines.append("proven strategies (most used): "
+            lines.append("evidence-backed strategies (validated promotions): "
                          + ", ".join(f"{s}×{n}" for s, n in strategies.most_common(max_lines)))
+        if observed:
+            lines.append("observed strategies (not promotion-proven): "
+                         + ", ".join(f"{s}×{n}" for s, n in observed.most_common(max_lines)))
+        if provisional:
+            lines.append("provisional hypotheses (must validate before reuse): "
+                         + ", ".join(f"{s}×{n}" for s, n in provisional.most_common(max_lines)))
         if failures:
             lines.append("recurring failure patterns to avoid: "
                          + ", ".join(f"{f}×{n}" for f, n in failures.most_common(max_lines)))

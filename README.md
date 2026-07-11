@@ -24,6 +24,17 @@ http://127.0.0.1:8088/?page=control
   configured read-only Code Agent for a reviewable diff, applies it only in a
   detached Git worktree, runs allowlisted checks, proves the main worktree
   stayed unchanged, and stops at a human merge gate.
+- **Production Workspace Agent**: `evomind workspace` inspects a Git repository,
+  uses a strictly selected provider, edits only allowlisted paths in an isolated
+  worktree, re-reads changed files, runs bounded acceptance commands, and emits
+  an auditable candidate diff without merging it.
+- **Adaptive Scientist Loop**: the Scientist can choose bounded read-only tools,
+  observe failures, replan, maintain requirement and evidence ledgers, preserve
+  user constraints across context compaction, and record validated, observed,
+  provisional, and failed lessons separately.
+- **Hidden-Oracle Behavior Benchmark**: `evomind benchmark-agent` evaluates the
+  production workspace agent from final filesystem state rather than trusting
+  self-reported success.
 - **Web Workstation**: a Next.js workstation gateway with pages for control, tasks,
   data, GPU, evidence, literature, workflow, code, runtime, experiments,
   reports, gates, and settings.
@@ -41,6 +52,26 @@ http://127.0.0.1:8088/?page=control
 - **Human Gate**: official Kaggle submission and medal/rank claims remain
   blocked unless an explicit human approval gate and official response artifact
   exist.
+
+## Verified Agent Evidence
+
+EvoMind `0.2.0` passed the full deterministic 12-case hidden-oracle workspace
+suite with the configured DeepSeek provider on 2026-07-11:
+
+```text
+cases: 12/12
+task_success_rate: 100%
+scope_violations: 0
+unsupported_claims: 0
+timed_out_cases: 0
+```
+
+The suite covers retrieval, cross-file edits, failure recovery, constraint
+following, semantic verification, isolated candidate-diff generation, and
+source-worktree integrity. This is strong evidence for the bounded workspace
+agent contract. It is not evidence of complete Codex/Claude Code parity,
+autonomous scientific discovery, completed GPU training, Kaggle medals, or
+MLE-Bench-75 parity; those require separate end-to-end and official artifacts.
 
 ## Quick Start
 
@@ -112,6 +143,9 @@ evomind task add <KaggleURL>    # Register a competition task
 evomind ask "research goal"     # Run one auditable AI Scientist turn
 evomind engineer               # Validate the latest patch in an isolated worktree
 evomind engineer --generate    # Generate a diff, validate it, never auto-merge
+evomind workspace "goal"       # Build a tested candidate diff from the current Git repo
+evomind benchmark-agent         # Run one hidden-oracle workspace case
+evomind benchmark-agent --all   # Run the full 12-case behavior suite
 evomind run <task>              # Start gated audited execution
 evomind watch -f                # Follow event stream
 evomind memory                  # Inspect retrospective memory
@@ -132,6 +166,13 @@ Run the full new-user release acceptance suite:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run_new_user_release_acceptance.ps1
+```
+
+Run the production workspace-agent behavior suite with an explicitly configured
+provider:
+
+```powershell
+evomind benchmark-agent --all --provider deepseek
 ```
 
 Run the full workstation launch gate:

@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "xcientist"
-version = "0.1.0"
+version = "0.2.0"
 description = "EvoMind: an auditable self-evolving AI scientist for ML research (Kaggle/MLE-Bench)."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
 dependencies = [
     "pandas>=2.0,<4.0",
     "numpy>=1.24,<3.0",

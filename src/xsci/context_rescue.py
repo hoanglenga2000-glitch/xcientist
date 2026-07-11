@@ -59,7 +59,8 @@ def auto_rescue_context(
 
     The algorithm:
       1. Always keep the system prompt / first message.
-      2. Drop the oldest user+assistant pair that is NOT the system prompt.
+      2. Drop the oldest complete conversation segment after the seed. A tool-use
+         assistant message and its following tool-result user message are atomic.
       3. Stop when under ``target_bytes`` or ``min_keep_messages`` remain.
     """
     if len(messages) <= min_keep_messages:
@@ -82,10 +83,35 @@ def auto_rescue_context(
         current_bytes = estimate_body_bytes(kept)
         if current_bytes <= target_bytes:
             break
-        # Drop the oldest non-system message (index 1, after the seed)
+        # Drop one protocol-safe segment after the seed. Never leave a
+        # tool_result without the assistant tool_use block that owns its id.
         if len(kept) > 1:
-            del kept[1]
-            dropped += 1
+            drop_count = 1
+            candidate = kept[1]
+            content = candidate.get("content", []) if isinstance(candidate, dict) else []
+            has_tool_use = bool(
+                candidate.get("role") == "assistant"
+                and isinstance(content, list)
+                and any(
+                    isinstance(block, dict) and block.get("type") == "tool_use"
+                    for block in content
+                )
+            )
+            if has_tool_use and len(kept) > 2:
+                following = kept[2]
+                following_content = following.get("content", []) if isinstance(following, dict) else []
+                has_tool_result = bool(
+                    following.get("role") == "user"
+                    and isinstance(following_content, list)
+                    and any(
+                        isinstance(block, dict) and block.get("type") == "tool_result"
+                        for block in following_content
+                    )
+                )
+                if has_tool_result:
+                    drop_count = 2
+            del kept[1:1 + drop_count]
+            dropped += drop_count
         else:
             break
 

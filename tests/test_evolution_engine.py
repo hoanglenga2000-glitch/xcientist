@@ -8,7 +8,6 @@ Diff mode, and the promotion gate never promotes a failure.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Optional
 
 import pytest
@@ -637,7 +636,6 @@ def test_failed_baseline_recovers_via_diff_on_failed_code(tmp_path):
     # EXP000 fails (no score); EXP001 must be Diff and receive the failed code as base.
     scripts = [_full_script(None), _full_script(0.88)]
     ctx = TaskContext("debug-recovery", "image", "classification", "roc_auc", "maximize", target_column="y")
-    capturing = PromptCapturingLLM("x")  # replaced below with sequenced responses
     gen = VariationGenerator(client=FakeLLMClient(scripts))
     # capture the mode by inspecting prompts: wrap generator to record modes
     seen_modes = []
@@ -795,8 +793,180 @@ def test_mcgs_mode_does_not_early_break_on_global_stagnation(tmp_path):
     assert summary["n_iterations"] == 6   # full budget, NO early break under stagnation
 
 
+def test_evolution_memory_records_run_promotion_and_evidence_truthfully(tmp_path):
+    from research_os.retrospective_memory import RetrospectiveMemoryStore
+
+    ctx = TaskContext(
+        "memory-truth", "tabular", "classification", "accuracy", "maximize",
+        target_column="y",
+    )
+    (tmp_path / "data").mkdir()
+    store = RetrospectiveMemoryStore(tmp_path / "mem.json")
+    loop = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "work",
+        runner=LocalSubprocessRunner(tmp_path / "work", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([
+            _full_script(0.70), _full_script(0.72), _full_script(0.71),
+        ])),
+        memory=store,
+        config=EvolutionConfig(max_iterations=3),
+    )
+    loop.run(strategies=["feature_crossing", "oof_stacking"])
+
+    records = store._load()
+    first, improved, held = records
+    assert first.dataset_profile == {
+        "modality": "tabular",
+        "n_train": 0,
+        "run_success": True,
+        "promoted": True,
+        "evidence_level": "observed",
+        "outcome_status": "promoted",
+    }
+    assert improved.dataset_profile["run_success"] is True
+    assert improved.dataset_profile["promoted"] is True
+    assert improved.dataset_profile["evidence_level"] == "validated"
+    assert improved.dataset_profile["outcome_status"] == "promoted"
+    assert improved.metric_delta == pytest.approx(0.02)
+    assert held.dataset_profile["run_success"] is True
+    assert held.dataset_profile["promoted"] is False
+    assert held.dataset_profile["evidence_level"] == "failure"
+    assert held.dataset_profile["outcome_status"] == "held"
 
 
+def test_failed_evolution_run_is_failure_evidence(tmp_path):
+    from research_os.retrospective_memory import RetrospectiveMemoryStore
+
+    ctx = TaskContext(
+        "memory-failure", "tabular", "classification", "accuracy", "maximize",
+        target_column="y",
+    )
+    (tmp_path / "data").mkdir()
+    store = RetrospectiveMemoryStore(tmp_path / "mem.json")
+    loop = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "work",
+        runner=LocalSubprocessRunner(tmp_path / "work", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([_full_script(None)])),
+        memory=store,
+        config=EvolutionConfig(max_iterations=1),
+    )
+    loop.run()
+    profile = store._load()[0].dataset_profile
+    assert profile["run_success"] is False
+    assert profile["promoted"] is False
+    assert profile["evidence_level"] == "failure"
+    assert profile["outcome_status"] == "failed"
+
+
+def test_only_explicit_multi_strategy_run_records_innovation_attempts(tmp_path):
+    from research_os.retrospective_memory import RetrospectiveMemoryStore
+    from xsci.innovation_engine import InnovationEngine
+
+    ctx = TaskContext(
+        "innovation-truth", "tabular", "classification", "accuracy", "maximize",
+        target_column="y",
+    )
+    (tmp_path / "data").mkdir()
+    engine = InnovationEngine(workspace_root=tmp_path)
+
+    normal = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "normal",
+        runner=LocalSubprocessRunner(tmp_path / "normal", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([_full_script(0.70)])),
+        memory=RetrospectiveMemoryStore(tmp_path / "normal-memory.json"),
+        config=EvolutionConfig(max_iterations=1),
+        innovation_engine=engine,
+    )
+    normal.run(strategies=["feature_crossing", "oof_stacking"])
+    assert engine.stats()["executed_attempts"] == 0
+
+    single = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "single",
+        runner=LocalSubprocessRunner(tmp_path / "single", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([
+            _full_script(0.70), _full_script(0.72),
+        ])),
+        memory=RetrospectiveMemoryStore(tmp_path / "single-memory.json"),
+        config=EvolutionConfig(max_iterations=2),
+        innovation_engine=engine,
+    )
+    single.run(
+        strategies=["feature_crossing"],
+        innovation_strategy_name="feature_crossing experiment",
+    )
+    assert engine.stats()["executed_attempts"] == 0
+
+    explicit = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "explicit",
+        runner=LocalSubprocessRunner(tmp_path / "explicit", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([
+            _full_script(0.70), _full_script(0.72),
+        ])),
+        memory=RetrospectiveMemoryStore(tmp_path / "explicit-memory.json"),
+        config=EvolutionConfig(max_iterations=2),
+        innovation_engine=engine,
+    )
+    explicit.run(
+        strategies=["feature_crossing", "oof_stacking"],
+        innovation_strategy_name="feature_crossing + oof_stacking",
+        innovation_source_memory_ids=["memory-a", "memory-b"],
+    )
+
+    stats = engine.stats()
+    assert stats["executed_attempts"] == 1
+    assert stats["innovations_tried"] == 1
+    assert stats["successes"] == 1
+    assert stats["failures"] == 0
+    log = json.loads(
+        (tmp_path / ".xsci" / "innovation_log.json").read_text(encoding="utf-8")
+    )
+    assert [item["attempt_status"] for item in log["tried"]] == ["validated_success"]
+    assert log["tried"][0]["source_memory_ids"] == ["memory-a", "memory-b"]
+
+
+def test_minimize_metric_records_positive_improvement_delta_for_innovation(tmp_path):
+    from research_os.retrospective_memory import RetrospectiveMemoryStore
+    from xsci.innovation_engine import InnovationEngine
+
+    ctx = TaskContext(
+        "innovation-minimize", "tabular", "regression", "rmse", "minimize",
+        target_column="y",
+    )
+    (tmp_path / "data").mkdir()
+    engine = InnovationEngine(workspace_root=tmp_path)
+    loop = EvolutionLoop(
+        ctx,
+        data_dir=str(tmp_path / "data"),
+        work_dir=tmp_path / "minimize",
+        runner=LocalSubprocessRunner(tmp_path / "minimize", timeout=60),
+        generator=VariationGenerator(client=FakeLLMClient([
+            _full_script(0.30), _full_script(0.25),
+        ])),
+        memory=RetrospectiveMemoryStore(tmp_path / "minimize-memory.json"),
+        config=EvolutionConfig(max_iterations=2),
+        innovation_engine=engine,
+    )
+    loop.run(
+        strategies=["log1p_target", "oof_stacking"],
+        innovation_strategy_name="log1p_target + oof_stacking",
+    )
+
+    log = json.loads(
+        (tmp_path / ".xsci" / "innovation_log.json").read_text(encoding="utf-8")
+    )
+    assert len(log["tried"]) == 1
+    assert log["tried"][0]["metric_delta"] == pytest.approx(0.05)
+    assert log["tried"][0]["success"] is True
 
 
 

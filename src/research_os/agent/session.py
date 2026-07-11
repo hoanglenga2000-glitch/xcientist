@@ -32,7 +32,7 @@ from ..variation_generator import TaskContext
 from .context import build_research_state_block, compact_messages, should_compact
 from .guardrails import ToolGuardrailController
 from .ledger import MessageLedger
-from .messaging import AgentMessageClient, ToolResult
+from .messaging import AgentMessageClient, LLMError, ToolResult
 from .report import write_report
 from .tools import ResearchToolbox
 
@@ -122,6 +122,7 @@ class AgentSessionConfig:
     tool_result_cap: int = 6000   # trim tool output fed back to the model
     compact_threshold_tokens: int = 120_000  # compact the history past this prompt size
     compact_tail_turns: int = 6              # recent turns kept verbatim on compaction
+    completion_nudges: int = 1               # text-only turns must explicitly finish or continue acting
 
 
 @dataclass
@@ -159,6 +160,9 @@ class AgentSession:
         self._last_prompt_tokens = 0     # API-reported prompt size of the last send
         self._last_compact_tokens = 0    # size at the last compaction (anti-thrash)
         self._agent_summary = ""         # the agent's own finish summary, if any
+        self._current_goal = ""
+        self._user_constraints: list[str] = []
+        self._latest_error = ""
         # Crash-survivable conversation log (resume + audit). Search-graph/summary
         # already hold research state; this preserves the raw dialogue.
         self._ledger = MessageLedger(self.exp_dir / "messages.jsonl")
@@ -185,6 +189,17 @@ class AgentSession:
         # replayable record (and a second resume sees the same clean state).
         if prior:
             self._ledger.rewrite(prior)
+        try:
+            prior_summary = json.loads((self.exp_dir / "summary.json").read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            prior_summary = {}
+        if isinstance(prior_summary, dict):
+            self._latest_error = str(prior_summary.get("latest_error") or "")
+            self._current_goal = str(prior_summary.get("current_goal") or "")
+            constraints = prior_summary.get("user_constraints") or []
+            if isinstance(constraints, str):
+                constraints = [constraints]
+            self._user_constraints = [str(item) for item in constraints if str(item).strip()]
 
     def _emit(self, event_type: str, **fields: Any) -> None:
         """Attach a monotonic seq + timestamp and push one event to the stream.
@@ -244,7 +259,12 @@ class AgentSession:
         ):
             return
         before = len(self.messages)
-        state_block = build_research_state_block(self.toolbox)
+        state_block = build_research_state_block(
+            self.toolbox,
+            current_goal=self._current_goal,
+            user_constraints=self._user_constraints,
+            latest_error=self._latest_error,
+        )
         self.messages = compact_messages(
             self.messages, state_block=state_block, tail_turns=self.config.compact_tail_turns)
         after = len(self.messages)
@@ -259,6 +279,11 @@ class AgentSession:
     def run(self, goal: str) -> dict[str, Any]:
         """Drive the tool-use loop for one goal until finish / budget exhaustion."""
         specs = self.toolbox.specs()
+        self._current_goal = goal
+        raw_constraints = self.run_meta.get("user_constraints") or []
+        if isinstance(raw_constraints, str):
+            raw_constraints = [raw_constraints]
+        self._user_constraints = [str(item) for item in raw_constraints if str(item).strip()]
         resuming = bool(self.resume and self._resumed_turns)
         self._emit(ev.RUN_BEGIN, task=self.context.task_name, metric=self.context.metric,
                    metric_direction=self.context.metric_direction,
@@ -277,6 +302,8 @@ class AgentSession:
 
         finished = False
         turns = 0
+        text_only_nudges = 0
+        stop_reason = "turn_budget_exhausted"
         while turns < self.config.max_turns and not finished:
             turns += 1
             # Compact the history if the last prompt grew past the threshold. The
@@ -284,10 +311,16 @@ class AgentSession:
             # research-state block into the head and keep only the recent tail —
             # no LLM summary call, no risk of hallucinating a result.
             self._maybe_compact()
-            turn = self.client.send(
-                self.messages, system=_SYSTEM, tools=specs,
-                max_tokens=self.config.max_tokens, temperature=self.config.temperature,
-            )
+            try:
+                turn = self.client.send(
+                    self.messages, system=_SYSTEM, tools=specs,
+                    max_tokens=self.config.max_tokens, temperature=self.config.temperature,
+                )
+            except LLMError as exc:  # provider failover exhausted; preserve a resumable partial run
+                self._latest_error = f"{type(exc).__name__}: {exc}"
+                stop_reason = "provider_error"
+                self._emit(ev.AGENT_MSG, text=f"[provider error] {self._latest_error[:800]}")
+                break
             self._last_prompt_tokens = turn.input_tokens
             if turn.text:
                 self._emit(ev.AGENT_MSG, text=turn.text, model=turn.model,
@@ -298,8 +331,21 @@ class AgentSession:
             self._ledger.append(assistant_msg)
 
             if not turn.wants_tool:
-                # The model is talking, not acting. In non-interactive mode that
-                # means it's done reasoning for now; end cleanly.
+                if text_only_nudges < max(0, self.config.completion_nudges) and turns < self.config.max_turns:
+                    text_only_nudges += 1
+                    nudge = {
+                        "role": "user",
+                        "content": (
+                            "Your last turn did not call a tool. The session is not complete until you call finish. "
+                            "If evidence is missing, continue with the next concrete tool call. If the goal is "
+                            "genuinely complete or blocked, call finish with an honest evidence-bounded summary."
+                        ),
+                    }
+                    self.messages.append(nudge)
+                    self._ledger.append(nudge)
+                    self._emit(ev.AGENT_MSG, text="[completion nudge] explicit finish or continued tool use required")
+                    continue
+                stop_reason = "text_only_without_finish"
                 break
 
             tool_results: list[dict[str, Any]] = []
@@ -325,6 +371,7 @@ class AgentSession:
                 tool_results.append(ToolResult(call.id, content, is_error=not outcome.ok).to_wire())
                 if outcome.finished:
                     finished = True
+                    stop_reason = "finished"
                     self._agent_summary = str(call.input.get("summary") or "")
             # Feed every tool_result back as ONE user turn (Anthropic requires all
             # tool_use blocks from a turn to be answered before the next send).
@@ -336,9 +383,10 @@ class AgentSession:
             # than flail through the whole budget.
             if self.guardrails.halted:
                 self._emit(ev.AGENT_MSG, text=f"[guardrail halt] {self.guardrails.halt_reason}")
+                stop_reason = "guardrail_halt"
                 break
 
-        summary = self._finalize(turns=turns, finished=finished)
+        summary = self._finalize(turns=turns, finished=finished, stop_reason=stop_reason)
         self._emit(ev.RUN_END, task=self.context.task_name,
                    best_exp_id=summary.get("best_exp_id"),
                    best_cv_score=summary.get("best_cv_score"),
@@ -375,7 +423,12 @@ class AgentSession:
         RESTORED search graph (so the model re-grounds in what the prior run
         actually proved, never on a hallucinated memory of it) plus the new goal."""
         try:
-            state_block = build_research_state_block(self.toolbox)
+            state_block = build_research_state_block(
+                self.toolbox,
+                current_goal=goal,
+                user_constraints=self._user_constraints,
+                latest_error=self._latest_error,
+            )
         except Exception:  # never let the snapshot break a resume
             state_block = "(research state unavailable)"
         return (
@@ -401,7 +454,7 @@ class AgentSession:
                 parts.append(f"{k}={v}")
         return ", ".join(parts)[:160]
 
-    def _finalize(self, *, turns: int, finished: bool) -> dict[str, Any]:
+    def _finalize(self, *, turns: int, finished: bool, stop_reason: str) -> dict[str, Any]:
         """Write search_graph.json + summary.json (dashboard-visible) and return
         the summary dict, mirroring EvolutionLoop.summary()'s shape."""
         graph = self.toolbox.graph
@@ -419,6 +472,11 @@ class AgentSession:
             "promotion_history": graph.promotion_history,
             "turns_used": turns,
             "finished_by_agent": finished,
+            "needs_continuation": not finished,
+            "stop_reason": stop_reason,
+            "latest_error": self._latest_error,
+            "current_goal": self._current_goal,
+            "user_constraints": self._user_constraints,
             "agent_summary": self._agent_summary,
         }
         (self.exp_dir / "summary.json").write_text(

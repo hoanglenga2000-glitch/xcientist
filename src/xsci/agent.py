@@ -21,12 +21,15 @@ from typing import Any, Callable, Optional
 
 from .config import Config, load_config
 from .engine import (
-    RunPlan, build_plan, _load_context, _record_evolution_summary,
+    RunPlan,
+    _load_context,
+    _record_evolution_summary,
     _workspace_root_from_exp_dir,
+    build_plan,
 )
 from .scientist_execution_gate import (
-    build_execution_gate_decision,
     build_execution_contract_for_task,
+    build_execution_gate_decision,
     contract_blocks_training,
     render_execution_contract_lines,
 )
@@ -50,7 +53,6 @@ def _latest_run_dir(plan: RunPlan) -> Optional["Path"]:
     A run dir is ``<experiments>/evolution/<task>_<compute>_<stamp>`` and only
     counts as resumable if it has a ``search_graph.json`` (the audited state to
     continue). Returns None when there's nothing to resume."""
-    from pathlib import Path
 
     base = plan.exp_dir.parent
     if not base.is_dir():
@@ -78,9 +80,9 @@ def _build_session(plan: RunPlan, *, quiet: bool, mcgs: bool = True, budget: int
     When ``resume`` is set, the plan's ``exp_dir`` is repointed at the newest prior
     run dir for this task, the toolbox rehydrates that run's search graph, and the
     session continues its ledger conversation instead of starting fresh."""
+    from research_os import events as ev
     from research_os.agent import AgentSession, ResearchToolbox
     from research_os.retrospective_memory import RetrospectiveMemoryStore
-    from research_os import events as ev
 
     ctx, data = _load_context(plan.task_config)
     resume_dir = _latest_run_dir(plan) if resume else None
@@ -277,7 +279,7 @@ def _run_once(session, goal: str, *, quiet_summary: bool = False,
     )
     if not quiet_summary:
         _print_summary(session, summary)
-    return 0
+    return 0 if summary.get("finished_by_agent") is True else 2
 
 
 def _repl(session) -> int:

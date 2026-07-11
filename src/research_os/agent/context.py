@@ -52,13 +52,27 @@ def should_compact(*, prompt_tokens: int, messages: list[dict[str, Any]],
     return size >= last_compact_tokens * 1.1 if last_compact_tokens else True
 
 
-def build_research_state_block(toolbox: Any) -> str:
+def build_research_state_block(
+    toolbox: Any,
+    *,
+    current_goal: str = "",
+    user_constraints: list[str] | None = None,
+    latest_error: str = "",
+) -> str:
     """Deterministic 'what we know so far' from the search graph + memory.
 
     Duck-typed on ResearchToolbox (graph, best_exp_id, library, _pending_plan) so
     it stays testable with a light fake. Never invents scores — reads the graph."""
     graph = toolbox.graph
     lines = ["[RESEARCH STATE SO FAR — reconstructed from the auditable search graph]"]
+    if current_goal.strip():
+        lines.append(f"CURRENT GOAL: {current_goal.strip()}")
+    constraints = [str(item).strip() for item in (user_constraints or []) if str(item).strip()]
+    if constraints:
+        lines.append("USER CONSTRAINTS (must continue to hold):")
+        lines.extend(f"  - {item}" for item in constraints[:12])
+    if latest_error.strip():
+        lines.append(f"LATEST ERROR TO RESOLVE: {latest_error.strip()[:1600]}")
     # current best (the promotion gate's verdict, not a guess)
     best_id = getattr(toolbox, "best_exp_id", None)
     best = graph.nodes.get(best_id) if best_id else None

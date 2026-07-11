@@ -51,6 +51,13 @@ submissions_v*/
 results/
 output/
 logs/
+/data/
+/reports/
+/tasks/
+/notebooks_or_scripts/
+/web/dashboard/
+/terminal_events.jsonl
+/tool_ledger.jsonl
 *.log
 
 # ── Heavy binaries ──
@@ -64,8 +71,9 @@ logs/
 *.png
 *.jpg
 *.jpeg
-!reports/figures/**/*.png
-!docs/**/*.png
+*.pdf
+*.docx
+*.html
 
 # ── IDE / editor ──
 .vscode/

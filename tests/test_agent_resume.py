@@ -19,7 +19,7 @@ import sys
 from pathlib import Path
 
 from research_os import events as ev
-from research_os.agent.messaging import AssistantTurn, ToolCall
+from research_os.agent.messaging import AssistantTurn, LLMError, ToolCall
 from research_os.agent.session import AgentSession, _drop_dangling_tool_use
 from research_os.agent.tools import ResearchToolbox
 from research_os.evolution_loop import LocalSubprocessRunner
@@ -242,3 +242,37 @@ def test_resume_emits_resumed_flag_in_run_begin(tmp_path):
     assert begins, "expected a RUN_BEGIN event"
     assert begins[-1].get("resumed") is True
     assert begins[-1].get("resumed_turns", 0) > 0
+
+
+def test_provider_error_writes_partial_summary_and_can_resume(tmp_path):
+    class _FailingClient:
+        def is_available(self):
+            return True
+
+        def send(self, messages, *, system, tools, max_tokens=0, temperature=0.0):
+            raise LLMError("gateway unavailable")
+
+    exp_dir = tmp_path / "exp"
+    runner = LocalSubprocessRunner(exp_dir / "runs", timeout=30, python_exe=sys.executable)
+    tb = ResearchToolbox(_ctx(), data_dir=str(tmp_path / "data"), work_dir=exp_dir, runner=runner)
+    session = AgentSession(context=_ctx(), toolbox=tb, exp_dir=exp_dir, client=_FailingClient())
+
+    summary = session.run("continue the experiment without losing evidence")
+
+    assert summary["finished_by_agent"] is False
+    assert summary["needs_continuation"] is True
+    assert summary["stop_reason"] == "provider_error"
+    assert "gateway unavailable" in summary["latest_error"]
+    assert (exp_dir / "summary.json").exists()
+    assert (exp_dir / "messages.jsonl").exists()
+
+    tb2 = ResearchToolbox(_ctx(), data_dir=str(tmp_path / "data"), work_dir=exp_dir, runner=runner)
+    tb2.restore_from(exp_dir)
+    resumed = AgentSession(
+        context=_ctx(), toolbox=tb2, exp_dir=exp_dir,
+        client=_ScriptedClient([_turn("done", [ToolCall("r1", "finish", {"summary": "resumed"})])]),
+        resume=True,
+    )
+    assert "gateway unavailable" in resumed._latest_error
+    resumed_summary = resumed.run("resume after provider recovery")
+    assert resumed_summary["finished_by_agent"] is True

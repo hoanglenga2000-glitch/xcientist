@@ -17,18 +17,18 @@ Design:
 from __future__ import annotations
 
 import json
+import math
 import re
 import subprocess
 import sys
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
-from .mlevolve_controller import choose_code_generation_mode
 from . import events as ev
 from .claim_audit import audit_claim
+from .mlevolve_controller import choose_code_generation_mode
 from .retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 from .search_graph import ExperimentNode, SearchGraph
 from .validation_contract import check_required_artifacts, create_contract, evaluate_acceptance
@@ -141,6 +141,7 @@ class EvolutionLoop:
         memory: Optional[RetrospectiveMemoryStore] = None,
         config: Optional[EvolutionConfig] = None,
         selector: Optional[Any] = None,
+        innovation_engine: Optional[Any] = None,
         on_event: Optional[Callable[[dict], None]] = None,
         run_meta: Optional[dict[str, Any]] = None,
     ) -> None:
@@ -155,6 +156,11 @@ class EvolutionLoop:
         # Optional MCGS selection brain. When None (default), the loop keeps its
         # simple linear best-so-far behavior, so all existing callers are unchanged.
         self.selector = selector
+        # Innovation accounting is opt-in. A normal run can apply several
+        # recommended strategies without falsely becoming an innovation trial.
+        self.innovation_engine = innovation_engine
+        self._innovation_strategy_name = ""
+        self._innovation_source_memory_ids: list[str] = []
         # Optional research-event stream. When None (default), emission is a no-op,
         # so the engine's behavior is byte-for-byte unchanged for existing callers
         # and every test. When provided (by `xsci run`), each research-cycle joint
@@ -219,11 +225,68 @@ class EvolutionLoop:
             ))
         return refs
 
-    def _record_memory(self, proposal: VariationProposal, result: RunResult, promoted: bool, delta: Optional[float]) -> None:
+    @staticmethod
+    def _outcome_evidence(result: RunResult, promoted: bool,
+                          delta: Optional[float]) -> tuple[str, str]:
+        if not result.success:
+            return "failure", "failed"
+        if promoted and delta is not None and math.isfinite(delta) and delta > 0:
+            return "validated", "promoted"
+        if promoted:
+            return "observed", "promoted"
+        return "failure", "held"
+
+    def _record_innovation_attempt(self, proposal: VariationProposal,
+                                   result: RunResult, promoted: bool,
+                                   delta: Optional[float],
+                                   evidence_level: str) -> None:
+        if self.innovation_engine is None or not self._innovation_strategy_name:
+            return
+        # The first scored node is a baseline without a comparator. Even when a
+        # caller supplied an innovation label, it is not an innovation attempt.
+        if not proposal.parent_exp_id:
+            return
+        components: list[str] = []
+        for strategy in proposal.applied_strategies:
+            for component in re.split(r"\s*\+\s*|\s*,\s*", str(strategy)):
+                component = component.strip()
+                if component and component not in components:
+                    components.append(component)
+        if len(components) < 2:
+            return
+        try:
+            run_id = str(self._run_meta.get("run_id") or self.work_dir.name)
+            self.innovation_engine.record_attempt(
+                self._innovation_strategy_name,
+                success=(evidence_level == "validated"),
+                cv_score=result.cv_score,
+                metric_delta=delta,
+                run_success=result.success,
+                promoted=promoted,
+                evidence_level=evidence_level,
+                no_training_started=False,
+                task_id=self.context.task_name,
+                task_type=self.context.task_type,
+                source_memory_ids=self._innovation_source_memory_ids,
+                attempt_id=f"{self.context.task_name}:{run_id}:{proposal.exp_id}:innovation",
+            )
+        except Exception:  # innovation telemetry must not invalidate a completed run
+            pass
+
+    def _record_memory(self, proposal: VariationProposal, result: RunResult,
+                       promoted: bool, delta: Optional[float]) -> None:
+        evidence_level, outcome_status = self._outcome_evidence(result, promoted, delta)
         self.memory.add_memory(MemoryRecord(
             memory_id=f"{self.context.task_name}:{proposal.exp_id}",
             task_type=self.context.task_type,
-            dataset_profile={"modality": self.context.modality, "n_train": self.context.n_train},
+            dataset_profile={
+                "modality": self.context.modality,
+                "n_train": self.context.n_train,
+                "run_success": result.success,
+                "promoted": promoted,
+                "evidence_level": evidence_level,
+                "outcome_status": outcome_status,
+            },
             method=f"{proposal.code_generation_mode}:{','.join(proposal.applied_strategies) or 'baseline'}",
             what_worked=(proposal.hypothesis if promoted else ""),
             what_failed=("" if result.success else _salient_error(result.error, max_chars=300)),
@@ -232,6 +295,9 @@ class EvolutionLoop:
             failure_pattern=("" if result.success else _classify_failure(result.error)),
             linked_exp_ids=[proposal.exp_id],
         ))
+        self._record_innovation_attempt(
+            proposal, result, promoted, delta, evidence_level,
+        )
 
     def _decide_mode(self, iteration: int, consecutive_no_improve: int, last_failed: bool) -> str:
         return choose_code_generation_mode(
@@ -241,7 +307,11 @@ class EvolutionLoop:
             failure_count=2 if last_failed else 0,
         )
 
-    def run(self, *, strategies: Optional[list[str]] = None) -> dict[str, Any]:
+    def run(self, *, strategies: Optional[list[str]] = None,
+            innovation_strategy_name: str = "",
+            innovation_source_memory_ids: Optional[list[str]] = None) -> dict[str, Any]:
+        self._innovation_strategy_name = innovation_strategy_name.strip()
+        self._innovation_source_memory_ids = list(innovation_source_memory_ids or [])[:20]
         consecutive_no_improve = 0
         last_failed = False
         self._emit(

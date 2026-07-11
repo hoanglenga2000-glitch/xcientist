@@ -103,15 +103,62 @@ if (-not $SkipNpmInstall) {
   if (Test-Path (Join-Path $Web "node_modules")) {
     Write-Host "  [OK] node_modules exists; skipping npm install" -ForegroundColor Green
   } else {
-  Push-Location $Web
-  try {
-    npm install
-    if ($LASTEXITCODE -ne 0) {
-      throw "npm install failed with exit code $LASTEXITCODE"
+    Push-Location $Web
+    try {
+      npm install
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm install failed with exit code $LASTEXITCODE"
+      }
+      Write-Host "  [OK] npm install" -ForegroundColor Green
+    } finally {
+      Pop-Location
     }
-    Write-Host "  [OK] npm install" -ForegroundColor Green
-  } finally {
-    Pop-Location
+  }
+
+  Write-Step "Initialize local workstation database"
+  $webEnvPath = Join-Path $Web ".env"
+  if (-not (Test-Path $webEnvPath)) {
+    Copy-Item (Join-Path $Web ".env.example") $webEnvPath
+    Write-Host "  [OK] created web .env from .env.example" -ForegroundColor Green
+  }
+  $databaseUrl = $env:DATABASE_URL
+  if (-not $databaseUrl) {
+    $databaseUrlLine = Get-Content -LiteralPath $webEnvPath |
+      Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } |
+      Select-Object -First 1
+    if ($databaseUrlLine) {
+      $databaseUrl = (($databaseUrlLine -split '=', 2)[1]).Trim().Trim('"').Trim("'")
+    }
+  }
+  if (-not $databaseUrl) {
+    throw "DATABASE_URL is missing from web .env"
+  }
+  if ($databaseUrl -eq "file:./prisma/workstation.db") {
+    $databaseUrl = "file:./workstation.db"
+    Write-Host "  [INFO] normalized legacy SQLite path" -ForegroundColor Yellow
+  }
+  if (-not $databaseUrl.StartsWith("file:", [System.StringComparison]::OrdinalIgnoreCase)) {
+    Write-Host "  [INFO] external database configured; automatic schema push skipped" -ForegroundColor Yellow
+  } else {
+    $env:DATABASE_URL = $databaseUrl
+    $previousRustLog = $env:RUST_LOG
+    if (-not $previousRustLog) {
+      $env:RUST_LOG = "info"
+    }
+    Push-Location $Web
+    try {
+      npm run db:push -- --skip-generate
+      if ($LASTEXITCODE -ne 0) {
+        throw "npm run db:push failed with exit code $LASTEXITCODE"
+      }
+      Write-Host "  [OK] local SQLite schema is ready" -ForegroundColor Green
+    } finally {
+      Pop-Location
+      if ($previousRustLog) {
+        $env:RUST_LOG = $previousRustLog
+      } else {
+        Remove-Item Env:RUST_LOG -ErrorAction SilentlyContinue
+      }
     }
   }
 }

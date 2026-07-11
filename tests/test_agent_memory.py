@@ -15,10 +15,22 @@ from research_os.retrospective_memory import MemoryRecord, RetrospectiveMemorySt
 from research_os.variation_generator import TaskContext
 
 
-def _rec(mid, task_type, *, worked="", failed="", strategy="", pattern="") -> MemoryRecord:
+def _rec(mid, task_type, *, worked="", failed="", strategy="", pattern="",
+         metric_delta=None, evidence_level="", run_success=None,
+         promoted=None, outcome_status="") -> MemoryRecord:
+    profile = {}
+    if evidence_level:
+        profile["evidence_level"] = evidence_level
+    if run_success is not None:
+        profile["run_success"] = run_success
+    if promoted is not None:
+        profile["promoted"] = promoted
+    if outcome_status:
+        profile["outcome_status"] = outcome_status
     return MemoryRecord(
-        memory_id=mid, task_type=task_type, dataset_profile={}, method="agent",
-        what_worked=worked, what_failed=failed, metric_delta=None,
+        memory_id=mid, task_type=task_type,
+        dataset_profile=profile, method="agent",
+        what_worked=worked, what_failed=failed, metric_delta=metric_delta,
         reusable_strategy=strategy, failure_pattern=pattern, linked_exp_ids=[mid],
     )
 
@@ -36,8 +48,14 @@ def test_index_digest_empty(tmp_path):
 def test_index_digest_aggregates(tmp_path):
     store = RetrospectiveMemoryStore(tmp_path / "m.json")
     lib = MemoryLibrary(store)
-    lib.add(_rec("a", "classification", strategy="oof_stacking"))
-    lib.add(_rec("b", "classification", strategy="oof_stacking"))
+    lib.add(_rec(
+        "a", "classification", strategy="oof_stacking", metric_delta=0.02,
+        evidence_level="validated", run_success=True, promoted=True,
+    ))
+    lib.add(_rec(
+        "b", "classification", strategy="oof_stacking", metric_delta=0.01,
+        evidence_level="validated", run_success=True, promoted=True,
+    ))
     lib.add(_rec("c", "classification", failed="OOM", pattern="oom"))
     lib.add(_rec("d", "regression", strategy="log1p_target"))
     digest = lib.index_digest("classification")
@@ -45,6 +63,64 @@ def test_index_digest_aggregates(tmp_path):
     assert "oof_stacking×2" in digest       # top strategy counted
     assert "oom×1" in digest                 # failure pattern counted
     assert "task_type=classification: 3 lessons" in digest
+
+
+def test_index_digest_does_not_call_unvalidated_plans_proven(tmp_path):
+    store = RetrospectiveMemoryStore(tmp_path / "m.json")
+    lib = MemoryLibrary(store)
+    lib.add(_rec("plan", "classification", strategy="try a speculative blend"))
+    lib.add(_rec(
+        "verified",
+        "classification",
+        strategy="validate patches in an isolated worktree",
+        metric_delta=0.01,
+        evidence_level="validated",
+        run_success=True,
+        promoted=True,
+    ))
+    digest = lib.index_digest("classification")
+    assert "evidence-backed strategies" in digest
+    assert "validate patches in an isolated worktree" in digest
+    assert "provisional hypotheses" in digest
+    assert "try a speculative blend" in digest
+
+
+def test_index_digest_does_not_promote_observed_strategy_to_evidence_backed(tmp_path):
+    store = RetrospectiveMemoryStore(tmp_path / "m.json")
+    lib = MemoryLibrary(store)
+    lib.add(_rec(
+        "observed",
+        "classification",
+        strategy="first scored baseline",
+        evidence_level="observed",
+        run_success=True,
+        promoted=True,
+        outcome_status="promoted",
+    ))
+    digest = lib.index_digest("classification")
+    assert "observed strategies (not promotion-proven)" in digest
+    assert "first scored baseline" in digest
+    assert "evidence-backed strategies" not in digest
+
+
+def test_index_digest_rejects_no_training_validated_claim(tmp_path):
+    store = RetrospectiveMemoryStore(tmp_path / "m.json")
+    lib = MemoryLibrary(store)
+    record = _rec(
+        "gated-blueprint",
+        "classification",
+        strategy="blueprint only",
+        metric_delta=0.02,
+        evidence_level="validated",
+        run_success=True,
+        promoted=True,
+    )
+    record.dataset_profile["no_training_started"] = True
+    lib.add(record)
+    digest = lib.index_digest("classification")
+    assert "blueprint only" in digest
+    assert "provisional hypotheses" in digest
+    assert "evidence-backed strategies" not in digest
 
 
 def test_retrieve_filters_by_task_type_and_pattern(tmp_path):
@@ -80,6 +156,9 @@ def test_memory_persists_across_toolbox_instances(tmp_path):
                           work_dir=tmp_path / "exp1", runner=_Runner(), memory=store1)
     tb1.dispatch("plan_next_experiment", {})
     tb1.dispatch("run_experiment", {"hypothesis": "h", "code": "print(1)"})
+    node = tb1.graph.nodes["EXP000"]
+    node.promoted = True
+    node.promotion_delta = 0.01
     tb1.dispatch("record_lesson", {"exp_id": "EXP000", "what_worked": "GBM baseline",
                                    "reusable_strategy": "gbm"})
 
@@ -91,7 +170,45 @@ def test_memory_persists_across_toolbox_instances(tmp_path):
     assert "gbm" in out.content
     assert "GBM baseline" in out.content
     # and the opening digest reflects it
-    assert "1 lessons" in tb2.library.index_digest("classification")
+    digest = tb2.library.index_digest("classification")
+    assert "1 lessons" in digest
+    assert "observed strategies (not promotion-proven)" in digest
+    stored = store2._load()[0]
+    assert stored.dataset_profile["run_success"] is True
+    assert stored.dataset_profile["promoted"] is True
+    assert stored.dataset_profile["evidence_level"] == "observed"
+
+
+def test_held_experiment_cannot_publish_reusable_strategy(tmp_path):
+    mem_path = tmp_path / "retrospective_memory.json"
+    store = RetrospectiveMemoryStore(mem_path)
+
+    class _Runner:
+        def run(self, code, *, data_dir, out_dir, exp_id):
+            Path(out_dir).mkdir(parents=True, exist_ok=True)
+            return RunResult(success=True, cv_score=0.4, exit_code=0,
+                             artifacts=["/x/metrics.json", "/x/submission.csv"])
+
+    toolbox = ResearchToolbox(
+        _ctx(), data_dir=str(tmp_path / "d"), work_dir=tmp_path / "exp",
+        runner=_Runner(), memory=store,
+    )
+    toolbox.dispatch("plan_next_experiment", {})
+    toolbox.dispatch("run_experiment", {"hypothesis": "weak", "code": "print(1)"})
+    node = toolbox.graph.nodes["EXP000"]
+    node.promoted = False
+    node.promotion_reason = "held by score gate"
+    outcome = toolbox.dispatch("record_lesson", {
+        "exp_id": "EXP000",
+        "what_worked": "model claimed success",
+        "reusable_strategy": "blindly trust the held model",
+    })
+    record = store._load()[0]
+    assert outcome.ok is True
+    assert record.reusable_strategy == ""
+    assert record.what_worked == ""
+    assert "held" in record.what_failed
+    assert record.dataset_profile["evidence_level"] == "failure"
 
 
 def test_read_memory_all_tasks_and_pattern_filter_via_tool(tmp_path):

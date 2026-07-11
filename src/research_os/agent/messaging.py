@@ -16,9 +16,9 @@ Design rules mirror ``llm_client`` / ``gpu_credentials`` deliberately:
   * the gateway (Anthropic-compatible ``ANTHROPIC_BASE_URL``) is the target, so
     "wiring the gateway into an agent" is just: point at it and send ``tools``.
 
-Tool-use is Anthropic-shaped here on purpose. DeepSeek's function-calling schema
-differs; Phase A targets the Anthropic-compatible gateway and fails with a clear
-message if no Anthropic key is configured, rather than silently degrading.
+The loop keeps one Anthropic-shaped canonical tool history. Transport boundaries
+preserve it for Anthropic or convert it to OpenAI function-calling messages for
+DeepSeek and generic OpenAI-compatible endpoints.
 """
 from __future__ import annotations
 
@@ -124,7 +124,11 @@ class EmptyResponseError(RuntimeError):
     rate-limit/overload symptom. Treated as retryable / failover-able, not returned."""
 
 
-def _parse_openai_turn(body: dict[str, Any], fallback_model: str) -> AssistantTurn:
+def _parse_openai_turn(
+    body: dict[str, Any],
+    fallback_model: str,
+    provider: str = "openai",
+) -> AssistantTurn:
     """Parse an OpenAI-compatible chat/completions body into an AssistantTurn.
 
     Lets the agent run against an OpenAI-style gateway (tool_calls with a JSON
@@ -146,13 +150,101 @@ def _parse_openai_turn(body: dict[str, Any], fallback_model: str) -> AssistantTu
     finish = choice.get("finish_reason", "") or ""
     stop = "tool_use" if (finish == "tool_calls" or tool_calls) else (finish or "end_turn")
     usage = body.get("usage", {}) or {}
+    raw_content: list[dict[str, Any]] = []
+    if text:
+        raw_content.append({"type": "text", "text": text})
+    raw_content.extend({
+        "type": "tool_use",
+        "id": call.id,
+        "name": call.name,
+        "input": call.input,
+    } for call in tool_calls)
     return AssistantTurn(
         text=(text or "").strip(), tool_calls=tool_calls, stop_reason=stop,
-        raw_content=[{"type": "text", "text": text or ""}],  # normalized for history
-        provider="openai", model=body.get("model", fallback_model),
+        raw_content=raw_content,
+        provider=provider, model=body.get("model", fallback_model),
         input_tokens=int(usage.get("prompt_tokens", 0) or 0),
         output_tokens=int(usage.get("completion_tokens", 0) or 0),
     )
+
+
+def _openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Convert the loop's canonical Anthropic-shaped history to OpenAI wire messages.
+
+    Agent loops keep one provider-neutral history made of ``text``, ``tool_use``,
+    and ``tool_result`` blocks.  Anthropic accepts that representation directly;
+    OpenAI-compatible providers require assistant ``tool_calls`` plus one ``tool``
+    message per result.  Converting at the transport boundary also makes provider
+    failover work after tools have already been called.
+    """
+    import json as _json
+
+    wire: list[dict[str, Any]] = []
+    for message in messages:
+        role = str(message.get("role") or "user")
+        content = message.get("content", "")
+        if isinstance(content, str):
+            wire.append({"role": role, "content": content})
+            continue
+        if not isinstance(content, list):
+            wire.append({"role": role, "content": str(content or "")})
+            continue
+
+        text_parts = [
+            str(block.get("text") or "")
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "text"
+        ]
+        if role == "assistant":
+            tool_calls = []
+            for block in content:
+                if not isinstance(block, dict) or block.get("type") != "tool_use":
+                    continue
+                tool_calls.append({
+                    "id": str(block.get("id") or ""),
+                    "type": "function",
+                    "function": {
+                        "name": str(block.get("name") or ""),
+                        "arguments": _json.dumps(block.get("input") or {}, ensure_ascii=False),
+                    },
+                })
+            item: dict[str, Any] = {
+                "role": "assistant",
+                "content": "".join(text_parts) or None,
+            }
+            if tool_calls:
+                item["tool_calls"] = tool_calls
+            wire.append(item)
+            continue
+
+        tool_results = [
+            block
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        ]
+        non_tool_blocks = [
+            block
+            for block in content
+            if not isinstance(block, dict) or block.get("type") not in {"text", "tool_result"}
+        ]
+        user_text = "".join(text_parts)
+        if non_tool_blocks:
+            rendered = _json.dumps(non_tool_blocks, ensure_ascii=False)
+            user_text = f"{user_text}\n{rendered}".strip()
+        if user_text or not tool_results:
+            wire.append({"role": role, "content": user_text})
+        for block in tool_results:
+            result_content = block.get("content", "")
+            if not isinstance(result_content, str):
+                result_content = _json.dumps(result_content, ensure_ascii=False)
+            if block.get("is_error"):
+                result_content = "[tool_error] " + result_content
+            wire.append({
+                "role": "tool",
+                "tool_call_id": str(block.get("tool_use_id") or ""),
+                "content": result_content,
+            })
+    return wire
 
 
 class Transport:
@@ -197,7 +289,7 @@ class OpenAITransport(Transport):
         url = self.config.base_url.rstrip("/") + "/v1/chat/completions"
         headers = {"Authorization": f"Bearer {self.config.api_key}", "content-type": "application/json"}
         # System goes as a leading system message; tools use the function wrapper.
-        wire_msgs = [{"role": "system", "content": system}, *messages]
+        wire_msgs = [{"role": "system", "content": system}, *_openai_messages(messages)]
         wire_tools = [{"type": "function", "function": {
             "name": t.name, "description": t.description, "parameters": t.input_schema}} for t in tools]
         payload = {"model": self.config.model, "max_tokens": max_tokens,
@@ -205,26 +297,49 @@ class OpenAITransport(Transport):
         return url, headers, payload
 
     def parse(self, body: dict[str, Any]) -> AssistantTurn:
-        return _parse_openai_turn(body, self.config.model)
+        return _parse_openai_turn(body, self.config.model, provider=self.name)
+
+
+class DeepSeekTransport(OpenAITransport):
+    """DeepSeek's OpenAI-compatible wire format with truthful provider evidence."""
+
+    name = "deepseek"
 
 
 def _resolve_transports() -> list[Transport]:
     """Build the ordered transport list (primary first) from the environment.
 
-    Anthropic-native is primary (the gateway). An OpenAI-compatible fallback is
-    added when OPENAI_API_KEY/OPENAI_BASE_URL are set. DeepSeek's OpenAI-style
-    endpoint also works as a fallback when configured that way."""
+    Anthropic, DeepSeek, and generic OpenAI credentials remain distinct so the
+    returned turn records the provider that actually served it.  When
+    ``EVOLUTION_PRIMARY_PROVIDER`` names a configured provider, that transport
+    is tried first and the remaining providers retain their stable fallback
+    order.  ``EVOLUTION_PROVIDER_STRICT=1`` makes selection fail closed by
+    returning only the named primary transport (or none when its key is absent).
+    """
     transports: list[Transport] = []
     akey = _env("ANTHROPIC_API_KEY")
     if akey:
         transports.append(AnthropicTransport(ProviderConfig(
             "anthropic", _env("ANTHROPIC_BASE_URL", "https://api.anthropic.com"),
             _env("CLAUDE_CODE_MODEL", "claude-opus-4-8"), akey)))
-    okey = _env("OPENAI_API_KEY") or _env("DEEPSEEK_API_KEY")
+
+    dkey = _env("DEEPSEEK_API_KEY")
+    if dkey:
+        transports.append(DeepSeekTransport(ProviderConfig(
+            "deepseek", _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com"),
+            _env("DEEPSEEK_MODEL", "deepseek-chat"), dkey)))
+
+    okey = _env("OPENAI_API_KEY")
     if okey:
-        base = _env("OPENAI_BASE_URL") or _env("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-        model = _env("OPENAI_MODEL") or _env("DEEPSEEK_MODEL", "deepseek-chat")
-        transports.append(OpenAITransport(ProviderConfig("openai", base, model, okey)))
+        transports.append(OpenAITransport(ProviderConfig(
+            "openai", _env("OPENAI_BASE_URL", "https://api.openai.com"),
+            _env("OPENAI_MODEL", "gpt-4o"), okey)))
+
+    primary = (_env("EVOLUTION_PRIMARY_PROVIDER", "anthropic") or "anthropic").lower()
+    strict = (_env("EVOLUTION_PROVIDER_STRICT", "") or "").strip().lower()
+    if strict in {"1", "true", "yes", "on"}:
+        return [transport for transport in transports if transport.name == primary]
+    transports.sort(key=lambda transport: transport.name != primary)
     return transports
 
 
@@ -254,8 +369,8 @@ class AgentMessageClient:
             self._transports = _resolve_transports()
         if not self._transports:
             raise LLMError(
-                "the deep agent needs an Anthropic-compatible key: run `xsci login "
-                "--provider anthropic` (tool-use is sent to ANTHROPIC_BASE_URL)."
+                "the deep agent needs the selected provider's API key: run "
+                "`xsci login --provider anthropic` or `xsci login --provider deepseek`."
             )
         return self._transports
 
@@ -287,7 +402,7 @@ class AgentMessageClient:
                     if self._is_empty(turn):  # Layer 3: empty-response self-heal
                         raise EmptyResponseError("empty assistant turn")
                     return turn
-                except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError,
+                except (urllib.error.URLError, urllib.error.HTTPError, ConnectionError, TimeoutError,
                         ValueError, EmptyResponseError) as exc:
                     # Never echo the exception URL/body verbatim (could carry the key).
                     errors.append(f"{transport.name} attempt {attempt + 1}: {type(exc).__name__}")

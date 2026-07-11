@@ -11,11 +11,10 @@ tool-call visibility, immediate flush, and a durable event log for the frontend.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
-
 
 # Preflight stage names — shown BEFORE the deep agent starts.
 PREFLIGHT_STAGES = (
@@ -123,7 +122,7 @@ def render_tool_result_as_lines(result: dict) -> list[str]:
                 lines.append(f"  {key}:")
                 for item in value:
                     if isinstance(item, dict):
-                        lines.append(f"    - " + ", ".join(
+                        lines.append("    - " + ", ".join(
                             f"{k}={v}" for k, v in item.items() if k != "path"))
                     else:
                         lines.append(f"    - {item}")
@@ -1129,6 +1128,11 @@ def render_scientist_engineering_loop_summary(result: dict) -> list[str]:
     lines.append(f"  status: {result.get('status') or 'unknown'}")
     if result.get("message"):
         lines.append(f"  message: {_short(result.get('message'), limit=260)}")
+    if result.get("reasoning_resynthesized"):
+        lines.append("  reasoning_resynthesized: True")
+        answer = str(result.get("answer_markdown") or "").strip()
+        if answer:
+            lines.append(f"  refreshed_answer: {_short(answer, limit=320)}")
     work_order = result.get("work_order") if isinstance(result.get("work_order"), dict) else {}
     if work_order:
         lines.append(f"  work_order: {work_order.get('id') or '(none)'}")

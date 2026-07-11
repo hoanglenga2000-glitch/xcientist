@@ -35,7 +35,8 @@ class _FakeSession:
         self.on_event({"type": "run_end", "task": "t", "best_exp_id": "EXP1",
                        "best_cv_score": 0.9, "n_promotions": 1, "n_iterations": 1})
         return {"best_exp_id": "EXP1", "best_cv_score": 0.9,
-                "n_promotions": 1, "n_iterations": 1, "turns_used": 3}
+                "n_promotions": 1, "n_iterations": 1, "turns_used": 3,
+                "finished_by_agent": True}
 
 
 @pytest.fixture()

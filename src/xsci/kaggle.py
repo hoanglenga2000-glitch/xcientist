@@ -6,11 +6,13 @@ shims may exist as compatibility aliases, but EvoMind is the product name.
 """
 from __future__ import annotations
 
+import argparse
 import contextlib
 import getpass
 import io
 import json
 import os
+import subprocess
 import sys
 import textwrap
 from dataclasses import dataclass
@@ -19,20 +21,37 @@ from typing import Optional
 
 from . import kaggle_menu
 from .config import (
-    GLOBAL_DIR, active_root, inject_engine_env, is_onboarded,
-    load_config, mark_onboarded, set_global, write_secret,
+    GLOBAL_DIR as GLOBAL_DIR,
+)
+from .config import (
+    active_root,
+    inject_engine_env,
+    is_onboarded,
+    load_config,
+    mark_onboarded,
+    set_global,
 )
 from .kaggle_conversation import ConversationAgent
 from .kaggle_intent import (
-    CAPABILITY, CHAT, EXECUTION, GREETING, MEMORY,
-    OFFICIAL, PLANNING, REPORT, STATUS, TASK_ADD, TASK_USE, TOOL_QUERY, classify,
+    CAPABILITY,
+    EXECUTION,
+    GREETING,
+    MEMORY,
+    OFFICIAL,
+    PLANNING,
+    REPORT,
+    STATUS,
+    TASK_ADD,
+    TASK_USE,
+    TOOL_QUERY,
+    classify,
 )
-from .terminal_agent import TerminalAgent, _agent_reply as _term_agent_reply
-from .recovery_guard import RecoveryGuard
 from .kaggle_session import MODE_CHAT, MODE_EXECUTING, MODE_PLANNING, SessionState
 from .kaggle_stream import StageRenderer, thinking
-from .login import import_kaggle_json, save_kaggle_api_token, save_kaggle_credentials, save_llm_credentials
+from .login import save_kaggle_api_token, save_llm_credentials
+from .recovery_guard import RecoveryGuard
 from .tasks import add_task, list_tasks, resolve_task, slugify
+from .terminal_agent import TerminalAgent
 from .terminal_tools import TerminalTools
 
 _XSCI_COMMANDS = {
@@ -62,6 +81,7 @@ _XSCI_COMMANDS = {
     "continue-tools", "auto-continue-tools",
     "queue", "action-queue", "actions", "next", "next-action", "safe-next",
     "act", "act-next", "continue-scientist",
+    "workspace", "code-workspace", "benchmark-agent", "agent-benchmark",
 }
 _CONVERSATION: Optional[ConversationAgent] = None
 _DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8088/?page=control"
@@ -93,6 +113,60 @@ def _conversation() -> ConversationAgent:
     if _CONVERSATION is None:
         _CONVERSATION = ConversationAgent()
     return _CONVERSATION
+
+
+class _CliArgumentParser(argparse.ArgumentParser):
+    """Argument parser that reports errors to the caller instead of exiting."""
+
+    def error(self, message: str) -> None:
+        raise ValueError(message)
+
+
+@contextlib.contextmanager
+def _provider_selection(provider: str = ""):
+    """Temporarily select one provider without leaking the override to later turns."""
+
+    normalized = str(provider or "").strip().lower()
+    keys = ("EVOLUTION_PRIMARY_PROVIDER", "EVOLUTION_PROVIDER_STRICT")
+    previous = {key: os.environ.get(key) for key in keys}
+    if normalized:
+        os.environ["EVOLUTION_PRIMARY_PROVIDER"] = normalized
+        os.environ["EVOLUTION_PROVIDER_STRICT"] = "1"
+    try:
+        yield
+    finally:
+        if normalized:
+            for key, value in previous.items():
+                if value is None:
+                    os.environ.pop(key, None)
+                else:
+                    os.environ[key] = value
+
+
+def _git_top_level(start: Path) -> tuple[Optional[Path], str]:
+    """Resolve the real Git top-level for workspace commands."""
+
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=30,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return None, f"git workspace lookup failed: {type(exc).__name__}"
+    candidate = completed.stdout.strip()
+    if completed.returncode != 0 or not candidate:
+        return None, "current directory is not inside a Git repository"
+    try:
+        return Path(candidate).resolve(), ""
+    except OSError:
+        return None, "Git returned an invalid workspace path"
 
 
 def _ansi(code: str, text: str) -> str:
@@ -380,7 +454,7 @@ def _competitions_cmd(args: list[str]) -> int:
         if c.get("reward"):
             print(f"      reward: {c['reward']}")
         print()
-    print(f"  To start: evomind task add https://www.kaggle.com/c/<slug>")
+    print("  To start: evomind task add https://www.kaggle.com/c/<slug>")
     return 0
 
 
@@ -1108,6 +1182,10 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return _show_scientist_patch_work_order(session, root), False
     if verb in {"engineer", "engineering-loop", "validate-patch", "execute-upgrade"}:
         return _run_scientist_engineering_command(parts[1:], root), False
+    if verb in {"workspace", "code-workspace"}:
+        return _run_workspace_command(rest, root), False
+    if verb in {"benchmark-agent", "agent-benchmark"}:
+        return _run_benchmark_agent_command(rest, root), False
     if verb in {"learn", "memory-consolidate", "consolidate-memory", "memory-writeback"}:
         return _show_scientist_memory_consolidation(session, root), False
     if verb in {"workplan", "roadmap", "agenda"}:
@@ -1294,7 +1372,6 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             session.last_action = "training_blocked"
             return 1, False
         decision_result = TerminalTools.dispatch("research_decision", session, root)
-        decision = decision_result.get("decision", {}) if isinstance(decision_result, dict) else {}
         artifact = decision_result.get("artifact_path", "") if isinstance(decision_result, dict) else ""
         if artifact:
             print(_dim(f"  Decision artifact: {artifact}"))
@@ -1330,8 +1407,8 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
 
 def _show_innovations(session: SessionState, root: Path) -> int:
     """Display innovation proposals for the current task."""
-    from .innovation_engine import InnovationEngine
     from .agent import _load_context
+    from .innovation_engine import InnovationEngine
     from .tasks import resolve_task
 
     if not session.selected_task:
@@ -1346,8 +1423,8 @@ def _show_innovations(session: SessionState, root: Path) -> int:
         task_type = "classification"
 
     try:
-        from research_os.retrospective_memory import RetrospectiveMemoryStore
         from research_os.agent.memory_library import MemoryLibrary
+        from research_os.retrospective_memory import RetrospectiveMemoryStore
         store = RetrospectiveMemoryStore(root / "experiments" / "evolution" / "retrospective_memory.json")
         library = MemoryLibrary(store)
         engine = InnovationEngine(memory_library=library, workspace_root=root)
@@ -1428,6 +1505,8 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  self-upgrade             create a safe work order for the next P0 capability upgrade")
     print("  patch-order              turn latest failure/blocker evidence into a code-agent patch work order")
     print("  engineer [--generate]    validate a patch in an isolated Git worktree; never auto-merge")
+    print("  workspace <goal>         run bounded search/read/patch/test/diff loop on the current Git repo")
+    print("  benchmark-agent          run one hidden-oracle workspace case (use --all for all 12)")
     print("  memory-consolidate       write Scientist lessons into retrospective memory")
     print("  innovate-plan            generate memory-guided proposal backlog before training")
     print("  review-hypotheses        rank proposed research hypotheses before training")
@@ -1539,6 +1618,9 @@ def _print_help() -> None:
     print("  evomind patch-order         create a code-agent patch work order from latest evidence")
     print("  evomind engineer            validate the latest patch in an isolated Git worktree")
     print("  evomind engineer --generate ask Code Agent for a diff, validate it, and stop before merge")
+    print("  evomind workspace \"goal\"  build a tested candidate diff from the current Git repo")
+    print("  evomind benchmark-agent    run one real hidden-oracle workspace case")
+    print("  evomind benchmark-agent --all run the full 12-case behavior suite")
     print("  evomind memory-consolidate  write Scientist lessons into retrospective memory")
     print("  evomind innovate-plan       generate memory-guided proposal backlog before training")
     print("  evomind review-hypotheses   rank proposed hypotheses against evidence/gates")
@@ -1589,6 +1671,10 @@ def _dispatch(argv: list[str], root: Path) -> int:
         if not argv[1:]:
             return run_console(root)
         return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
+    if cmd in {"workspace", "code-workspace"}:
+        return _run_workspace_command(argv[1:], root)
+    if cmd in {"benchmark-agent", "agent-benchmark"}:
+        return _run_benchmark_agent_command(argv[1:], root)
     if cmd in {"ask", "turn"}:
         return _run_scientist_turn_command(argv[1:], root)
     if cmd == "competitions":
@@ -1725,6 +1811,215 @@ def _dispatch(argv: list[str], root: Path) -> int:
         goal = " ".join(argv[idx + 1:])
     task = _register_task(source, root) if source.startswith(("http://", "https://")) else slugify(source)
     return _run_agent(task, root, goal=goal)
+
+
+def _run_workspace_command(argv: list[str], state_root: Path) -> int:
+    parser = _CliArgumentParser(prog="evomind workspace", add_help=False)
+    parser.add_argument("--help", "-h", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--show-diff", action="store_true")
+    parser.add_argument("--provider", choices=("anthropic", "deepseek"), default="")
+    parser.add_argument("--root", default="")
+    parser.add_argument("--allow", "--allow-path", dest="allowed_paths", action="append", default=[])
+    parser.add_argument("--check", dest="checks", action="append", default=[])
+    parser.add_argument("--max-steps", type=int, default=18)
+    parser.add_argument("--timeout", type=int, default=600)
+    parser.add_argument("goal", nargs="*")
+    try:
+        args = parser.parse_args(argv)
+    except ValueError as exc:
+        print(f"evomind workspace: {exc}")
+        print("Usage: evomind workspace [--provider NAME] [--allow PATH] [--check CMD] <goal>")
+        return 1
+
+    if args.help:
+        print("Usage: evomind workspace [options] <goal>")
+        print("  --provider anthropic|deepseek  use only the selected configured provider")
+        print("  --allow PATH                   restrict edits to a path; repeat as needed")
+        print("  --check CMD                    allow and require a test/check command")
+        print("  --max-steps N                  bounded model/tool decisions (1-40)")
+        print("  --timeout SECONDS              total workspace loop budget")
+        print("  --json                         machine-readable result")
+        print("  --show-diff                    print the audited candidate diff")
+        return 0
+
+    goal = " ".join(args.goal).strip()
+    if not goal and not sys.stdin.isatty():
+        with contextlib.suppress(OSError):
+            goal = sys.stdin.read().strip()
+    if not goal:
+        print("Usage: evomind workspace [options] <goal>")
+        return 1
+
+    start = Path(args.root).expanduser() if args.root else Path.cwd()
+    workspace_root, lookup_error = _git_top_level(start.resolve())
+    if workspace_root is None:
+        payload = {
+            "ok": False,
+            "completed": False,
+            "status": "blocked_workspace_not_git",
+            "stop_reason": "workspace_not_git",
+            "message": lookup_error,
+            "goal": goal,
+            "workspace_root": str(start.resolve()),
+            "human_gate": "no_candidate_created",
+        }
+        if args.json:
+            _safe_print(json.dumps(payload, ensure_ascii=False, indent=2))
+        else:
+            _agent_reply(lookup_error, title="Workspace blocked")
+        return 1
+
+    max_steps = max(1, min(int(args.max_steps), 40))
+    timeout_seconds = max(5, min(int(args.timeout), 3600))
+    checks = list(dict.fromkeys(str(item).strip() for item in args.checks if str(item).strip()))
+    if not checks:
+        checks = ["git diff --check"]
+    allowed_paths = list(dict.fromkeys(str(item).strip() for item in args.allowed_paths if str(item).strip()))
+
+    cfg = load_config(workspace_root)
+    inject_engine_env(cfg)
+    with _provider_selection(args.provider):
+        from research_os.agent.messaging import AgentMessageClient
+
+        from .workspace_agent import WorkspaceAgentLimits, run_workspace_agent
+
+        client = AgentMessageClient(max_retries=1, timeout=min(120, timeout_seconds))
+        if not client.is_available():
+            result = {
+                "ok": False,
+                "completed": False,
+                "status": "blocked_provider_unavailable",
+                "stop_reason": "provider_unavailable",
+                "message": "No configured model is available for the selected provider.",
+                "goal": goal,
+                "provider": args.provider,
+                "human_gate": "configure_provider_before_workspace_run",
+                "final_diff": "",
+            }
+        else:
+            result = run_workspace_agent(
+                workspace_root,
+                goal=goal,
+                client=client,
+                acceptance_commands=checks,
+                allowed_edit_paths=allowed_paths,
+                require_post_patch_read=True,
+                limits=WorkspaceAgentLimits(
+                    max_steps=max_steps,
+                    command_timeout_seconds=min(120, timeout_seconds),
+                    total_timeout_seconds=timeout_seconds,
+                ),
+            )
+
+    payload = dict(result)
+    payload.setdefault("workspace_root", str(workspace_root))
+    payload.setdefault("goal", goal)
+    payload.setdefault("requested_provider", args.provider or "configured_default")
+    if args.json:
+        _safe_print(json.dumps(payload, ensure_ascii=False, indent=2))
+    else:
+        lines = [
+            f"Status: {payload.get('status') or 'unknown'}",
+            f"Workspace: {workspace_root}",
+            f"Provider: {payload.get('provider') or args.provider or 'unavailable'}",
+        ]
+        if payload.get("model"):
+            lines.append(f"Model: {payload['model']}")
+        if payload.get("candidate_diff_path"):
+            lines.append(f"Candidate diff: {payload['candidate_diff_path']}")
+        if payload.get("artifact_path"):
+            lines.append(f"Evidence: {payload['artifact_path']}")
+        if payload.get("human_gate"):
+            lines.append(f"Gate: {payload['human_gate']}")
+        if payload.get("message"):
+            lines.append(f"Reason: {payload['message']}")
+        if payload.get("summary"):
+            lines.append(f"Summary: {payload['summary']}")
+        _agent_reply("\n".join(lines), title="Workspace candidate")
+        if args.show_diff and payload.get("final_diff"):
+            _safe_print(str(payload["final_diff"]))
+    return 0 if bool(payload.get("ok")) else 1
+
+
+def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
+    parser = _CliArgumentParser(prog="evomind benchmark-agent", add_help=False)
+    parser.add_argument("--help", "-h", action="store_true")
+    parser.add_argument("--json", action="store_true")
+    parser.add_argument("--provider", choices=("anthropic", "deepseek"), default="")
+    parser.add_argument("--case", dest="case_ids", action="append", default=[])
+    parser.add_argument("--all", action="store_true")
+    parser.add_argument("--seed", type=int, default=20260711)
+    parser.add_argument("--timeout", type=int, default=180)
+    try:
+        args = parser.parse_args(argv)
+    except ValueError as exc:
+        print(f"evomind benchmark-agent: {exc}")
+        print("Usage: evomind benchmark-agent [--case ID | --all] [--provider NAME] [--json]")
+        return 1
+
+    if args.help:
+        print("Usage: evomind benchmark-agent [options]")
+        print("  --case ID                      run one public task id; repeat as needed")
+        print("  --all                          run the full 12-case hidden-oracle suite")
+        print("  --provider anthropic|deepseek  use only the selected configured provider")
+        print("  --timeout SECONDS              hard child-process budget per case")
+        print("  --seed N                       deterministic fixture seed")
+        print("  --json                         machine-readable report")
+        return 0
+    if args.all and args.case_ids:
+        print("Choose either --case or --all, not both.")
+        return 1
+
+    case_ids = None if args.all else (args.case_ids or ["retrieval_exact_release_token"])
+    timeout_seconds = max(10, min(int(args.timeout), 900))
+    report_path = state_root / ".xsci" / "agentic_capability_benchmark.json"
+    cfg = load_config(state_root)
+    inject_engine_env(cfg)
+    selected_provider = str(args.provider or cfg.get("llm.provider") or "").strip().lower()
+    if selected_provider not in {"anthropic", "deepseek"}:
+        selected_provider = ""
+    with _provider_selection(selected_provider):
+        from .agentic_capability_benchmark import run_workspace_agent_benchmark
+
+        report = run_workspace_agent_benchmark(
+            workspace_root=state_root,
+            case_ids=case_ids,
+            seed=int(args.seed),
+            timeout_seconds=timeout_seconds,
+            provider=selected_provider or None,
+            report_path=report_path,
+            limits={
+                "max_steps": 24,
+                "max_patch_attempts": 5,
+                "max_test_runs": 8,
+                "command_timeout_seconds": min(120, timeout_seconds),
+                "total_timeout_seconds": timeout_seconds,
+            },
+        )
+
+    if args.json:
+        _safe_print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        rate = float(report.get("task_success_rate") or 0.0)
+        lines = [
+            f"Execution: {report.get('execution_status') or 'unknown'}",
+            f"Provider: {report.get('provider') or args.provider or 'unavailable'}",
+            f"Cases: {report.get('passed_cases', 0)}/{report.get('cases_run', 0)} passed",
+            f"Success rate: {rate:.1%}",
+            f"Scope violations: {report.get('scope_violations', 0)}",
+            f"Unsupported claims: {report.get('unsupported_claims', 0)}",
+            f"Report: {report.get('report_path') or report_path}",
+        ]
+        if report.get("message"):
+            lines.append(f"Reason: {report['message']}")
+        _agent_reply("\n".join(lines), title="Agent behavior benchmark")
+
+    completed = report.get("execution_status") == "completed"
+    clean = int(report.get("failed_cases") or 0) == 0
+    clean = clean and int(report.get("scope_violations") or 0) == 0
+    clean = clean and int(report.get("unsupported_claims") or 0) == 0
+    return 0 if completed and clean and int(report.get("cases_run") or 0) > 0 else 1
 
 
 def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
