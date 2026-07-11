@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, Callable, Protocol, Sequence
 
 from research_os.agent.messaging import AgentMessageClient, ToolResult, ToolSpec
+from research_os.llm_client import LLMError
 
 _ACTIONS = {"search", "read", "patch", "test", "diff", "finish"}
 _MODEL_TOOL_TO_ACTION = {f"workspace_{name}": name for name in _ACTIONS}
@@ -80,6 +81,7 @@ class WorkspaceAgentLimits:
     command_timeout_seconds: int = 120
     total_timeout_seconds: int = 600
     model_max_tokens: int = 1400
+    max_decision_retries: int = 2
 
     def bounded(self) -> "WorkspaceAgentLimits":
         return WorkspaceAgentLimits(
@@ -93,6 +95,7 @@ class WorkspaceAgentLimits:
             command_timeout_seconds=max(1, min(int(self.command_timeout_seconds), 900)),
             total_timeout_seconds=max(2, min(int(self.total_timeout_seconds), 3600)),
             model_max_tokens=max(200, min(int(self.model_max_tokens), 4000)),
+            max_decision_retries=max(0, min(int(self.max_decision_retries), 5)),
         )
 
 
@@ -543,26 +546,31 @@ class _ModelDecisionSource:
         self.pending_calls: list[Any] = []
 
     def next_action(self, context: dict[str, Any]) -> dict[str, Any]:
-        self.messages.append({
+        state_message = {
             "role": "user",
             "content": "[CURRENT STATE]\n" + json.dumps(_safe_json_value(context), ensure_ascii=False)[:24_000],
-        })
-        turn = self.client.send(
-            self.messages,
-            system=(
-                "You are EvoMind's bounded workspace decision loop. Choose the next evidence-gathering or repair "
-                "tool. All execution happens in an isolated detached worktree. Never request shell commands beyond "
-                "the configured acceptance list, never access credentials, never commit, merge, deploy, or claim "
-                "parity with another agent. Paths in observations such as patch_path, log_path, candidate_diff_path, "
-                "and artifact_path are read-only execution evidence outside the repository; never search, read, or "
-                "patch them. Follow workflow.phase and workflow.recommended_actions to conserve the bounded step "
-                "budget. A plain-text answer is not completion; call workspace_finish only after reviewing the "
-                "latest diff_preview against the goal."
-            ),
-            tools=self.specs,
-            max_tokens=self.max_tokens,
-            temperature=0.1,
-        )
+        }
+        self.messages.append(state_message)
+        try:
+            turn = self.client.send(
+                self.messages,
+                system=(
+                    "You are EvoMind's bounded workspace decision loop. Choose the next evidence-gathering or repair "
+                    "tool. All execution happens in an isolated detached worktree. Never request shell commands beyond "
+                    "the configured acceptance list, never access credentials, never commit, merge, deploy, or claim "
+                    "parity with another agent. Paths in observations such as patch_path, log_path, candidate_diff_path, "
+                    "and artifact_path are read-only execution evidence outside the repository; never search, read, or "
+                    "patch them. Follow workflow.phase and workflow.recommended_actions to conserve the bounded step "
+                    "budget. A plain-text answer is not completion; call workspace_finish only after reviewing the "
+                    "latest diff_preview against the goal."
+                ),
+                tools=self.specs,
+                max_tokens=self.max_tokens,
+                temperature=0.1,
+            )
+        except Exception:
+            self.messages.pop()
+            raise
         self.provider = str(getattr(turn, "provider", "") or self.provider)
         self.model = str(getattr(turn, "model", "") or self.model)
         self.usage["input_tokens"] += int(getattr(turn, "input_tokens", 0) or 0)
@@ -796,6 +804,7 @@ def run_workspace_agent(
         "patched_files": [],
         "intent_to_add_files": [],
         "test_runs": 0,
+        "decision_failures": 0,
         "current_test_status": {},
         "all_acceptance_passed": False,
         "diff_generation": -1,
@@ -891,6 +900,7 @@ def run_workspace_agent(
     try:
         if source is not None:
             emit("start", "running", "Workspace decision loop started.", base_head=base_head)
+            consecutive_decision_failures = 0
             for step in range(1, bounded.max_steps + 1):
                 elapsed = time.monotonic() - start
                 if elapsed >= bounded.total_timeout_seconds:
@@ -938,6 +948,42 @@ def run_workspace_agent(
                 }
                 try:
                     action = source.next_action(context)
+                    consecutive_decision_failures = 0
+                except LLMError as exc:
+                    evidence["decision_failures"] += 1
+                    consecutive_decision_failures += 1
+                    retrying = consecutive_decision_failures <= bounded.max_decision_retries
+                    observation = _safe_json_value({
+                        "step": step,
+                        "action": "decision_retry" if retrying else "decision_error",
+                        "ok": False,
+                        "error": type(exc).__name__,
+                        "retrying": retrying,
+                        "consecutive_failures": consecutive_decision_failures,
+                    })
+                    observations.append(observation)
+                    record = {
+                        "step": step,
+                        "action": observation["action"],
+                        "rationale": "",
+                        "observation": observation,
+                        "patch_generation": evidence["patch_generation"],
+                    }
+                    step_path = steps_dir / f"{step:02d}_{observation['action']}.json"
+                    record["artifact_path"] = str(step_path)
+                    _write_json(step_path, record)
+                    step_records.append(record)
+                    emit(
+                        "step",
+                        "blocked",
+                        f"{observation['action']}: {type(exc).__name__}",
+                        step=step,
+                        retrying=retrying,
+                    )
+                    if retrying:
+                        continue
+                    stop_reason = f"decision_error:{type(exc).__name__}"
+                    break
                 except Exception as exc:
                     stop_reason = f"decision_error:{type(exc).__name__}"
                     observations.append({"step": step, "action": "decision", "ok": False, "error": _safe_text(exc, limit=1200)})
@@ -1393,6 +1439,7 @@ def run_workspace_agent(
         "limits": asdict(bounded),
         "budget": {
             "steps_used": len(step_records),
+            "decision_failures": evidence["decision_failures"],
             "patch_attempts": evidence["patch_attempts"],
             "test_runs": evidence["test_runs"],
             "elapsed_seconds": round(time.monotonic() - start, 3),

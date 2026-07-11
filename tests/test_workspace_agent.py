@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from research_os.agent.messaging import AssistantTurn, ToolCall
+from research_os.llm_client import LLMError
 from xsci.workspace_agent import WorkspaceAgentLimits, _within_root, run_workspace_agent
 
 PYTEST_COMMAND = "python -m pytest tests/test_demo.py -q"
@@ -613,6 +614,20 @@ class ScriptedClient:
         return self.turns.pop(0)
 
 
+class FlakyScriptedClient(ScriptedClient):
+    def __init__(self, turns: list[AssistantTurn], *, failures: int) -> None:
+        super().__init__(turns)
+        self.failures = failures
+
+    def send(self, messages, **_kwargs):
+        self.messages_seen.append(list(messages))
+        self.systems_seen.append(str(_kwargs.get("system") or ""))
+        if self.failures > 0:
+            self.failures -= 1
+            raise LLMError("injected transient provider failure")
+        return self.turns.pop(0)
+
+
 def _tool_turn(index: int, name: str, payload: dict) -> AssistantTurn:
     call = ToolCall(id=f"call_{index}", name=name, input=payload)
     return AssistantTurn(
@@ -661,6 +676,59 @@ def test_workspace_agent_model_client_drives_same_native_tool_loop(tmp_path: Pat
         if isinstance(block, dict)
     )
     assert (root / "src" / "demo.py").read_text(encoding="utf-8") == "VALUE = 1\n"
+
+
+def test_workspace_agent_retries_transient_model_failure_with_audited_budget(tmp_path: Path):
+    root = _repo(tmp_path)
+    client = FlakyScriptedClient([
+        _tool_turn(1, "workspace_search", {"query": "VALUE", "path": "src"}),
+        _tool_turn(2, "workspace_read", {"path": "src/demo.py"}),
+        _tool_turn(3, "workspace_patch", {"unified_diff": _patch(1, 2)}),
+        _tool_turn(4, "workspace_test", {"command": "git diff --check"}),
+        _tool_turn(5, "workspace_diff", {}),
+        _tool_turn(6, "workspace_finish", {
+            "summary": "Candidate ready after a transient provider failure.",
+            "review": "The final diff changes only VALUE from 1 to 2.",
+        }),
+    ], failures=1)
+
+    result = run_workspace_agent(
+        root,
+        goal="Recover from one transient provider failure and finish the candidate.",
+        client=client,
+        acceptance_commands=["git diff --check"],
+        allowed_edit_paths=["src/demo.py"],
+        artifact_dir=tmp_path / "artifacts-model-retry",
+        limits=WorkspaceAgentLimits(max_steps=8, max_decision_retries=1),
+    )
+
+    assert result["ok"] is True
+    assert result["steps"][0]["action"] == "decision_retry"
+    assert result["steps"][0]["observation"]["retrying"] is True
+    assert result["budget"]["decision_failures"] == 1
+    assert len(client.messages_seen[0]) == 2
+    assert len(client.messages_seen[1]) == 2
+
+
+def test_workspace_agent_stops_after_bounded_model_failure_retries(tmp_path: Path):
+    root = _repo(tmp_path)
+    client = FlakyScriptedClient([], failures=3)
+
+    result = run_workspace_agent(
+        root,
+        goal="Stop honestly when the provider remains unavailable.",
+        client=client,
+        acceptance_commands=["git diff --check"],
+        allowed_edit_paths=["src/demo.py"],
+        artifact_dir=tmp_path / "artifacts-model-retry-exhausted",
+        limits=WorkspaceAgentLimits(max_steps=4, max_decision_retries=1),
+    )
+
+    assert result["ok"] is False
+    assert result["status"] == "needs_continuation"
+    assert result["stop_reason"] == "decision_error:LLMError"
+    assert [item["action"] for item in result["steps"]] == ["decision_retry", "decision_error"]
+    assert result["budget"]["decision_failures"] == 2
 
 
 def test_workspace_agent_model_prompt_marks_artifact_paths_as_read_only_evidence(tmp_path: Path):
