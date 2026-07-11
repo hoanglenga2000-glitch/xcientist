@@ -184,6 +184,9 @@ def gate_tests(quiet: bool) -> tuple[bool, str]:
         failing = [ln.strip() for ln in output.splitlines() if ln.strip().startswith("FAILED")]
         if failing:
             detail += "\n  " + "\n  ".join(failing[:10])
+        tail = "\n".join(output.splitlines()[-80:]).strip()
+        if tail:
+            detail += "\n  pytest output tail:\n  " + tail[-8000:].replace("\n", "\n  ")
     return ok, detail
 
 

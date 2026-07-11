@@ -875,7 +875,7 @@ def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
                 ["taskkill", "/PID", str(process.pid), "/T", "/F"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=10,
+                timeout=2,
                 check=False,
             )
             if terminated.returncode != 0 and process.poll() is None:
@@ -884,6 +884,12 @@ def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
             process.kill()
         if process.poll() is None:
             process.kill()
+        try:
+            process.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=1)
+        return
     else:
         try:
             os.killpg(os.getpgid(process.pid), signal.SIGTERM)

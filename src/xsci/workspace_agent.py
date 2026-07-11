@@ -8,6 +8,7 @@ candidate remains behind a human merge gate.
 """
 from __future__ import annotations
 
+import fnmatch
 import hashlib
 import json
 import os
@@ -234,6 +235,67 @@ def _within_root(root: Path, relative: str, *, must_exist: bool = False) -> Path
     if resolved != resolved_root and resolved_root not in resolved.parents:
         raise ValueError("path_escapes_root")
     return resolved
+
+
+def _python_fixed_search(
+    search_root: Path,
+    *,
+    workspace_root: Path,
+    query: str,
+    glob: str,
+    timeout: int,
+    max_results: int,
+) -> subprocess.CompletedProcess[str]:
+    """Provide a bounded fixed-string search when ripgrep is unavailable."""
+
+    started = time.monotonic()
+    resolved_workspace = workspace_root.resolve(strict=True)
+    resolved_search_root = search_root.resolve(strict=True)
+    candidates = [resolved_search_root] if resolved_search_root.is_file() else resolved_search_root.rglob("*")
+    skip_parts = _FORBIDDEN_PATH_PARTS | {
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".venv",
+        "build",
+        "dist",
+        "venv",
+    }
+    matches: list[str] = []
+    for candidate in candidates:
+        if time.monotonic() - started >= timeout:
+            raise subprocess.TimeoutExpired(["python-fixed-search", query], timeout, output="\n".join(matches))
+        try:
+            resolved = candidate.resolve(strict=True)
+            relative_path = resolved.relative_to(resolved_workspace)
+        except (OSError, ValueError):
+            continue
+        if not resolved.is_file() or any(part.lower() in skip_parts for part in relative_path.parts[:-1]):
+            continue
+        relative = relative_path.as_posix()
+        if glob and not (fnmatch.fnmatch(relative, glob) or fnmatch.fnmatch(resolved.name, glob)):
+            continue
+        try:
+            if resolved.stat().st_size > 2_000_000:
+                continue
+            raw = resolved.read_bytes()
+        except OSError:
+            continue
+        if b"\x00" in raw:
+            continue
+        text = raw.decode("utf-8", errors="replace")
+        for line_number, line in enumerate(text.splitlines(), start=1):
+            column = line.find(query)
+            if column < 0:
+                continue
+            matches.append(f"{relative}:{line_number}:{column + 1}:{line}")
+            if len(matches) > max_results:
+                break
+        if len(matches) > max_results:
+            break
+    stdout = "\n".join(matches) + ("\n" if matches else "")
+    args = ["python-fixed-search", "--fixed-strings", query, str(resolved_search_root)]
+    return subprocess.CompletedProcess(args, 0 if matches else 1, stdout=stdout, stderr=None)
 
 
 def _goal_referenced_files(goal: str, root: Path) -> list[str]:
@@ -899,14 +961,28 @@ def run_workspace_agent(
                             raise ValueError("unsafe_glob")
                         if not query:
                             raise ValueError("empty_query")
-                        args = [
-                            "rg", "--line-number", "--column", "--no-heading", "--color", "never",
-                            "--fixed-strings", "-e", query,
-                        ]
-                        if glob:
-                            args.extend(["--glob", glob])
-                        args.extend(["--", str(search_root)])
-                        searched = _run(args, cwd=worktree, timeout=remaining_timeout())
+                        ripgrep = shutil.which("rg")
+                        if ripgrep:
+                            args = [
+                                ripgrep, "--line-number", "--column", "--no-heading", "--color", "never",
+                                "--fixed-strings", "-e", query,
+                            ]
+                            if glob:
+                                args.extend(["--glob", glob])
+                            args.extend(["--", str(search_root)])
+                            searched = _run(args, cwd=worktree, timeout=remaining_timeout())
+                            backend = "ripgrep"
+                        else:
+                            searched = _python_fixed_search(
+                                search_root,
+                                workspace_root=worktree,
+                                query=query,
+                                glob=glob,
+                                timeout=remaining_timeout(),
+                                max_results=bounded.max_search_results,
+                            )
+                            args = list(searched.args)
+                            backend = "python"
                         log_path = command_log(step, name, args, searched.stdout)
                         lines = searched.stdout.splitlines()
                         limited = lines[: bounded.max_search_results]
@@ -917,6 +993,7 @@ def run_workspace_agent(
                             "ok": ok,
                             "query": query[:500],
                             "path": relative,
+                            "backend": backend,
                             "matches": limited,
                             "match_count": len(lines),
                             "truncated": len(lines) > len(limited),

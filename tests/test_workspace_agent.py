@@ -214,6 +214,34 @@ def test_workspace_agent_completes_real_git_loop_without_touching_main(tmp_path:
     assert _git(root, "rev-parse", "HEAD").strip() == head
 
 
+def test_workspace_agent_uses_bounded_python_search_without_ripgrep(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+):
+    root = _repo(tmp_path)
+    real_which = shutil.which
+
+    def without_ripgrep(command: str, *args, **kwargs):
+        if command == "rg":
+            return None
+        return real_which(command, *args, **kwargs)
+
+    monkeypatch.setattr(shutil, "which", without_ripgrep)
+    result = run_workspace_agent(
+        root,
+        goal="Find VALUE without relying on an optional system search binary.",
+        planner=ScriptedPlanner(_success_actions()),
+        acceptance_commands=["git diff --check"],
+        allowed_edit_paths=["src/demo.py"],
+        artifact_dir=tmp_path / "artifacts-python-search",
+    )
+
+    assert result["ok"] is True, result
+    search = result["steps"][0]["observation"]
+    assert search["backend"] == "python"
+    assert any("src/demo.py:1:1:VALUE = 1" in match for match in search["matches"])
+
+
 def test_workspace_agent_normalizes_model_patch_without_terminal_newline(tmp_path: Path):
     root = _repo(tmp_path)
     actions = _success_actions()
