@@ -62,6 +62,8 @@ jobs:
         run: npm ci
       - name: Create clean SQLite schema
         run: npm run db:push -- --skip-generate
+      - name: Generate Prisma client
+        run: npm run db:generate
       - name: Typecheck
         run: npm run typecheck
       - name: Build workstation

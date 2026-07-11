@@ -228,9 +228,10 @@ def _within_root(root: Path, relative: str, *, must_exist: bool = False) -> Path
     reason = _path_reason(relative)
     if reason:
         raise ValueError(reason)
-    candidate = root / _normalize_repo_path(relative)
+    resolved_root = root.resolve(strict=True)
+    candidate = resolved_root / _normalize_repo_path(relative)
     resolved = candidate.resolve(strict=must_exist)
-    if resolved != root and root not in resolved.parents:
+    if resolved != resolved_root and resolved_root not in resolved.parents:
         raise ValueError("path_escapes_root")
     return resolved
 

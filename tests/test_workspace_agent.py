@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -8,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from research_os.agent.messaging import AssistantTurn, ToolCall
-from xsci.workspace_agent import WorkspaceAgentLimits, run_workspace_agent
+from xsci.workspace_agent import WorkspaceAgentLimits, _within_root, run_workspace_agent
 
 PYTEST_COMMAND = "python -m pytest tests/test_demo.py -q"
 MUTATING_PYTEST_COMMAND = "python -m pytest tests/test_mutating.py -q"
@@ -46,6 +47,39 @@ def _repo(tmp_path: Path, *, slow_test: bool = False) -> Path:
     _git(root, "add", ".")
     _git(root, "commit", "-m", "initial")
     return root
+
+
+def test_within_root_canonicalizes_directory_alias_before_containment_check(tmp_path: Path):
+    canonical_root = tmp_path / "canonical-root"
+    target = canonical_root / "src" / "demo.py"
+    target.parent.mkdir(parents=True)
+    target.write_text("VALUE = 1\n", encoding="utf-8")
+    alias_root = tmp_path / "alias-root"
+
+    if os.name == "nt":
+        created = subprocess.run(
+            ["cmd.exe", "/d", "/c", "mklink", "/J", str(alias_root), str(canonical_root)],
+            check=False,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        if created.returncode != 0:
+            pytest.skip("directory junctions are unavailable")
+    else:
+        alias_root.symlink_to(canonical_root, target_is_directory=True)
+
+    try:
+        assert _within_root(alias_root, "src/demo.py", must_exist=True) == target.resolve()
+        with pytest.raises(ValueError, match="path_traversal"):
+            _within_root(alias_root, "../outside.py")
+    finally:
+        if alias_root.is_symlink():
+            alias_root.unlink()
+        elif alias_root.exists():
+            alias_root.rmdir()
 
 
 def _patch(old: int, new: int) -> str:
