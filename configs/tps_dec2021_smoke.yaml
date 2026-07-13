@@ -1,0 +1,44 @@
+data:
+  sample_submission: workspace/smoke_data/tps_dec2021_smoke/data/sample_submission.csv
+  task_dir: workspace/smoke_data/tps_dec2021_smoke
+  test: workspace/smoke_data/tps_dec2021_smoke/data/test.csv
+  train: workspace/smoke_data/tps_dec2021_smoke/data/train.csv
+  overview: workspace/smoke_data/tps_dec2021_smoke/overview.txt
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - Id
+  numeric_strategy: median
+  preset: tabular_basic
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - random_forest
+  - extra_trees
+  - hist_gradient_boosting
+  time_budget_minutes: 15
+  validation_strategy: 5-fold cross-validation (non-stratified; class 5 has 1 sample in full train)
+task:
+  competition: Tabular Playground Series - Dec 2021 (SMOKE)
+  id_column: Id
+  metric: accuracy
+  name: tps_dec2021_smoke
+  prediction_column: Cover_Type
+  target: Cover_Type
+  type: multiclass_classification
+thresholds:
+  expected_submission_columns:
+  - Id
+  - Cover_Type
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review
+notes: "CPU smoke via workstation closed loop; 80k sample of 4M; full 1M test. Proxy/CV only, not official."

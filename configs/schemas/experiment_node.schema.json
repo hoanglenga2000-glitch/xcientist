@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/experiment_node.schema.json",
+  "title": "ExperimentNode",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "exp_id",
+    "branch_type",
+    "task_name",
+    "hypothesis",
+    "implementation_summary",
+    "code_path",
+    "artifacts",
+    "metrics",
+    "risk_flags",
+    "decision",
+    "next_actions",
+    "created_at"
+  ],
+  "properties": {
+    "exp_id": { "type": "string" },
+    "parent_id": { "type": ["string", "null"] },
+    "branch_type": {
+      "type": "string",
+      "enum": ["baseline", "robust_baseline", "model_family", "feature", "tuning", "ensemble", "ensemble_exploitation", "cross_branch_fusion", "model_diversity", "calibration", "ablation", "repair", "other"]
+    },
+    "task_name": { "type": "string" },
+    "hypothesis": { "type": "string" },
+    "implementation_summary": { "type": "string" },
+    "code_path": { "type": "string" },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["artifact_type", "path"],
+        "properties": {
+          "artifact_type": { "type": "string" },
+          "path": { "type": "string" },
+          "sha256": { "type": "string" },
+          "created_by_agent": { "type": "string" },
+          "stage": { "type": "string" },
+          "claim_binding": { "type": ["string", "null"] },
+          "gate_dependency": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "boolean", "null"] }
+    },
+    "cv_score": { "type": ["number", "null"] },
+    "public_score": { "type": ["number", "null"] },
+    "official_rank": { "type": ["integer", "null"] },
+    "leaderboard_team_count": { "type": ["integer", "null"] },
+    "rank_percentile": { "type": ["number", "null"] },
+    "top30_reached": { "type": "boolean" },
+    "official_submission_ref": { "type": ["string", "null"] },
+    "risk_flags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["promote", "hold", "rollback", "ablate", "retry", "reject", "needs_review"]
+    },
+    "next_actions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "created_at": { "type": "string", "format": "date-time" }
+  }
+}

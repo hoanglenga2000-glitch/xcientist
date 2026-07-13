@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="EvoMind">
+  <rect width="64" height="64" rx="14" fill="#071326"/>
+  <rect x="7" y="7" width="50" height="50" rx="10" fill="none" stroke="#1d4ed8" stroke-width="1.4" opacity=".82"/>
+  <path d="M15 20h17v5.2H21.4v5.1h8.8v5.1h-8.8v6.1H33V47H15V20Z" fill="#f8fafc"/>
+  <path d="M35.4 47V20h6.2l6.2 10.2L54 20h5.2v27h-6.1V31.9l-5.2 8.1h-1.6l-5.1-8.1V47h-5.8Z" fill="#38bdf8"/>
+  <path d="M12 51c9.4-4.4 18.7-6.4 28.2-6.2" fill="none" stroke="#22c55e" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="42.5" cy="45" r="2.7" fill="#22c55e"/>
+  <circle cx="20.5" cy="16.5" r="2.2" fill="#38bdf8"/>
+</svg>

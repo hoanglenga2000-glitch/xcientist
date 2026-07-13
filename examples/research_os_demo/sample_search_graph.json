@@ -1,0 +1,17 @@
+{
+  "task_id": "tabular_kaggle_classification_demo",
+  "root_exp_id": "EXP000",
+  "nodes": ["EXP000", "EXP001", "EXP002", "EXP003", "EXP004", "EXP005"],
+  "edges": [
+    { "source": "EXP000", "target": "EXP001", "reason": "linear baseline after neural baseline" },
+    { "source": "EXP001", "target": "EXP002", "reason": "nonlinear tree baseline" },
+    { "source": "EXP002", "target": "EXP003", "reason": "gradient boosting branch" },
+    { "source": "EXP002", "target": "EXP004", "reason": "complementary boosting branch" },
+    { "source": "EXP003", "target": "EXP005", "reason": "OOF blend with XGBoost" },
+    { "source": "EXP004", "target": "EXP005", "reason": "OOF blend with LightGBM" }
+  ],
+  "top_candidates": ["EXP005", "EXP003", "EXP004"],
+  "stagnation_branches": [],
+  "selected_next_branch": "ensemble_ablation",
+  "exploration_stage": "transition"
+}

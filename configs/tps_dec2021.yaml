@@ -1,0 +1,18 @@
+task:
+  name: tps_dec2021
+  competition: tabular-playground-series-dec-2021
+  type: classification
+  target: Cover_Type
+  metric: accuracy
+data:
+  task_dir: tasks/tps_dec2021
+  train: tasks/tps_dec2021/data/train.csv
+  test: tasks/tps_dec2021/data/test.csv
+  sample_submission: tasks/tps_dec2021/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [Id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

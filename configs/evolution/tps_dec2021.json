@@ -1,0 +1,16 @@
+{
+  "task_name": "tabular-playground-series-dec-2021",
+  "remote_data_dirname": "tabular-playground-series-dec-2021",
+  "modality": "tabular",
+  "task_type": "classification",
+  "metric": "accuracy",
+  "metric_direction": "maximize",
+  "target_column": "Cover_Type",
+  "id_column": "Id",
+  "n_train": 4000000,
+  "n_test": 1000000,
+  "n_features": 54,
+  "n_model_families": 3,
+  "data_schema": "Id(int); Elevation, Aspect, Slope, distances, Hillshade_* (numeric); Wilderness_Area1-4 and Soil_Type1-40 (binary one-hot); Cover_Type TARGET (integer classes, mostly 1-7). Multi-class classification, metric = accuracy. sample_submission: Id,Cover_Type (integer class).",
+  "extra_notes": "VERY large data (4,000,000 rows) with 7 forest-cover classes. MUST subsample to ~150,000 rows for CV to fit the time budget. Cover_Type is a multi-class integer target; use LightGBM multiclass or similar. Some classes are rare; use stratified folds. CV_SCORE = mean OOF accuracy (higher is better). Predict integer class labels for the full test set."
+}

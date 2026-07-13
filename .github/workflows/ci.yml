@@ -1,0 +1,695 @@
+name: CI
+
+on:
+  push:
+    branches: [master, "codex/**"]
+    tags: ["v*"]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  python-release:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+            pyproject.toml
+      - name: Set reproducible build timestamp
+        shell: pwsh
+        run: |
+          $epoch = git show -s --format=%ct HEAD
+          if ($epoch -notmatch '^\d+$') { throw "Invalid SOURCE_DATE_EPOCH: $epoch" }
+          "SOURCE_DATE_EPOCH=$epoch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Install test and build dependencies
+        run: python -m pip install -r requirements-dev.txt build==1.5.1 twine==6.2.0
+      - name: Run production stability gate
+        run: python scripts/run_ci_checks.py
+      - name: Reject high-severity Python security findings
+        if: matrix.python-version == '3.11'
+        run: python -m bandit -q -r src scripts -lll -iii
+      - name: Build wheel and source distribution
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m build
+          $sdist = Get-ChildItem dist\*.tar.gz | Select-Object -First 1
+          python scripts/normalize_sdist.py $sdist.FullName --epoch $env:SOURCE_DATE_EPOCH
+      - name: Verify distribution metadata and contents
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $distributions = Get-ChildItem dist -File | Where-Object {
+            $_.Name.EndsWith('.whl') -or $_.Name.EndsWith('.tar.gz')
+          } | ForEach-Object FullName
+          python -m twine check --strict @distributions
+          python scripts/verify_release_artifacts.py --dist dist
+      - name: Verify reproducible distributions
+        if: matrix.python-version == '3.11'
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m build --outdir dist-repro
+          $sdist = Get-ChildItem dist-repro\*.tar.gz | Select-Object -First 1
+          python scripts/normalize_sdist.py $sdist.FullName --epoch $env:SOURCE_DATE_EPOCH
+          python scripts/verify_release_artifacts.py --dist dist --compare-dist dist-repro
+      - name: Install wheel in a clean environment
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m venv .release-smoke
+          .\.release-smoke\Scripts\python.exe -m pip install --upgrade pip==26.1.2
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          .\.release-smoke\Scripts\python.exe -m pip install $wheel.FullName
+          .\.release-smoke\Scripts\python.exe -m pip check
+          $versionMatch = Select-String -LiteralPath pyproject.toml -Pattern '^version\s*=\s*"([^"]+)"'
+          $expectedVersion = $versionMatch.Matches[0].Groups[1].Value
+          $version = .\.release-smoke\Scripts\python.exe -c "import importlib.metadata; print(importlib.metadata.version('xcientist'))"
+          if ($version -ne $expectedVersion) { throw "Installed xcientist $version, expected $expectedVersion" }
+          .\.release-smoke\Scripts\evomind.exe --help
+          .\.release-smoke\Scripts\evomind.exe workspace --help
+          .\.release-smoke\Scripts\evomind.exe benchmark-agent --help
+          $officialHelp = .\.release-smoke\Scripts\kaggle-official.exe competitions --help 2>&1 | Out-String
+          if ($officialHelp -notmatch '(?m)^usage:\s+kaggle competitions\b') {
+            throw "Installed kaggle-official did not pass process arguments to the Kaggle CLI: $officialHelp"
+          }
+
+  frontend-release:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: web/research-agent-workstation
+    env:
+      DATABASE_URL: file:./ci-workstation.db
+      NEXT_TELEMETRY_DISABLED: "1"
+      RUST_LOG: info
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/research-agent-workstation/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Verify exact frontend dependency tree
+        shell: pwsh
+        run: |
+          npm ls --all --json | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'npm dependency tree is inconsistent' }
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high --registry=https://registry.npmjs.org
+      - name: Create clean SQLite schema
+        run: npm run db:push -- --skip-generate
+      - name: Generate Prisma client
+        run: npm run db:generate
+      - name: Lint
+        run: npm run lint
+      - name: Verify local security boundaries
+        run: npm run security:test
+      - name: Verify connector status truthfulness
+        run: npm run test:kaggle-status
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build workstation
+        run: npm run build
+      - name: Exercise production security boundaries
+        run: npm run security:runtime
+
+  release-artifacts:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [python-release, frontend-release]
+    runs-on: windows-latest
+    timeout-minutes: 90
+    outputs:
+      artifact-id: ${{ steps.upload-release-assets.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload-release-assets.outputs.artifact-digest }}
+      sha256-manifest-digest: ${{ steps.seal-sha256.outputs.sha256-manifest-digest }}
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify immutable tag input
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $expectedRef = "refs/tags/$tag"
+          $head = (git rev-parse HEAD).Trim()
+          $localPeeled = (git rev-parse "$tag^{commit}").Trim()
+          if ($head -cne $env:GITHUB_SHA -or $localPeeled -cne $env:GITHUB_SHA) {
+            throw "Checkout/tag mismatch: HEAD=$head local_peeled=$localPeeled expected=$env:GITHUB_SHA"
+          }
+          $remoteRows = @(git ls-remote --exit-code origin $expectedRef "$expectedRef^{}")
+          if ($LASTEXITCODE -ne 0 -or $remoteRows.Count -eq 0) {
+            throw "Remote tag $expectedRef is unavailable"
+          }
+          $remote = @{}
+          foreach ($row in $remoteRows) {
+            $parts = $row -split "`t", 2
+            if ($parts.Count -eq 2) { $remote[$parts[1]] = $parts[0] }
+          }
+          $remotePeeled = if ($remote.ContainsKey("$expectedRef^{}")) {
+            $remote["$expectedRef^{}"]
+          } else {
+            $remote[$expectedRef]
+          }
+          if ($remotePeeled -cne $env:GITHUB_SHA) {
+            throw "Remote peeled tag changed: $remotePeeled expected $env:GITHUB_SHA"
+          }
+          git rev-parse --verify refs/remotes/origin/master
+          if ($LASTEXITCODE -ne 0) { throw 'origin/master is unavailable in the release checkout' }
+          git merge-base --is-ancestor $env:GITHUB_SHA refs/remotes/origin/master
+          if ($LASTEXITCODE -ne 0) { throw "Tagged commit $env:GITHUB_SHA is not on origin/master" }
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      - name: history_secret_scan
+        run: python scripts/verify_no_plaintext_secrets.py --history
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: web/research-agent-workstation/package-lock.json
+      - name: Set reproducible build timestamp
+        shell: pwsh
+        run: |
+          $epoch = git show -s --format=%ct HEAD
+          if ($epoch -notmatch '^\d+$') { throw "Invalid SOURCE_DATE_EPOCH: $epoch" }
+          "SOURCE_DATE_EPOCH=$epoch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Verify tag matches package version
+        shell: pwsh
+        run: |
+          $packageVersion = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          $expectedTag = "v$packageVersion"
+          if ($env:GITHUB_REF_NAME -cne $expectedTag) {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $packageVersion"
+          }
+          "PACKAGE_VERSION=$packageVersion" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+      - name: Install release tooling and exact frontend tree
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m pip install --upgrade pip==26.1.2 build==1.5.1 cyclonedx-bom==7.3.0 pip-audit==2.10.1 twine==6.2.0
+          Push-Location web\research-agent-workstation
+          try {
+            npm ci
+            npm ls --all --json | Out-Null
+          } finally {
+            Pop-Location
+          }
+      - name: Build release archives once
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          python -m build
+          $sdist = Get-ChildItem dist\*.tar.gz | Select-Object -First 1
+          python scripts/normalize_sdist.py $sdist.FullName --epoch $env:SOURCE_DATE_EPOCH
+          $version = $env:PACKAGE_VERSION
+          $bundle = Join-Path $PWD "dist\xcientist-$version-workstation-source.zip"
+          git archive --format=zip "--prefix=xcientist-$version/" "--output=$bundle" HEAD
+          $distributions = Get-ChildItem dist -File | Where-Object {
+            $_.Name.EndsWith('.whl') -or $_.Name.EndsWith('.tar.gz')
+          } | ForEach-Object FullName
+          python -m twine check --strict @distributions
+          python scripts/verify_release_artifacts.py --dist dist --require-workstation-source
+          python -m venv --without-pip .release-sbom
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          python -m pip --python .\.release-sbom\Scripts\python.exe install $wheel.FullName
+          python -m pip --python .\.release-sbom\Scripts\python.exe check
+      - name: Fresh source install and live production acceptance
+        shell: pwsh
+        env:
+          DATABASE_URL: file:./ci-release.db
+          NEXT_TELEMETRY_DISABLED: "1"
+          RUST_LOG: info
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $releaseRoot = $PWD.Path
+          $bundle = Get-ChildItem dist\*-workstation-source.zip | Select-Object -First 1
+          if (-not $bundle) { throw 'Workstation source bundle is missing' }
+          $bundleExtract = Join-Path $releaseRoot '.release-workstation-source'
+          $acceptanceVenv = Join-Path $releaseRoot '.release-acceptance'
+          $shimDir = Join-Path $releaseRoot '.release-shims'
+          $serverStdout = Join-Path $releaseRoot '.release-server.stdout.log'
+          $serverStderr = Join-Path $releaseRoot '.release-server.stderr.log'
+          $previousPath = $env:Path
+          $sourceRoot = $null
+          $server = $null
+          try {
+            Remove-Item -LiteralPath $bundleExtract -Recurse -Force -ErrorAction SilentlyContinue
+            Expand-Archive -LiteralPath $bundle.FullName -DestinationPath $bundleExtract
+            $sourceRoots = @(Get-ChildItem $bundleExtract -Directory)
+            if ($sourceRoots.Count -ne 1) {
+              throw "Expected one workstation source root, found $($sourceRoots.Count)"
+            }
+            $sourceRoot = $sourceRoots[0].FullName
+            $sourceWeb = Join-Path $sourceRoot 'web\research-agent-workstation'
+
+            python -m venv $acceptanceVenv
+            & "$acceptanceVenv\Scripts\python.exe" -m pip install --upgrade pip==26.1.2
+            & "$acceptanceVenv\Scripts\python.exe" -m pip install -r (Join-Path $sourceRoot 'requirements-dev.txt')
+            $env:Path = "$acceptanceVenv\Scripts;$previousPath"
+            $env:XSCI_SHIM_DIR = $shimDir
+            $env:EVOMIND_WORKSTATION_ROOT = $sourceRoot
+
+            Push-Location $sourceWeb
+            try {
+              npm ci
+              npm ls --all --json | Out-Null
+            } finally {
+              Pop-Location
+            }
+
+            & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $sourceRoot 'install.ps1') -SkipSecretPrompt
+            if ($LASTEXITCODE -ne 0) { throw 'Fresh workstation source installer failed' }
+            .\.release-sbom\Scripts\evomind.exe dashboard status
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Installed wheel could not resolve the accepted workstation source bundle'
+            }
+
+            $server = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'start') `
+              -WorkingDirectory $sourceWeb -WindowStyle Hidden -PassThru `
+              -RedirectStandardOutput $serverStdout -RedirectStandardError $serverStderr
+            $deadline = (Get-Date).AddSeconds(120)
+            $ready = $false
+            while ((Get-Date) -lt $deadline) {
+              if ($server.HasExited) {
+                $stderrTail = if (Test-Path $serverStderr) {
+                  (Get-Content -LiteralPath $serverStderr -Tail 30) -join "`n"
+                } else { '' }
+                throw "Production server exited early with $($server.ExitCode): $stderrTail"
+              }
+              try {
+                $home = Invoke-WebRequest -Uri 'http://127.0.0.1:8088/?page=control' -UseBasicParsing -TimeoutSec 5
+                if ($home.StatusCode -eq 200 -and $home.Content.Length -gt 1000) {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                Start-Sleep -Milliseconds 750
+              }
+            }
+            if (-not $ready) { throw 'Production UI did not become ready on loopback port 8088' }
+
+            $summary = Invoke-RestMethod -Uri 'http://127.0.0.1:8088/api/workstation-summary' -TimeoutSec 20
+            $tasks = Invoke-RestMethod -Uri 'http://127.0.0.1:8088/api/tasks' -TimeoutSec 20
+            $settings = Invoke-RestMethod -Uri 'http://127.0.0.1:8088/api/settings' -TimeoutSec 20
+            if ($null -eq $summary -or $null -eq $tasks -or $null -eq $settings) {
+              throw 'One or more live API responses were empty'
+            }
+
+            Push-Location $sourceRoot
+            try {
+              python scripts\verify_new_user_release_readiness.py --write-report --require-live-server
+              python scripts\verify_workstation_launch_readiness.py --write-report --base-url http://127.0.0.1:8088
+              python scripts\verify_workstation_browser_render_smoke.py --write-report --base-url http://127.0.0.1:8088
+              node scripts\verify_workstation_interactive_controls.mjs --write-report --base-url http://127.0.0.1:8088
+            } finally {
+              Pop-Location
+            }
+          } finally {
+            $listenerIds = @(Get-NetTCPConnection -LocalPort 8088 -State Listen -ErrorAction SilentlyContinue |
+              Select-Object -ExpandProperty OwningProcess -Unique)
+            foreach ($listenerId in $listenerIds) {
+              Stop-Process -Id $listenerId -Force -ErrorAction SilentlyContinue
+            }
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force -ErrorAction SilentlyContinue
+            }
+            $env:Path = $previousPath
+            Remove-Item Env:XSCI_SHIM_DIR -ErrorAction SilentlyContinue
+            Remove-Item Env:EVOMIND_WORKSTATION_ROOT -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $serverStdout, $serverStderr -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $bundleExtract, $acceptanceVenv, $shimDir -Recurse -Force -ErrorAction SilentlyContinue
+            $rootPointer = Join-Path $env:USERPROFILE '.xsci\workstation-root.txt'
+            Remove-Item -LiteralPath $rootPointer -Force -ErrorAction SilentlyContinue
+          }
+      - name: Generate and verify dependency evidence
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $coreArtifacts = @(Get-ChildItem dist -File | Where-Object {
+            $_.Name.EndsWith('.whl') -or
+            $_.Name.EndsWith('.tar.gz') -or
+            $_.Name.EndsWith('-workstation-source.zip')
+          })
+          if ($coreArtifacts.Count -ne 3) { throw "Expected exactly three core release artifacts before dependency evidence" }
+          $coreHashesBefore = @{}
+          foreach ($artifact in $coreArtifacts) {
+            $coreHashesBefore[$artifact.Name] = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.FullName).Hash
+          }
+          $version = $env:PACKAGE_VERSION
+          $pipAuditPath = Join-Path $PWD "dist\xcientist-$version.pip-audit.json"
+          $pythonSitePackages = (Resolve-Path -LiteralPath ".release-sbom\Lib\site-packages").Path
+          $npmAuditFullPath = Join-Path $PWD "dist\xcientist-$version.npm-audit-full.json"
+          $npmAuditProductionPath = Join-Path $PWD "dist\xcientist-$version.npm-audit-production.json"
+          $npmInventoryPath = Join-Path $PWD "dist\xcientist-$version.npm-ls.json"
+          $pythonSbomPath = Join-Path $PWD "dist\xcientist-$version.python.cdx.json"
+          $npmSbomPath = Join-Path $PWD "dist\xcientist-$version.npm.cdx.json"
+
+          # Keep the root distribution installed while CycloneDX resolves its direct dependency edges.
+          cyclonedx-py environment --pyproject pyproject.toml --mc-type application `
+            --output-reproducible --of JSON -o $pythonSbomPath .\.release-sbom\Scripts\python.exe
+          python -m pip --python .\.release-sbom\Scripts\python.exe uninstall --yes xcientist
+          python -m pip_audit --path $pythonSitePackages --format json --output $pipAuditPath
+          $pipAuditExit = $LASTEXITCODE
+
+          Push-Location web\research-agent-workstation
+          try {
+            $npmInventoryLines = @(& npm.cmd ls --all --json)
+            $npmInventoryExit = $LASTEXITCODE
+            [System.IO.File]::WriteAllText(
+              $npmInventoryPath,
+              ($npmInventoryLines -join "`n"),
+              [System.Text.UTF8Encoding]::new($false)
+            )
+
+            $fullLines = @(& npm.cmd audit --json --registry=https://registry.npmjs.org)
+            $npmAuditFullExit = $LASTEXITCODE
+            $fullReport = (($fullLines -join "`n") | ConvertFrom-Json)
+            $fullReport | Add-Member -NotePropertyName '_evomindEvidence' -NotePropertyValue ([ordered]@{
+              schemaVersion = 1
+              kind = 'npm-audit'
+              scope = 'full'
+              omit = @()
+            }) -Force
+            [System.IO.File]::WriteAllText(
+              $npmAuditFullPath,
+              ($fullReport | ConvertTo-Json -Depth 100),
+              [System.Text.UTF8Encoding]::new($false)
+            )
+
+            $productionLines = @(& npm.cmd audit --omit=dev --json --registry=https://registry.npmjs.org)
+            $npmAuditProductionExit = $LASTEXITCODE
+            $productionReport = (($productionLines -join "`n") | ConvertFrom-Json)
+            $productionReport | Add-Member -NotePropertyName '_evomindEvidence' -NotePropertyValue ([ordered]@{
+              schemaVersion = 1
+              kind = 'npm-audit'
+              scope = 'production'
+              omit = @('dev')
+            }) -Force
+            [System.IO.File]::WriteAllText(
+              $npmAuditProductionPath,
+              ($productionReport | ConvertTo-Json -Depth 100),
+              [System.Text.UTF8Encoding]::new($false)
+            )
+
+            & npx.cmd --yes --package=@cyclonedx/cyclonedx-npm@6.0.0 cyclonedx-npm package.json `
+              --sv 1.6 --output-reproducible --of JSON --output-file $npmSbomPath --validate --mc-type application
+          } finally {
+            Pop-Location
+          }
+
+          foreach ($artifact in $coreArtifacts) {
+            $after = (Get-FileHash -Algorithm SHA256 -LiteralPath $artifact.FullName).Hash
+            if ($after -cne $coreHashesBefore[$artifact.Name]) {
+              throw "Dependency evidence tooling modified core release artifact $($artifact.Name)"
+            }
+          }
+
+          python scripts/verify_release_artifacts.py `
+            --dist dist `
+            --pip-audit $pipAuditPath `
+            --python-site-packages $pythonSitePackages `
+            --npm-audit-full $npmAuditFullPath `
+            --npm-audit-production $npmAuditProductionPath `
+            --python-sbom $pythonSbomPath `
+            --npm-sbom $npmSbomPath `
+            --npm-inventory $npmInventoryPath `
+            --npm-package web\research-agent-workstation\package.json `
+            --require-workstation-source
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency audit evidence verification failed' }
+          if ($pipAuditExit -ne 0) { throw "pip-audit exited with code $pipAuditExit" }
+          if ($npmInventoryExit -ne 0) { throw "npm ls exited with code $npmInventoryExit" }
+          if ($npmAuditFullExit -ne 0) { throw "full npm audit exited with code $npmAuditFullExit" }
+          if ($npmAuditProductionExit -ne 0) {
+            throw "production npm audit exited with code $npmAuditProductionExit"
+          }
+      - name: Generate and verify SHA256 manifest
+        id: seal-sha256
+        shell: pwsh
+        run: |
+          $lines = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $_.FullName).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          [System.IO.File]::WriteAllLines(
+            (Join-Path $PWD 'dist\SHA256SUMS.txt'),
+            $lines,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+          python scripts/verify_release_artifacts.py `
+            --dist dist `
+            --sha256sums dist\SHA256SUMS.txt
+          $manifestDigest = (Get-FileHash -Algorithm SHA256 -LiteralPath dist\SHA256SUMS.txt).Hash.ToLowerInvariant()
+          "sha256-manifest-digest=$manifestDigest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Upload sealed release asset set
+        id: upload-release-assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: dist/*
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: false
+          include-hidden-files: false
+          retention-days: 1
+
+  publish-release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [release-artifacts]
+    runs-on: windows-latest
+    timeout-minutes: 60
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      attestations: write
+      checks: read
+      contents: write
+      id-token: write
+      security-events: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Download exact gated release asset set
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.release-artifacts.outputs.artifact-id }}
+          path: dist
+          merge-multiple: true
+      - name: Verify downloaded bytes and release input tag
+        shell: pwsh
+        run: |
+          if ('${{ needs.release-artifacts.outputs.artifact-id }}' -notmatch '^\d+$') {
+            throw 'The release gate did not provide an immutable artifact ID'
+          }
+          if ('${{ needs.release-artifacts.outputs.artifact-digest }}' -notmatch '^(?:sha256:)?[0-9a-fA-F]{64}$') {
+            throw 'The release gate did not provide a valid artifact digest'
+          }
+          $expectedManifestDigest = '${{ needs.release-artifacts.outputs.sha256-manifest-digest }}'
+          if ($expectedManifestDigest -notmatch '^[0-9a-fA-F]{64}$') {
+            throw 'The release gate did not provide a valid SHA256 manifest digest'
+          }
+          $actualManifestDigest = (Get-FileHash -Algorithm SHA256 -LiteralPath dist\SHA256SUMS.txt).Hash.ToLowerInvariant()
+          if ($actualManifestDigest -cne $expectedManifestDigest.ToLowerInvariant()) {
+            throw "Downloaded SHA256SUMS.txt digest mismatch: $actualManifestDigest expected $expectedManifestDigest"
+          }
+          python scripts/verify_release_artifacts.py --dist dist --sha256sums dist\SHA256SUMS.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Downloaded release asset verification failed' }
+
+          $packageVersion = python -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text(encoding='utf-8'))['project']['version'])"
+          if ($env:GITHUB_REF_NAME -cne "v$packageVersion") {
+            throw "Tag $env:GITHUB_REF_NAME does not match package version $packageVersion"
+          }
+          $tag = $env:GITHUB_REF_NAME
+          $expectedRef = "refs/tags/$tag"
+          $localPeeled = (git rev-parse "$tag^{commit}").Trim()
+          if ($localPeeled -cne $env:GITHUB_SHA) {
+            throw "Local peeled tag $localPeeled does not match $env:GITHUB_SHA"
+          }
+          $remoteRows = @(git ls-remote --exit-code origin $expectedRef "$expectedRef^{}")
+          if ($LASTEXITCODE -ne 0 -or $remoteRows.Count -eq 0) { throw "Remote tag $expectedRef is unavailable" }
+          $remote = @{}
+          foreach ($row in $remoteRows) {
+            $parts = $row -split "`t", 2
+            if ($parts.Count -eq 2) { $remote[$parts[1]] = $parts[0] }
+          }
+          $remotePeeled = if ($remote.ContainsKey("$expectedRef^{}")) { $remote["$expectedRef^{}"] } else { $remote[$expectedRef] }
+          if ($remotePeeled -cne $env:GITHUB_SHA) {
+            throw "Remote peeled tag changed: $remotePeeled expected $env:GITHUB_SHA"
+          }
+      - name: Require successful CodeQL and zero open alerts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $deadline = (Get-Date).AddMinutes(35)
+          $successfulRun = $null
+          while ((Get-Date) -lt $deadline) {
+            $runsResponse = gh api -H 'Accept: application/vnd.github+json' `
+              "/repos/$env:GITHUB_REPOSITORY/actions/workflows/codeql.yml/runs?head_sha=$env:GITHUB_SHA&per_page=100" |
+              ConvertFrom-Json
+            $sameShaRuns = @($runsResponse.workflow_runs | Where-Object { $_.head_sha -ceq $env:GITHUB_SHA })
+            $successfulRun = $sameShaRuns | Where-Object {
+              $_.status -eq 'completed' -and $_.conclusion -eq 'success'
+            } | Sort-Object -Property created_at -Descending | Select-Object -First 1
+            if ($successfulRun) { break }
+
+            $activeRuns = @($sameShaRuns | Where-Object { $_.status -ne 'completed' })
+            $failedRuns = @($sameShaRuns | Where-Object {
+              $_.status -eq 'completed' -and $_.conclusion -ne 'success'
+            })
+            if ($failedRuns.Count -gt 0 -and $activeRuns.Count -eq 0) {
+              $details = ($failedRuns | ForEach-Object { "run=$($_.id):$($_.conclusion)" }) -join ', '
+              throw "CodeQL failed for $env:GITHUB_SHA`: $details"
+            }
+            Start-Sleep -Seconds 15
+          }
+          if (-not $successfulRun) { throw "Timed out waiting for CodeQL on $env:GITHUB_SHA" }
+
+          $jobsResponse = gh api -H 'Accept: application/vnd.github+json' `
+            "/repos/$env:GITHUB_REPOSITORY/actions/runs/$($successfulRun.id)/jobs?per_page=100" |
+            ConvertFrom-Json
+          foreach ($expectedJob in @('analyze (python)', 'analyze (javascript-typescript)')) {
+            $job = @($jobsResponse.jobs | Where-Object { $_.name -ceq $expectedJob })
+            if ($job.Count -ne 1 -or $job[0].conclusion -ne 'success') {
+              throw "Required CodeQL job did not succeed: $expectedJob"
+            }
+          }
+
+          $alerts = @(gh api -H 'Accept: application/vnd.github+json' `
+            "/repos/$env:GITHUB_REPOSITORY/code-scanning/alerts?state=open&per_page=100" | ConvertFrom-Json)
+          if ($alerts.Count -gt 0) {
+            $numbers = ($alerts | Select-Object -First 20 | ForEach-Object { $_.number }) -join ', '
+            throw "Open code-scanning alerts block release: $numbers"
+          }
+      - name: Attest exact gated release bytes
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: dist/*
+      - name: Publish atomically and verify remote release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $expectedRef = "refs/tags/$tag"
+          $assets = Get-ChildItem dist -File | Sort-Object Name | ForEach-Object FullName
+          if ($assets.Count -lt 2) { throw 'Release asset set is unexpectedly small' }
+
+          function Assert-RemoteTag {
+            $rows = @(git ls-remote --exit-code origin $expectedRef "$expectedRef^{}")
+            if ($LASTEXITCODE -ne 0 -or $rows.Count -eq 0) { throw "Remote tag $expectedRef is unavailable" }
+            $refs = @{}
+            foreach ($row in $rows) {
+              $parts = $row -split "`t", 2
+              if ($parts.Count -eq 2) { $refs[$parts[1]] = $parts[0] }
+            }
+            $peeled = if ($refs.ContainsKey("$expectedRef^{}")) { $refs["$expectedRef^{}"] } else { $refs[$expectedRef] }
+            if ($peeled -cne $env:GITHUB_SHA) {
+              throw "Remote peeled tag changed: $peeled expected $env:GITHUB_SHA"
+            }
+          }
+
+          function Assert-Release([bool]$ExpectedDraft) {
+            Assert-RemoteTag
+            $release = gh api -H 'Accept: application/vnd.github+json' `
+              "/repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json
+            if ($release.tag_name -cne $tag) { throw "Release tag mismatch: $($release.tag_name)" }
+            if ([bool]$release.draft -ne $ExpectedDraft) { throw "Unexpected release draft state: $($release.draft)" }
+            if ([bool]$release.prerelease) { throw 'Stable release was unexpectedly marked as a prerelease' }
+
+            $expectedFiles = @(Get-ChildItem dist -File | Sort-Object Name)
+            $expectedNames = @($expectedFiles | ForEach-Object Name)
+            $actualNames = @($release.assets | ForEach-Object name | Sort-Object)
+            $nameDiff = @(Compare-Object $expectedNames $actualNames)
+            if ($nameDiff.Count -gt 0) {
+              throw "Published asset set differs from gated dist: $($nameDiff | Out-String)"
+            }
+
+            foreach ($file in $expectedFiles) {
+              $asset = @($release.assets | Where-Object { $_.name -ceq $file.Name })
+              if ($asset.Count -ne 1) { throw "Missing or duplicate release asset: $($file.Name)" }
+              if ($asset[0].state -cne 'uploaded' -or [int64]$asset[0].size -ne $file.Length) {
+                throw "Incomplete release asset upload for $($file.Name)"
+              }
+              $digest = 'sha256:' + (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
+              if ([string]::IsNullOrWhiteSpace([string]$asset[0].digest) -or $asset[0].digest -cne $digest) {
+                throw "GitHub digest mismatch for $($file.Name): $($asset[0].digest) expected $digest"
+              }
+            }
+
+            $downloadDir = Join-Path $PWD '.published-release-assets'
+            Remove-Item -LiteralPath $downloadDir -Recurse -Force -ErrorAction SilentlyContinue
+            New-Item -ItemType Directory -Path $downloadDir | Out-Null
+            gh release download $tag --dir $downloadDir
+            $downloaded = @(Get-ChildItem $downloadDir -File | Sort-Object Name)
+            if (@(Compare-Object $expectedNames @($downloaded | ForEach-Object Name)).Count -gt 0) {
+              throw 'Downloaded release asset set differs from gated dist'
+            }
+            foreach ($file in $expectedFiles) {
+              $downloadedPath = Join-Path $downloadDir $file.Name
+              $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
+              $downloadedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $downloadedPath).Hash
+              if ($expectedHash -cne $downloadedHash) { throw "Downloaded byte mismatch for $($file.Name)" }
+            }
+            Remove-Item -LiteralPath $downloadDir -Recurse -Force
+          }
+
+          Assert-RemoteTag
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+            throw "Release $tag already exists; refusing to overwrite assets"
+          }
+
+          $createdDraft = $false
+          try {
+            gh release create $tag --verify-tag --draft --title "EvoMind $tag" --generate-notes @assets
+            if ($LASTEXITCODE -ne 0) { throw "Failed to create draft release $tag" }
+            $createdDraft = $true
+            Assert-Release $true
+            Assert-RemoteTag
+            gh release edit $tag --draft=false
+            if ($LASTEXITCODE -ne 0) { throw "Failed to publish release $tag" }
+            Assert-Release $false
+          } catch {
+            if ($createdDraft) {
+              gh release delete $tag --yes *> $null
+            }
+            throw
+          }

@@ -1,0 +1,57 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/bike_sharing_demand/data/sample_submission.csv
+  task_dir: tasks/bike_sharing_demand
+  test: tasks/bike_sharing_demand/data/test.csv
+  train: tasks/bike_sharing_demand/data/train.csv
+  variant_of: bike_sharing_demand
+feature_engineering:
+  derived_features:
+  - hour
+  - dayofweek
+  - month
+  - quarter
+  - is_weekend
+  - is_holiday_approx
+  - season_sin
+  - season_cos
+  drop_columns:
+  - casual
+  - registered
+  numeric_strategy: median
+  preset: datetime_advanced
+  target_transform: log1p
+scaffold:
+  first_stage_models:
+  - xgboost_log_target
+  risk_points:
+  - Time leakage risk from datetime and seasonality.
+  - Casual/registered columns are unavailable in test and must not be used as targets.
+  - Official Kaggle submission requires Human Gate.
+  - XGBoost-only variant: single gradient boosting model, regularization-heavy.
+  time_budget_minutes: 12
+  validation_strategy: 5-fold KFold CV on log1p target
+task:
+  competition: Bike Sharing - XGBoost Only Variant
+  id_column: datetime
+  metric: rmsle
+  name: bike_v5_xgb_only
+  prediction_column: count
+  target: count
+  type: regression
+thresholds:
+  expected_submission_columns:
+  - datetime
+  - count
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

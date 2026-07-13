@@ -1,0 +1,55 @@
+version: "2026-06-07"
+status_policy:
+  completed: implemented_and_verified_locally
+  controlled_pending: intentionally_not_enabled_without_credentials_or_user_approval
+  future: planned_after_current_gates_remain_stable
+items:
+  - id: kaggle_token_integration
+    title: Kaggle token 接入
+    status: controlled_pending
+    reason: 本机当前没有 kaggle.json 和 Kaggle CLI，不能伪造官方 leaderboard。
+    acceptance:
+      - Detect kaggle.json in an approved location.
+      - Install and verify the Kaggle CLI.
+      - Download one task through the official API.
+      - Record real submission or explicitly mark submission skipped.
+  - id: third_research_dataset
+    title: 第三个真实科研数据案例
+    status: future
+    reason: 当前已完成 Titanic 分类和 House Prices 回归，下一步应用老师真实数据验证科研价值。
+    acceptance:
+      - Teacher-provided data source and target definition are recorded.
+      - The generic tabular workflow runs without Titanic/House-specific branching.
+      - Report includes research context and limitations.
+  - id: model_expansion
+    title: 模型扩展
+    status: future
+    reason: 先保持 sklearn baseline 稳定，再引入 LightGBM、XGBoost 或 CatBoost。
+    acceptance:
+      - Optional dependencies are isolated.
+      - Baseline remains reproducible.
+      - New models improve or justify their compute cost.
+  - id: gpu_search
+    title: GPU 训练与搜索
+    status: controlled_pending
+    reason: GPU 服务器不应为了展示而接入，只用于真实算力收益任务。
+    acceptance:
+      - User explicitly approves server/GPU use.
+      - CPU/GPU comparison is recorded.
+      - Server runtime safety is verified before training.
+  - id: experience_library
+    title: 经验库
+    status: future
+    reason: 多任务后再沉淀可复用经验，避免过早抽象。
+    acceptance:
+      - At least three task records exist.
+      - Feature, model, failure, and report patterns are indexed.
+      - Dashboard can filter prior lessons by task type.
+  - id: failure_case_library
+    title: 失败案例库
+    status: future
+    reason: 当前 gate 均通过，仍需把未来失败记录成下一轮改进输入。
+    acceptance:
+      - Failed gates preserve error stage and reason.
+      - Post-scaffold suggestions reference failure evidence.
+      - Dashboard separates passed and failed experiments.

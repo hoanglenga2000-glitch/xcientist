@@ -1,0 +1,49 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/store_sales_time_series_forecasting/data/sample_submission.csv
+  task_dir: tasks/store_sales_time_series_forecasting
+  test: tasks/store_sales_time_series_forecasting/data/test.csv
+  train: tasks/store_sales_time_series_forecasting/data/train.csv
+  variant_of: store_sales_time_series_forecasting
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - id
+  numeric_strategy: median
+  preset: timeseries_global
+  target_transform: log1p
+scaffold:
+  first_stage_models:
+  - lightgbm_global
+  - xgboost_global
+  risk_points:
+  - Time-series leakage risk: future dates must not leak into training features.
+  - Local sampled CV is only a smoke proxy and not leaderboard evidence.
+  - Full training should use time-aware splits and HPC/GPU/CPU resources when available.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 45
+  validation_strategy: TimeSeriesSplit with expanding window
+task:
+  competition: Store Sales - Global Model Variant
+  id_column: id
+  metric: rmsle
+  name: store_sales_v3_global_model
+  prediction_column: sales
+  target: sales
+  type: regression
+thresholds:
+  expected_submission_columns:
+  - id
+  - sales
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

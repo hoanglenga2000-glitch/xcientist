@@ -1,0 +1,75 @@
+[build-system]
+requires = ["setuptools==83.0.0", "wheel==0.47.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xcientist"
+version = "0.2.2"
+description = "EvoMind: an auditable self-evolving AI scientist for ML research (Kaggle/MLE-Bench)."
+authors = [{ name = "EvoMind contributors" }]
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+classifiers = [
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pandas>=2.0,<4.0",
+    "numpy>=1.24,<3.0",
+    "scikit-learn>=1.3,<2.0",
+    "PyYAML>=6.0,<7.0",
+    "python-docx>=1.1,<2.0",
+    "kaggle>=1.6,<3.0",
+    "paramiko>=3.0,<6.0",
+    "tomli>=2.0.1,<3.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dashboard = ["fastapi>=0.110", "uvicorn>=0.29"]
+
+[project.urls]
+Homepage = "https://github.com/hoanglenga2000-glitch/xcientist"
+Repository = "https://github.com/hoanglenga2000-glitch/xcientist"
+Issues = "https://github.com/hoanglenga2000-glitch/xcientist/issues"
+
+[project.scripts]
+xsci = "xsci.__main__:main"
+evomind = "xsci.kaggle:main"
+autokaggle = "xsci.kaggle:main"
+kaggle-official = "xsci.kaggle:official_main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["research_os*", "research_agent_workstation*", "xsci*"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-ra -q --strict-markers"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+markers = [
+    "slow: long-running tests (deselect with '-m \"not slow\"')",
+    "network: requires network/proxy access",
+    "gpu: requires the remote GPU server",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+extend-exclude = ["scripts/_quarantine", "external-projects", "open-reverselab", "web", "node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

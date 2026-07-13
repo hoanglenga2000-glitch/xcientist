@@ -1,0 +1,118 @@
+[
+  {
+    "exp_id": "EXP000",
+    "parent_id": null,
+    "branch_type": "baseline",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "PyTorch MLP baseline can establish a reproducible neural baseline for the task.",
+    "implementation_summary": "Train a compact PyTorch MLP with fixed folds and standard preprocessing.",
+    "code_path": "scripts/run_hpc_kaggle_pytorch.py",
+    "artifacts": [
+      { "artifact_type": "metrics", "path": "reports/BASELINE_AUDIT_EXP000.md" }
+    ],
+    "metrics": { "cv_score": 0.7211, "fold_std": 0.0061 },
+    "cv_score": 0.7211,
+    "public_score": null,
+    "risk_flags": ["neural_baseline_underfit_possible"],
+    "decision": "hold",
+    "next_actions": ["compare_with_linear_and_tree_baselines"],
+    "created_at": "2026-06-15T00:00:00Z"
+  },
+  {
+    "exp_id": "EXP001",
+    "parent_id": "EXP000",
+    "branch_type": "model_family",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "Logistic Regression can provide a stable linear reference point.",
+    "implementation_summary": "Train logistic regression with fold-consistent preprocessing.",
+    "code_path": "scripts/run_hpc_exp001_logistic_cv.py",
+    "artifacts": [
+      { "artifact_type": "report", "path": "reports/EXPERIMENT_EXP001.md" }
+    ],
+    "metrics": { "cv_score": 0.7342, "fold_std": 0.0045 },
+    "cv_score": 0.7342,
+    "public_score": null,
+    "risk_flags": [],
+    "decision": "hold",
+    "next_actions": ["test_tree_ensembles"],
+    "created_at": "2026-06-15T00:10:00Z"
+  },
+  {
+    "exp_id": "EXP002",
+    "parent_id": "EXP001",
+    "branch_type": "model_family",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "ExtraTrees can capture nonlinear interactions with low tuning cost.",
+    "implementation_summary": "Train ExtraTrees with stratified folds and OOF prediction.",
+    "code_path": "scripts/run_hpc_exp002_extratrees_cv.py",
+    "artifacts": [
+      { "artifact_type": "report", "path": "reports/EXPERIMENT_EXP002.md" }
+    ],
+    "metrics": { "cv_score": 0.7488, "fold_std": 0.0052 },
+    "cv_score": 0.7488,
+    "public_score": null,
+    "risk_flags": [],
+    "decision": "promote",
+    "next_actions": ["test_gradient_boosting"],
+    "created_at": "2026-06-15T00:20:00Z"
+  },
+  {
+    "exp_id": "EXP003",
+    "parent_id": "EXP002",
+    "branch_type": "model_family",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "LightGBM should improve tabular performance through leaf-wise boosting.",
+    "implementation_summary": "Train LightGBM with fixed folds, seed control, OOF and submission candidate.",
+    "code_path": "scripts/run_hpc_exp003_lightgbm_cv.py",
+    "artifacts": [
+      { "artifact_type": "report", "path": "reports/EXPERIMENT_EXP003.md" },
+      { "artifact_type": "submission", "path": "submissions/submission_EXP003_lightgbm_5fold3seed_20260614_223721.csv" }
+    ],
+    "metrics": { "cv_score": 0.7624, "fold_std": 0.0039 },
+    "cv_score": 0.7624,
+    "public_score": 0.7581,
+    "risk_flags": ["public_score_requires_gate_context"],
+    "decision": "promote",
+    "next_actions": ["compare_xgboost", "prepare_blend"],
+    "created_at": "2026-06-15T00:30:00Z"
+  },
+  {
+    "exp_id": "EXP004",
+    "parent_id": "EXP002",
+    "branch_type": "model_family",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "XGBoost can provide complementary decision boundaries to LightGBM.",
+    "implementation_summary": "Train XGBoost with fixed folds and comparable preprocessing.",
+    "code_path": "scripts/run_hpc_exp004_xgboost_cv.py",
+    "artifacts": [
+      { "artifact_type": "report", "path": "reports/EXPERIMENT_EXP004.md" }
+    ],
+    "metrics": { "cv_score": 0.7608, "fold_std": 0.0041 },
+    "cv_score": 0.7608,
+    "public_score": null,
+    "risk_flags": [],
+    "decision": "promote",
+    "next_actions": ["blend_with_lightgbm"],
+    "created_at": "2026-06-15T00:40:00Z"
+  },
+  {
+    "exp_id": "EXP005",
+    "parent_id": "EXP003",
+    "branch_type": "ensemble",
+    "task_name": "tabular_kaggle_classification_demo",
+    "hypothesis": "LightGBM and XGBoost OOF blend can reduce variance and improve stable CV.",
+    "implementation_summary": "Blend LightGBM and XGBoost OOF predictions with fixed weights.",
+    "code_path": "scripts/run_hpc_kaggle_ensemble.py",
+    "artifacts": [
+      { "artifact_type": "report", "path": "reports/EXPERIMENT_EXP005.md" },
+      { "artifact_type": "submission", "path": "submissions/submission_EXP005_blend_lgb070_xgb030_not_submitted.csv" }
+    ],
+    "metrics": { "cv_score": 0.7653, "fold_std": 0.0035 },
+    "cv_score": 0.7653,
+    "public_score": null,
+    "risk_flags": ["requires_ablation_for_blend_claim"],
+    "decision": "needs_review",
+    "next_actions": ["run_blend_ablation", "claim_audit_before_report"],
+    "created_at": "2026-06-15T00:50:00Z"
+  }
+]

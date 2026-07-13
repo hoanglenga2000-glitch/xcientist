@@ -1,0 +1,34 @@
+{
+  "server1": {
+    "server": "server1-A800",
+    "gpu": "A800 80GB",
+    "python": "",
+    "packages_all": false,
+    "pkg_catboost": "",
+    "pkg_lightgbm": "",
+    "pkg_xgboost": "",
+    "pkg_optuna": "",
+    "pkg_pandas": "",
+    "pkg_numpy": "",
+    "pkg_sklearn": "",
+    "nvidia_smi": "",
+    "workspace": "",
+    "data_files": ""
+  },
+  "server2": {
+    "server": "server2-A40",
+    "gpu": "A40 48GB",
+    "python": "",
+    "packages_all": false,
+    "pkg_catboost": "",
+    "pkg_lightgbm": "",
+    "pkg_xgboost": "",
+    "pkg_optuna": "",
+    "pkg_pandas": "",
+    "pkg_numpy": "",
+    "pkg_sklearn": "",
+    "nvidia_smi": "",
+    "workspace": "",
+    "data_files": ""
+  }
+}

@@ -1,0 +1,43 @@
+data:
+  sample_submission: tasks/kaggle_new_competition_smoke/data/sample_submission.csv
+  task_dir: tasks/kaggle_new_competition_smoke
+  test: tasks/kaggle_new_competition_smoke/data/test.csv
+  train: tasks/kaggle_new_competition_smoke/data/train.csv
+  variant_of: kaggle_new_competition_smoke
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - Id
+  numeric_strategy: median
+  preset: tabular_quantile
+  scaler: quantile_uniform
+  target_transform: quantile
+scaffold:
+  first_stage_models:
+  - ridge
+  - random_forest
+  - hist_gradient_boosting
+  time_budget_minutes: 15
+  validation_strategy: 5-fold KFold CV with quantile-transformed features
+task:
+  competition: Kaggle Smoke - Quantile Transform Variant
+  id_column: Id
+  metric: rmsle
+  name: kaggle_smoke_v2_quantile_transform
+  prediction_column: SalePrice
+  target: SalePrice
+  type: regression
+thresholds:
+  expected_submission_rows: 1459
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

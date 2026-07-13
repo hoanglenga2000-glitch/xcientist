@@ -1,0 +1,19 @@
+{
+  "task_name": "new-york-city-taxi-fare-prediction",
+  "remote_data_dirname": "new-york-city-taxi-fare-prediction",
+  "gpu_data_dir": "mlebench_prepared/new-york-city-taxi-fare-prediction",
+  "modality": "tabular",
+  "task_type": "regression",
+  "metric": "rmse",
+  "metric_direction": "minimize",
+  "target_column": "fare_amount",
+  "id_column": "key",
+  "n_train": 900000,
+  "n_test": 100000,
+  "n_features": 7,
+  "n_model_families": 3,
+  "target_is_positive": true,
+  "has_time_column": true,
+  "data_schema": "key(str id, keep verbatim for submission); fare_amount(float target, USD, >0); pickup_datetime(str 'YYYY-MM-DD HH:MM:SS UTC'); pickup_longitude/pickup_latitude/dropoff_longitude/dropoff_latitude(float degrees); passenger_count(int). Target column fare_amount is present in train.csv only. test.csv has the 7 non-target columns.",
+  "extra_notes": "Kaggle NYC Taxi Fare. Metric = RMSE on fare_amount (LOWER is better). train.csv=900k rows (RAM is ample, no need to subsample). Feature engineering that matters: parse pickup_datetime into year/month/day/hour/weekday; compute haversine distance between pickup/dropoff; abs longitude/latitude diffs; drop or clip physically-impossible rows (fare<=0, coords outside NYC bbox lon[-75,-72] lat[40,42], passenger_count 0 or >8) in TRAIN ONLY (never drop test rows). Use gradient boosting (lightgbm/xgboost/catboost available). Report CV_SCORE as local K-fold RMSE (lower better). submission.csv MUST have exactly columns key,fare_amount with all 100000 test keys in original order. metrics.json must contain {\"cv_score\": <rmse float>, \"metric\": \"rmse\"}."
+}

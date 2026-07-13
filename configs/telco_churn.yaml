@@ -1,0 +1,60 @@
+task:
+  name: telco_churn
+  competition: Telco Customer Churn
+  type: binary_classification
+  target: Churn
+  metric: accuracy
+  id_column: customerID
+  prediction_column: Churn
+
+data:
+  task_dir: tasks/telco_churn
+  train: tasks/telco_churn/data/train.csv
+  test: tasks/telco_churn/data/test.csv
+  sample_submission: tasks/telco_churn/data/sample_submission.csv
+  overview: tasks/telco_churn/overview.txt
+  data_source: tasks/telco_churn/data/DATA_SOURCE.md
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  min_validation_accuracy: 0.78
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 1409
+  expected_submission_columns:
+    - customerID
+    - Churn
+  allowed_prediction_values:
+    - "No"
+    - "Yes"
+
+scaffold:
+  time_budget_minutes: 15
+  validation_strategy: 5-fold stratified cross-validation plus stratified holdout validation
+  first_stage_models:
+    - logistic_regression
+    - random_forest
+    - extra_trees
+    - gradient_boosting
+  risk_points:
+    - Churn is imbalanced, so validation must use stratified splits.
+    - customerID is an identifier and must not be used as a model feature.
+    - TotalCharges has blank-like values in the raw CSV and must be coerced to numeric.
+    - Submission must keep customerID and Churn columns with business labels No/Yes.
+    - Local validation is only a proxy before official Kaggle workflow automation.
+
+feature_engineering:
+  preset: telco_churn_basic
+  drop_columns:
+    - customerID

@@ -1,0 +1,103 @@
+last_verified: "2026-06-07"
+verification_policy: first_party_or_primary_sources
+sources:
+  - id: autokaggle
+    name: AutoKaggle
+    type: paper
+    url: https://arxiv.org/abs/2410.20424
+    verification_urls:
+      - https://arxiv.org/pdf/2410.20424
+      - https://export.arxiv.org/api/query?id_list=2410.20424
+    title: "AutoKaggle: A Multi-Agent Framework for Autonomous Data Science Competitions"
+    core_insights:
+      - Collaborative multi-agent framework for tabular data science pipelines.
+      - Iterative development combines code execution, debugging, and unit testing.
+      - Human intervention is part of the workflow rather than fully removed.
+    local_mappings:
+      - workflow_stage_audit
+      - validation_gate
+      - task_scaffold
+      - dashboard_stage_timeline
+  - id: agent_k
+    name: Agent K
+    type: paper
+    url: https://arxiv.org/abs/2411.03562
+    verification_urls:
+      - https://arxiv.org/pdf/2411.03562
+      - https://export.arxiv.org/api/query?id_list=2411.03562
+    title: "Kolb-Based Experiential Learning for Generalist Agents with Human-Level Kaggle Data Science Performance"
+    core_insights:
+      - Structured scaffolded learning supports open-ended generalisation.
+      - Kaggle performance depends on full workflow execution, not one-shot modeling.
+      - Reflection and revision should become explicit post-run artifacts.
+    local_mappings:
+      - task_scaffold
+      - post_scaffold_improvement
+      - house_prices_transferability
+      - long_term_roadmap
+  - id: autoresearch_ai
+    name: AutoResearch AI
+    type: paper
+    url: https://arxiv.org/abs/2605.23204
+    verification_urls:
+      - https://arxiv.org/pdf/2605.23204
+      - https://export.arxiv.org/api/query?id_list=2605.23204
+    title: "AutoResearch AI: Towards AI-Powered Research Automation for Scientific Discovery"
+    core_insights:
+      - Research automation should span grounding, planning, experimentation, validation, reporting, and revision.
+      - Current systems struggle with evidence preservation, reproducibility, provenance, and accountable closure.
+      - Evaluation should include novelty, validity, impact, reliability, and provenance.
+    local_mappings:
+      - research_integrity_gate
+      - final_audit
+      - evidence_file_links
+      - dashboard_integrity_panel
+  - id: autosota
+    name: AutoSOTA
+    type: paper
+    url: https://arxiv.org/abs/2604.05550
+    verification_urls:
+      - https://arxiv.org/pdf/2604.05550
+      - https://export.arxiv.org/api/query?id_list=2604.05550
+    title: "AutoSOTA: An End-to-End Automated Research System for State-of-the-Art AI Model Discovery"
+    core_insights:
+      - End-to-end research automation should connect paper understanding, code, environment, experiments, metric validation, reflection, and improvement.
+      - Reproduction and improvement need validity checks so metric gains are not fabricated or caused by leakage.
+      - A local workstation should separate completed runnable baselines from controlled future paper-reproduction tasks.
+    local_mappings:
+      - research_workflow
+      - validity_gate
+      - paper_reproduction_roadmap
+      - human_oversight_boundary
+  - id: nanoresearch
+    name: NanoResearch
+    type: open_source_code
+    url: https://github.com/OpenRaiser/NanoResearch
+    verification_urls:
+      - https://api.github.com/repos/OpenRaiser/NanoResearch
+    title: "NanoResearch"
+    core_insights:
+      - AutoResearch-style systems should track literature grounding, hypothesis, experiment design, code execution, result analysis, figure/report generation, and review.
+      - Manifest-like state, checkpointing, and concrete artifacts are important for restartable research workflows.
+      - Current local work should expose research stages clearly instead of presenting only modeling metrics.
+    local_mappings:
+      - dashboard_research_pipeline
+      - task_scaffold
+      - experiment_artifacts
+      - long_term_roadmap
+  - id: kaggle_cli
+    name: Kaggle CLI
+    type: official_tooling
+    url: https://github.com/Kaggle/kaggle-api
+    verification_urls:
+      - https://api.github.com/repos/Kaggle/kaggle-api
+    title: "Kaggle CLI"
+    core_insights:
+      - Official CLI supports listing competitions, downloading competition data, and submitting to competitions.
+      - Credentials are required for integration tests and official Kaggle interactions.
+      - Official submissions must remain disabled until credentials are configured.
+    local_mappings:
+      - kaggle_token_boundary
+      - data_source_notes
+      - no_leaderboard_fabrication
+      - long_term_roadmap

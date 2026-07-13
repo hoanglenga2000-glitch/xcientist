@@ -1,0 +1,18 @@
+task:
+  name: ps5e3
+  competition: playground-series-s5e3
+  type: classification
+  target: rainfall
+  metric: accuracy
+data:
+  task_dir: tasks/ps5e3
+  train: tasks/ps5e3/data/train.csv
+  test: tasks/ps5e3/data/test.csv
+  sample_submission: tasks/ps5e3/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

@@ -1,0 +1,55 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/store_sales_time_series_forecasting/data/sample_submission.csv
+  task_dir: tasks/store_sales_time_series_forecasting
+  test: tasks/store_sales_time_series_forecasting/data/test.csv
+  train: tasks/store_sales_time_series_forecasting/data/train.csv
+  variant_of: store_sales_time_series_forecasting
+feature_engineering:
+  derived_features:
+  - lag_7
+  - lag_14
+  - lag_28
+  - rolling_mean_7
+  - rolling_mean_14
+  drop_columns:
+  - id
+  numeric_strategy: median
+  preset: timeseries_store_specific
+  target_transform: log1p
+scaffold:
+  first_stage_models:
+  - lightgbm
+  - xgboost
+  - catboost
+  risk_points:
+  - Time-series leakage risk: future dates must not leak into training features.
+  - Local sampled CV is only a smoke proxy and not leaderboard evidence.
+  - Full training should use time-aware splits and HPC/GPU/CPU resources when available.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 30
+  validation_strategy: GroupTimeSeriesSplit by store_nbr
+task:
+  competition: Store Sales - Store-Specific Models Variant
+  id_column: id
+  metric: rmsle
+  name: store_sales_v2_store_specific_models
+  prediction_column: sales
+  target: sales
+  type: regression
+thresholds:
+  expected_submission_columns:
+  - id
+  - sales
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

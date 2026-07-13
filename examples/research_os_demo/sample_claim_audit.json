@@ -1,0 +1,20 @@
+{
+  "claim_id": "CLAIM_EXP005_DEMO",
+  "related_exp_ids": ["EXP003", "EXP004", "EXP005"],
+  "claimed_improvement": "LightGBM + XGBoost OOF blend improves stable CV over single boosting baselines.",
+  "supporting_metrics": {
+    "EXP003_cv_score": 0.7624,
+    "EXP004_cv_score": 0.7608,
+    "EXP005_cv_score": 0.7653,
+    "EXP005_fold_std": 0.0035
+  },
+  "required_ablations": [
+    "compare_against_EXP003_lightgbm_only",
+    "compare_against_EXP004_xgboost_only",
+    "weight_sensitivity_0.6_0.4_to_0.8_0.2"
+  ],
+  "missing_evidence": ["blend_ablation_report.md"],
+  "drift_type": "insufficient_evidence",
+  "audit_result": "revise",
+  "allowed_conclusion": "EXP005 shows a higher demo CV score, but the blend improvement claim must wait for the required ablation report."
+}

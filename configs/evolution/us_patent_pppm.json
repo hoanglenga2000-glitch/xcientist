@@ -1,0 +1,17 @@
+{
+  "task_name": "us-patent-phrase-to-phrase-matching",
+  "modality": "text",
+  "task_type": "regression",
+  "metric": "pearson",
+  "metric_direction": "maximize",
+  "target_column": "score",
+  "id_column": "id",
+  "n_train": 36473,
+  "n_test": 36,
+  "data_schema": "train.csv: id, anchor(phrase), target(phrase), context(CPC code e.g. A47), score(float in {0,0.25,0.5,0.75,1.0}). test.csv: id, anchor, target, context. sample_submission.csv: id, score.",
+  "extra_notes": "U.S. Patent Phrase-to-Phrase Matching. Files: train.csv, test.csv, sample_submission.csv. Predict semantic similarity score in [0,1] between anchor and target phrases within a CPC context. Official metric = Pearson correlation (HIGHER better). NOTE the mle-bench test.csv here is tiny (36 rows) — still predict all of them. Baseline: TF-IDF char+word n-grams on anchor, target, and 'anchor [SEP] target [SEP] context'; features = cosine similarity, shared-token counts, plus one-hot of context section; lightgbm/ridge regression, clip to [0,1]. Report CV_SCORE = Pearson corr on K-fold OOF over TRAIN (higher better) since test is tiny. submission.csv columns EXACTLY id,score for all test rows. metrics.json {\"cv_score\": <float>, \"metric\": \"pearson\"}.",
+  "remote_data_dirname": "us-patent-phrase-to-phrase-matching",
+  "gpu_data_dir": "mlebench_raw_data/us-patent-phrase-to-phrase-matching",
+  "n_features": 0,
+  "n_model_families": 2
+}

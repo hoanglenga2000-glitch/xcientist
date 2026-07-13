@@ -1,0 +1,77 @@
+project_name: research-agent-workstation
+version: v1
+
+roles:
+  local_workstation:
+    - task_understanding
+    - data_analysis
+    - code_execution
+    - experiment_logging
+    - report_generation
+  gpu_server:
+    - deep_learning_training
+    - hyperparameter_search
+    - large_batch_experiments
+    - embedding_index_building
+  human_reviewer:
+    - research_question_judgment
+    - metric_confirmation
+    - final_result_review
+
+workflow:
+  - understand_background
+  - preliminary_eda
+  - data_cleaning
+  - deep_eda
+  - feature_engineering
+  - model_building_validation_prediction
+  - submission_check
+  - experiment_report
+  - review_and_improve
+
+reference_systems:
+  Local_AI_Agent_Market:
+    public_template_source: https://ai.zhjjq.tech/agents
+    local_mapping: configs/agent_templates.yaml
+    use:
+      - public_agent_template_fields
+      - role_capability_mapping
+      - workflow_orchestration_concepts
+    avoid:
+      - reading_private_agents_without_login_authorization
+      - modifying_server_runtime_workflows
+  AutoKaggle:
+    use:
+      - phase_based_workflow
+      - reader_planner_developer_reviewer_summarizer
+      - iterative_debugging
+      - unit_testing
+      - phase_reports
+    avoid:
+      - unsafe_api_key_files
+      - over_complex_feature_tools_in_v1
+  Agent_K:
+    use:
+      - scaffold_then_post_scaffold
+      - kaggle_task_id
+      - time_budget
+      - leaderboard_tracking
+      - gpu_device_control
+    avoid:
+      - full_heavy_reproduction_before_v1_baseline
+  AutoResearch_AI:
+    use:
+      - evidence_preservation
+      - reproducibility
+      - provenance_tracking
+      - human_oversight
+
+rules:
+  - server_agent_templates_are_read_only_references_until_explicit_authorization
+  - never_put_large_raw_tables_into_prompts
+  - always_record_data_version_and_metric
+  - always_keep_failure_reason_when_a_run_fails
+  - reports_must_be_based_on_real_outputs
+  - gpu_is_used_for_training_search_or_batch_jobs_not_for_show
+  - submission_format_must_match_sample_submission
+  - every_generated_report_must_include_evidence_files

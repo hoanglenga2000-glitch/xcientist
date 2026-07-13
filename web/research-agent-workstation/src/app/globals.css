@@ -1,0 +1,261 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --navy: #061326;
+  --ink: #0b1220;
+  --panel: #fbfdff;
+  --surface: #ffffff;
+  --background: #f6f8fb;
+  --border: #d9e2ef;
+  --text: #0f172a;
+  --body: #334155;
+  --muted: #64748b;
+  --blue: #2457d6;
+  --cyan: #0e7490;
+  --green: #047857;
+  --amber: #b45309;
+  --red: #b91c1c;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+  background: var(--background);
+  color: var(--text);
+}
+
+body {
+  background-color: var(--background);
+  background-image:
+    linear-gradient(180deg, rgba(226, 232, 240, 0.72) 0%, rgba(246, 248, 251, 0) 210px),
+    linear-gradient(rgba(15, 23, 42, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(15, 23, 42, 0.018) 1px, transparent 1px);
+  background-size: 100% 240px, 30px 30px, 30px 30px;
+  background-attachment: fixed, fixed, fixed, fixed;
+}
+
+body {
+  margin: 0;
+  font-family:
+    Inter,
+    "Segoe UI",
+    "Microsoft YaHei UI",
+    "Microsoft YaHei",
+    Arial,
+    sans-serif;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+::selection {
+  background: rgba(37, 99, 235, 0.16);
+  color: #0f172a;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+.thin-scrollbar::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+
+.dark-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(96, 165, 250, 0.38) transparent;
+}
+
+.dark-scrollbar::-webkit-scrollbar {
+  height: 5px;
+  width: 5px;
+}
+
+.dark-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(96, 165, 250, 0.38);
+  border-radius: 999px;
+}
+
+.workflow-bg {
+  background-image: radial-gradient(#dbe3ef 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.code-font {
+  font-family:
+    "Cascadia Mono",
+    "SFMono-Regular",
+    Consolas,
+    "Liberation Mono",
+    monospace;
+}
+
+.report-document {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+
+.report-page {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.06),
+    0 18px 46px -28px rgba(15, 23, 42, 0.36);
+}
+
+.report-document p,
+.report-document li,
+.report-document blockquote {
+  max-width: 100%;
+}
+
+.report-document p {
+  font-size: 15px;
+  line-height: 1.9;
+}
+
+.report-document h1 {
+  margin-bottom: 28px;
+}
+
+.report-document h2 {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 26px;
+}
+
+.report-document figure {
+  margin-left: auto;
+  margin-right: auto;
+  max-width: 980px;
+}
+
+/* Tabular numerals for metrics so RMSE / CV columns stay vertically aligned. */
+.metric-num {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+  letter-spacing: 0;
+}
+
+/* Eyebrow / section label rhythm used across workstation panels. */
+.eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Slightly elevated cards for the active work surface, kept subtle. */
+.surface-raised {
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 8px 24px -16px rgba(15, 23, 42, 0.18);
+}
+
+/* Thin status accent stripe for cards that represent a pipeline state. */
+.accent-bar {
+  position: relative;
+}
+.accent-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+.workstation-chrome {
+  background: transparent;
+}
+
+.workstation-chrome main {
+  container-type: inline-size;
+}
+
+.workstation-chrome table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.workstation-chrome th,
+.workstation-chrome td {
+  vertical-align: middle;
+}
+
+.workstation-chrome button,
+.workstation-chrome input,
+.workstation-chrome select {
+  min-height: 32px;
+}
+
+.workstation-chrome button {
+  cursor: pointer;
+}
+
+.workstation-chrome [data-ui-component="card"],
+.workstation-chrome [data-ui-component="dense-table-row"],
+.workstation-chrome [data-ui-action] {
+  cursor: pointer;
+}
+
+.workstation-chrome [data-ui-component="card"]:focus-visible,
+.workstation-chrome [data-ui-component="dense-table-row"]:focus-visible,
+.workstation-chrome [data-ui-action]:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, 0.42);
+  outline-offset: 2px;
+}
+
+.workstation-chrome button:disabled {
+  cursor: not-allowed;
+}
+
+.workstation-chrome .dense-surface {
+  border: 1px solid rgba(203, 213, 225, 0.92);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+}
+
+.command-surface {
+  background:
+    linear-gradient(135deg, rgba(8, 17, 32, 0.98), rgba(15, 32, 52, 0.98) 46%, rgba(10, 55, 67, 0.96));
+  box-shadow:
+    0 1px 1px rgba(15, 23, 42, 0.08),
+    0 22px 56px -36px rgba(3, 7, 18, 0.72);
+}
+
+.panel-glass {
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow:
+    0 1px 1px rgba(15, 23, 42, 0.04),
+    0 14px 38px -28px rgba(15, 23, 42, 0.36);
+  backdrop-filter: blur(16px);
+}
+
+.workstation-divider {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0), rgba(14, 116, 144, 0.4), rgba(36, 87, 214, 0.24), rgba(4, 120, 87, 0));
+}

@@ -1,0 +1,50 @@
+task:
+  name: titanic
+  competition: Titanic - Machine Learning from Disaster
+  type: binary_classification
+  target: Survived
+  metric: accuracy
+
+data:
+  task_dir: tasks/titanic
+  train: tasks/titanic/data/train.csv
+  test: tasks/titanic/data/test.csv
+  sample_submission: tasks/titanic/data/sample_submission.csv
+  overview: tasks/titanic/overview.txt
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+feature_engineering:
+  drop_columns:
+    - Name
+    - Ticket
+    - Cabin
+  numeric_strategy: median
+  categorical_strategy: onehot
+
+thresholds:
+  min_validation_accuracy: 0.78
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+
+scaffold:
+  time_budget_minutes: 10
+  validation_strategy: 5-fold stratified cross-validation plus stratified holdout validation
+  first_stage_models:
+    - logistic_regression
+    - random_forest
+    - extra_trees
+    - gradient_boosting
+  risk_points:
+    - Age and Cabin have high missing rates.
+    - Train/test feature columns must stay aligned.
+    - Submission must keep PassengerId and Survived columns.
+    - Local validation is only a proxy before official Kaggle submission.

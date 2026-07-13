@@ -1,0 +1,55 @@
+task:
+  name: playground_series_s6e6
+  competition: playground-series-s6e6
+  type: classification
+  target: class
+  metric: balanced_accuracy
+  id_column: id
+  prediction_column: class
+data:
+  task_dir: tasks/playground_series_s6e6
+  train: tasks/playground_series_s6e6/data/train.csv
+  test: tasks/playground_series_s6e6/data/test.csv
+  sample_submission: tasks/playground_series_s6e6/data/sample_submission.csv
+  overview: tasks/playground_series_s6e6/overview.txt
+  data_source: tasks/playground_series_s6e6/data/DATA_SOURCE.md
+agent_templates: configs/agent_templates.yaml
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 247435
+  expected_submission_columns:
+  - id
+  - class
+  allowed_prediction_values:
+  - GALAXY
+  - QSO
+  - STAR
+scaffold:
+  time_budget_minutes: 20
+  validation_strategy: 5-fold local cross-validation plus holdout validation; official
+    Kaggle leaderboard remains gated.
+  first_stage_models:
+  - logistic_regression
+  - random_forest
+  - extra_trees
+  - gradient_boosting
+  risk_points:
+  - Metric and target inference must be reviewed before official submission.
+  - Local CV is a proxy and may not match hidden leaderboard distribution.
+  - Submission schema must match sample_submission.csv exactly.
+  - Official Kaggle download/submission requires credentials and a human gate.
+feature_engineering:
+  preset: generic_tabular
+  target_transform: null
+  drop_columns:
+  - id

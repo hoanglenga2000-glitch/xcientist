@@ -1,0 +1,49 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/tabular_playground_series_aug_2022/data/sample_submission.csv
+  task_dir: tasks/tabular_playground_series_aug_2022
+  test: tasks/tabular_playground_series_aug_2022/data/test.csv
+  train: tasks/tabular_playground_series_aug_2022/data/train.csv
+  variant_of: tabular_playground_series_aug_2022
+feature_engineering:
+  categorical_strategy: target_encoding
+  drop_columns:
+  - id
+  numeric_strategy: median
+  preset: tabular_basic
+  target_transform: box_cox
+scaffold:
+  first_stage_models:
+  - xgboost_tuned
+  - lightgbm_tuned
+  - catboost_tuned
+  risk_points:
+  - Official evaluation may require probability-style submission; current generic
+    runner is smoke-level.
+  - CV/public gap must be audited before official submission.
+  - Official Kaggle submission requires Human Gate.
+  time_budget_minutes: 30
+  validation_strategy: 5-fold CV with Optuna hyperparameter optimization
+task:
+  competition: TPS Aug 2022 - Bayesian Opt Variant
+  id_column: id
+  metric: roc_auc
+  name: tps_aug_2022_v3_bayesian_opt
+  prediction_column: failure
+  target: failure
+  type: binary_classification
+thresholds:
+  expected_submission_columns:
+  - id
+  - failure
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

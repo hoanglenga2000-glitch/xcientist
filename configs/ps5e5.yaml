@@ -1,0 +1,18 @@
+task:
+  name: ps5e5
+  competition: playground-series-s5e5
+  type: regression
+  target: Calories
+  metric: rmse
+data:
+  task_dir: tasks/ps5e5
+  train: tasks/ps5e5/data/train.csv
+  test: tasks/ps5e5/data/test.csv
+  sample_submission: tasks/ps5e5/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

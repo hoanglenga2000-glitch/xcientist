@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/benchmark_task.schema.json",
+  "title": "BenchmarkTask",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "task_id",
+    "competition_name",
+    "task_type",
+    "modality",
+    "metric",
+    "train_data_path",
+    "test_data_path",
+    "sample_submission_path",
+    "time_budget_hours",
+    "gpu_required",
+    "allowed_models",
+    "submission_limit",
+    "evaluation_mode",
+    "medal_thresholds",
+    "baseline_score",
+    "target_score",
+    "status",
+    "notes"
+  ],
+  "properties": {
+    "task_id": { "type": "string" },
+    "competition_name": { "type": "string" },
+    "task_type": { "type": "string" },
+    "modality": { "type": "string", "enum": ["tabular", "image", "text", "multimodal", "time_series", "other"] },
+    "metric": { "type": "string" },
+    "train_data_path": { "type": ["string", "null"] },
+    "test_data_path": { "type": ["string", "null"] },
+    "sample_submission_path": { "type": ["string", "null"] },
+    "time_budget_hours": { "type": "number" },
+    "gpu_required": { "type": "boolean" },
+    "allowed_models": { "type": "array", "items": { "type": "string" } },
+    "submission_limit": { "type": ["integer", "null"] },
+    "evaluation_mode": { "type": "string", "enum": ["official", "proxy", "offline", "dry_run"] },
+    "medal_thresholds": {
+      "type": "object",
+      "additionalProperties": { "type": ["number", "string", "null"] }
+    },
+    "baseline_score": { "type": ["number", "null"] },
+    "target_score": { "type": ["number", "null"] },
+    "status": { "type": "string", "enum": ["not_started", "ready", "running", "blocked", "completed", "failed"] },
+    "notes": { "type": "string" }
+  }
+}

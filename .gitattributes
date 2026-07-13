@@ -1,0 +1,4 @@
+/scripts/_quarantine export-ignore
+/scripts/_quarantine/** export-ignore
+/benchmark/mle_bench_75/openai_split75_507f92e.txt text eol=lf
+*.sh text eol=lf

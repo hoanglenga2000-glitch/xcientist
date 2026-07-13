@@ -1,0 +1,21 @@
+data:
+  sample_submission: tasks/tps_jan2022/data/sample_submission.csv
+  task_dir: tasks/tps_jan2022
+  test: tasks/tps_jan2022/data/test.csv
+  train: tasks/tps_jan2022/data/train.csv
+feature_engineering:
+  drop_columns:
+  - row_id
+  - date
+  preset: tabular_basic
+  target_transform: log1p
+task:
+  competition: tabular-playground-series-jan-2022
+  metric: rmse
+  name: tps_jan2022
+  target: num_sold
+  type: regression
+thresholds:
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true

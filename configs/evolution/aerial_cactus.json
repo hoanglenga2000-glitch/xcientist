@@ -1,0 +1,16 @@
+{
+  "task_name": "aerial-cactus-identification",
+  "remote_data_dirname": "aerial-cactus-identification",
+  "modality": "image",
+  "task_type": "classification",
+  "metric": "roc_auc",
+  "metric_direction": "maximize",
+  "target_column": "has_cactus",
+  "id_column": "id",
+  "n_train": 17500,
+  "n_test": 4000,
+  "n_features": 0,
+  "n_model_families": 1,
+  "data_schema": "train.csv: id(jpg filename), has_cactus(0/1 target). Images are 32x32 RGB .jpg files located DIRECTLY under <data-dir>/train/<id> and <data-dir>/test/<id>. sample_submission: id,has_cactus (predicted probability in [0,1]).",
+  "extra_notes": "IMAGE binary classification. 32x32 RGB aerial photos, predict probability of a cactus. Use torch + torchvision on CUDA. A small CNN (2-3 conv blocks) or resnet18 trained a few epochs is plenty. Metric = ROC AUC (higher is better); CV_SCORE = OOF/validation ROC AUC. submission.csv columns: id,has_cactus (probabilities). Keep to a few epochs and a reasonable batch size so it finishes in a few minutes on the A40."
+}

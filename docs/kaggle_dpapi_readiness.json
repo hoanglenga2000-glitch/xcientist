@@ -1,0 +1,20 @@
+{
+  "generated_at": "release-default",
+  "status": "auth_pending",
+  "verification_method": "release_default",
+  "credential_status": "not_configured",
+  "credential_installed": false,
+  "credential_store": "not_configured",
+  "token_type": "none",
+  "authenticated": false,
+  "tool_status": {
+    "python_package_installed": true,
+    "python_package_version": "runtime-dependent",
+    "cli_available": false,
+    "cli_name": null
+  },
+  "safe_install_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 install-token",
+  "real_api_smoke_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 smoke -AllowRealExternal",
+  "human_gate_required_for_submission": true,
+  "conclusion": "Auth Pending. The release source contains no Kaggle credential or machine-specific readiness evidence."
+}

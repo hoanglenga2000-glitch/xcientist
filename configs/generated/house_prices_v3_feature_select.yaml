@@ -1,0 +1,61 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/house_prices/data/sample_submission.csv
+  task_dir: tasks/house_prices
+  test: tasks/house_prices/data/test.csv
+  train: tasks/house_prices/data/train.csv
+  variant_of: house_prices
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - Id
+  - PoolQC
+  - MiscFeature
+  - Alley
+  - Fence
+  - FireplaceQu
+  feature_selection: mutual_info_regression
+  max_features: 50
+  numeric_strategy: knn_impute
+  preset: house_prices_selected
+  target_transform: log1p
+scaffold:
+  first_stage_models:
+  - ridge_log_target
+  - lasso_log_target
+  - elasticnet_log_target
+  risk_points:
+  - SalePrice is skewed, so the local model trains on log1p(SalePrice).
+  - Many categorical missing values use NA-like markers in the original Kaggle data.
+  - Train/test feature columns must stay aligned after dropping SalePrice.
+  - Submission must keep Id and SalePrice columns with positive predictions.
+  - Local validation is only a proxy before official Kaggle leaderboard submission.
+  time_budget_minutes: 12
+  validation_strategy: 5-fold KFold CV with L1 feature selection
+task:
+  competition: House Prices - Feature Selection Variant
+  id_column: Id
+  metric: rmsle
+  name: house_prices_v3_feature_select
+  prediction_column: SalePrice
+  target: SalePrice
+  type: regression
+thresholds:
+  expected_submission_columns:
+  - Id
+  - SalePrice
+  expected_submission_rows: 1459
+  max_cv_rmsle: 0.18
+  max_holdout_rmsle: 0.2
+  require_no_missing_predictions: true
+  require_positive_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

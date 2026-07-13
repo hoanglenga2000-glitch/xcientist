@@ -1,0 +1,16 @@
+{
+  "task_name": "tabular-playground-series-may-2022",
+  "remote_data_dirname": "tabular-playground-series-may-2022",
+  "modality": "tabular",
+  "task_type": "classification",
+  "metric": "roc_auc",
+  "metric_direction": "maximize",
+  "target_column": "target",
+  "id_column": "id",
+  "n_train": 900000,
+  "n_test": 700000,
+  "n_features": 31,
+  "n_model_families": 3,
+  "data_schema": "id(int); f_00..f_16 float; f_17..f_26 int; f_27 STRING (10-char code, engineer per-char features); f_28 float; f_29,f_30 int; target(0/1). Binary classification, metric ROC AUC. sample_submission: id,target (target = predicted probability in [0,1]).",
+  "extra_notes": "Large data (900k rows). Keep compute modest: use LightGBM with reasonable params, 3-5 folds. f_27 is a 10-character string; a strong known trick is splitting it into per-position character features. CV_SCORE = mean OOF ROC AUC (higher is better). submission target column holds probabilities."
+}

@@ -1,0 +1,22 @@
+task:
+  name: ps6e3
+  competition: playground-series-s6e3
+  type: binary_classification
+  target: Churn
+  metric: accuracy
+data:
+  task_dir: tasks/ps6e3
+  train: tasks/ps6e3/data/train.csv
+  test: tasks/ps6e3/data/test.csv
+  sample_submission: tasks/ps6e3/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+workflow:
+  - task_understanding
+  - feature_engineering
+  - model_validation
+  - submission_generation
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

@@ -1,0 +1,18 @@
+task:
+  name: ps5e4
+  competition: playground-series-s5e4
+  type: regression
+  target: Listening_Time_minutes
+  metric: rmse
+data:
+  task_dir: tasks/ps5e4
+  train: tasks/ps5e4/data/train.csv
+  test: tasks/ps5e4/data/test.csv
+  sample_submission: tasks/ps5e4/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true

@@ -1,0 +1,11 @@
+{
+  "schema": "academic_research_os.mle_bench_upstream.v1",
+  "repository": "https://github.com/openai/mle-bench",
+  "commit": "507f92e1138bb6e40dac5c6ee7a6758e6424bf97",
+  "split_path": "experiments/splits/split75.txt",
+  "local_manifest": "benchmark/mle_bench_75/openai_split75_507f92e.txt",
+  "sha256": "aa6a4dbfd19fee0536235be78361968603c84f0d4e06d4ed0ddc9bb212023057",
+  "task_count": 75,
+  "license": "MIT",
+  "retrieved_at_utc": "2026-07-14T00:24:00+08:00"
+}

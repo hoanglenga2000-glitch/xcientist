@@ -1,0 +1,17 @@
+task:
+  name: ps5e1
+  competition: playground-series-s5e1
+  type: regression
+  target: num_sold
+  metric: rmsle
+data:
+  task_dir: tasks/ps5e1
+  train: tasks/ps5e1/data/train.csv
+  test: tasks/ps5e1/data/test.csv
+  sample_submission: tasks/ps5e1/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

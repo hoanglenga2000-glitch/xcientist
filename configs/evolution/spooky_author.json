@@ -1,0 +1,16 @@
+{
+  "task_name": "spooky-author-identification",
+  "remote_data_dirname": "spooky-author-identification",
+  "modality": "text",
+  "task_type": "classification",
+  "metric": "multiclass_log_loss",
+  "metric_direction": "minimize",
+  "target_column": "author",
+  "id_column": "id",
+  "n_train": 19579,
+  "n_test": 8392,
+  "n_features": 1,
+  "n_model_families": 2,
+  "data_schema": "train.csv columns: id(str), text(str, a sentence — MAY CONTAIN COMMAS/QUOTES so use pandas default CSV parser with quoting), author(target: one of EAP, HPL, MWS). sample_submission columns: id,EAP,HPL,MWS (predicted class probabilities per row, summing to ~1).",
+  "extra_notes": "TEXT classification. Use TF-IDF (word + char n-grams) plus a linear model (LogisticRegression or Multinomial Naive Bayes / SGD with log loss); optionally calibrate probabilities. Metric = multi-class log loss (LOWER is better), so CV_SCORE must be OOF log loss. submission.csv must have columns id,EAP,HPL,MWS with row-wise probabilities. Do NOT use torch/transformers (keep within CPU time budget). Stratify folds by author."
+}

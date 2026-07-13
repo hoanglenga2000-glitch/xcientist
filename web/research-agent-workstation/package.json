@@ -1,0 +1,53 @@
+{
+  "name": "research-agent-workstation",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --hostname 127.0.0.1 --port 8088",
+    "build": "next build",
+    "start": "next start --hostname 127.0.0.1 --port 8088",
+    "start:docker-port": "next start --hostname 0.0.0.0 --port 3090",
+    "lint": "eslint .",
+    "security:test": "node scripts/verify-security-boundaries.mjs",
+    "test:kaggle-status": "node scripts/verify-kaggle-status-contract.mjs",
+    "security:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-production-security.ps1",
+    "typecheck": "tsc --noEmit --incremental false",
+    "smoke:sdk": "node scripts/smoke-claude-sdk.mjs",
+    "db:generate": "prisma generate",
+    "db:push": "node scripts/prisma-db-push.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.170",
+    "@prisma/client": "^6.19.3",
+    "@xyflow/react": "^12.4.4",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.468.0",
+    "next": "15.5.20",
+    "prisma": "^6.19.3",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^2.15.0",
+    "tailwind-merge": "^2.6.0",
+    "ws": "8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^8.57.1",
+    "eslint-config-next": "15.5.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2"
+  },
+  "optionalDependencies": {
+    "@emnapi/runtime": "1.11.2"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.10"
+    }
+  }
+}

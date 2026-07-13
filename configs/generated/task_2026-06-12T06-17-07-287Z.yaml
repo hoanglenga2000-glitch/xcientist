@@ -1,0 +1,60 @@
+task:
+  name: task_2026-06-12T06-17-07-287Z
+  competition: New Research Task (House Prices runnable template)
+  type: regression
+  target: SalePrice
+  metric: rmsle
+  id_column: Id
+  prediction_column: SalePrice
+
+data:
+  task_dir: tasks/house_prices
+  train: tasks/house_prices/data/train.csv
+  test: tasks/house_prices/data/test.csv
+  sample_submission: tasks/house_prices/data/sample_submission.csv
+  overview: tasks/house_prices/overview.txt
+  data_source: tasks/house_prices/data/DATA_SOURCE.md
+
+agent_templates: configs/agent_templates.yaml
+
+workflow:
+  - task_understanding
+  - preliminary_eda
+  - data_quality_check
+  - feature_engineering
+  - model_validation
+  - submission_generation
+  - report_and_review
+
+thresholds:
+  max_cv_rmsle: 0.18
+  max_holdout_rmsle: 0.20
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  require_positive_predictions: true
+  expected_submission_rows: 1459
+  expected_submission_columns:
+    - Id
+    - SalePrice
+
+scaffold:
+  time_budget_minutes: 15
+  validation_strategy: 5-fold KFold cross-validation on log1p target plus holdout validation
+  first_stage_models:
+    - ridge_log_target
+    - random_forest_log_target
+    - extra_trees_log_target
+    - gradient_boosting_log_target
+  risk_points:
+    - SalePrice is skewed, so the local model trains on log1p(SalePrice).
+    - Many categorical missing values use NA-like markers in the original Kaggle data.
+    - Train/test feature columns must stay aligned after dropping SalePrice.
+    - Submission must keep Id and SalePrice columns with positive predictions.
+    - Local validation is only a proxy before official Kaggle leaderboard submission.
+
+feature_engineering:
+  preset: house_prices_basic
+  target_transform: log1p
+  drop_columns:
+    - Id

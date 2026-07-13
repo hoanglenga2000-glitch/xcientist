@@ -1,0 +1,17 @@
+task:
+  name: ps4e4
+  competition: playground-series-s4e4
+  type: regression
+  target: Rings
+  metric: mae
+data:
+  task_dir: tasks/ps4e4
+  train: tasks/ps4e4/data/train.csv
+  test: tasks/ps4e4/data/test.csv
+  sample_submission: tasks/ps4e4/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

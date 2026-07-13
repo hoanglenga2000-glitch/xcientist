@@ -1,0 +1,22 @@
+task:
+  name: ps3e25
+  competition: playground-series-s3e25
+  type: binary_classification
+  target: Hardness
+  metric: accuracy
+data:
+  task_dir: tasks/ps3e25
+  train: tasks/ps3e25/data/train.csv
+  test: tasks/ps3e25/data/test.csv
+  sample_submission: tasks/ps3e25/data/sample_submission.csv
+feature_engineering:
+  preset: tabular_basic
+  drop_columns: [id]
+workflow:
+  - task_understanding
+  - feature_engineering
+  - model_validation
+  - submission_generation
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true

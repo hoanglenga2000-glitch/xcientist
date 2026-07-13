@@ -1,0 +1,17 @@
+{
+  "task_name": "stanford-covid-vaccine",
+  "modality": "tabular",
+  "task_type": "regression",
+  "metric": "mcrmse",
+  "metric_direction": "minimize",
+  "target_column": "5 reactivity targets",
+  "id_column": "id_seqpos",
+  "n_train": 2400,
+  "n_test": 3634,
+  "data_schema": "train.json (records: id, sequence(RNA str A/C/G/U), structure, predicted_loop_type, seq_length, seq_scored, and per-position target arrays reactivity, deg_Mg_pH10, deg_pH10, deg_Mg_50C, deg_50C). test.json: id, sequence, structure, predicted_loop_type, seq_length. sample_submission.csv: id_seqpos, reactivity, deg_Mg_pH10, deg_pH10, deg_Mg_50C, deg_50C.",
+  "extra_notes": "OpenVaccine COVID mRNA degradation. Files: train.json, test.json, sample_submission.csv (read train/test with pandas.read_json lines-or-records). Predict 5 per-base degradation/reactivity floats. Official metric = MCRMSE (mean columnwise RMSE, LOWER better). Fast tabular baseline: explode each sequence into per-position rows; features = one-hot of sequence char + structure char + predicted_loop_type char at the position, plus neighbor chars (window +-2) and positional index; lightgbm regressor per target (5 targets). Only the first seq_scored positions are scored in train. Report CV_SCORE = MCRMSE on OOF over the 5 targets (lower better). submission.csv columns EXACTLY id_seqpos,reactivity,deg_Mg_pH10,deg_pH10,deg_Mg_50C,deg_50C for every test id_seqpos (id + '_' + position) in sample order. metrics.json {\"cv_score\": <float>, \"metric\": \"mcrmse\"}.",
+  "remote_data_dirname": "stanford-covid-vaccine",
+  "gpu_data_dir": "mlebench_raw_data/stanford-covid-vaccine",
+  "n_features": 0,
+  "n_model_families": 2
+}

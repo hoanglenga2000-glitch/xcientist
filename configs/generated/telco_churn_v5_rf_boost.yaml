@@ -1,0 +1,59 @@
+agent_templates: configs/agent_templates.yaml
+data:
+  sample_submission: tasks/telco_churn/data/sample_submission.csv
+  task_dir: tasks/telco_churn
+  test: tasks/telco_churn/data/test.csv
+  train: tasks/telco_churn/data/train.csv
+  variant_of: telco_churn
+feature_engineering:
+  categorical_strategy: target_encoding
+  derived_features:
+  - tenure_bin
+  - monthly_charges_bin
+  - total_charges_ratio
+  drop_columns:
+  - customerID
+  numeric_strategy: median
+  preset: telco_advanced
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - random_forest
+  - extra_trees
+  risk_points:
+  - Churn is imbalanced, so validation must use stratified splits.
+  - customerID is an identifier and must not be used as a model feature.
+  - TotalCharges has blank-like values in the raw CSV and must be coerced to numeric.
+  - Submission must keep customerID and Churn columns with business labels No/Yes.
+  - Local validation is only a proxy before official Kaggle workflow automation.
+  - RF Boost variant: more estimators for better generalization on imbalanced data.
+  time_budget_minutes: 15
+  validation_strategy: 5-fold stratified CV
+task:
+  competition: Telco Churn - RandomForest Boosted Variant
+  id_column: customerID
+  metric: accuracy
+  name: telco_churn_v5_rf_boost
+  prediction_column: Churn
+  target: Churn
+  type: binary_classification
+thresholds:
+  allowed_prediction_values:
+  - 'No'
+  - 'Yes'
+  expected_submission_columns:
+  - customerID
+  - Churn
+  expected_submission_rows: 1409
+  min_validation_accuracy: 0.78
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

@@ -1,0 +1,44 @@
+data:
+  sample_submission: tasks/playground_series_s6e6/data/sample_submission.csv
+  task_dir: tasks/playground_series_s6e6
+  test: tasks/playground_series_s6e6/data/test.csv
+  train: tasks/playground_series_s6e6/data/train.csv
+  variant_of: playground_series_s6e6
+feature_engineering:
+  categorical_strategy: onehot
+  drop_columns:
+  - id
+  numeric_strategy: median
+  preset: tabular_robust
+  scaler: robust
+  target_transform: null
+scaffold:
+  first_stage_models:
+  - logistic_regression
+  - random_forest
+  - hist_gradient_boosting
+  time_budget_minutes: 12
+  validation_strategy: 5-fold stratified CV with robust scaling
+task:
+  competition: Playground S6E6 - Robust Scaler Variant
+  id_column: id
+  metric: accuracy
+  name: playground_s6e6_v2_robust_scaler
+  prediction_column: class
+  target: class
+  type: multiclass_classification
+thresholds:
+  expected_submission_columns:
+  - id
+  - class
+  require_no_missing_predictions: true
+  require_submission_schema_valid: true
+  require_train_test_features_match: true
+workflow:
+- task_understanding
+- preliminary_eda
+- data_quality_check
+- feature_engineering
+- model_validation
+- submission_generation
+- report_and_review

@@ -1,0 +1,13 @@
+# Production-stability pre-commit gate.
+# Install the framework:  pip install pre-commit && pre-commit install
+# Then every commit runs the same checks as CI (compile + imports + tests).
+repos:
+  - repo: local
+    hooks:
+      - id: workstation-ci
+        name: workstation production-stability check
+        entry: python scripts/run_ci_checks.py
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-commit]

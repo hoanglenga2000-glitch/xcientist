@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research-os.local/schemas/rank_promotion_gate.schema.json",
+  "title": "RankPromotionGate",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "task_id",
+    "run_id",
+    "status",
+    "rank_target_percentile",
+    "top30_reached",
+    "decision",
+    "claim_boundary"
+  ],
+  "properties": {
+    "task_id": { "type": "string" },
+    "run_id": { "type": "string" },
+    "status": { "type": "string", "enum": ["blocked_by_gate", "official_submitted"] },
+    "rank_target_percentile": { "type": "number" },
+    "official_rank": { "type": ["integer", "null"] },
+    "leaderboard_team_count": { "type": ["integer", "null"] },
+    "rank_percentile": { "type": ["number", "null"] },
+    "public_score": { "type": ["number", "null"] },
+    "official_submission_ref": { "type": ["string", "null"] },
+    "top30_reached": { "type": "boolean" },
+    "decision": { "type": "string", "enum": ["proxy_only", "top30_failed", "top30_reached"] },
+    "claim_boundary": { "type": "string" },
+    "blocker": { "type": ["string", "null"] }
+  }
+}

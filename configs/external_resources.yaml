@@ -1,0 +1,62 @@
+schema: "evomind.external_resources.v2"
+generated_at: "release-default"
+
+policy:
+  secrets_storage: "protected_user_store_or_secret_file_only"
+  no_plaintext_secrets_in_repo: true
+  human_gate_required_for_external_submission: true
+  gpu_shell_policy: "whitelist_templates_only"
+  local_training_fallback: "disabled"
+  local_training_fallback_note: "Kaggle and MLE-Bench training must use a workstation-gated HPC/GPU runtime. If it is not configured or unavailable, report Blocked instead of silently using local compute."
+  verified_local_launcher: "scripts/start_verified_workstation.ps1"
+
+resources:
+  deepseek:
+    provider: "DeepSeek"
+    status: "implementation_ready_runtime_not_configured"
+    base_url: "https://api.deepseek.com"
+    default_model: "deepseek-chat"
+    supported_models:
+      - "deepseek-chat"
+      - "deepseek-reasoner"
+    required_secret:
+      - "DEEPSEEK_API_KEY or DEEPSEEK_API_KEY_FILE"
+    credential_storage: "Use evomind setup (DPAPI on Windows) or an ACL-protected secret file outside the repository."
+    current_runtime_note: "Not Configured in the release source. Runtime readiness requires a live provider smoke."
+
+  hpc_gpu_ssh:
+    provider: "Operator-provided HPC/GPU"
+    status: "not_configured"
+    local_bridge:
+      listen: "127.0.0.1:7890"
+      script: "scripts/hpc_socks_bridge.py"
+      launcher: "scripts/start_hpc_socks_bridge.py"
+      manager: "scripts/manage_hpc_proxy_bridge.ps1"
+    required_runtime:
+      - "EVOMIND_HPC_HOST"
+      - "EVOMIND_HPC_PORT"
+      - "EVOMIND_HPC_USER"
+      - "EVOMIND_HPC_PASSWORD"
+      - "EVOMIND_HPC_REMOTE_WORKSPACE"
+    optional_runtime:
+      - "EVOMIND_HPC_SOCKS_HOST and EVOMIND_HPC_SOCKS_PORT"
+      - "GPU_SSH_KNOWN_HOSTS_PATH"
+    credential_storage: "Install the current allocation with scripts/manage_hpc_ssh_secret.ps1. Endpoint metadata and the DPAPI credential are generation-bound."
+    current_blocker: "Not Configured. A current endpoint, protected credential generation, verified host key, and live GPU smoke are required."
+    current_runtime_note: "No host, account, allocation, private path, or historical readiness evidence is shipped as a release default."
+
+  claude_code:
+    provider: "Code Agent"
+    status: "awaiting_api_key"
+    required_secret:
+      - "ANTHROPIC_API_KEY_FILE, DEEPSEEK_API_KEY_FILE, or protected evomind setup storage"
+    gate_policy: "Code-agent patches require validation and a Manual Gate before application."
+    current_runtime_note: "Auth Pending until a configured provider passes a live smoke."
+
+  kaggle:
+    provider: "Kaggle API"
+    status: "awaiting_token"
+    required_secret:
+      - "KAGGLE_API_TOKEN_FILE or protected evomind setup storage"
+    gate_policy: "Official downloads and submissions require explicit operator intent; leaderboard submission always requires a Human Gate."
+    current_runtime_note: "Auth Pending until the protected token passes a real API smoke."
