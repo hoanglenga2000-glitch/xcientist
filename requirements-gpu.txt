@@ -3,7 +3,7 @@
 # NOT required to run the workstation, tests, or verification gates locally.
 
 # --- Tabular / time-series ---
-lightgbm>=4.0,<5.0
+lightgbm>=4.6.0,<5.0
 catboost>=1.2,<2.0
 xgboost>=2.0,<3.0
 optuna>=3.6,<5.0
