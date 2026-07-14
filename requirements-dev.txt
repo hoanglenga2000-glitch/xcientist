@@ -2,7 +2,7 @@
 -r requirements.txt
 
 pytest>=7.0,<10.0
-ruff>=0.5,<1.0
+ruff>=0.15.21,<1.0
 bandit==1.8.6
 setuptools==83.0.0
 wheel==0.47.0
