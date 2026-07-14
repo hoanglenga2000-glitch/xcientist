@@ -2,6 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 import { normalizeTaskId } from "@/lib/security/request-boundary";
+import { readStableRegularTextFile, writeAtomicPrivateTextFile } from "@/lib/server/stable-file";
 
 export { normalizeTaskId } from "@/lib/security/request-boundary";
 
@@ -44,8 +45,11 @@ export function stamp() {
 
 export async function readJsonFile(filePath: string) {
   try {
-    const text = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(text.replace(/^\uFEFF/, ""));
+    const file = await readStableRegularTextFile(filePath, {
+      allowedRoot: workspaceRoot,
+      maxBytes: 64 * 1024 * 1024
+    });
+    return JSON.parse(file.text.replace(/^\uFEFF/, ""));
   } catch {
     return null;
   }
@@ -53,15 +57,19 @@ export async function readJsonFile(filePath: string) {
 
 export async function writeJsonArtifact(relativePath: string, payload: unknown) {
   const target = resolveWorkspacePath(relativePath);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, JSON.stringify(payload, null, 2), "utf-8");
+  await writeAtomicPrivateTextFile(target, `${JSON.stringify(payload, null, 2)}\n`, {
+    allowedRoot: workspaceRoot,
+    maxBytes: 64 * 1024 * 1024
+  });
   return relativePath;
 }
 
 export async function writeTextArtifact(relativePath: string, payload: string) {
   const target = resolveWorkspacePath(relativePath);
-  await fs.mkdir(path.dirname(target), { recursive: true });
-  await fs.writeFile(target, payload, "utf-8");
+  await writeAtomicPrivateTextFile(target, payload, {
+    allowedRoot: workspaceRoot,
+    maxBytes: 64 * 1024 * 1024
+  });
   return relativePath;
 }
 

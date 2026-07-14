@@ -8,7 +8,7 @@
     "start": "next start --hostname 127.0.0.1 --port 8088",
     "start:docker-port": "next start --hostname 0.0.0.0 --port 3090",
     "lint": "eslint .",
-    "security:test": "node scripts/verify-security-boundaries.mjs",
+    "security:test": "node scripts/verify-security-boundaries.mjs && node scripts/verify-hpc-gate-adversarial.mjs",
     "test:kaggle-status": "node scripts/verify-kaggle-status-contract.mjs",
     "security:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-production-security.ps1",
     "typecheck": "tsc --noEmit --incremental false",

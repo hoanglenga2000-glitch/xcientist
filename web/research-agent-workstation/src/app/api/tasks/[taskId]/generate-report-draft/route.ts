@@ -1,14 +1,24 @@
-import { promises as fs } from "node:fs";
+import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
 import { encodeJson } from "@/lib/server/json";
-import { latestExperimentPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, toRelativePath } from "@/lib/server/paths";
+import { latestExperimentPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, toRelativePath, workspaceRoot } from "@/lib/server/paths";
 import { serializeReport } from "@/lib/server/serializers";
+import { ensurePrivateDirectory, writeAtomicPrivateTextFile } from "@/lib/server/stable-file";
 
 export const dynamic = "force-dynamic";
+
+const MAX_REPORT_BYTES = 2_000_000;
+const MAX_REPORT_HTML_BYTES = 4_000_000;
+const MAX_REPORT_METADATA_BYTES = 128_000;
+const MAX_TITLE_CHARACTERS = 300;
+const MAX_TITLE_BYTES = 1_200;
+const MAX_FIGURE_NAME_CHARACTERS = 300;
+const MAX_FIGURE_NAME_BYTES = 1_200;
+const MAX_FIGURE_PATH_BYTES = 2_048;
 
 function htmlEscape(value: string) {
   return value
@@ -63,6 +73,87 @@ function markdownToHtml(markdown: string, title: string) {
 ${body}
 </body>
 </html>`;
+}
+
+function byteLength(value: string) {
+  return Buffer.byteLength(value, "utf8");
+}
+
+function sha256(value: string) {
+  return createHash("sha256").update(Buffer.from(value, "utf8")).digest("hex");
+}
+
+function hasUnpairedSurrogate(value: string) {
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index);
+    if (code >= 0xd800 && code <= 0xdbff) {
+      if (index + 1 >= value.length) return true;
+      const next = value.charCodeAt(index + 1);
+      if (next < 0xdc00 || next > 0xdfff) return true;
+      index += 1;
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function validSingleLine(value: string, maxCharacters: number, maxBytes: number) {
+  return Boolean(value.trim())
+    && value.length <= maxCharacters
+    && byteLength(value) <= maxBytes
+    && !/[\u0000-\u001f\u007f]/.test(value)
+    && !hasUnpairedSurrogate(value);
+}
+
+function workspaceRelativePath(absolutePath: string) {
+  const relativePath = toRelativePath(absolutePath);
+  if (!relativePath) throw new Error("Report artifact path is outside the workspace");
+  return relativePath;
+}
+
+function normalizeFigurePath(value: unknown, taskId: string) {
+  if (typeof value !== "string" || !value.trim() || byteLength(value) > MAX_FIGURE_PATH_BYTES || hasUnpairedSurrogate(value)) {
+    return null;
+  }
+  try {
+    const relativePath = workspaceRelativePath(resolveWorkspacePath(value)).replaceAll("\\", "/");
+    const prefix = `workspace/tasks/${taskId}/reports/figures/`;
+    const filename = relativePath.startsWith(prefix) ? relativePath.slice(prefix.length) : "";
+    if (!filename || filename.includes("/") || /[\s()[\]]/.test(filename) || !/\.(svg|png|jpe?g|webp)$/i.test(filename)) return null;
+    return relativePath;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeFigures(value: unknown, taskId: string) {
+  if (!Array.isArray(value)) return [];
+  const figures: Array<{ name: string; path: string }> = [];
+  for (const item of value.slice(0, 4)) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const record = item as Record<string, unknown>;
+    const figurePath = normalizeFigurePath(record.path, taskId);
+    const name = record.name;
+    if (
+      !figurePath
+      || typeof name !== "string"
+      || !validSingleLine(name, MAX_FIGURE_NAME_CHARACTERS, MAX_FIGURE_NAME_BYTES)
+      || /[\[\]]/.test(name)
+    ) continue;
+    figures.push({ name, path: figurePath });
+  }
+  return figures;
+}
+
+function parseMetricsJson(value: string | null | undefined) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : null;
+  } catch {
+    return null;
+  }
 }
 
 function toPairs(value: unknown) {
@@ -216,76 +307,143 @@ export async function POST(request: Request, { params }: { params: Promise<{ tas
   const { taskId: rawTaskId } = await params;
   const taskId = normalizeTaskId(rawTaskId);
   const body = await request.json().catch(() => ({}));
-  const language = String(body.language ?? "zh-CN");
-  const latest = await latestExperimentPath(taskId);
-  const [validation, dataQuality, experiment, latestRun, figuresManifest] = await Promise.all([
-    latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "validation_gate.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
-    latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "data_quality.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
-    latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "experiment_log.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
-    prisma.experimentRun.findFirst({ where: { taskId }, orderBy: { createdAt: "desc" } }).then((run) => run ? { ...run, best_metrics: run.metricsJson ? JSON.parse(run.metricsJson) as Record<string, unknown> : null } : null),
-    readJsonFile(resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "figures", "figures_manifest.json"))) as Promise<{ figures?: Array<{ name: string; path: string }> } | null>
-  ]);
-  const figures = figuresManifest?.figures ?? [];
-  const title = language === "en-US" ? `${taskId.replaceAll("_", " ")} Experiment Report` : `${taskId.replaceAll("_", " ")} 实验报告`;
-  const markdown = buildMarkdown({ taskId, language, latest, validation, dataQuality, experiment, figures, latestRun });
+  if (typeof body !== "object" || body === null || Array.isArray(body)) {
+    return NextResponse.json({ ok: false, error: "invalid_report_generation_payload" }, { status: 400 });
+  }
+  const payload = body as Record<string, unknown>;
+  const rawLanguage = payload.language ?? "zh-CN";
+  const rawStyle = payload.style;
+  if (
+    (rawLanguage !== "zh-CN" && rawLanguage !== "en-US")
+    || (rawStyle !== undefined && (
+      typeof rawStyle !== "string"
+      || !validSingleLine(rawStyle, 80, 320)
+    ))
+  ) {
+    return NextResponse.json({ ok: false, error: "invalid_report_generation_payload" }, { status: 400 });
+  }
+  const language = rawLanguage;
 
-  const draftDir = resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "draft"));
-  await fs.mkdir(draftDir, { recursive: true });
-  const markdownPath = path.join(draftDir, "report.md");
-  const htmlPath = path.join(draftDir, "report.html");
-  const metaPath = path.join(draftDir, "report.json");
-  const content = {
-    html_path: toRelativePath(htmlPath),
-    markdown_path: toRelativePath(markdownPath),
-    generated_by: "workstation_report_agent",
-    language,
-    source_run: latest,
-    generated_at: new Date().toISOString()
-  };
-
-  await fs.writeFile(markdownPath, markdown, "utf-8");
-  await fs.writeFile(htmlPath, markdownToHtml(markdown, title), "utf-8");
-  await fs.writeFile(metaPath, JSON.stringify({ title, ...content }, null, 2), "utf-8");
-
-  const report = await prisma.report.upsert({
-    where: { id: `${taskId}_latest_report` },
-    update: {
-      runId: typeof latestRun?.id === "string" ? latestRun.id : undefined,
-      title,
-      status: "draft",
-      markdownContent: markdown,
-      contentJson: encodeJson(content),
-      markdownPath: toRelativePath(markdownPath),
-      selectedSection: language === "en-US" ? "Executive Summary" : "摘要"
-    },
-    create: {
-      id: `${taskId}_latest_report`,
-      taskId,
-      runId: typeof latestRun?.id === "string" ? latestRun.id : null,
-      title,
-      status: "draft",
-      markdownContent: markdown,
-      contentJson: encodeJson(content),
-      markdownPath: toRelativePath(markdownPath),
-      selectedSection: language === "en-US" ? "Executive Summary" : "摘要"
+  try {
+    const latest = await latestExperimentPath(taskId);
+    const [validation, dataQuality, experiment, latestRun, figuresManifest] = await Promise.all([
+      latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "validation_gate.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
+      latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "data_quality.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
+      latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "experiment_log.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
+      prisma.experimentRun.findFirst({ where: { taskId }, orderBy: { createdAt: "desc" } }).then((run) => run ? { ...run, best_metrics: parseMetricsJson(run.metricsJson) } : null),
+      readJsonFile(resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "figures", "figures_manifest.json"))) as Promise<Record<string, unknown> | null>
+    ]);
+    const figures = normalizeFigures(figuresManifest?.figures, taskId);
+    const title = language === "en-US" ? `${taskId.replaceAll("_", " ")} Experiment Report` : `${taskId.replaceAll("_", " ")} 实验报告`;
+    const markdown = buildMarkdown({ taskId, language, latest, validation, dataQuality, experiment, figures, latestRun });
+    const html = markdownToHtml(markdown, title);
+    if (
+      !validSingleLine(title, MAX_TITLE_CHARACTERS, MAX_TITLE_BYTES)
+      || !markdown.trim()
+      || byteLength(markdown) > MAX_REPORT_BYTES
+      || byteLength(html) > MAX_REPORT_HTML_BYTES
+      || hasUnpairedSurrogate(markdown)
+      || hasUnpairedSurrogate(html)
+    ) {
+      return NextResponse.json({ ok: false, error: "generated_report_exceeds_limits" }, { status: 413 });
     }
-  });
 
-  await logAction({
-    action: "generate_report_draft",
-    taskId,
-    runId: typeof latestRun?.id === "string" ? latestRun.id : undefined,
-    message: "Publishing-style report draft generated and saved.",
-    artifactPath: toRelativePath(markdownPath),
-    metadata: { html_path: toRelativePath(htmlPath), language, source_run: latest, figure_count: figures.length }
-  });
+    const revisionId = randomUUID();
+    const draftDir = resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "draft", revisionId));
+    const markdownPath = path.join(draftDir, "report.md");
+    const htmlPath = path.join(draftDir, "report.html");
+    const metaPath = path.join(draftDir, "report.json");
+    const markdownRelativePath = workspaceRelativePath(markdownPath);
+    const htmlRelativePath = workspaceRelativePath(htmlPath);
+    const metadataRelativePath = workspaceRelativePath(metaPath);
+    const markdownSha256 = sha256(markdown);
+    const htmlSha256 = sha256(html);
+    const content = {
+      html_path: htmlRelativePath,
+      markdown_path: markdownRelativePath,
+      metadata_path: metadataRelativePath,
+      revision_id: revisionId,
+      markdown_sha256: markdownSha256,
+      html_sha256: htmlSha256,
+      generated_by: "workstation_report_agent",
+      language,
+      source_run: latest,
+      generated_at: new Date().toISOString()
+    };
+    const metadata = `${JSON.stringify({ title, ...content }, null, 2)}\n`;
+    if (byteLength(metadata) > MAX_REPORT_METADATA_BYTES || hasUnpairedSurrogate(metadata)) {
+      return NextResponse.json({ ok: false, error: "generated_report_metadata_exceeds_limits" }, { status: 413 });
+    }
 
-  return NextResponse.json({
-    ok: true,
-    task_id: taskId,
-    report: serializeReport(report),
-    markdown_content: markdown,
-    markdown_path: toRelativePath(markdownPath),
-    html_path: toRelativePath(htmlPath)
-  });
+    await ensurePrivateDirectory(draftDir, workspaceRoot);
+    const markdownFile = await writeAtomicPrivateTextFile(markdownPath, markdown, {
+      allowedRoot: workspaceRoot,
+      maxBytes: MAX_REPORT_BYTES
+    });
+    const htmlFile = await writeAtomicPrivateTextFile(htmlPath, html, {
+      allowedRoot: workspaceRoot,
+      maxBytes: MAX_REPORT_HTML_BYTES
+    });
+    if (markdownFile.sha256 !== markdownSha256 || htmlFile.sha256 !== htmlSha256) {
+      throw new Error("Generated report artifact hash mismatch after write");
+    }
+    await writeAtomicPrivateTextFile(metaPath, metadata, {
+      allowedRoot: workspaceRoot,
+      maxBytes: MAX_REPORT_METADATA_BYTES
+    });
+
+    const report = await prisma.report.upsert({
+      where: { id: `${taskId}_latest_report` },
+      update: {
+        runId: typeof latestRun?.id === "string" ? latestRun.id : undefined,
+        title,
+        status: "draft",
+        markdownContent: markdown,
+        contentJson: encodeJson(content),
+        markdownPath: markdownRelativePath,
+        selectedSection: language === "en-US" ? "Executive Summary" : "摘要"
+      },
+      create: {
+        id: `${taskId}_latest_report`,
+        taskId,
+        runId: typeof latestRun?.id === "string" ? latestRun.id : null,
+        title,
+        status: "draft",
+        markdownContent: markdown,
+        contentJson: encodeJson(content),
+        markdownPath: markdownRelativePath,
+        selectedSection: language === "en-US" ? "Executive Summary" : "摘要"
+      }
+    });
+
+    await logAction({
+      action: "generate_report_draft",
+      taskId,
+      runId: typeof latestRun?.id === "string" ? latestRun.id : undefined,
+      message: "Publishing-style report draft generated and saved.",
+      artifactPath: markdownRelativePath,
+      metadata: {
+        html_path: htmlRelativePath,
+        metadata_path: metadataRelativePath,
+        revision_id: revisionId,
+        markdown_sha256: markdownSha256,
+        html_sha256: htmlSha256,
+        language,
+        source_run: latest,
+        figure_count: figures.length
+      }
+    });
+
+    return NextResponse.json({
+      ok: true,
+      task_id: taskId,
+      report: serializeReport(report),
+      markdown_content: markdown,
+      revision_id: revisionId,
+      markdown_path: markdownRelativePath,
+      html_path: htmlRelativePath
+    });
+  } catch {
+    return NextResponse.json({ ok: false, error: "report_generation_failed" }, { status: 500 });
+  }
 }

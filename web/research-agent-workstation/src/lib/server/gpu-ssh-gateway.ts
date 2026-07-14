@@ -12,6 +12,7 @@ import {
   requireTcpPort
 } from "@/lib/security/network-boundary";
 import { logAction } from "@/lib/server/actions";
+import { validateHpcExecutionGate } from "@/lib/server/hpc-execution-gate";
 import { gpuSshConfig, gpuSshStatus, hasGpuSshConfig } from "@/lib/server/capabilities";
 import { normalizeTaskId, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 import { evaluateStrategyExecutionGate } from "@/lib/server/strategy-registry";
@@ -2013,12 +2014,14 @@ export async function submitGpuJob(input: {
         };
       }
     }
-    const approvedGate = gateId
-      ? await prisma.gate.findFirst({ where: { id: gateId, taskId, decision: "approved" } })
-      : runId
-        ? await prisma.gate.findFirst({ where: { taskId, runId, gateType: "hpc_execution_approval", decision: "approved" } })
-        : null;
-    if (!approvedGate) {
+    const requiredGateId = gateId ?? (runId ? `${runId}_hpc_execution_approval` : null);
+    const approvedGate = requiredGateId
+      ? await prisma.gate.findUnique({ where: { id: requiredGateId } })
+      : null;
+    const gateValidation = runId
+      ? await validateHpcExecutionGate(approvedGate, { taskId, runId, template })
+      : { ok: false, reasons: ["hpc_gate_run_missing"] };
+    if (!gateValidation.ok) {
       const artifact = await writeJsonArtifact(`workspace/gpu/jobs/${jobId}.json`, {
         job_id: jobId,
         task_id: taskId,
@@ -2027,24 +2030,25 @@ export async function submitGpuJob(input: {
         template,
         provider: "ssh_gateway",
         status: "rejected",
-        reason: "hpc_execution_approval gate is required before non-smoke GPU jobs.",
-        required_gate_id: gateId ?? `${runId ?? "<run_id>"}_hpc_execution_approval`,
+        reason: "A current, hash-bound hpc_execution_approval gate is required before non-smoke GPU jobs.",
+        gate_validation_reasons: gateValidation.reasons,
+        required_gate_id: requiredGateId ?? `${runId ?? "<run_id>"}_hpc_execution_approval`,
         created_at: new Date().toISOString()
       });
       await logAction({
         action: "gpu_job_gate_rejected",
         taskId,
         runId: runId ?? undefined,
-        message: "GPU job rejected because hpc_execution_approval is not approved.",
+        message: "GPU job rejected because the bound hpc_execution_approval gate is missing, stale, modified, or not approved.",
         artifactPath: artifact,
-        metadata: { job_id: jobId, template, required_gate_id: gateId }
+        metadata: { job_id: jobId, template, required_gate_id: requiredGateId, gate_validation_reasons: gateValidation.reasons }
       });
       return {
         ok: true,
         configured: hasGpuSshConfig(),
         status: "rejected" as const,
         provider: "ssh_gateway" as const,
-        error: "hpc_execution_approval gate is required before non-smoke GPU jobs.",
+        error: "A current, hash-bound hpc_execution_approval gate is required before non-smoke GPU jobs.",
         artifact_path: artifact,
         allowed_templates: Object.keys(allowedTemplates)
       };

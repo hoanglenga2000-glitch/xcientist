@@ -1,16 +1,19 @@
 import { promises as fs } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import net from "node:net";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { prisma } from "@/lib/db";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
+import { latestPassedCodeQualityGate } from "@/lib/server/code-quality-gate";
 import { cancelRunningJob } from "@/lib/server/job-registry";
 import { logAction } from "@/lib/server/actions";
-import { encodeJson } from "@/lib/server/json";
+import { decodeJson, encodeJson } from "@/lib/server/json";
 import { bootstrapS6E6BoostingEnvironment, submitGpuJob, testS6E6BoostingDependencies } from "@/lib/server/gpu-ssh-gateway";
-import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { buildHpcApprovalEvidence, validateHpcExecutionGate } from "@/lib/server/hpc-execution-gate";
+import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { ensurePrivateDirectory, readStableRegularTextFile, writeAtomicPrivateTextFile } from "@/lib/server/stable-file";
 import {
   createHpcExecutionGate,
   createWorkstationRun,
@@ -226,11 +229,11 @@ async function pythonSyntaxCheck(taskId: string) {
       const executable = process.platform === "win32" ? "python" : "python3";
       await execFileAsync(executable, ["-m", "py_compile", candidate], { timeout: 20000 });
       return { status: "passed", file: path.relative(resolveWorkspacePath("."), candidate), error: null };
-    } catch (error) {
+    } catch {
       return {
         status: "failed",
         file: path.relative(resolveWorkspacePath("."), candidate),
-        error: error instanceof Error ? error.message : "python syntax check failed"
+        error: "python_syntax_check_failed"
       };
     }
   }
@@ -281,38 +284,25 @@ async function patchPythonSyntaxCheck(taskId: string, patchText: string) {
   const pythonFiles = extractAddedPythonFilesFromPatch(patchText)
     .filter((item) => item.file.startsWith(`workspace/tasks/${taskId}/code/`) || item.file.startsWith(`tasks/${taskId}/code/`));
   if (!pythonFiles.length) return { status: "skipped", files: [] as string[], error: null as string | null };
-  const scratchRoot = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches/.syntax_${stamp()}`);
-  await fs.mkdir(scratchRoot, { recursive: true });
+  const scratchRoot = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches/.syntax_${randomUUID()}`);
+  await ensurePrivateDirectory(scratchRoot, workspaceRoot);
   try {
     const checked: string[] = [];
     for (const item of pythonFiles) {
       const scratchFile = path.join(scratchRoot, path.basename(item.file));
-      await fs.writeFile(scratchFile, item.content, "utf-8");
+      await writeAtomicPrivateTextFile(scratchFile, item.content, {
+        allowedRoot: scratchRoot,
+        maxBytes: 2_000_000
+      });
       await execFileAsync(pythonExecutable(), ["-m", "py_compile", scratchFile], { timeout: 20000 });
       checked.push(item.file);
     }
     return { status: "passed", files: checked, error: null };
-  } catch (error) {
-    return { status: "failed", files: pythonFiles.map((item) => item.file), error: error instanceof Error ? error.message : "patch python syntax check failed" };
+  } catch {
+    return { status: "failed", files: pythonFiles.map((item) => item.file), error: "patch_python_syntax_check_failed" };
   } finally {
     await fs.rm(scratchRoot, { recursive: true, force: true }).catch(() => undefined);
   }
-}
-
-async function latestPassedQualityGate(taskId: string) {
-  const patchDir = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches`);
-  const entries = await fs.readdir(patchDir, { withFileTypes: true }).catch(() => []);
-  const checks = await Promise.all(entries
-    .filter((entry) => entry.isFile() && entry.name.startsWith("code_quality_check_") && entry.name.endsWith(".json"))
-    .map(async (entry) => {
-      const fullPath = path.join(patchDir, entry.name);
-      const stat = await fs.stat(fullPath);
-      const payload = JSON.parse(await fs.readFile(fullPath, "utf-8").catch(() => "{}")) as Record<string, unknown>;
-      return { fullPath, payload, mtimeMs: stat.mtimeMs };
-    }));
-  return checks
-    .filter((check) => check.payload.overall_status === "passed")
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ?? null;
 }
 
 async function ensureTask(taskId: string) {
@@ -581,32 +571,72 @@ async function approveActionGate(input: {
     where: { taskId: input.taskId, runId: input.runId, gateType: input.gateType },
     orderBy: { createdAt: "desc" }
   });
-  const evidence = {
-    reviewer: input.reviewer,
-    reason: input.reason,
-    artifact_path: input.artifactPath ?? null,
-    approved_at: new Date().toISOString()
-  };
-  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
-  await prisma.gate.upsert({
-    where: { id: gateId },
-    update: {
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    },
-    create: {
-      id: gateId,
+  const existingEvidence = decodeJson<Record<string, unknown>>(gate?.evidenceJson) ?? {};
+  if (input.gateType === "hpc_execution_approval") {
+    const requestedTemplate = typeof existingEvidence.requested_template === "string"
+      ? existingEvidence.requested_template
+      : "";
+    const validation = await validateHpcExecutionGate(gate, {
       taskId: input.taskId,
       runId: input.runId,
-      gateType: input.gateType,
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
+      template: requestedTemplate,
+      requireApproved: false
+    });
+    if (!validation.ok) {
+      throw new Error(`HPC execution gate binding is invalid: ${validation.reasons.join(",")}`);
     }
-  });
+    if (!gate) throw new Error("HPC execution gate is missing.");
+  }
+  const decidedAt = new Date();
+  const evidence = gate && input.gateType === "hpc_execution_approval"
+    ? buildHpcApprovalEvidence(gate, {
+      reviewer: input.reviewer,
+      reason: input.reason,
+      artifactPath: input.artifactPath,
+      decidedAt
+    })
+    : {
+      ...existingEvidence,
+      approval: {
+        reviewer: input.reviewer,
+        reason: input.reason,
+        artifact_path: input.artifactPath ?? null,
+        approved_at: decidedAt.toISOString()
+      }
+    };
+  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
+  if (gate && input.gateType === "hpc_execution_approval") {
+    const updated = await prisma.gate.updateMany({
+      where: { id: gate.id, decision: "pending", evidenceJson: gate.evidenceJson },
+      data: {
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      }
+    });
+    if (updated.count !== 1) throw new Error("HPC execution gate changed during approval.");
+  } else {
+    await prisma.gate.upsert({
+      where: { id: gateId },
+      update: {
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      },
+      create: {
+        id: gateId,
+        taskId: input.taskId,
+        runId: input.runId,
+        gateType: input.gateType,
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      }
+    });
+  }
   await logAction({
     action: "approve_gate",
     taskId: input.taskId,
@@ -2935,62 +2965,119 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       const runId = await latestRunId(taskId);
       const requestedGateId = typeof payload.metadata?.gate_id === "string" ? payload.metadata.gate_id : undefined;
       const requestedGateType = typeof payload.metadata?.gate_type === "string" ? payload.metadata.gate_type : undefined;
-      const gateType = action.includes("submission") ? "submission_approval" : (requestedGateType ?? "manual_gate");
-      const existingGate = requestedGateId
+      const gateType = action.includes("submission") ? "submission_approval" : requestedGateType;
+      const candidateGate = requestedGateId
         ? await prisma.gate.findUnique({ where: { id: requestedGateId } })
-        : requestedGateType
-          ? await prisma.gate.findFirst({ where: { taskId, runId, gateType: requestedGateType }, orderBy: { createdAt: "desc" } })
+        : gateType
+          ? await prisma.gate.findFirst({ where: { taskId, runId, gateType }, orderBy: { createdAt: "desc" } })
           : null;
-      const artifact = await writeJsonArtifact(`workspace/gates/${gateType}_${stamp()}.json`, {
-        task_id: taskId,
-        gate_type: gateType,
-        gate_id: existingGate?.id ?? requestedGateId ?? null,
-        decision,
-        reviewer: "Research Admin",
-        target_gate_found: Boolean(existingGate),
-        created_at: new Date().toISOString()
-      });
-      const gate = existingGate
-        ? await prisma.gate.update({
-          where: { id: existingGate.id },
-          data: {
-            decision,
-            reviewer: "Research Admin",
-            evidenceJson: encodeJson({
-              artifact,
-              approved_by_action: action,
-              requested_gate_id: requestedGateId ?? null,
-              requested_gate_type: requestedGateType ?? null
-            }),
-            decidedAt: new Date()
-          }
-        })
-        : await prisma.gate.create({
-          data: {
-            id: requestedGateId ?? `gate_${stamp()}`,
-            taskId,
-            runId,
-            gateType,
-            decision,
-            reviewer: "Research Admin",
-            evidenceJson: encodeJson({ artifact }),
-            decidedAt: new Date()
-          }
+      const existingGate = candidateGate
+        && candidateGate.taskId === taskId
+        && (!gateType || candidateGate.gateType === gateType)
+        ? candidateGate
+        : null;
+      if (!existingGate) {
+        return {
+          ok: false,
+          action,
+          decision,
+          status: "blocked_gate_not_found",
+          error: "An existing task-scoped gate_id or gate_type is required before a decision can be recorded.",
+          target_gate_found: false
+        };
+      }
+      const targetRunId = existingGate.runId ?? runId;
+      const existingEvidence = decodeJson<Record<string, unknown>>(existingGate.evidenceJson) ?? {};
+      if (decision === "approved" && existingGate.gateType === "hpc_execution_approval") {
+        const requestedTemplate = typeof existingEvidence.requested_template === "string"
+          ? existingEvidence.requested_template
+          : "";
+        if (!targetRunId) {
+          return { ok: false, action, status: "blocked_hpc_gate_run_missing", error: "HPC gate has no bound run." };
+        }
+        const validation = await validateHpcExecutionGate(existingGate, {
+          taskId,
+          runId: targetRunId,
+          template: requestedTemplate,
+          requireApproved: false
         });
+        if (!validation.ok) {
+          return {
+            ok: false,
+            action,
+            status: "blocked_hpc_gate_binding_invalid",
+            error: "HPC gate binding validation failed.",
+            reasons: validation.reasons
+          };
+        }
+      }
+      const reviewer = "Research Admin";
+      const decidedAt = new Date();
+      const artifact = await writeJsonArtifact(`workspace/gates/${existingGate.gateType}_${stamp()}.json`, {
+        task_id: taskId,
+        workstation_run_id: targetRunId ?? null,
+        gate_type: existingGate.gateType,
+        gate_id: existingGate.id,
+        decision,
+        reviewer,
+        target_gate_found: true,
+        created_at: decidedAt.toISOString()
+      });
+      const decisionEvidence = decision === "approved" && existingGate.gateType === "hpc_execution_approval"
+        ? buildHpcApprovalEvidence(existingGate, {
+          reviewer,
+          reason: "Approved through the task-scoped workstation gate action.",
+          artifactPath: artifact,
+          decidedAt
+        })
+        : { ...existingEvidence };
+      if (decision !== "approved" && existingGate.gateType === "hpc_execution_approval") {
+        delete decisionEvidence.approval;
+      }
+      const evidenceJson = encodeJson({
+        ...decisionEvidence,
+        decision_record: {
+          artifact,
+          decided_by_action: action,
+          requested_gate_id: requestedGateId ?? null,
+          requested_gate_type: requestedGateType ?? null,
+          reviewer,
+          decided_at: decidedAt.toISOString()
+        }
+      });
+      const updateData = { decision, reviewer, evidenceJson, decidedAt };
+      let gate;
+      if (decision === "approved" && existingGate.gateType === "hpc_execution_approval") {
+        const updated = await prisma.gate.updateMany({
+          where: { id: existingGate.id, decision: "pending", evidenceJson: existingGate.evidenceJson },
+          data: updateData
+        });
+        if (updated.count !== 1) {
+          return {
+            ok: false,
+            action,
+            status: "blocked_hpc_gate_state_changed",
+            error: "HPC gate state or evidence changed during approval. Prepare and review a new gate."
+          };
+        }
+        gate = { ...existingGate, ...updateData };
+      } else {
+        gate = await prisma.gate.update({ where: { id: existingGate.id }, data: updateData });
+      }
       const record = await logAction({
         action,
         taskId,
-        runId,
+        runId: targetRunId,
         message: `${gate.gateType} ${decision}.`,
         artifactPath: artifact,
         metadata: {
           decision,
           gate_id: gate.id,
           gate_type: gate.gateType,
-          target_gate_found: Boolean(existingGate)
+          target_gate_found: true
         }
       });
-      return { ok: true, ...record, decision, gate_id: gate.id, gate_type: gate.gateType, target_gate_found: Boolean(existingGate) };
+      return { ok: true, ...record, decision, gate_id: gate.id, gate_type: gate.gateType, target_gate_found: true };
     }
     case "audit_s6e6_submission": {
       const runId = typeof payload.metadata?.run_id === "string" && payload.metadata.run_id.trim()
@@ -3073,23 +3160,31 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       return { ok: true, ...record };
     }
     case "review_agent_patch": {
+      const reviewRevisionId = randomUUID();
       const sourceAgent = String(payload.metadata?.source_agent ?? "manual");
       const patchStatus = String(payload.metadata?.patch_status ?? "suggested");
       const patch = await patchFromReviewMetadata(taskId, payload.metadata);
-      const patchText = patch ? await fs.readFile(patch.fullPath, "utf-8").catch(() => "") : "";
+      const patchDir = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches`);
+      const stablePatch = patch
+        ? await readStableRegularTextFile(patch.fullPath, { allowedRoot: patchDir, maxBytes: 2_000_000 }).catch(() => null)
+        : null;
+      const patchText = stablePatch?.text ?? "";
+      const patchSha256 = stablePatch?.sha256 ?? null;
       const patchAnalysis = analyzePatch(taskId, patchText);
       const syntax = await pythonSyntaxCheck(taskId);
       const patchSyntax = await patchPythonSyntaxCheck(taskId, patchText);
       const overallStatus = patch
+        && stablePatch
         && patchAnalysis.passed
         && syntax.status !== "failed"
         && patchSyntax.status !== "failed"
         ? "passed"
         : "failed";
-      const reviewArtifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/patch_review_${stamp()}.json`, {
+      const reviewArtifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/patch_review_${reviewRevisionId}.json`, {
         task_id: taskId,
         patch_id: patch?.name.replace(/\.diff$/, "") ?? null,
         patch_path: patch?.relativePath ?? null,
+        patch_sha256: patchSha256,
         source_agent: sourceAgent,
         patch_status: patchStatus,
         review_status: overallStatus,
@@ -3097,10 +3192,11 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         affected_files: patchAnalysis.files,
         reviewed_at: new Date().toISOString()
       });
-      const qualityArtifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/code_quality_check_${stamp()}.json`, {
+      const qualityArtifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/code_quality_check_${reviewRevisionId}.json`, {
         task_id: taskId,
         patch_id: patch?.name.replace(/\.diff$/, "") ?? null,
         patch_path: patch?.relativePath ?? null,
+        patch_sha256: patchSha256,
         overall_status: overallStatus,
         file_scope_check: patchAnalysis.outsideAllowedScope.length ? "warning" : "passed",
         original_data_check: patchAnalysis.originalDataTouched ? "failed" : "passed",
@@ -3122,7 +3218,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         findings: patch ? patchAnalysis.findings : ["No imported patch diff found."],
         created_at: new Date().toISOString()
       });
-      const diffArtifact = await writeTextArtifact(`workspace/tasks/${taskId}/code/patches/patch_diff_${stamp()}.md`, [
+      const diffArtifact = await writeTextArtifact(`workspace/tasks/${taskId}/code/patches/patch_diff_${reviewRevisionId}.md`, [
         `# Patch Review`,
         ``,
         `- task_id: ${taskId}`,
@@ -3136,22 +3232,23 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         `## Findings`,
         ...(patchAnalysis.findings.length ? patchAnalysis.findings.map((finding) => `- ${finding}`) : ["- No blocking findings."]),
         ``,
-        `## Patch Excerpt`,
-        "```diff",
-        ...(patchText ? patchText.split(/\r?\n/).slice(0, 80) : ["No patch diff was available."]),
-        "```"
+        `## Patch Content`,
+        patchText
+          ? "Patch content is not duplicated into review summaries. Inspect the hash-bound patch artifact through the controlled workspace path."
+          : "No patch diff was available."
       ].join("\n"));
-      const traceArtifact = await writeTextArtifact(`workspace/tasks/${taskId}/code/patches/code_agent_trace_${stamp()}.jsonl`, JSON.stringify({
+      const traceArtifact = await writeTextArtifact(`workspace/tasks/${taskId}/code/patches/code_agent_trace_${reviewRevisionId}.jsonl`, JSON.stringify({
         task_id: taskId,
         action: "review_agent_patch",
         source_agent: sourceAgent,
         patch_status: patchStatus,
         overall_status: overallStatus,
         patch_path: patch?.relativePath ?? null,
+        patch_sha256: patchSha256,
         created_at: new Date().toISOString()
       }) + "\n");
       const failureReviewArtifact = overallStatus === "failed"
-        ? await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/failure_review_${stamp()}.json`, {
+        ? await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/failure_review_${reviewRevisionId}.json`, {
           schema: "academic_research_os.agent_failure_review.v1",
           task_id: taskId,
           failed_stage: "code_review",
@@ -3176,17 +3273,21 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
           created_at: new Date().toISOString()
         })
         : null;
+      const qualityArtifactStable = await readStableRegularTextFile(
+        resolveWorkspacePath(qualityArtifact),
+        { allowedRoot: patchDir, maxBytes: 1_000_000 }
+      );
       const record = await logAction({
         action,
         taskId,
         message: overallStatus === "passed" ? "Code agent patch passed quality gate; human approval still required before apply." : "Code agent patch failed quality gate; apply is blocked.",
         artifactPath: reviewArtifact,
-        metadata: { source_agent: sourceAgent, patch_status: patchStatus, overall_status: overallStatus, review_artifact: reviewArtifact, quality_artifact: qualityArtifact, diff_artifact: diffArtifact, trace_artifact: traceArtifact, failure_review_artifact: failureReviewArtifact }
+        metadata: { source_agent: sourceAgent, patch_status: patchStatus, overall_status: overallStatus, patch_sha256: patchSha256, review_artifact: reviewArtifact, quality_artifact: qualityArtifact, quality_artifact_sha256: qualityArtifactStable.sha256, diff_artifact: diffArtifact, trace_artifact: traceArtifact, failure_review_artifact: failureReviewArtifact }
       });
       return { ok: true, ...record, quality_status: overallStatus };
     }
     case "apply_agent_patch": {
-      const qualityGate = await latestPassedQualityGate(taskId);
+      const qualityGate = await latestPassedCodeQualityGate(taskId);
       if (!qualityGate) {
         const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/apply_blocked_${stamp()}.json`, {
           task_id: taskId,
@@ -3209,16 +3310,20 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       const gatePatchPath = typeof qualityGate.payload.patch_path === "string"
         ? qualityGate.payload.patch_path.replaceAll("\\", "/")
         : "";
-      const gatePatchExists = gatePatchPath
-        ? await fs.stat(resolveWorkspacePath(gatePatchPath)).then((stat) => stat.isFile()).catch(() => false)
-        : false;
-      if (!gatePatchPath || !gatePatchExists) {
+      const gatePatch = gatePatchPath
+        ? await readStableRegularTextFile(resolveWorkspacePath(gatePatchPath), {
+          allowedRoot: resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches`),
+          maxBytes: 2_000_000
+        }).catch(() => null)
+        : null;
+      if (!gatePatchPath || !gatePatch || gatePatch.sha256 !== qualityGate.patchSha256) {
         const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/apply_blocked_${stamp()}.json`, {
           task_id: taskId,
           action,
           blocked: true,
           reason: "The latest passed Code Quality Gate does not bind to an existing patch artifact.",
-          quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath),
+          quality_gate_path: qualityGate.relativePath,
+          quality_gate_sha256: qualityGate.qualityArtifactSha256,
           created_at: new Date().toISOString()
         });
         const record = await logAction({
@@ -3226,7 +3331,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
           taskId,
           message: "Patch apply blocked because the passed Code Quality Gate has no usable patch binding.",
           artifactPath: artifact,
-          metadata: { blocked: true, quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath) }
+          metadata: { blocked: true, quality_gate_path: qualityGate.relativePath, quality_gate_sha256: qualityGate.qualityArtifactSha256 }
         });
         return { ok: false, ...record, error: "Patch apply blocked: missing bound patch artifact." };
       }
@@ -3236,7 +3341,10 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         patch_status: patchStatus,
         action,
         patch_path: gatePatchPath,
-        quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath),
+        patch_sha256: qualityGate.patchSha256,
+        quality_gate_path: qualityGate.relativePath,
+        quality_gate_sha256: qualityGate.qualityArtifactSha256,
+        quality_gate_action_id: qualityGate.actionId,
         applied_logical_only: true,
         next_required_step: "run_local_experiment",
         created_at: new Date().toISOString()
@@ -3246,7 +3354,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         taskId,
         message: "Patch apply recorded after passed Code Quality Gate; run local experiment to compare metrics.",
         artifactPath: artifact,
-        metadata: { source_agent: sourceAgent, patch_status: patchStatus, quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath) }
+        metadata: { source_agent: sourceAgent, patch_status: patchStatus, patch_sha256: qualityGate.patchSha256, quality_gate_path: qualityGate.relativePath, quality_gate_sha256: qualityGate.qualityArtifactSha256, quality_gate_action_id: qualityGate.actionId }
       });
       return { ok: true, ...record };
     }

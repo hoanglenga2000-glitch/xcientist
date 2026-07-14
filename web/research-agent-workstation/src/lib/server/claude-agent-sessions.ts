@@ -1,9 +1,11 @@
+import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { ProviderBoundaryError, providerHttpFailure, readBoundedProviderJson, safeProviderFailure } from "@/lib/security/provider-boundary";
 import { logAction } from "@/lib/server/actions";
 import { claudeApiKeyStatus, claudeApiKeyValue, deepSeekApiKeyStatus, deepSeekConfig, hasClaudeApiKey, hasDeepSeekApiKey } from "@/lib/server/capabilities";
 import { attachDeepSeekCacheUsage, createDeepSeekCacheMessages, localResponseCacheUsage, readDeepSeekCachedResponse, recordDeepSeekCacheSession, writeDeepSeekCachedResponse, type DeepSeekCacheMetadata } from "@/lib/server/deepseek-cache";
-import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, toRelativePath, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 
 type ClaudeSessionStatus = "not_configured" | "running" | "completed" | "failed" | "cancelled";
 
@@ -42,20 +44,28 @@ export type ClaudeSessionRecord = {
 
 const abortControllers = new Map<string, AbortController>();
 
+const SESSION_ID_RE = /^(?:claude|deepseek_code)_(?:[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z_[a-z0-9]{6})$/;
+
+export function normalizeClaudeSessionId(value: string) {
+  const sessionId = String(value ?? "").trim();
+  if (!SESSION_ID_RE.test(sessionId)) throw new Error("Invalid code-agent session ID");
+  return sessionId;
+}
+
 function sessionDir(sessionId: string) {
-  return resolveWorkspacePath(path.join("workspace", "code_agent_sessions", sessionId));
+  return resolveWorkspacePath(path.join("workspace", "code_agent_sessions", normalizeClaudeSessionId(sessionId)));
 }
 
 function sessionManifestRelative(sessionId: string) {
-  return path.join("workspace", "code_agent_sessions", sessionId, "session_manifest.json").replaceAll("\\", "/");
+  return path.join("workspace", "code_agent_sessions", normalizeClaudeSessionId(sessionId), "session_manifest.json").replaceAll("\\", "/");
 }
 
 function transcriptRelative(sessionId: string) {
-  return path.join("workspace", "code_agent_sessions", sessionId, "transcript.jsonl").replaceAll("\\", "/");
+  return path.join("workspace", "code_agent_sessions", normalizeClaudeSessionId(sessionId), "transcript.jsonl").replaceAll("\\", "/");
 }
 
 function patchRelative(taskId: string, sessionId: string) {
-  return path.join("workspace", "tasks", taskId, "code", "patches", `claude_agent_${sessionId}.diff`).replaceAll("\\", "/");
+  return path.join("workspace", "tasks", taskId, "code", "patches", `claude_agent_${normalizeClaudeSessionId(sessionId)}.diff`).replaceAll("\\", "/");
 }
 
 function extractDiff(text: string) {
@@ -293,9 +303,10 @@ export async function readClaudeSession(sessionId: string) {
 }
 
 export async function cancelClaudeSession(sessionId: string) {
-  const controller = abortControllers.get(sessionId);
+  const normalizedSessionId = normalizeClaudeSessionId(sessionId);
+  const controller = abortControllers.get(normalizedSessionId);
   if (controller) controller.abort();
-  const current = await readClaudeSession(sessionId);
+  const current = await readClaudeSession(normalizedSessionId);
   if (!current) return null;
   const updated: ClaudeSessionRecord = { ...current, status: "cancelled", updated_at: new Date().toISOString() };
   await writeRecord(updated);
@@ -344,7 +355,7 @@ export async function probeDeepSeekCodeCache(input: { taskId: string; prompt?: s
 export async function createClaudeSession(input: CreateClaudeSessionInput) {
   const taskId = normalizeTaskId(input.taskId);
   const provider = selectedProvider(input.provider);
-  const sessionId = `${provider === "claude_agent_sdk" ? "claude" : "deepseek_code"}_${stamp()}_${Math.random().toString(36).slice(2, 8)}`;
+  const sessionId = `${provider === "claude_agent_sdk" ? "claude" : "deepseek_code"}_${randomUUID()}`;
   const now = new Date().toISOString();
   const model = selectedModel(provider, input.model);
   await fs.mkdir(sessionDir(sessionId), { recursive: true });
@@ -608,12 +619,15 @@ async function createDeepSeekCodeSession(baseRecord: ClaudeSessionRecord, input:
       });
       return failed;
     }
+    if (config.boundaryError || !config.chatCompletionsUrl) {
+      throw new ProviderBoundaryError(config.boundaryError ?? "provider_endpoint_invalid");
+    }
     const maxAttempts = Math.max(1, Math.min(Number(input.maxTurns ?? 2), 3));
     let payload: Record<string, unknown> = {};
-    let lastError: Error | null = null;
+    let lastError: ProviderBoundaryError | null = null;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        const response = await fetch(`${config.baseUrl.replace(/\/$/, "")}/chat/completions`, {
+        const response = await fetch(config.chatCompletionsUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${config.apiKey}`,
@@ -624,18 +638,23 @@ async function createDeepSeekCodeSession(baseRecord: ClaudeSessionRecord, input:
             messages,
             stream: false
           }),
+          redirect: "error",
           signal: AbortSignal.timeout(Math.max(10, input.timeoutSeconds ?? 120) * 1000)
         });
-        payload = await response.json().catch(() => ({})) as Record<string, unknown>;
+        const responsePayload = await readBoundedProviderJson(response);
         if (!response.ok) {
-          throw new Error(typeof payload.error === "object" ? JSON.stringify(payload.error) : `DeepSeek Code Agent request failed: ${response.status}`);
+          throw new ProviderBoundaryError(providerHttpFailure("deepseek_code_agent", response));
         }
+        payload = responsePayload;
         attemptLog.push({ attempt, status: "passed", created_at: new Date().toISOString() });
         lastError = null;
         break;
       } catch (error) {
-        lastError = error instanceof Error ? error : new Error("DeepSeek Code Agent request failed.");
-        attemptLog.push({ attempt, status: "failed", error: lastError.message, created_at: new Date().toISOString() });
+        const failureCode = error instanceof ProviderBoundaryError
+          ? error.code
+          : safeProviderFailure(error, "deepseek_code_agent_request_failed");
+        lastError = new ProviderBoundaryError(failureCode);
+        attemptLog.push({ attempt, status: "failed", error: failureCode, created_at: new Date().toISOString() });
         if (attempt < maxAttempts) {
           await new Promise((resolve) => setTimeout(resolve, 750 * attempt));
         }
@@ -717,6 +736,7 @@ async function createDeepSeekCodeSession(baseRecord: ClaudeSessionRecord, input:
     });
     return completed;
   } catch (error) {
+    const failureCode = safeProviderFailure(error, "deepseek_code_agent_session_failed");
     const failureCacheMetadata = typeof cacheMetadata !== "undefined"
       ? attachDeepSeekCacheUsage(cacheMetadata, undefined)
       : undefined;
@@ -727,7 +747,7 @@ async function createDeepSeekCodeSession(baseRecord: ClaudeSessionRecord, input:
       attempts: attemptLog,
       deepseek_cache: failureCacheMetadata,
       final_status: "failed",
-      error: error instanceof Error ? error.message : "DeepSeek Code Agent session failed."
+      error: failureCode
     })}\n`);
     const failed: ClaudeSessionRecord = {
       ...baseRecord,
@@ -735,7 +755,7 @@ async function createDeepSeekCodeSession(baseRecord: ClaudeSessionRecord, input:
       status: "failed",
       transcript_path: transcriptPath,
       deepseek_cache: failureCacheMetadata,
-      error: error instanceof Error ? error.message : "DeepSeek Code Agent session failed.",
+      error: failureCode,
       updated_at: new Date().toISOString()
     };
     await writeRecord(failed);

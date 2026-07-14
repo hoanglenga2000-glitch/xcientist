@@ -7,14 +7,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping
 
-from xsci.workspace_agent import WorkspaceAgentLimits, run_workspace_agent
-
-
-def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(path.name + ".tmp")
-    temporary.write_text(json.dumps(dict(payload), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+from xsci.workspace_agent import WorkspaceAgentLimits, run_workspace_agent, write_workspace_result
 
 
 def _load_factory(spec: str) -> Any:
@@ -91,10 +84,10 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(request, Mapping):
             raise TypeError("request document must be a JSON object")
         payload = run_request(request)
-        _write_json(result_path, payload)
+        write_workspace_result(result_path, payload)
         return 0
     except BaseException as exc:
-        _write_json(result_path, {
+        write_workspace_result(result_path, {
             "schema": "evomind.workspace_agent_benchmark_worker_error.v1",
             "ok": False,
             "completed": False,
