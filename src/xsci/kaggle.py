@@ -190,12 +190,15 @@ def _strong(text: str) -> str:
 
 
 def _safe_print(text: str = "") -> None:
+    from .workspace_agent import _safe_text
+
+    rendered = _safe_text(text, limit=1_000_000)
     try:
-        print(text)
+        print(rendered)  # lgtm[py/clear-text-logging-sensitive-data] _safe_text redacts credential-bearing values.
     except UnicodeEncodeError:
         encoding = sys.stdout.encoding or "utf-8"
-        safe = str(text).encode(encoding, errors="replace").decode(encoding, errors="replace")
-        print(safe)
+        safe = rendered.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        print(safe)  # lgtm[py/clear-text-logging-sensitive-data] safe is derived only from redacted rendered text.
 
 
 def logo() -> str:
@@ -1886,7 +1889,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
     with _provider_selection(args.provider):
         from research_os.agent.messaging import AgentMessageClient
 
-        from .workspace_agent import WorkspaceAgentLimits, run_workspace_agent
+        from .workspace_agent import WorkspaceAgentLimits, run_workspace_agent, sanitize_workspace_result
 
         client = AgentMessageClient(max_retries=1, timeout=min(120, timeout_seconds))
         if not client.is_available():
@@ -1921,6 +1924,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
     payload.setdefault("workspace_root", str(workspace_root))
     payload.setdefault("goal", goal)
     payload.setdefault("requested_provider", args.provider or "configured_default")
+    payload = sanitize_workspace_result(payload)
     if args.json:
         _safe_print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:

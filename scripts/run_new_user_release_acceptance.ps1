@@ -4,7 +4,8 @@
 param(
   [int]$Port = 8088,
   [switch]$SkipBuild,
-  [switch]$SkipBrowserSmoke
+  [switch]$SkipBrowserSmoke,
+  [string]$PythonExecutable = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -23,6 +24,18 @@ $ReportMd = Join-Path $Root "reports\NEW_USER_RELEASE_ACCEPTANCE.md"
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
+
+if ($PythonExecutable) {
+  if (Test-Path -LiteralPath $PythonExecutable -PathType Leaf) {
+    $PythonExe = (Resolve-Path -LiteralPath $PythonExecutable).Path
+  } else {
+    $PythonExe = (Get-Command $PythonExecutable -ErrorAction Stop).Source
+  }
+} else {
+  $PythonExe = (Get-Command python -ErrorAction Stop).Source
+}
+$pythonDir = Split-Path -Parent $PythonExe
+$env:Path = "$pythonDir;$env:Path"
 
 function Step([string]$Text) {
   Write-Host ""
@@ -63,8 +76,29 @@ function Run-Check([string]$Id, [scriptblock]$Script) {
 $checks = @()
 
 Step "Static and build checks"
+$checks += Run-Check "stop_existing_workstation_frontend" {
+  $listenerIds = @(
+    Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
+      Select-Object -ExpandProperty OwningProcess -Unique
+  )
+  foreach ($listenerId in $listenerIds) {
+    Stop-Process -Id $listenerId -Force -ErrorAction Stop
+  }
+  if ($listenerIds.Count -gt 0) {
+    $deadline = (Get-Date).AddSeconds(10)
+    do {
+      Start-Sleep -Milliseconds 100
+      $remaining = @(
+        Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+      )
+    } while ($remaining.Count -gt 0 -and (Get-Date) -lt $deadline)
+    if ($remaining.Count -gt 0) {
+      throw "Existing listener on port $Port did not stop"
+    }
+  }
+}
 $checks += Run-Check "python_core_compile" {
-  python -m py_compile `
+  & $PythonExe -m py_compile `
     src/xsci/kaggle.py `
     src/xsci/kaggle_conversation.py `
     src/xsci/kaggle_actions.py `
@@ -104,10 +138,40 @@ $checks += Run-Check "powershell_script_parse" {
   }
 }
 $checks += Run-Check "installer_smoke_no_secrets" {
-  powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1 -SkipBuild -SkipNpmInstall -SkipSecretPrompt -SkipVerify
+  $runId = [guid]::NewGuid().ToString("N")
+  $stdout = Join-Path ([System.IO.Path]::GetTempPath()) "evomind-install-$runId.out.log"
+  $stderr = Join-Path ([System.IO.Path]::GetTempPath()) "evomind-install-$runId.err.log"
+  try {
+    $installer = Start-Process `
+      -FilePath "powershell" `
+      -ArgumentList @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", (Join-Path $Root "install.ps1"),
+        "-SkipBuild",
+        "-SkipSecretPrompt",
+        "-SkipVerify"
+      ) `
+      -WorkingDirectory $Root `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $stdout `
+      -RedirectStandardError $stderr `
+      -Wait `
+      -PassThru
+    $diagnostic = @(
+      Get-Content -LiteralPath $stdout -ErrorAction SilentlyContinue
+      Get-Content -LiteralPath $stderr -ErrorAction SilentlyContinue
+    )
+    $diagnostic
+    if ($installer.ExitCode -ne 0) {
+      throw "installer smoke failed with exit code $($installer.ExitCode)"
+    }
+  } finally {
+    Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
+  }
 }
 $checks += Run-Check "cli_tests" {
-  python -m pytest tests/test_kaggle_menu.py tests/test_autokaggle_cli.py tests/test_xsci_cli.py tests/test_xsci_phase2.py tests/test_xsci_phase3.py tests/test_kaggle_stream.py -q
+  & $PythonExe -m pytest tests/test_kaggle_menu.py tests/test_autokaggle_cli.py tests/test_xsci_cli.py tests/test_xsci_phase2.py tests/test_xsci_phase3.py tests/test_kaggle_stream.py -q
 }
 $checks += Run-Check "frontend_typecheck" {
   Push-Location $Web
@@ -125,16 +189,16 @@ $checks += Run-Check "start_production_workstation_frontend" {
   powershell -NoProfile -ExecutionPolicy Bypass -File scripts\restart_workstation_frontend.ps1 -Port $Port -Mode production
 }
 $checks += Run-Check "workstation_launch_readiness" {
-  python scripts\verify_workstation_launch_readiness.py --write-report --base-url $BaseUrl --fresh-install
+  & $PythonExe scripts\verify_workstation_launch_readiness.py --write-report --base-url $BaseUrl --fresh-install
 }
 $checks += Run-Check "new_user_release_readiness_live" {
-  python scripts\verify_new_user_release_readiness.py --write-report --require-live-server --base-url $BaseUrl
+  & $PythonExe scripts\verify_new_user_release_readiness.py --write-report --require-live-server --base-url $BaseUrl
 }
 
 if (-not $SkipBrowserSmoke) {
   Step "Browser and interaction checks"
   $checks += Run-Check "browser_render_smoke" {
-    python scripts\verify_workstation_browser_render_smoke.py --write-report --base-url $BaseUrl
+    & $PythonExe scripts\verify_workstation_browser_render_smoke.py --write-report --base-url $BaseUrl
   }
   $checks += Run-Check "click_smoke" {
     node scripts\verify_workstation_click_smoke.mjs --write-report --base-url $BaseUrl
@@ -146,7 +210,7 @@ if (-not $SkipBrowserSmoke) {
 
 Step "Security and CLI routing"
 $checks += Run-Check "secret_scan" {
-  python scripts\verify_no_plaintext_secrets.py
+  & $PythonExe scripts\verify_no_plaintext_secrets.py
 }
 $checks += Run-Check "cli_routing" {
   $shim = Join-Path $env:USERPROFILE ".xsci\bin"

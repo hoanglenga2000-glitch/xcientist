@@ -1,6 +1,13 @@
 import { promises as fs } from "node:fs";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { prisma } from "@/lib/db";
+import {
+  normalizeAuditAction,
+  sanitizeAuditArtifactPath,
+  sanitizeAuditMetadata,
+  sanitizeAuditText
+} from "@/lib/security/audit-log";
 import { encodeJson } from "@/lib/server/json";
 import { normalizeTaskId, runtimeRoot, stamp } from "@/lib/server/paths";
 
@@ -14,10 +21,15 @@ export type LogActionInput = {
 };
 
 export async function logAction(input: LogActionInput) {
-  const id = `action_${stamp()}_${Math.random().toString(36).slice(2, 8)}`;
+  const id = `action_${stamp()}_${randomUUID()}`;
   const createdAt = new Date();
+  const action = normalizeAuditAction(input.action);
+  const message = sanitizeAuditText(input.message, 4_000);
+  const artifactPath = sanitizeAuditArtifactPath(input.artifactPath);
+  const metadata = sanitizeAuditMetadata(input.metadata);
   const taskId = input.taskId ? normalizeTaskId(input.taskId) : undefined;
-  let runId = input.runId;
+  let runId = input.runId?.trim();
+  if (runId && !/^[A-Za-z0-9_.:-]{1,160}$/.test(runId)) runId = undefined;
   if (taskId) {
     await prisma.task.upsert({
       where: { id: taskId },
@@ -40,30 +52,37 @@ export async function logAction(input: LogActionInput) {
   }
   const record = {
     action_id: id,
-    action: input.action,
+    action,
     task_id: taskId,
     run_id: runId,
-    message: input.message,
-    artifact: input.artifactPath ?? undefined,
-    metadata: input.metadata ?? {},
+    message,
+    artifact: artifactPath ?? undefined,
+    metadata,
     at: createdAt.toISOString()
   };
 
   await prisma.actionLog.create({
     data: {
       id,
-      action: input.action,
+      action,
       taskId,
       runId,
-      message: input.message,
-      artifactPath: input.artifactPath ?? null,
-      metadataJson: encodeJson(input.metadata ?? null),
+      message,
+      artifactPath,
+      metadataJson: encodeJson(metadata),
       createdAt
     }
   });
 
   await fs.mkdir(runtimeRoot, { recursive: true });
-  await fs.appendFile(path.join(runtimeRoot, "action_log.jsonl"), `${JSON.stringify(record)}\n`, "utf-8");
+  const logHandle = await fs.open(path.join(runtimeRoot, "action_log.jsonl"), "a", 0o600);
+  try {
+    // lgtm[js/http-to-file-access] All request-derived fields are bounded and credential-redacted above.
+    await logHandle.writeFile(`${JSON.stringify(record)}\n`, "utf-8");
+    await logHandle.sync();
+  } finally {
+    await logHandle.close();
+  }
 
   return record;
 }

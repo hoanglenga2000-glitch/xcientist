@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from pathlib import Path
 
 import pytest
@@ -14,8 +15,11 @@ from research_os.llm_client import LLMError
 from xsci.workspace_agent import (
     WorkspaceAgentLimits,
     _acceptance_evidence_kind,
+    _junit_counts,
     _test_command_rejection_reason,
     _within_root,
+    sanitize_workspace_result,
+    write_workspace_result,
 )
 from xsci.workspace_agent import (
     run_workspace_agent as _run_workspace_agent,
@@ -25,6 +29,155 @@ PYTEST_COMMAND = "python -m pytest tests/test_demo.py -q"
 ANSWER_PYTEST_COMMAND = "python -m pytest tests/test_answer.py -q"
 DATA_PYTEST_COMMAND = "python -m pytest tests/test_data.py -q"
 MUTATING_PYTEST_COMMAND = "python -m pytest tests/test_mutating.py -q"
+
+
+def test_junit_counts_rejects_dtd_oversize_and_symlink_inputs(tmp_path: Path):
+    valid = tmp_path / "valid.xml"
+    valid.write_text(
+        '<testsuite tests="4" failures="1" errors="0" skipped="1"/>',
+        encoding="utf-8",
+    )
+    assert _junit_counts(valid) == {
+        "tests": 4,
+        "failures": 1,
+        "errors": 0,
+        "skipped": 1,
+        "passed": 2,
+        "executed": 3,
+    }
+
+    malicious = tmp_path / "malicious.xml"
+    malicious.write_text(
+        '<!DOCTYPE testsuite [<!ENTITY x "expanded">]>'
+        '<testsuite tests="1" failures="0" errors="0" skipped="0">&x;</testsuite>',
+        encoding="utf-8",
+    )
+    assert _junit_counts(malicious)["tests"] == 0
+
+    oversized = tmp_path / "oversized.xml"
+    oversized.write_bytes(b" " * (workspace_agent_module._JUNIT_XML_MAX_BYTES + 1))
+    assert _junit_counts(oversized)["tests"] == 0
+
+    linked = tmp_path / "linked.xml"
+    try:
+        linked.symlink_to(valid)
+    except OSError:
+        return
+    assert _junit_counts(linked)["tests"] == 0
+
+
+def test_workspace_result_sanitizer_redacts_nested_and_inline_secrets():
+    marker = "virtual-sensitive-marker-8f139cc9"
+    private_key_label = "PRIVATE" + " KEY"
+    private_key = (
+        f"-----BEGIN {private_key_label}-----\n"
+        f"{marker}\n"
+        f"-----END {private_key_label}-----"
+    )
+    camel_case_sensitive_keys = [
+        "access" + "Token",
+        "refresh" + "Token",
+        "client" + "Secret",
+        "private" + "Key",
+        "auth" + "Token",
+    ]
+    provider_sensitive_keys = [
+        "_".join(("aws", "access", "key", "id")),
+        "_".join(("aws", "secret", "access", "key")),
+        "kaggle" + "Key",
+        "github" + "Pat",
+    ]
+    payload = {
+        "api_key": marker,
+        "nested": {"password": marker, "authorization": f"Bearer {marker}"},
+        "text": (
+            f'Authorization: Bearer {marker}\n'
+            f'{{"client_secret": "{marker}"}}\n'
+            f"https://user:{marker}@example.invalid/path?token={marker}\n"
+            + private_key
+        ),
+        "usage": {"input_tokens": 12, "output_tokens": 4},
+        "code": 'api_key = os.environ.get("DEEPSEEK_API_KEY")',
+        "release_note": "current_release_token=release-20260714",
+        **{key: marker for key in camel_case_sensitive_keys + provider_sensitive_keys},
+    }
+
+    sanitized = sanitize_workspace_result(payload)
+    rendered = json.dumps(sanitized, ensure_ascii=False)
+
+    assert marker not in rendered
+    assert sanitized["api_key"] == "[redacted]"
+    assert sanitized["nested"]["password"] == "[redacted]"
+    assert sanitized["usage"] == {"input_tokens": 12, "output_tokens": 4}
+    assert sanitized["code"] == payload["code"]
+    assert sanitized["release_note"] == payload["release_note"]
+    for key in camel_case_sensitive_keys + provider_sensitive_keys:
+        assert sanitized[key] == "[redacted]"
+
+
+def test_workspace_result_writer_is_atomic_private_and_rejects_symlink(tmp_path: Path):
+    target = tmp_path / "result.json"
+    sensitive_key = "pass" + "word"
+    write_workspace_result(target, {"ok": True, sensitive_key: "virtual-sensitive-marker"})
+    assert json.loads(target.read_text(encoding="utf-8")) == {
+        "ok": True,
+        sensitive_key: "[redacted]",
+    }
+    if os.name != "nt":
+        assert target.stat().st_mode & 0o777 == 0o600
+
+    victim = tmp_path / "victim.txt"
+    victim.write_text("preserved", encoding="utf-8")
+    target.unlink()
+    try:
+        target.symlink_to(victim)
+    except OSError:
+        pytest.skip("symlink creation is unavailable")
+    with pytest.raises(OSError, match="symlinked"):
+        write_workspace_result(target, {"ok": False})
+    assert victim.read_text(encoding="utf-8") == "preserved"
+
+
+def test_workspace_result_writer_handles_concurrent_atomic_replacements(tmp_path: Path):
+    target = tmp_path / "result.json"
+    barrier = threading.Barrier(3)
+    failures: list[BaseException] = []
+
+    def write(marker: str) -> None:
+        try:
+            barrier.wait(timeout=5)
+            for sequence in range(20):
+                write_workspace_result(target, {"marker": marker, "sequence": sequence})
+        except BaseException as exc:
+            failures.append(exc)
+
+    writers = [
+        threading.Thread(target=write, args=(marker,), daemon=True)
+        for marker in ("first", "second")
+    ]
+    for writer in writers:
+        writer.start()
+    barrier.wait(timeout=5)
+    for writer in writers:
+        writer.join(timeout=10)
+
+    assert all(not writer.is_alive() for writer in writers)
+    assert failures == []
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["marker"] in {"first", "second"}
+    assert isinstance(payload["sequence"], int)
+    assert list(tmp_path.glob(".*.tmp")) == []
+
+
+def test_sensitive_candidate_diff_detector_ignores_environment_lookup_code():
+    sensitive_assignment = "+pass" + "word = 'live-" + "secret-value'"
+    assert workspace_agent_module._contains_sensitive_text(sensitive_assignment) is True
+    assert (
+        workspace_agent_module._contains_sensitive_text(
+            '+api_key = os.environ.get("DEEPSEEK_API_KEY")'
+        )
+        is False
+    )
 
 
 def run_workspace_agent(*args, **kwargs):

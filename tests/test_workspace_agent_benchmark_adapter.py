@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import socket
 import subprocess
 import sys
 import threading
@@ -631,6 +632,75 @@ def test_workspace_agent_benchmark_parent_timeout_terminates_worker(
     assert report["case_results"][0]["timed_out"] is True
     assert "was terminated" in report["case_results"][0]["failure_reason"]
     assert cleaned_roots and all(not path.exists() for path in cleaned_roots)
+
+
+def test_workspace_agent_worker_exit_with_inherited_stdout_is_bounded_and_cleans_descendant(
+    tmp_path: Path,
+):
+    workspace = tmp_path / "workspace"
+    artifacts = tmp_path / "artifacts"
+    workspace.mkdir()
+    artifacts.mkdir()
+    descendant_state = workspace / "descendant.json"
+    child_code = (
+        "import json, socket, sys, time\n"
+        "from pathlib import Path\n"
+        "listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+        "listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)\n"
+        "listener.bind(('127.0.0.1', 0))\n"
+        "listener.listen(1)\n"
+        "Path(sys.argv[1]).write_text(json.dumps({"
+        "'pid': __import__('os').getpid(), 'port': listener.getsockname()[1]}), encoding='utf-8')\n"
+        "time.sleep(6)\n"
+    )
+    (workspace / "leaky_factory.py").write_text(
+        "import subprocess, sys, time\n"
+        "from pathlib import Path\n"
+        f"CHILD_CODE = {child_code!r}\n"
+        "def create_client():\n"
+        "    state = Path(__file__).with_name('descendant.json')\n"
+        "    subprocess.Popen([sys.executable, '-c', CHILD_CODE, str(state)])\n"
+        "    deadline = time.monotonic() + 3\n"
+        "    while not state.exists() and time.monotonic() < deadline:\n"
+        "        time.sleep(0.01)\n"
+        "    if not state.exists():\n"
+        "        raise RuntimeError('descendant did not start')\n"
+        "    raise RuntimeError('synthetic factory failure after descendant start')\n",
+        encoding="utf-8",
+    )
+    request = {
+        "workspace": str(workspace),
+        "artifact_dir": str(artifacts / "workspace-agent-run"),
+        "goal": "exercise bounded worker cleanup",
+        "acceptance_commands": [],
+        "allowed_edit_paths": [],
+        "required_edit_paths": [],
+        "client_factory": "leaky_factory:create_client",
+    }
+
+    started = time.monotonic()
+    invocation = benchmark_module._invoke_workspace_agent_process(
+        request,
+        workspace=workspace,
+        artifact_root=artifacts,
+        provider="deepseek",
+        timeout_seconds=1,
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 3.5
+    assert invocation["timed_out"] is False
+    assert invocation["exit_code"] != 0
+    state = json.loads(descendant_state.read_text(encoding="utf-8"))
+    endpoint = ("127.0.0.1", int(state["port"]))
+    deadline = time.monotonic() + 1
+    while time.monotonic() < deadline:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            if probe.connect_ex(endpoint) != 0:
+                break
+        time.sleep(0.02)
+    else:
+        raise AssertionError(f"worker descendant {state['pid']} remained alive after invocation")
 
 
 def test_parent_audit_rejects_forged_status_scope_sha_claims_and_allowed_paths(tmp_path: Path):

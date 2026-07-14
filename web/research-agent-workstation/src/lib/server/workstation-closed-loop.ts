@@ -10,7 +10,8 @@ import { gpuSshConfig, hasDeepSeekApiKey, hasGpuSshConfig } from "@/lib/server/c
 import { createClaudeSession } from "@/lib/server/claude-agent-sessions";
 import { runDeepSeekSmoke } from "@/lib/server/deepseek-provider";
 import { submitGpuJob, testGpuConnection, testS6E6BoostingDependencies } from "@/lib/server/gpu-ssh-gateway";
-import { encodeJson } from "@/lib/server/json";
+import { buildHpcApprovalEvidence, validateHpcExecutionGate } from "@/lib/server/hpc-execution-gate";
+import { decodeJson, encodeJson } from "@/lib/server/json";
 import { resolveWorkspacePath, stamp, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 import {
   artifactDescriptor,
@@ -303,10 +304,6 @@ function tryParseJsonObjectFromCommandOutput(output: string): Record<string, unk
   }
 }
 
-function relativeFromRoot(absolutePath: string) {
-  return path.relative(resolveWorkspacePath("."), absolutePath).replaceAll("\\", "/");
-}
-
 async function fileHash(relativePath: string) {
   const target = resolveWorkspacePath(relativePath);
   const hash = createHash("sha256");
@@ -429,48 +426,71 @@ async function approveExistingGate(input: {
     where: { taskId, runId: input.runId, gateType: input.gateType },
     orderBy: { createdAt: "desc" }
   });
-  const evidence = {
-    reviewer: input.reviewer,
-    reason: input.reason,
-    artifact_path: input.artifactPath ?? null,
-    approved_at: new Date().toISOString()
-  };
-  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
-  await prisma.gate.upsert({
-    where: { id: gateId },
-    update: {
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    },
-    create: {
-      id: gateId,
+  const existingEvidence = decodeJson<Record<string, unknown>>(gate?.evidenceJson) ?? {};
+  if (input.gateType === "hpc_execution_approval") {
+    const requestedTemplate = typeof existingEvidence.requested_template === "string"
+      ? existingEvidence.requested_template
+      : "";
+    const validation = await validateHpcExecutionGate(gate, {
       taskId,
       runId: input.runId,
-      gateType: input.gateType,
-      decision: "approved",
+      template: requestedTemplate,
+      requireApproved: false
+    });
+    if (!validation.ok) {
+      throw new Error(`HPC execution gate binding is invalid: ${validation.reasons.join(",")}`);
+    }
+    if (!gate) throw new Error("HPC execution gate is missing.");
+  }
+  const decidedAt = new Date();
+  const evidence = gate && input.gateType === "hpc_execution_approval"
+    ? buildHpcApprovalEvidence(gate, {
       reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    }
-  });
-  if (input.artifactPath) {
-    try {
-      const artifactFile = resolveWorkspacePath(input.artifactPath);
-      const artifact = JSON.parse(await fs.readFile(artifactFile, "utf-8")) as Record<string, unknown>;
-      await writeJsonArtifact(input.artifactPath, {
-        ...artifact,
-        status: "approved",
-        remote_training_allowed: input.gateType === "hpc_execution_approval" ? true : artifact.remote_training_allowed,
-        approved_by: input.reviewer,
-        approval_reason: input.reason,
-        approved_at: evidence.approved_at,
-        updated_at: new Date().toISOString()
-      });
-    } catch {
-      // Keep DB/action-log approval as the source of truth if an old artifact cannot be parsed.
-    }
+      reason: input.reason,
+      artifactPath: input.artifactPath,
+      decidedAt
+    })
+    : {
+      ...existingEvidence,
+      approval: {
+        reviewer: input.reviewer,
+        reason: input.reason,
+        artifact_path: input.artifactPath ?? null,
+        approved_at: decidedAt.toISOString()
+      }
+    };
+  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
+  if (gate && input.gateType === "hpc_execution_approval") {
+    const updated = await prisma.gate.updateMany({
+      where: { id: gate.id, decision: "pending", evidenceJson: gate.evidenceJson },
+      data: {
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      }
+    });
+    if (updated.count !== 1) throw new Error("HPC execution gate changed during approval.");
+  } else {
+    await prisma.gate.upsert({
+      where: { id: gateId },
+      update: {
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      },
+      create: {
+        id: gateId,
+        taskId,
+        runId: input.runId,
+        gateType: input.gateType,
+        decision: "approved",
+        reviewer: input.reviewer,
+        evidenceJson: encodeJson(evidence),
+        decidedAt
+      }
+    });
   }
   await logAction({
     action: "approve_gate",

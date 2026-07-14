@@ -21,11 +21,13 @@ import sys
 import tempfile
 import time
 import uuid
-import xml.etree.ElementTree as ET
+
+# This parser is used only after the bounded JUnit guards in _junit_counts.
+import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from research_os.agent.messaging import AgentMessageClient, ToolResult, ToolSpec
 from research_os.llm_client import LLMError
@@ -45,9 +47,46 @@ _FORBIDDEN_PATH_PARTS = {
     "workspace",
 }
 _EXPLICIT_EDIT_SCOPE_PARTS = {"data"}
-_SENSITIVE_RE = re.compile(
-    r"(?i)\b(api[_-]?key|authorization|cookie|password|passwd|private[_-]?key|secret|token)\s*[:=]\s*\S+"
+_SENSITIVE_KEY_VALUE_RE = re.compile(
+    r'''(?ix)
+    (?<![a-z0-9_-])
+    (
+      ["']?(?:api[_-]?key|authorization|cookie|credential|credentials|password|passwd|passphrase|
+      private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|
+      secret|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|
+      github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)["']?
+      \s*[:=]\s*["']?
+    )
+    ([^"'\s,;}\]]{3,})
+    '''
 )
+_AUTHORIZATION_VALUE_RE = re.compile(
+    r"(?i)\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{3,}"
+)
+_PRIVATE_KEY_RE = re.compile(
+    r"-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----.*?-----END(?: [A-Z0-9]+)* PRIVATE KEY-----",
+    re.IGNORECASE | re.DOTALL,
+)
+_URL_USERINFO_RE = re.compile(r"(?i)\b(https?://)[^/@\s:]+:[^/@\s]+@")
+_QUERY_SECRET_RE = re.compile(
+    r"(?i)([?&](?:api[_-]?key|password|passwd|passphrase|secret|access[_-]?token|refresh[_-]?token|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)=)[^&#\s]+"
+)
+_SAFE_SENSITIVE_METADATA_SUFFIXES = (
+    "_configured",
+    "_count",
+    "_digest",
+    "_enabled",
+    "_length",
+    "_len",
+    "_path",
+    "_persisted",
+    "_present",
+    "_sha256",
+    "_source",
+    "_status",
+)
+_SAFE_TOKEN_KEYS = {"input_tokens", "max_tokens", "output_tokens", "token_count", "tokens_used"}
+_JUNIT_XML_MAX_BYTES = 2 * 1024 * 1024
 _SHELL_OPERATOR_RE = re.compile(r"[\r\n;&|<>`]|\$\(")
 _NON_EXECUTING_TEST_FLAGS = {
     "--cache-show",
@@ -143,26 +182,122 @@ class WorkspacePlanner(Protocol):
     def __call__(self, context: dict[str, Any]) -> dict[str, Any]: ...
 
 
-def _safe_text(value: Any, *, limit: int = 12_000) -> str:
+def _redact_sensitive_text(value: Any, *, limit: int | None = None) -> str:
     text = str(value or "").replace("\x00", " ")
-    return _SENSITIVE_RE.sub(r"\1=[redacted]", text)[:limit]
+    text = _PRIVATE_KEY_RE.sub("[redacted private key]", text)
+    text = _URL_USERINFO_RE.sub(r"\1[redacted]@", text)
+    text = _QUERY_SECRET_RE.sub(r"\1[redacted]", text)
+    text = _AUTHORIZATION_VALUE_RE.sub(lambda match: f"{match.group(1)} [redacted]", text)
+    def redact_key_value(match: re.Match[str]) -> str:
+        candidate = match.group(2)
+        normalized = candidate.lower()
+        code_value_prefixes = (
+            "$",
+            "config.",
+            "env.",
+            "getenv(",
+            "os.",
+            "process.",
+            "request.",
+            "response.",
+            "settings.",
+        )
+        if "authorization" in match.group(1).lower() and normalized in {"bearer", "basic"}:
+            return match.group(0)
+        if (
+            normalized.startswith(code_value_prefixes)
+            or normalized.startswith(("[redacted", "<redacted"))
+            or normalized in {"none", "null"}
+        ):
+            return match.group(0)
+        return match.group(1) + "[redacted]"
+
+    text = _SENSITIVE_KEY_VALUE_RE.sub(redact_key_value, text)
+    return text if limit is None else text[:limit]
 
 
-def _safe_json_value(value: Any, *, depth: int = 0) -> Any:
+def _safe_text(value: Any, *, limit: int = 12_000) -> str:
+    return _redact_sensitive_text(value, limit=limit)
+
+
+def _sensitive_key(key: Any) -> bool:
+    normalized = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", str(key).strip())
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", normalized)
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized.lower()).strip("_")
+    if not normalized or normalized in _SAFE_TOKEN_KEYS:
+        return False
+    if normalized.endswith(_SAFE_SENSITIVE_METADATA_SUFFIXES):
+        return False
+    sensitive_names = {
+        "api_key",
+        "apikey",
+        "authorization",
+        "auth_token",
+        "aws_access_key_id",
+        "aws_secret_access_key",
+        "client_secret",
+        "cookie",
+        "credential",
+        "credentials",
+        "github_pat",
+        "gitlab_pat",
+        "kaggle_key",
+        "passphrase",
+        "password",
+        "passwd",
+        "private_key",
+        "refresh_token",
+        "secret",
+        "token",
+        "access_token",
+    }
+    return normalized in sensitive_names or any(
+        normalized.endswith(suffix)
+        for suffix in (
+            "_api_key",
+            "_auth_token",
+            "_password",
+            "_passphrase",
+            "_private_key",
+            "_secret",
+            "_token",
+            "_github_pat",
+            "_gitlab_pat",
+        )
+    )
+
+
+def _contains_sensitive_text(value: Any) -> bool:
+    text = str(value or "").replace("\x00", " ")
+    return _redact_sensitive_text(text) != text
+
+
+def _safe_json_value(value: Any, *, depth: int = 0, key: Any = None) -> Any:
     if depth >= 10:
         return "[nested]"
+    if key is not None and _sensitive_key(key):
+        return "[redacted]"
     if value is None or isinstance(value, (bool, int, float)):
         return value
     if isinstance(value, str):
         return _safe_text(value, limit=16_000)
     if isinstance(value, (list, tuple)):
-        return [_safe_json_value(item, depth=depth + 1) for item in value[:80]]
+        return [_safe_json_value(item, depth=depth + 1, key=key) for item in value[:80]]
     if isinstance(value, dict):
         return {
-            str(key)[:120]: _safe_json_value(item, depth=depth + 1)
-            for key, item in list(value.items())[:120]
+            str(item_key)[:120]: _safe_json_value(item, depth=depth + 1, key=item_key)
+            for item_key, item in list(value.items())[:120]
         }
     return _safe_text(value, limit=2000)
+
+
+def sanitize_workspace_result(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the only representation permitted to cross a persistence or CLI boundary."""
+
+    sanitized = _safe_json_value(dict(payload))
+    if not isinstance(sanitized, dict):
+        raise TypeError("workspace result sanitizer did not return an object")
+    return sanitized
 
 
 def _model_observation(value: Any, *, depth: int = 0) -> Any:
@@ -184,11 +319,52 @@ def _model_observation(value: Any, *, depth: int = 0) -> Any:
     return _safe_json_value(value, depth=depth)
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
+def _atomic_replace(source: Path, target: Path) -> None:
+    attempts = 20 if os.name == "nt" else 1
+    for attempt in range(attempts):
+        try:
+            os.replace(source, target)
+            return
+        except PermissionError:
+            if attempt + 1 >= attempts:
+                raise
+            time.sleep(min(0.002 * (attempt + 1), 0.02))
+
+
+def _write_private_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(_safe_json_value(payload), ensure_ascii=False, indent=2), encoding="utf-8")
-    temporary.replace(path)
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    if path.is_symlink():
+        raise OSError("refusing to replace a symlinked workspace artifact")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = -1
+    try:
+        descriptor = os.open(temporary, flags, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+            descriptor = -1
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        if path.is_symlink():
+            raise OSError("refusing to replace a symlinked workspace artifact")
+        _atomic_replace(temporary, path)
+        if os.name != "nt":
+            path.chmod(0o600)
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+        temporary.unlink(missing_ok=True)
+
+
+def write_workspace_result(path: Path, payload: Mapping[str, Any]) -> None:
+    serialized = json.dumps(sanitize_workspace_result(payload), ensure_ascii=False, indent=2) + "\n"
+    _write_private_text(path, serialized)
+
+
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    write_workspace_result(path, payload)
 
 
 def _run(
@@ -1080,10 +1256,18 @@ def _acceptance_env(home: Path, execution_root: Path) -> dict[str, str]:
 
 
 def _junit_counts(path: Path) -> dict[str, int]:
+    empty = {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "executed": 0, "passed": 0}
     try:
-        root = ET.parse(path).getroot()
-    except (ET.ParseError, OSError):
-        return {"tests": 0, "failures": 0, "errors": 0, "skipped": 0, "executed": 0, "passed": 0}
+        if path.is_symlink() or not path.is_file() or path.stat().st_size > _JUNIT_XML_MAX_BYTES:
+            return empty
+        document = path.read_bytes()
+        upper = document.upper()
+        if b"<!DOCTYPE" in upper or b"<!ENTITY" in upper:
+            return empty
+        # DTD/entities are rejected and the input is capped above.
+        root = ET.fromstring(document)  # nosec B314
+    except (ET.ParseError, OSError, ValueError):
+        return empty
     elements = [root] if root.attrib.get("tests", "").isdigit() else list(root.findall(".//testsuite"))
     counts = {
         key: sum(
@@ -2002,6 +2186,14 @@ def run_workspace_agent(
                         observation["error"] = "patch_budget_exhausted"
                     elif len(normalized_patch.encode("utf-8")) > bounded.max_patch_bytes:
                         observation["error"] = "patch_too_large"
+                    elif _contains_sensitive_text(normalized_patch):
+                        observation.update({
+                            "error": "sensitive_candidate_diff",
+                            "message": "candidate diff contains a credential-like value and was not persisted",
+                        })
+                        status = "blocked"
+                        stop_reason = "sensitive_candidate_diff"
+                        terminal = True
                     else:
                         changed = _patch_changed_files(normalized_patch)
                         violations = []
@@ -2886,6 +3078,15 @@ def run_workspace_agent(
                         observation.update({"error": "empty_candidate_diff", "log_path": log_path})
                     elif len(encoded) > bounded.max_diff_bytes:
                         observation.update({"error": "candidate_diff_too_large", "bytes": len(encoded), "log_path": log_path})
+                    elif _contains_sensitive_text(second_snapshot.diff):
+                        observation.update({
+                            "error": "sensitive_candidate_diff",
+                            "message": "candidate diff contains a credential-like value and was not persisted",
+                            "log_path": log_path,
+                        })
+                        status = "blocked"
+                        stop_reason = "sensitive_candidate_diff"
+                        terminal = True
                     elif unexpected or unsafe:
                         observation.update({
                             "error": "final_diff_scope_violation",
@@ -2897,7 +3098,7 @@ def run_workspace_agent(
                     else:
                         preview_limit = min(24_000, bounded.max_read_bytes)
                         final_diff = second_snapshot.diff
-                        candidate_diff_path.write_bytes(final_diff.encode("utf-8"))
+                        _write_private_text(candidate_diff_path, final_diff)
                         evidence["diff_generation"] = evidence["patch_generation"]
                         evidence["final_diff_sha256"] = second_snapshot.diff_sha256
                         evidence["final_diff_state_sha256"] = second_snapshot.state_sha256
@@ -3192,9 +3393,16 @@ def run_workspace_agent(
             else "resume_workspace_agent_from_last_observation"
         ),
     }
-    _write_json(manifest_path, payload)
-    emit("finish", "passed" if payload["ok"] else "blocked", f"Workspace loop ended with {status}.")
-    return payload
+    safe_payload = sanitize_workspace_result(payload)
+    _write_json(manifest_path, safe_payload)
+    emit("finish", "passed" if safe_payload["ok"] else "blocked", f"Workspace loop ended with {status}.")
+    return safe_payload
 
 
-__all__ = ["WorkspaceAgentLimits", "WorkspacePlanner", "run_workspace_agent"]
+__all__ = [
+    "WorkspaceAgentLimits",
+    "WorkspacePlanner",
+    "run_workspace_agent",
+    "sanitize_workspace_result",
+    "write_workspace_result",
+]

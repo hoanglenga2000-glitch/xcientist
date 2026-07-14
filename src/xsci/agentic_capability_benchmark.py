@@ -929,44 +929,91 @@ def _initialize_fixture_repository(workspace: Path) -> str:
     return head.stdout.strip()
 
 
-def _terminate_process_tree(process: subprocess.Popen[str]) -> None:
-    if process.poll() is not None:
-        return
+def _terminate_process_tree(
+    process: subprocess.Popen[Any],
+    *,
+    windows_job_handle: Optional[int] = None,
+) -> None:
+    """Best-effort, bounded cleanup for the worker and every descendant.
+
+    The worker is launched in a dedicated POSIX session or Windows Job Object.
+    Cleanup must still target that container after the worker itself has exited:
+    a descendant can otherwise keep running (and keep inherited handles open).
+    """
+
     if os.name == "nt":
-        try:
-            terminated = subprocess.run(
-                ["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=2,
-                check=False,
-            )
-            if terminated.returncode != 0 and process.poll() is None:
-                process.kill()
-        except (OSError, subprocess.TimeoutExpired):
-            process.kill()
+        if windows_job_handle is not None:
+            import ctypes
+            from ctypes import wintypes
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+            kernel32.CloseHandle.restype = wintypes.BOOL
+            # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE terminates members even when
+            # the original worker has already exited and been reaped.
+            kernel32.CloseHandle(windows_job_handle)
+        elif process.poll() is None:
+            # Compatibility fallback for callers that did not create a job.
+            # This path is bounded, but cannot recover an already-exited root;
+            # _invoke_workspace_agent_process always supplies a Job Object.
+            try:
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=1,
+                    check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired):
+                pass
         if process.poll() is None:
-            process.kill()
+            try:
+                process.kill()
+            except OSError:
+                pass
         try:
             process.wait(timeout=1)
         except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait(timeout=1)
-        return
-    else:
-        try:
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-            process.wait(timeout=2)
-        except (ProcessLookupError, subprocess.TimeoutExpired):
             try:
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            except ProcessLookupError:
+                process.kill()
+            except OSError:
                 pass
+            try:
+                process.wait(timeout=0.25)
+            except subprocess.TimeoutExpired:
+                pass
+        return
+
+    # start_new_session=True makes the worker PID the process-group ID.  Use
+    # that known ID directly: getpgid(worker_pid) fails after the group leader
+    # exits even though descendants can still occupy the group.
+    process_group_id = process.pid
     try:
-        process.wait(timeout=5)
+        os.killpg(process_group_id, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    deadline = time.monotonic() + 0.5
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(process_group_id, 0)
+        except ProcessLookupError:
+            break
+        time.sleep(0.02)
+    try:
+        os.killpg(process_group_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=0.5)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=5)
+        try:
+            process.kill()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=0.25)
+        except subprocess.TimeoutExpired:
+            pass
 
 
 def _invoke_workspace_agent_process(
@@ -1000,28 +1047,123 @@ def _invoke_workspace_agent_process(
         "--result",
         str(result_path),
     ]
+    # The structured result document is the authoritative diagnostic channel.
+    # Discard untrusted process output so neither an inherited pipe nor an
+    # unbounded log file can outlive or exhaust the bounded worker invocation.
+    output_path = Path(os.devnull)
     popen_kwargs: dict[str, Any] = {
         "cwd": str(workspace),
         "env": env,
-        "text": True,
-        "encoding": "utf-8",
-        "errors": "replace",
-        "stdout": subprocess.PIPE,
         "stderr": subprocess.STDOUT,
     }
     if os.name == "nt":
-        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
+        # CREATE_SUSPENDED closes the launch race: the worker cannot create a
+        # descendant before it is contained by the kill-on-close Job Object.
+        popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP | 0x00000004
     else:
         popen_kwargs["start_new_session"] = True
     started = time.monotonic()
-    process = subprocess.Popen(command, **popen_kwargs)
-    timed_out = False
+    windows_job_handle: Optional[int] = None
+    with output_path.open("wb") as output_stream:
+        popen_kwargs["stdout"] = output_stream
+        process = subprocess.Popen(command, **popen_kwargs)
+        if os.name == "nt":
+            import ctypes
+            from ctypes import wintypes
+
+            class _IoCounters(ctypes.Structure):
+                _fields_ = [
+                    ("ReadOperationCount", ctypes.c_ulonglong),
+                    ("WriteOperationCount", ctypes.c_ulonglong),
+                    ("OtherOperationCount", ctypes.c_ulonglong),
+                    ("ReadTransferCount", ctypes.c_ulonglong),
+                    ("WriteTransferCount", ctypes.c_ulonglong),
+                    ("OtherTransferCount", ctypes.c_ulonglong),
+                ]
+
+            class _BasicLimitInformation(ctypes.Structure):
+                _fields_ = [
+                    ("PerProcessUserTimeLimit", ctypes.c_longlong),
+                    ("PerJobUserTimeLimit", ctypes.c_longlong),
+                    ("LimitFlags", wintypes.DWORD),
+                    ("MinimumWorkingSetSize", ctypes.c_size_t),
+                    ("MaximumWorkingSetSize", ctypes.c_size_t),
+                    ("ActiveProcessLimit", wintypes.DWORD),
+                    ("Affinity", ctypes.c_size_t),
+                    ("PriorityClass", wintypes.DWORD),
+                    ("SchedulingClass", wintypes.DWORD),
+                ]
+
+            class _ExtendedLimitInformation(ctypes.Structure):
+                _fields_ = [
+                    ("BasicLimitInformation", _BasicLimitInformation),
+                    ("IoInfo", _IoCounters),
+                    ("ProcessMemoryLimit", ctypes.c_size_t),
+                    ("JobMemoryLimit", ctypes.c_size_t),
+                    ("PeakProcessMemoryUsed", ctypes.c_size_t),
+                    ("PeakJobMemoryUsed", ctypes.c_size_t),
+                ]
+
+            kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            ntdll = ctypes.WinDLL("ntdll")
+            kernel32.CreateJobObjectW.argtypes = [ctypes.c_void_p, wintypes.LPCWSTR]
+            kernel32.CreateJobObjectW.restype = wintypes.HANDLE
+            kernel32.SetInformationJobObject.argtypes = [
+                wintypes.HANDLE,
+                ctypes.c_int,
+                ctypes.c_void_p,
+                wintypes.DWORD,
+            ]
+            kernel32.SetInformationJobObject.restype = wintypes.BOOL
+            kernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+            kernel32.AssignProcessToJobObject.restype = wintypes.BOOL
+            ntdll.NtResumeProcess.argtypes = [wintypes.HANDLE]
+            ntdll.NtResumeProcess.restype = ctypes.c_long
+            job = kernel32.CreateJobObjectW(None, None)
+            if job:
+                windows_job_handle = int(job)
+            setup_error = 0
+            if windows_job_handle is None:
+                setup_error = ctypes.get_last_error()
+            else:
+                information = _ExtendedLimitInformation()
+                information.BasicLimitInformation.LimitFlags = 0x00002000
+                if not kernel32.SetInformationJobObject(
+                    windows_job_handle,
+                    9,
+                    ctypes.byref(information),
+                    ctypes.sizeof(information),
+                ):
+                    setup_error = ctypes.get_last_error()
+                elif not kernel32.AssignProcessToJobObject(windows_job_handle, int(process._handle)):
+                    setup_error = ctypes.get_last_error()
+            if setup_error:
+                _terminate_process_tree(process, windows_job_handle=windows_job_handle)
+                raise OSError(setup_error, "could not contain workspace-agent worker in a Windows Job Object")
+            resume_status = ntdll.NtResumeProcess(int(process._handle))
+            if resume_status != 0:
+                _terminate_process_tree(process, windows_job_handle=windows_job_handle)
+                windows_job_handle = None
+                raise OSError(int(resume_status), "could not resume contained workspace-agent worker")
+
+        timed_out = False
+        try:
+            process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+        finally:
+            _terminate_process_tree(process, windows_job_handle=windows_job_handle)
+            windows_job_handle = None
+
     try:
-        output, _ = process.communicate(timeout=timeout_seconds)
-    except subprocess.TimeoutExpired:
-        timed_out = True
-        _terminate_process_tree(process)
-        output, _ = process.communicate()
+        with output_path.open("rb") as output_stream:
+            output_bytes = output_stream.read(64 * 1024 + 1)
+        output_truncated = len(output_bytes) > 64 * 1024
+        output = output_bytes[:64 * 1024].decode("utf-8", errors="replace")
+        if output_truncated:
+            output += "\n[worker output truncated]"
+    except OSError as exc:
+        output = f"worker output unavailable: {type(exc).__name__}: {exc}"
     duration = time.monotonic() - started
     payload: Any = None
     result_error = ""

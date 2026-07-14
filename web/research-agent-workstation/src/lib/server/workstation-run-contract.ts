@@ -3,8 +3,10 @@ import { createReadStream, promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
+import { latestPassedCodeQualityGate } from "@/lib/server/code-quality-gate";
 import { encodeJson } from "@/lib/server/json";
 import { normalizeTaskId, resolveWorkspacePath, stamp, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { readStableRegularTextFile } from "@/lib/server/stable-file";
 
 export type WorkstationArtifactDescriptor = {
   artifact_type: string;
@@ -389,30 +391,6 @@ export async function ensurePlaygroundSeriesTask() {
   return { ok: true, ...action, task_id: taskId, config_path: configPath, readiness_path: readinessPath };
 }
 
-async function latestPassedCodeQualityGate(taskId: string) {
-  const patchDir = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches`);
-  const entries = await fs.readdir(patchDir, { withFileTypes: true }).catch(() => []);
-  const checks = await Promise.all(entries
-    .filter((entry) => entry.isFile() && entry.name.startsWith("code_quality_check_") && entry.name.endsWith(".json"))
-    .map(async (entry) => {
-      const relativePath = `workspace/tasks/${taskId}/code/patches/${entry.name}`;
-      const absolutePath = resolveWorkspacePath(relativePath);
-      const stat = await fs.stat(absolutePath).catch(() => null);
-      const payload = JSON.parse(await fs.readFile(absolutePath, "utf-8").catch(() => "{}")) as Record<string, unknown>;
-      return { relativePath, payload, mtimeMs: stat?.mtimeMs ?? 0 };
-    }));
-  const latest = checks
-    .filter((check) => check.payload.overall_status === "passed")
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
-  if (!latest) return null;
-  return {
-    quality_gate_path: latest.relativePath,
-    patch_path: typeof latest.payload.patch_path === "string" ? latest.payload.patch_path : null,
-    affected_files: Array.isArray(latest.payload.affected_files) ? latest.payload.affected_files : [],
-    patch_python_syntax_check: latest.payload.patch_python_syntax_check ?? null
-  };
-}
-
 export async function createHpcExecutionGate(input: { taskId: string; runId?: string; template?: string }) {
   const taskId = normalizeTaskId(input.taskId);
   const run = input.runId
@@ -420,13 +398,24 @@ export async function createHpcExecutionGate(input: { taskId: string; runId?: st
     : await prisma.experimentRun.findFirst({ where: { taskId }, orderBy: { createdAt: "desc" } });
   const runId = run?.id ?? (await createWorkstationRun({ taskId, trigger: "hpc_gate_preparation" })).run_id;
   const gateId = `${runId}_hpc_execution_approval`;
-  const latestCodeGate = await latestPassedCodeQualityGate(taskId);
+  const passedCodeGate = await latestPassedCodeQualityGate(taskId);
+  const latestCodeGate = passedCodeGate ? {
+    quality_gate_path: passedCodeGate.relativePath,
+    quality_gate_sha256: passedCodeGate.qualityArtifactSha256,
+    quality_gate_action_id: passedCodeGate.actionId,
+    quality_gate_action_created_at: passedCodeGate.actionCreatedAt.toISOString(),
+    patch_path: passedCodeGate.patchPath,
+    patch_sha256: passedCodeGate.patchSha256,
+    affected_files: passedCodeGate.affectedFiles,
+    patch_python_syntax_check: passedCodeGate.patchPythonSyntaxCheck
+  } : null;
+  const gateReady = Boolean(latestCodeGate);
   const manifestPath = await writeJsonArtifact(`workspace/workstation_runs/${taskId}/${runId}/hpc_execution_gate_manifest.json`, {
     schema: "academic_research_os.hpc_execution_gate.v1",
     task_id: taskId,
     workstation_run_id: runId,
     requested_template: input.template ?? "connection_smoke",
-    status: "pending_approval",
+    status: gateReady ? "pending_approval" : "blocked_missing_code_quality_gate",
     resource_policy: "whitelist_templates_only",
     remote_training_allowed: false,
     code_agent_dependency: latestCodeGate ? {
@@ -440,21 +429,38 @@ export async function createHpcExecutionGate(input: { taskId: string; runId?: st
     approval_required_before: "POST /api/gpu/jobs",
     generated_at: new Date().toISOString()
   });
+  const manifestAbsolutePath = resolveWorkspacePath(manifestPath);
+  const manifestStable = await readStableRegularTextFile(manifestAbsolutePath, {
+    allowedRoot: path.dirname(manifestAbsolutePath),
+    maxBytes: 1_000_000
+  });
+  const gateEvidence = {
+    manifest_path: manifestPath,
+    manifest_sha256: manifestStable.sha256,
+    requested_template: input.template ?? "connection_smoke",
+    code_agent_dependency: latestCodeGate
+  };
 
   await prisma.gate.upsert({
     where: { id: gateId },
     update: {
-      decision: "pending",
-      evidenceJson: encodeJson({ manifest_path: manifestPath, requested_template: input.template ?? "connection_smoke", code_agent_dependency: latestCodeGate })
+      taskId,
+      runId,
+      gateType: "hpc_execution_approval",
+      decision: gateReady ? "pending" : "blocked",
+      reviewer: null,
+      evidenceJson: encodeJson(gateEvidence),
+      decidedAt: null
     },
     create: {
       id: gateId,
       taskId,
       runId,
       gateType: "hpc_execution_approval",
-      decision: "pending",
-      reviewer: "Research Admin",
-      evidenceJson: encodeJson({ manifest_path: manifestPath, requested_template: input.template ?? "connection_smoke", code_agent_dependency: latestCodeGate })
+      decision: gateReady ? "pending" : "blocked",
+      reviewer: null,
+      evidenceJson: encodeJson(gateEvidence),
+      decidedAt: null
     }
   });
 
@@ -462,11 +468,22 @@ export async function createHpcExecutionGate(input: { taskId: string; runId?: st
     action: "prepare_hpc_execution_gate",
     taskId,
     runId,
-    message: "HPC execution gate prepared. Remote job remains blocked until approval.",
+    message: gateReady
+      ? "HPC execution gate prepared with a bound Code Quality Gate. Remote job remains blocked until approval."
+      : "HPC execution gate blocked because no bound passed Code Quality Gate exists.",
     artifactPath: manifestPath,
-    metadata: { gate_id: gateId, template: input.template ?? "connection_smoke", code_agent_dependency: latestCodeGate }
+    metadata: { gate_id: gateId, template: input.template ?? "connection_smoke", manifest_sha256: manifestStable.sha256, code_agent_dependency: latestCodeGate }
   });
-  return { ok: true, ...action, run_id: runId, gate_id: gateId, manifest_path: manifestPath };
+  return {
+    ok: gateReady,
+    ...action,
+    status: gateReady ? "pending_approval" : "blocked_missing_code_quality_gate",
+    run_id: runId,
+    gate_id: gateId,
+    manifest_path: manifestPath,
+    manifest_sha256: manifestStable.sha256,
+    code_agent_dependency: latestCodeGate
+  };
 }
 
 export async function generateTeacherEvidenceBundle(taskIdInput: string) {

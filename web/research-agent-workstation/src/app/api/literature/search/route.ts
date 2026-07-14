@@ -3,15 +3,21 @@ import path from "node:path";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
-import { normalizeTaskId, resolveWorkspacePath, stamp, toRelativePath, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { normalizeTaskId, resolveWorkspacePath, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { readStableRegularTextFile } from "@/lib/server/stable-file";
+import { decodeXmlText } from "@/lib/security/xml";
 import type { LiteratureChunk, LiteratureClaimAudit, LiteraturePaper, LiteratureSearchResponse, LiteratureStrategy } from "@/lib/api/types";
 
 export const dynamic = "force-dynamic";
 
-const SAFE_SEARCH_DIRS = ["docs", "reports", "prompts", "configs", "references", "examples", "workspace/tasks", "workspace/workstation_runs"] as const;
+const SAFE_GLOBAL_SEARCH_DIRS = ["docs", "prompts", "references", "examples"] as const;
 const TEXT_EXTENSIONS = new Set([".md", ".txt", ".json", ".yaml", ".yml", ".csv"]);
 const MAX_FILE_BYTES = 512_000;
 const MAX_LOCAL_FILES = 220;
+const MAX_LOCAL_WALK_ENTRIES = 5_000;
+const MAX_LOCAL_WALK_DEPTH = 12;
+const MAX_QUERY_CHARS = 2_000;
+const MAX_ARXIV_RESPONSE_BYTES = 2_000_000;
 const CLAIM_BOUNDARY_TEXT = "文献检索结果只能作为研究上下文与策略候选，不能直接声称官方 Kaggle 提分、排名或奖牌。";
 const CLAIM_BOUNDARY_SENTINEL = "literature_context_only_not_official_score_rank_or_medal";
 
@@ -70,6 +76,24 @@ function cleanText(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function containsSecretMaterial(value: string) {
+  return (
+    /-----BEGIN(?: [A-Z0-9]+)* PRIVATE KEY-----/i.test(value)
+    || /(?<![A-Za-z0-9])sk-[A-Za-z0-9][A-Za-z0-9_-]{20,}/.test(value)
+    || /\bAKIA[0-9A-Z]{16}\b/.test(value)
+    || /\bgh[pousr]_[A-Za-z0-9_]{30,}\b/.test(value)
+    || /\bgithub_pat_[A-Za-z0-9_]{40,}\b/.test(value)
+    || /\bKGAT_[A-Za-z0-9_-]{16,}\b/.test(value)
+    || /\bAIza[0-9A-Za-z_-]{35}\b/.test(value)
+    || /\bxox[aboprs]-[A-Za-z0-9-]{10,}\b/i.test(value)
+    || /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/.test(value)
+    || /\b(?:bearer|basic)\s+[A-Za-z0-9._~+/=-]{8,}/i.test(value)
+    || /\bhttps?:\/\/[^/@\s:]+:[^/@\s]+@/i.test(value)
+    || /[?&](?:api[_-]?key|password|passwd|secret|access[_-]?token|refresh[_-]?token|token)=[^&#\s]+/i.test(value)
+    || /["']?(?:api[_-]?key|authorization|cookie|password|passwd|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|secret)["']?\s*[:=]\s*["']?[^"'\s,;}\]]{4,}/i.test(value)
+  );
+}
+
 function hasMojibakeRiskText(value: string) {
   return value.includes("\uFFFD") || /[\u00c3\u00c2\u00e2]/.test(value);
 }
@@ -80,17 +104,7 @@ function tokenize(value: string) {
 
 function xmlText(entry: string, tag: string) {
   const match = entry.match(new RegExp(`<${tag}[^>]*>([\\s\\S]*?)<\\/${tag}>`, "i"));
-  return match ? decodeXml(match[1]).trim() : "";
-}
-
-function decodeXml(value: string) {
-  return value
-    .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
-    .replaceAll("&amp;", "&")
-    .replaceAll("&lt;", "<")
-    .replaceAll("&gt;", ">")
-    .replaceAll("&quot;", '"')
-    .replaceAll("&#39;", "'");
+  return match ? decodeXmlText(match[1]).trim() : "";
 }
 
 function inferMethods(text: string) {
@@ -155,40 +169,95 @@ function splitChunks(text: string, maxLen = 760) {
   return chunks;
 }
 
-async function walkSafeFiles(root: string, relativeRoot: string, files: string[]) {
-  if (files.length >= MAX_LOCAL_FILES) return;
+async function walkSafeFiles(
+  root: string,
+  relativeRoot: string,
+  files: string[],
+  budget: { entries: number },
+  depth = 0
+) {
+  if (
+    files.length >= MAX_LOCAL_FILES
+    || budget.entries >= MAX_LOCAL_WALK_ENTRIES
+    || depth > MAX_LOCAL_WALK_DEPTH
+  ) return;
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
-    if (files.length >= MAX_LOCAL_FILES) return;
+    if (files.length >= MAX_LOCAL_FILES || budget.entries >= MAX_LOCAL_WALK_ENTRIES) return;
+    budget.entries += 1;
     if (entry.name.startsWith(".") || entry.name === "node_modules" || entry.name === ".next") continue;
     const absolute = path.join(root, entry.name);
     const relative = path.join(relativeRoot, entry.name);
+    if (entry.isSymbolicLink()) continue;
     if (entry.isDirectory()) {
-      await walkSafeFiles(absolute, relative, files);
+      await walkSafeFiles(absolute, relative, files, budget, depth + 1);
       continue;
     }
+    if (!entry.isFile()) continue;
     const ext = path.extname(entry.name).toLowerCase();
     if (!TEXT_EXTENSIONS.has(ext)) continue;
-    const stat = await fs.stat(absolute).catch(() => null);
-    if (!stat?.isFile() || stat.size > MAX_FILE_BYTES) continue;
     files.push(relative.replaceAll("\\", "/"));
   }
 }
 
-async function collectLocalDocuments() {
+async function collectLocalDocuments(taskId: string) {
   const files: string[] = [];
-  for (const dir of SAFE_SEARCH_DIRS) {
+  const budget = { entries: 0 };
+  const searchDirs = [
+    ...SAFE_GLOBAL_SEARCH_DIRS,
+    path.join("workspace", "tasks", taskId, "reports")
+  ];
+  for (const dir of searchDirs) {
     const absolute = resolveWorkspacePath(dir);
-    await walkSafeFiles(absolute, dir, files);
-    if (files.length >= MAX_LOCAL_FILES) break;
+    await walkSafeFiles(absolute, dir, files, budget);
+    if (files.length >= MAX_LOCAL_FILES || budget.entries >= MAX_LOCAL_WALK_ENTRIES) break;
   }
-  return Promise.all(
+  const documents = await Promise.all(
     files.map(async (relativePath) => {
       const absolute = resolveWorkspacePath(relativePath);
-      const text = await fs.readFile(absolute, "utf-8").catch(() => "");
-      return { relativePath, text };
+      try {
+        const file = await readStableRegularTextFile(absolute, {
+          allowedRoot: workspaceRoot,
+          maxBytes: MAX_FILE_BYTES
+        });
+        if (containsSecretMaterial(file.text)) return null;
+        return { relativePath, text: file.text };
+      } catch {
+        return null;
+      }
     })
   );
+  return documents.filter((document): document is { relativePath: string; text: string } => document !== null);
+}
+
+async function readBoundedUtf8Response(response: Response, maxBytes: number) {
+  const declaredLength = Number(response.headers.get("content-length") ?? "0");
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) return null;
+  if (!response.body) return null;
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const item = await reader.read();
+    if (item.done) break;
+    total += item.value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(item.value);
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
 }
 
 async function fetchArxiv(query: string, maxResults: number): Promise<LiteraturePaper[]> {
@@ -201,17 +270,19 @@ async function fetchArxiv(query: string, maxResults: number): Promise<Literature
   });
   const response = await fetch(`https://export.arxiv.org/api/query?${params.toString()}`, {
     headers: { "User-Agent": "research-agent-workstation/0.1 literature-rag" },
+    redirect: "error",
     signal: AbortSignal.timeout(10_000)
   }).catch(() => null);
   if (!response?.ok) return [];
-  const xml = await response.text();
+  const xml = await readBoundedUtf8Response(response, MAX_ARXIV_RESPONSE_BYTES);
+  if (!xml) return [];
   const entries = xml.match(/<entry>[\s\S]*?<\/entry>/g) ?? [];
   return entries.map((entry, index) => {
     const idUrl = xmlText(entry, "id");
     const title = cleanText(xmlText(entry, "title"));
     const summary = cleanText(xmlText(entry, "summary"));
     const published = xmlText(entry, "published");
-    const authors = Array.from(entry.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)).map((match) => decodeXml(match[1]).trim()).slice(0, 6);
+    const authors = Array.from(entry.matchAll(/<author>[\s\S]*?<name>([\s\S]*?)<\/name>[\s\S]*?<\/author>/g)).map((match) => decodeXmlText(match[1]).trim()).slice(0, 6);
     const year = published ? published.slice(0, 4) : "";
     const arxivId = idUrl.split("/abs/").pop() ?? `arxiv-${index + 1}`;
     return {
@@ -369,12 +440,15 @@ export async function POST(request: Request) {
   const taskId = normalizeTaskId(String(body.task_id ?? body.taskId ?? "playground_series_s6e6"));
   const task = await prisma.task.findUnique({ where: { id: taskId } }).catch(() => null);
   const query = cleanText(String(body.query ?? `${task?.name ?? taskId} ${task?.taskType ?? ""} ${task?.metric ?? ""} kaggle modeling validation ensemble`));
+  if (!query || query.length > MAX_QUERY_CHARS || containsSecretMaterial(query)) {
+    return NextResponse.json({ ok: false, error: "invalid_or_sensitive_query" }, { status: 400 });
+  }
   const includeArxiv = body.include_arxiv !== false;
   const maxResults = Number.isFinite(Number(body.max_results)) ? Math.max(5, Math.min(40, Number(body.max_results))) : 18;
   const queryTokens = tokenize(`${query} ${task?.taskType ?? ""} ${task?.metric ?? ""}`);
 
   const [localDocs, arxivPapers] = await Promise.all([
-    collectLocalDocuments(),
+    collectLocalDocuments(taskId),
     includeArxiv ? fetchArxiv(query, Math.min(8, maxResults)).catch(() => []) : Promise.resolve([])
   ]);
   const localPapers = papersFromLocalDocs(localDocs, queryTokens, taskId);

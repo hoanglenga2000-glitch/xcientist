@@ -133,6 +133,38 @@ def test_workspace_command_uses_current_git_top_level_and_strict_provider(
     assert os.environ.get("EVOLUTION_PROVIDER_STRICT") is None
 
 
+def test_workspace_json_output_redacts_nested_and_inline_secrets(
+    isolated_gateway, tmp_path, monkeypatch, capsys
+):
+    marker = "virtual-cli-secret-3c87bfe9"
+    _root, nested = _repo(tmp_path)
+    monkeypatch.chdir(nested)
+    monkeypatch.setattr(messaging, "AgentMessageClient", AvailableClient)
+    monkeypatch.setattr(
+        workspace_agent,
+        "run_workspace_agent",
+        lambda *_args, **_kwargs: {
+            "ok": True,
+            "completed": True,
+            "status": "completed",
+            "api_key": marker,
+            "nested": {"password": marker},
+            "summary": f"Authorization: Bearer {marker}",
+            "final_diff": "diff --git a/README.md b/README.md\n",
+        },
+    )
+
+    rc = ak.main(["workspace", "--json", "--provider", "deepseek", "inspect"])
+    output = capsys.readouterr().out
+    payload = json.loads(output)
+
+    assert rc == 0
+    assert marker not in output
+    assert payload["api_key"] == "[redacted]"
+    assert payload["nested"]["password"] == "[redacted]"
+    assert payload["summary"] == "Authorization: Bearer [redacted]"
+
+
 def test_workspace_command_fails_closed_before_agent_when_provider_is_missing(
     isolated_gateway, tmp_path, monkeypatch, capsys
 ):

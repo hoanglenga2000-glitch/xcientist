@@ -144,6 +144,30 @@ def test_release_acceptance_threads_port_to_every_live_check() -> None:
     assert '"--build"' in (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
 
 
+def test_release_acceptance_uses_selected_python_and_initializes_database() -> None:
+    acceptance = (ROOT / "scripts" / "run_new_user_release_acceptance.ps1").read_text(encoding="utf-8-sig")
+
+    assert '[string]$PythonExecutable = ""' in acceptance
+    assert '$PythonExe = (Get-Command python -ErrorAction Stop).Source' in acceptance
+    assert '& $PythonExe -m pytest' in acceptance
+    assert '& $PythonExe scripts\\verify_no_plaintext_secrets.py' in acceptance
+
+    assert 'Join-Path $Root "install.ps1"' in acceptance
+    installer_block = acceptance[
+        acceptance.index('Run-Check "installer_smoke_no_secrets"'):
+        acceptance.index('Run-Check "cli_tests"')
+    ]
+    assert "-SkipNpmInstall" not in installer_block
+    assert '"-SkipBuild"' in installer_block
+    assert "Start-Process" in installer_block
+    assert "-RedirectStandardError $stderr" in installer_block
+    assert "installer.ExitCode" in installer_block
+    assert 'Run-Check "stop_existing_workstation_frontend"' in acceptance
+    assert acceptance.index('Run-Check "stop_existing_workstation_frontend"') < acceptance.index(
+        'Run-Check "installer_smoke_no_secrets"'
+    )
+
+
 def test_prisma_db_push_forwards_cli_arguments() -> None:
     source = (
         ROOT / "web" / "research-agent-workstation" / "scripts" / "prisma-db-push.mjs"

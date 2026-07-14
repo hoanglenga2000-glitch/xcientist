@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { ProviderBoundaryError, resolveDeepSeekEndpoint } from "@/lib/security/provider-boundary";
 
 export const supportedSecretEnvKeys = [
   "ANTHROPIC_API_KEY",
@@ -8,6 +9,7 @@ export const supportedSecretEnvKeys = [
   "CLAUDE_API_KEY_FILE",
   "DEEPSEEK_API_KEY",
   "DEEPSEEK_API_KEY_FILE",
+  "DEEPSEEK_ALLOWED_ORIGINS",
   "DEEPSEEK_BASE_URL",
   "DEEPSEEK_MODEL",
   "GPU_SSH_HOST",
@@ -88,15 +90,26 @@ export function hasDeepSeekApiKey() {
 }
 
 export function deepSeekConfig() {
+  const rawBaseUrl = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
+  let endpoint: ReturnType<typeof resolveDeepSeekEndpoint> | null = null;
+  let boundaryError: string | null = null;
+  try {
+    endpoint = resolveDeepSeekEndpoint(rawBaseUrl);
+  } catch (error) {
+    boundaryError = error instanceof ProviderBoundaryError ? error.code : "provider_url_invalid";
+  }
   return {
     apiKey: deepSeekApiKeyValue(),
-    baseUrl: process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com",
-    model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash"
+    baseUrl: endpoint?.baseUrl ?? "invalid",
+    chatCompletionsUrl: endpoint?.chatCompletionsUrl ?? "",
+    model: process.env.DEEPSEEK_MODEL || "deepseek-v4-flash",
+    boundaryError
   };
 }
 
 export function deepSeekApiKeyStatus() {
-  return hasDeepSeekApiKey() ? "configured" : "not_configured";
+  if (!hasDeepSeekApiKey()) return "not_configured";
+  return deepSeekConfig().boundaryError ? "invalid_endpoint" : "configured";
 }
 
 export function gpuSshConfig() {
