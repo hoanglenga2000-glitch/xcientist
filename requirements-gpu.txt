@@ -14,7 +14,7 @@ optuna>=3.6,<5.0
 # so the server must actually provide them or those runs fail at import.
 # NOTE: torch/vision/audio must match the server's CUDA build - install the CUDA-matched
 # wheels (official --index-url) rather than the default CPU wheel.
-torch>=2.0,<3.0
+torch>=2.13.0,<3.0
 torchvision>=0.15,<1.0
 torchaudio>=2.0,<3.0
 timm>=0.9,<2.0
