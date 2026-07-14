@@ -115,26 +115,22 @@ export async function readStableRegularTextFile(
     throw new Error("Stable file parent escapes the allowed root");
   }
 
-  const pathBefore = await lstat(absolutePath);
-  if (pathBefore.isSymbolicLink() || !pathBefore.isFile()) {
-    throw new Error("Stable file must be a non-symlink regular file");
-  }
-  if (pathBefore.nlink !== 1) {
-    throw new Error("Stable file must not be hard-linked");
-  }
-  if (pathBefore.size > options.maxBytes) {
-    throw new Error("Stable file exceeds the allowed byte limit");
-  }
-
   const noFollow = typeof fsConstants.O_NOFOLLOW === "number" ? fsConstants.O_NOFOLLOW : 0;
   const handle = await open(absolutePath, fsConstants.O_RDONLY | noFollow);
   try {
     const opened = await handle.stat();
+    const pathBefore = await lstat(absolutePath);
+    if (pathBefore.isSymbolicLink() || !pathBefore.isFile() || !sameFileIdentity(pathBefore, opened)) {
+      throw new Error("Stable file must be a non-symlink regular file with stable identity");
+    }
+    if (pathBefore.nlink !== 1 || opened.nlink !== 1) {
+      throw new Error("Stable file must not be hard-linked");
+    }
+    if (pathBefore.size > options.maxBytes) {
+      throw new Error("Stable file exceeds the allowed byte limit");
+    }
     if (!opened.isFile() || !sameFileIdentity(pathBefore, opened)) {
       throw new Error("Stable file identity changed during open");
-    }
-    if (opened.nlink !== 1) {
-      throw new Error("Stable file must not be hard-linked");
     }
     if (opened.size > options.maxBytes) {
       throw new Error("Stable file exceeds the allowed byte limit");

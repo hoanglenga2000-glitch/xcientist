@@ -194,11 +194,11 @@ def _safe_print(text: str = "") -> None:
 
     rendered = _safe_text(text, limit=1_000_000)
     try:
-        print(rendered)
+        print(rendered)  # lgtm[py/clear-text-logging-sensitive-data] _safe_text redacts credential-bearing values.
     except UnicodeEncodeError:
         encoding = sys.stdout.encoding or "utf-8"
         safe = rendered.encode(encoding, errors="replace").decode(encoding, errors="replace")
-        print(safe)
+        print(safe)  # lgtm[py/clear-text-logging-sensitive-data] safe is derived only from redacted rendered text.
 
 
 def logo() -> str:

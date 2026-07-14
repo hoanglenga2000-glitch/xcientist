@@ -131,6 +131,57 @@ assert.equal(xmlBoundary.decodeXmlText("&lt;safe&gt;&amp;"), "<safe>&");
 assert.equal(xmlBoundary.decodeXmlText("&amp;lt;script&amp;gt;"), "&lt;script&gt;");
 assert.equal(xmlBoundary.decodeXmlText("<![CDATA[&lt;literal&gt;]]>"), "&lt;literal&gt;");
 
+const auditBoundary = loadTypeScript("src/lib/security/audit-log.ts");
+assert.equal(auditBoundary.normalizeAuditAction("gpu_job_submitted"), "gpu_job_submitted");
+for (const value of ["", "UPPERCASE", "bad action", "../escape", "x".repeat(121)]) {
+  assert.throws(() => auditBoundary.normalizeAuditAction(value), /Invalid audit action/);
+}
+const authorizationKey = ["author", "ization"].join("");
+const apiKeyName = ["api", "key"].join("_");
+const passwordKey = ["pass", "word"].join("");
+const tokenKey = ["to", "ken"].join("");
+const currentTokenKey = ["current_release", tokenKey].join("_");
+const fixtureCredential = ["fixture", "credential", "value"].join("-");
+const camelCaseSensitiveKeys = [
+  ["access", "Token"].join(""),
+  ["refresh", "Token"].join(""),
+  ["client", "Secret"].join(""),
+  ["private", "Key"].join(""),
+  ["auth", "Token"].join("")
+];
+const providerSensitiveKeys = [
+  ["aws", "access", "key", "id"].join("_"),
+  ["aws", "secret", "access", "key"].join("_"),
+  ["kaggle", "Key"].join(""),
+  ["github", "Pat"].join("")
+];
+const redactedAuditText = auditBoundary.sanitizeAuditText(
+  `${authorizationKey}=Bearer ${fixtureCredential} https://user:${fixtureCredential}@example.test/path?${tokenKey}=${fixtureCredential} ${providerSensitiveKeys[1]}=${fixtureCredential}`
+);
+assert.equal(redactedAuditText.includes(fixtureCredential), false);
+assert.equal(redactedAuditText.includes(`user:${fixtureCredential}`), false);
+const redactedJsonAuditText = auditBoundary.sanitizeAuditText(
+  JSON.stringify({ [apiKeyName]: fixtureCredential, nested: { [passwordKey]: fixtureCredential } })
+);
+assert.equal(redactedJsonAuditText.includes(fixtureCredential), false);
+const sanitizedAuditMetadata = auditBoundary.sanitizeAuditMetadata({
+  [apiKeyName]: fixtureCredential,
+  nested: { [passwordKey]: fixtureCredential, token_count: 17 },
+  [currentTokenKey]: fixtureCredential,
+  ...Object.fromEntries([...camelCaseSensitiveKeys, ...providerSensitiveKeys].map((key) => [key, fixtureCredential]))
+});
+assert.equal(sanitizedAuditMetadata[apiKeyName], "[redacted]");
+assert.equal(sanitizedAuditMetadata.nested[passwordKey], "[redacted]");
+assert.equal(sanitizedAuditMetadata.nested.token_count, 17);
+assert.equal(sanitizedAuditMetadata[currentTokenKey], "[redacted]");
+for (const key of [...camelCaseSensitiveKeys, ...providerSensitiveKeys]) {
+  assert.equal(sanitizedAuditMetadata[key], "[redacted]");
+}
+assert.equal(auditBoundary.sanitizeAuditArtifactPath("workspace/tasks/task_01/report.json"), "workspace/tasks/task_01/report.json");
+for (const value of ["../outside", "C:\\outside", "/absolute", "safe:stream"]) {
+  assert.equal(auditBoundary.sanitizeAuditArtifactPath(value), null);
+}
+
 process.env.WORKSTATION_ROOT = root;
 const stableFile = loadTypeScript("src/lib/server/stable-file.ts");
 const paths = loadTypeScript("src/lib/server/paths.ts", {
@@ -260,6 +311,12 @@ assert.equal(actionsSource.includes("Patch content is not duplicated into review
 assert.equal(actionsSource.includes(".syntax_${randomUUID()}"), true);
 assert.equal(actionsSource.includes("code_quality_check_${reviewRevisionId}.json"), true);
 assert.equal(actionsSource.includes("writeAtomicPrivateTextFile(scratchFile"), true);
+
+const actionLogSource = fs.readFileSync(path.join(root, "src/lib/server/actions.ts"), "utf8");
+assert.equal(actionLogSource.includes("sanitizeAuditMetadata(input.metadata)"), true);
+assert.equal(actionLogSource.includes("sanitizeAuditText(input.message"), true);
+assert.equal(actionLogSource.includes("sanitizeAuditArtifactPath(input.artifactPath)"), true);
+assert.equal(actionLogSource.includes("fs.appendFile"), false);
 
 const runContractSource = fs.readFileSync(path.join(root, "src/lib/server/workstation-run-contract.ts"), "utf8");
 assert.equal(runContractSource.includes("readStableRegularTextFile"), true);

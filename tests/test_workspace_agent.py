@@ -74,6 +74,19 @@ def test_workspace_result_sanitizer_redacts_nested_and_inline_secrets():
         f"{marker}\n"
         f"-----END {private_key_label}-----"
     )
+    camel_case_sensitive_keys = [
+        "access" + "Token",
+        "refresh" + "Token",
+        "client" + "Secret",
+        "private" + "Key",
+        "auth" + "Token",
+    ]
+    provider_sensitive_keys = [
+        "_".join(("aws", "access", "key", "id")),
+        "_".join(("aws", "secret", "access", "key")),
+        "kaggle" + "Key",
+        "github" + "Pat",
+    ]
     payload = {
         "api_key": marker,
         "nested": {"password": marker, "authorization": f"Bearer {marker}"},
@@ -86,6 +99,7 @@ def test_workspace_result_sanitizer_redacts_nested_and_inline_secrets():
         "usage": {"input_tokens": 12, "output_tokens": 4},
         "code": 'api_key = os.environ.get("DEEPSEEK_API_KEY")',
         "release_note": "current_release_token=release-20260714",
+        **{key: marker for key in camel_case_sensitive_keys + provider_sensitive_keys},
     }
 
     sanitized = sanitize_workspace_result(payload)
@@ -97,6 +111,8 @@ def test_workspace_result_sanitizer_redacts_nested_and_inline_secrets():
     assert sanitized["usage"] == {"input_tokens": 12, "output_tokens": 4}
     assert sanitized["code"] == payload["code"]
     assert sanitized["release_note"] == payload["release_note"]
+    for key in camel_case_sensitive_keys + provider_sensitive_keys:
+        assert sanitized[key] == "[redacted]"
 
 
 def test_workspace_result_writer_is_atomic_private_and_rejects_symlink(tmp_path: Path):

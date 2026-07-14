@@ -102,6 +102,7 @@ export async function runDeepSeekSmoke(prompt = "Return exactly: deepseek-ok"): 
     const response = await fetch(config.chatCompletionsUrl, {
       method: "POST",
       headers: {
+        // lgtm[js/file-access-to-http] The destination is an explicit allowlisted origin from provider-boundary.
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json"
       },

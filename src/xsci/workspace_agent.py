@@ -21,6 +21,7 @@ import sys
 import tempfile
 import time
 import uuid
+
 # This parser is used only after the bounded JUnit guards in _junit_counts.
 import xml.etree.ElementTree as ET  # nosec B405
 from dataclasses import asdict, dataclass
@@ -50,8 +51,10 @@ _SENSITIVE_KEY_VALUE_RE = re.compile(
     r'''(?ix)
     (?<![a-z0-9_-])
     (
-      ["']?(?:api[_-]?key|authorization|cookie|password|passwd|private[_-]?key|
-      client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|secret|token)["']?
+      ["']?(?:api[_-]?key|authorization|cookie|credential|credentials|password|passwd|passphrase|
+      private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|
+      secret|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|
+      github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)["']?
       \s*[:=]\s*["']?
     )
     ([^"'\s,;}\]]{3,})
@@ -66,7 +69,7 @@ _PRIVATE_KEY_RE = re.compile(
 )
 _URL_USERINFO_RE = re.compile(r"(?i)\b(https?://)[^/@\s:]+:[^/@\s]+@")
 _QUERY_SECRET_RE = re.compile(
-    r"(?i)([?&](?:api[_-]?key|password|passwd|secret|access[_-]?token|refresh[_-]?token|token)=)[^&#\s]+"
+    r"(?i)([?&](?:api[_-]?key|password|passwd|passphrase|secret|access[_-]?token|refresh[_-]?token|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)=)[^&#\s]+"
 )
 _SAFE_SENSITIVE_METADATA_SUFFIXES = (
     "_configured",
@@ -218,7 +221,9 @@ def _safe_text(value: Any, *, limit: int = 12_000) -> str:
 
 
 def _sensitive_key(key: Any) -> bool:
-    normalized = re.sub(r"[^a-z0-9]+", "_", str(key).strip().lower()).strip("_")
+    normalized = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", str(key).strip())
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", normalized)
+    normalized = re.sub(r"[^a-z0-9]+", "_", normalized.lower()).strip("_")
     if not normalized or normalized in _SAFE_TOKEN_KEYS:
         return False
     if normalized.endswith(_SAFE_SENSITIVE_METADATA_SUFFIXES):
@@ -228,9 +233,16 @@ def _sensitive_key(key: Any) -> bool:
         "apikey",
         "authorization",
         "auth_token",
+        "aws_access_key_id",
+        "aws_secret_access_key",
         "client_secret",
         "cookie",
+        "credential",
         "credentials",
+        "github_pat",
+        "gitlab_pat",
+        "kaggle_key",
+        "passphrase",
         "password",
         "passwd",
         "private_key",
@@ -241,7 +253,17 @@ def _sensitive_key(key: Any) -> bool:
     }
     return normalized in sensitive_names or any(
         normalized.endswith(suffix)
-        for suffix in ("_api_key", "_auth_token", "_password", "_private_key", "_secret")
+        for suffix in (
+            "_api_key",
+            "_auth_token",
+            "_password",
+            "_passphrase",
+            "_private_key",
+            "_secret",
+            "_token",
+            "_github_pat",
+            "_gitlab_pat",
+        )
     )
 
 
