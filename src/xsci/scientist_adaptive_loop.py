@@ -36,6 +36,9 @@ _TOOL_DESCRIPTIONS: dict[str, str] = {
     "scientist_workplan": "Build a recoverable multi-step workplan with artifacts and gates.",
     "scientist_step_trace": "Inspect recent tool, gate, and artifact events.",
     "scientist_self_audit": "Audit EvoMind capability using current behavioral evidence.",
+    "scientist_capability_certification": "Verify the anchored external hidden-suite certification status.",
+    "scientist_upgrade_campaign": "Verify the active immutable champion campaign and rollback evidence.",
+    "scientist_research_parity_gate": "Require external certification and an active verified campaign for parity claims.",
     "scientist_readiness_report": "Separate local capability from execution and claim readiness.",
     "scientist_causal_diagnosis": "Map symptoms to root causes, evidence, and safe interventions.",
     "scientist_strategy_optimizer": "Rank candidate interventions by evidence, impact, cost, and risk.",
@@ -45,6 +48,7 @@ _TOOL_DESCRIPTIONS: dict[str, str] = {
     "scientist_engineering_loop": "Validate an existing patch in an isolated Git worktree.",
     "scientist_memory_consolidation": "Write sanitized outcomes and failures into retrospective memory.",
     "scientist_innovation_backlog": "Generate memory-guided, auditable research hypotheses.",
+    "scientist_hypothesis_panel": "Generate hypotheses in parallel and run an independent multi-role criticism round.",
     "scientist_hypothesis_review": "Critique and rank hypotheses using evidence and risk gates.",
     "scientist_experiment_blueprint": "Create an auditable experiment blueprint without training.",
     "scientist_innovation_trial_feedback": "Record the result of a completed innovation trial.",
@@ -74,6 +78,9 @@ _ALWAYS_AVAILABLE = (
 
 _META_TOOLS = (
     "scientist_self_audit",
+    "scientist_capability_certification",
+    "scientist_upgrade_campaign",
+    "scientist_research_parity_gate",
     "scientist_readiness_report",
     "scientist_causal_diagnosis",
     "scientist_strategy_optimizer",
@@ -82,6 +89,7 @@ _META_TOOLS = (
     "scientist_patch_work_order",
     "scientist_engineering_loop",
     "scientist_memory_consolidation",
+    "scientist_hypothesis_panel",
 )
 
 

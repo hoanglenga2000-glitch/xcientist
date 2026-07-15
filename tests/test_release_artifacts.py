@@ -37,6 +37,31 @@ VALID_RUNNER_SOURCE = (ROOT / "scripts" / "mlebench_server_runner.py").read_text
 VALID_RULES_SOURCE = (ROOT / "scripts" / "accept_kaggle_rules_all75.py").read_text(
     encoding="utf-8"
 )
+CRITICAL_SOURCE_FILES = (
+    ".github/workflows/ci.yml",
+    "configs/schemas/benchmark_task.schema.json",
+    "scripts/extract_capability_evidence_bundle.py",
+    "scripts/mle_bench_split75_contract.py",
+    "scripts/run_ci_checks.py",
+    "scripts/verify_capability_certification.py",
+    "src/research_os/benchmark_manager.py",
+    "src/xsci/capability_certification.py",
+    "src/xsci/kaggle.py",
+    "src/xsci/kaggle_conversation.py",
+    "src/xsci/kaggle_intent.py",
+    "src/xsci/scientist_adaptive_loop.py",
+    "src/xsci/scientist_hypothesis_panel.py",
+    "src/xsci/scientist_release_evidence.py",
+    "src/xsci/scientist_upgrade_controller.py",
+    "src/xsci/scientist_upgrade_gateway.py",
+    "src/xsci/terminal_agent.py",
+    "src/xsci/terminal_events.py",
+    "src/xsci/terminal_tools.py",
+    "web/research-agent-workstation/src/app/api/scientist/upgrade-campaign/route.ts",
+    "web/research-agent-workstation/src/components/workstation/AiControlConsole.tsx",
+    "web/research-agent-workstation/src/lib/api/client.ts",
+    "web/research-agent-workstation/src/lib/api/types.ts",
+)
 
 REQUIRED_FILES = {
     ".env.example": "# environment\n",
@@ -52,6 +77,7 @@ REQUIRED_FILES = {
     "SECURITY.md": "# Security\n",
     "docker-compose.yml": "127.0.0.1:3090:3090\n127.0.0.1:8088:3090\n",
     "docs/NEW_USER_ONBOARDING_GUIDE.md": "# Onboarding\n",
+    "docs/CAPABILITY_CERTIFICATION.md": "# Capability certification\n",
     "docs/RELEASE_CHECKLIST.md": "# Release\n",
     "install.ps1": "# installer\n",
     "pyproject.toml": "[project]\nname='xcientist'\n",
@@ -106,6 +132,10 @@ REQUIRED_FILES = {
     "web/research-agent-workstation/src/lib/server/kaggle-status.ts": "export {};\n",
     "web/research-agent-workstation/src/middleware.ts": "export {};\n",
 }
+REQUIRED_FILES.update({
+    relative: (ROOT / relative).read_text(encoding="utf-8")
+    for relative in CRITICAL_SOURCE_FILES
+})
 
 
 def _bundle(dist_dir, extra_files=None, omit_files=None):
@@ -135,22 +165,12 @@ def test_workstation_source_bundle_verifier_accepts_complete_safe_archive(tmp_pa
     assert result["mle_bench_local_official_overlap"] == VALID_REGISTRY["mle_bench_reference"][
         "locally_registered_official_competitions"
     ]
-    assert set(result["critical_source_sha256"]) == {
-        "configs/schemas/benchmark_task.schema.json",
-        "scripts/mle_bench_split75_contract.py",
-        "scripts/run_ci_checks.py",
-        "src/research_os/benchmark_manager.py",
-    }
+    assert set(result["critical_source_sha256"]) == set(CRITICAL_SOURCE_FILES)
 
 
 @pytest.mark.parametrize(
     "critical_path",
-    [
-        "configs/schemas/benchmark_task.schema.json",
-        "scripts/mle_bench_split75_contract.py",
-        "scripts/run_ci_checks.py",
-        "src/research_os/benchmark_manager.py",
-    ],
+    CRITICAL_SOURCE_FILES,
 )
 def test_workstation_source_bundle_requires_critical_runtime_sources(
     tmp_path,
@@ -168,12 +188,7 @@ def test_workstation_source_bundle_requires_critical_runtime_sources(
 
 @pytest.mark.parametrize(
     "critical_path",
-    [
-        "configs/schemas/benchmark_task.schema.json",
-        "scripts/mle_bench_split75_contract.py",
-        "scripts/run_ci_checks.py",
-        "src/research_os/benchmark_manager.py",
-    ],
+    CRITICAL_SOURCE_FILES,
 )
 def test_workstation_source_bundle_rejects_placeholder_or_drifted_critical_source(
     tmp_path,

@@ -97,8 +97,37 @@ This release does not prove:
 - MLE-Bench-75 coverage or parity;
 - remote GPU training availability;
 - DeepSeek cache hit rate at or above 80 percent in current runtime.
+- Codex or Claude Code research-parity without an externally anchored hidden-suite certificate;
+- trustworthy self-evolution without an active strict-improvement campaign, runtime-tree canary, and rollback proof.
 
 Those claims require separate official artifacts and claim audit evidence.
+
+## Stable Research-Parity Gate
+
+A stable tag must fail closed unless all of the following are true:
+
+1. `EVOMIND_CAPABILITY_EVIDENCE_URL` points to an externally supplied evidence bundle.
+2. Bundle, report, suite, and evaluator SHA-256 values are configured independently.
+3. At least two named baselines include Codex and Claude Code.
+4. The hidden suite contains at least 100 tasks, 8 domains, 3 tasks per domain, and 3 repeats.
+5. The strict raw-trial matrix covers every task, repeat, domain, and agent exactly once; recomputed aggregates and paired tables match the signed report.
+6. Candidate Wilson lower bound is at least `0.75`, paired non-inferiority passes, and timeout/scope/claim violations are zero.
+7. A frozen-evaluator campaign evaluates at least two immutable candidates and promotes only a strict improvement.
+8. Human approval, runtime-tree activation, CAS promotion, and rollback evidence all verify.
+9. The active champion commit/tree and campaign evidence bytes match the external certificate bindings.
+10. The release source ZIP is byte-identical to the externally certified source archive.
+
+Runtime status commands:
+
+```powershell
+evomind certification-status
+evomind upgrade-campaign status
+evomind parity-status
+```
+
+`Engineering Beta` may remain usable while these commands report `blocked`.
+The phrases `research parity certified`, `Claude-level`, and `Codex-level` are
+reserved for a passing external certificate bound to the exact released source.
 
 ## Human Gate Policy
 

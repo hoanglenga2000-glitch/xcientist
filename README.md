@@ -78,6 +78,45 @@ agent contract. It is not evidence of complete Codex/Claude Code parity,
 autonomous scientific discovery, completed GPU training, Kaggle medals, or
 MLE-Bench-75 parity; those require separate end-to-end and official artifacts.
 
+## Research-Parity Certification
+
+EvoMind separates three states that must not be conflated:
+
+1. **Engineering Beta**: local CLI, workstation, guarded tools, and regression
+   tests are operational.
+2. **Verified self-upgrade**: a frozen evaluator compares at least two immutable
+   candidate commits, selects only a strict improvement, requires explicit
+   human promotion, verifies the activated tree, and proves rollback.
+3. **Research parity certified**: an external hidden suite is hash-anchored to
+   the exact source and artifacts, includes at least 100 tasks across 8 domains
+   with 3 repeats, independently recomputes every aggregate and paired result
+   from strict raw trial records, and demonstrates paired non-inferiority
+   against named Codex and Claude Code baselines. The active champion commit,
+   tree, and campaign evidence bytes must match the externally certified subject.
+
+Check the fail-closed gates:
+
+```powershell
+evomind certification-status
+evomind upgrade-campaign status
+evomind parity-status
+```
+
+An external certification result is installed only with its separately
+obtained SHA-256 trust anchor:
+
+```powershell
+evomind certification-install .\capability-certification-result.json `
+  --expected-sha256 <64-lowercase-hex-digest>
+```
+
+Tag publication fails when the external evidence URL, report/suite/evaluator
+hashes, or named baselines are absent. Local artifacts, proxy benchmarks, and
+self-reported scores never open the research-parity gate.
+
+The complete bundle, raw-trial, statistical, and campaign binding contract is
+documented in [`docs/CAPABILITY_CERTIFICATION.md`](docs/CAPABILITY_CERTIFICATION.md).
+
 ## Quick Start
 
 Open **PowerShell** in the folder where you want to put EvoMind, then paste:
@@ -92,6 +131,17 @@ If `git` is not installed, open
 `https://github.com/hoanglenga2000-glitch/xcientist` in a browser, click
 **Code -> Download ZIP**, unzip it, then open PowerShell inside the extracted
 project folder before running `install.ps1`.
+
+The Git clone path is required for an exact source-bound upgrade campaign. A
+downloaded source ZIP can create a new local campaign baseline explicitly:
+
+```powershell
+evomind upgrade-campaign init --repository .
+```
+
+That local commit enables candidate evaluation but does not inherit the
+release's external parity certificate; exact-source certification must be run
+again for the new repository identity.
 
 For a versioned release, download the attested
 `xcientist-<version>-workstation-source.zip` asset, verify it with the published

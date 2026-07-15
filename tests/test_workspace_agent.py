@@ -1823,7 +1823,10 @@ def test_workspace_agent_enforces_command_timeout_and_needs_continuation(tmp_pat
         acceptance_commands=[PYTEST_COMMAND],
         allowed_edit_paths=["src/demo.py"],
         artifact_dir=tmp_path / "artifacts-timeout",
-        limits=WorkspaceAgentLimits(command_timeout_seconds=1, total_timeout_seconds=12, max_steps=6),
+        # This case verifies the per-command timeout.  Leave enough total-run
+        # budget for Git worktree setup/teardown on slower Windows CI hosts so
+        # the scripted finish action is always observed and audited.
+        limits=WorkspaceAgentLimits(command_timeout_seconds=1, total_timeout_seconds=30, max_steps=6),
     )
 
     assert result["ok"] is False

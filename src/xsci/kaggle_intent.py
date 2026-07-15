@@ -319,6 +319,18 @@ _REAL_SCIENTIST_READINESS_REPORT = (
     "能否上线", "能不能训练", "能否训练", "系统是否稳定上线",
     "上线前检查", "上线前审计", "安全上线检查",
 )
+_REAL_SCIENTIST_CAPABILITY_CERTIFICATION = (
+    "external capability certification", "external certification status",
+    "capability certificate", "hidden suite certificate", "certification status",
+)
+_REAL_SCIENTIST_UPGRADE_CAMPAIGN = (
+    "upgrade campaign status", "candidate campaign status", "champion campaign",
+    "self upgrade campaign", "self-upgrade campaign",
+)
+_REAL_SCIENTIST_RESEARCH_PARITY_GATE = (
+    "research parity status", "research parity gate", "claude parity certificate",
+    "codex parity certificate", "frontier agent parity", "parity gate",
+)
 _REAL_SCIENTIST_CAUSAL_DIAGNOSIS = (
     "causal diagnosis", "causal graph", "cause map", "root cause map",
     "root-cause map", "why blocked", "why is it blocked",
@@ -405,6 +417,11 @@ _REAL_SCIENTIST_HYPOTHESIS_REVIEW = (
     "评审假设", "假设评审", "假设排序", "排序假设", "评估假设",
     "评价假设", "哪一个假设", "哪个假设", "最佳假设", "评审创新",
     "创新评审", "方案评审", "评审方案", "排序方案",
+)
+_REAL_SCIENTIST_HYPOTHESIS_PANEL = (
+    "hypothesis panel", "research panel", "parallel hypotheses",
+    "multi agent hypotheses", "multi-agent hypotheses", "independent critics",
+    "parallel hypothesis generation", "adversarial hypothesis panel",
 )
 _REAL_SCIENTIST_EXPERIMENT_BLUEPRINT = (
     "experiment blueprint", "candidate blueprint", "execution blueprint",
@@ -516,6 +533,12 @@ def classify(text: str) -> Intent:
     if (_contains(low, _REAL_SCIENTIST_UPGRADE_PLAN)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_upgrade_plan")
+    if _contains(low, _REAL_SCIENTIST_CAPABILITY_CERTIFICATION):
+        return Intent(TOOL_QUERY, payload="scientist_capability_certification")
+    if _contains(low, _REAL_SCIENTIST_UPGRADE_CAMPAIGN):
+        return Intent(TOOL_QUERY, payload="scientist_upgrade_campaign")
+    if _contains(low, _REAL_SCIENTIST_RESEARCH_PARITY_GATE):
+        return Intent(TOOL_QUERY, payload="scientist_research_parity_gate")
     if (_contains(low, _REAL_SCIENTIST_SELF_AUDIT)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_self_audit")
@@ -531,6 +554,9 @@ def classify(text: str) -> Intent:
     if (_contains(low, _REAL_SCIENTIST_STRATEGY_OPTIMIZER)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_strategy_optimizer")
+    if (_contains(low, _REAL_SCIENTIST_HYPOTHESIS_PANEL)
+            and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
+        return Intent(TOOL_QUERY, payload="scientist_hypothesis_panel")
     if (_contains(low, _REAL_SCIENTIST_HYPOTHESIS_REVIEW)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_hypothesis_review")

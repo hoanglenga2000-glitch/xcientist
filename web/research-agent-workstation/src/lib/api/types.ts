@@ -435,6 +435,30 @@ export type ScientistSelfAuditSummary = {
   human_gate?: Record<string, unknown>;
 };
 
+export type ScientistUpgradeCampaignSummary = {
+  ok?: boolean;
+  tool?: string;
+  status?: string;
+  parity_claim_allowed?: boolean;
+  score_cap?: number;
+  blockers?: string[];
+  claim?: string;
+  certification?: Record<string, unknown>;
+  upgrade_campaign?: Record<string, unknown>;
+  campaign_id?: string;
+  artifact_path?: string;
+  active_and_verified?: boolean;
+  human_gate?: string | Record<string, unknown>;
+};
+
+export type ScientistUpgradeCampaignRequest = {
+  action: "status" | "run" | "promote" | "rollback";
+  request_path?: string;
+  manifest_path?: string;
+  human_approved?: boolean;
+  timeout_seconds?: number;
+};
+
 export type ScientistReadinessGateSummary = {
   name?: string;
   status?: "ready" | "blocked" | string;

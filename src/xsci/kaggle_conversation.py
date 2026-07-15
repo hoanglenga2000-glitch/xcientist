@@ -89,7 +89,7 @@ RULES（硬性规则）:
 _TOOL_HINT_RE = re.compile(
     r'\[(?:tool|check|检查|查看):\s*(model_status|system_status|task_list|inspect_task|'
     r'data_check|recent_run|gpu_status|kaggle_status|dashboard|next_steps|'
-    r'evolution_status|scientist_checkpoint|research_decision|scientist_workplan|scientist_turn_plan|scientist_repair_plan|scientist_execution_contract|scientist_step_trace|scientist_recovery|scientist_action_queue|scientist_next_action|scientist_autopilot|scientist_loop|scientist_self_audit|scientist_upgrade_plan|scientist_self_upgrade_loop|scientist_memory_consolidation|scientist_innovation_backlog|scientist_hypothesis_review|scientist_experiment_blueprint|scientist_situation_model|switch_task)]',
+    r'evolution_status|scientist_checkpoint|research_decision|scientist_workplan|scientist_turn_plan|scientist_repair_plan|scientist_execution_contract|scientist_step_trace|scientist_recovery|scientist_action_queue|scientist_next_action|scientist_autopilot|scientist_loop|scientist_self_audit|scientist_upgrade_plan|scientist_self_upgrade_loop|scientist_memory_consolidation|scientist_innovation_backlog|scientist_hypothesis_panel|scientist_hypothesis_review|scientist_experiment_blueprint|scientist_situation_model|switch_task)]',
     re.IGNORECASE,
 )
 
@@ -140,6 +140,16 @@ def _forced_tool_hints(user: str) -> list[str]:
     )
     if any(token in text for token in innovation_tokens):
         return ["scientist_innovation_backlog"]
+    panel_tokens = (
+        "hypothesis panel",
+        "research panel",
+        "parallel hypotheses",
+        "multi-agent hypotheses",
+        "independent critics",
+        "adversarial hypothesis panel",
+    )
+    if any(token in text for token in panel_tokens):
+        return ["scientist_hypothesis_panel"]
     review_tokens = (
         "review hypotheses",
         "review hypothesis",
@@ -205,6 +215,34 @@ def _forced_tool_hints(user: str) -> list[str]:
     )
     if any(token in text for token in situation_tokens):
         return ["scientist_situation_model"]
+    certification_tokens = (
+        "external capability certification",
+        "external certification status",
+        "capability certificate",
+        "hidden suite certificate",
+        "certification status",
+    )
+    if any(token in text for token in certification_tokens):
+        return ["scientist_capability_certification"]
+    campaign_tokens = (
+        "upgrade campaign status",
+        "candidate campaign status",
+        "champion campaign",
+        "self-upgrade campaign",
+        "self upgrade campaign",
+    )
+    if any(token in text for token in campaign_tokens):
+        return ["scientist_upgrade_campaign"]
+    parity_tokens = (
+        "research parity status",
+        "research parity gate",
+        "claude parity certificate",
+        "codex parity certificate",
+        "frontier agent parity",
+        "parity gate",
+    )
+    if any(token in text for token in parity_tokens):
+        return ["scientist_research_parity_gate"]
     self_upgrade_tokens = (
         "self-upgrade loop",
         "self upgrade loop",
@@ -661,6 +699,15 @@ def _terminal_tool_specs():
         ToolSpec("scientist_self_audit",
                  "Read-only capability audit of EvoMind itself: scores, gaps, evidence sources, and system-upgrade backlog. Never trains or submits.",
                  no_args),
+        ToolSpec("scientist_capability_certification",
+                 "Read-only status for the out-of-band SHA-256 anchored hidden-suite certification against named frontier baselines.",
+                 no_args),
+        ToolSpec("scientist_upgrade_campaign",
+                 "Read-only status for the immutable strict-improvement candidate campaign, champion canary, and rollback evidence.",
+                 no_args),
+        ToolSpec("scientist_research_parity_gate",
+                 "Read-only fail-closed parity gate requiring both external certification and an active verified upgrade campaign.",
+                 no_args),
         ToolSpec("scientist_upgrade_plan",
                  "Read-only engineering planner for the self-audit upgrade backlog: files to inspect, acceptance checks, closure gates, and safe next commands. Never edits, trains, or submits.",
                  no_args),
@@ -672,6 +719,9 @@ def _terminal_tool_specs():
                  no_args),
         ToolSpec("scientist_innovation_backlog",
                  "Read-only memory-guided innovation planner: proposes auditable branches, risk controls, artifacts, and gates before training. Never trains or submits.",
+                 no_args),
+        ToolSpec("scientist_hypothesis_panel",
+                 "Parallel specialist proposal panel with a second independent critic round, disagreement penalties, and critical vetoes. Never trains or submits.",
                  no_args),
         ToolSpec("scientist_hypothesis_review",
                  "Read-only Scientist review board: scores and ranks innovation hypotheses by evidence, readiness, impact, risk, and gates. Never trains or submits.",
@@ -1009,7 +1059,9 @@ class ConversationAgent:
             "gpu_status, kaggle_status, dashboard, next_steps, evolution_status, "
             "scientist_checkpoint, research_decision, scientist_workplan, "
             "scientist_turn_plan, scientist_repair_plan, scientist_execution_contract, scientist_step_trace, "
-            "scientist_autopilot, scientist_self_audit, scientist_innovation_backlog, "
+            "scientist_autopilot, scientist_self_audit, scientist_capability_certification, "
+            "scientist_upgrade_campaign, scientist_research_parity_gate, scientist_innovation_backlog, "
+            "scientist_hypothesis_panel, "
             "scientist_hypothesis_review, scientist_experiment_blueprint, "
             "scientist_situation_model.\n\n"
             "Be concise. Think like a scientist — what do we know, what do we "
@@ -1152,6 +1204,7 @@ class ConversationAgent:
                 "scientist_upgrade_plan": "Scientist Upgrade Plan",
                 "scientist_self_upgrade_loop": "Scientist Self-Upgrade Loop",
                 "scientist_innovation_backlog": "Scientist Innovation Backlog",
+                "scientist_hypothesis_panel": "Scientist Hypothesis Panel",
                 "scientist_hypothesis_review": "Scientist Hypothesis Review",
                 "scientist_experiment_blueprint": "Scientist Experiment Blueprint",
                 "scientist_situation_model": "Scientist Situation Model",

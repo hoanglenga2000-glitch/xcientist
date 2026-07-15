@@ -138,9 +138,132 @@ jobs:
       - name: Exercise production security boundaries
         run: npm run security:runtime
 
-  release-artifacts:
+  capability-certification:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: [python-release, frontend-release]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    outputs:
+      artifact-id: ${{ steps.upload-capability-result.outputs.artifact-id }}
+      artifact-digest: ${{ steps.upload-capability-result.outputs.artifact-digest }}
+      result-sha256: ${{ steps.verify-capability.outputs.result-sha256 }}
+      source-archive-sha256: ${{ steps.verify-capability.outputs.source-archive-sha256 }}
+    permissions:
+      contents: read
+    env:
+      CAPABILITY_EVIDENCE_URL: ${{ secrets.EVOMIND_CAPABILITY_EVIDENCE_URL }}
+      CAPABILITY_BUNDLE_SHA256: ${{ vars.EVOMIND_CAPABILITY_BUNDLE_SHA256 }}
+      CAPABILITY_REPORT_SHA256: ${{ vars.EVOMIND_CAPABILITY_REPORT_SHA256 }}
+      CAPABILITY_SUITE_ID: ${{ vars.EVOMIND_CAPABILITY_SUITE_ID }}
+      CAPABILITY_SUITE_SHA256: ${{ vars.EVOMIND_CAPABILITY_SUITE_SHA256 }}
+      CAPABILITY_EVALUATOR_ID: ${{ vars.EVOMIND_CAPABILITY_EVALUATOR_ID }}
+      CAPABILITY_EVALUATOR_SHA256: ${{ vars.EVOMIND_CAPABILITY_EVALUATOR_SHA256 }}
+      CAPABILITY_BASELINE_AGENTS: ${{ vars.EVOMIND_CAPABILITY_BASELINE_AGENTS }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - name: Download, extract, and verify external capability evidence
+        id: verify-capability
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $required = @(
+            'CAPABILITY_EVIDENCE_URL',
+            'CAPABILITY_BUNDLE_SHA256',
+            'CAPABILITY_REPORT_SHA256',
+            'CAPABILITY_SUITE_ID',
+            'CAPABILITY_SUITE_SHA256',
+            'CAPABILITY_EVALUATOR_ID',
+            'CAPABILITY_EVALUATOR_SHA256',
+            'CAPABILITY_BASELINE_AGENTS'
+          )
+          foreach ($name in $required) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ([string]::IsNullOrWhiteSpace($value)) {
+              throw "External capability trust anchor is not configured: $name"
+            }
+          }
+          foreach ($name in @(
+            'CAPABILITY_BUNDLE_SHA256',
+            'CAPABILITY_REPORT_SHA256',
+            'CAPABILITY_SUITE_SHA256',
+            'CAPABILITY_EVALUATOR_SHA256'
+          )) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if ($value -cnotmatch '^[0-9a-f]{64}$') { throw "$name must be a lowercase SHA-256 digest" }
+          }
+
+          $bundle = Join-Path $env:RUNNER_TEMP 'evomind-capability-evidence.zip'
+          $extract = Join-Path $env:RUNNER_TEMP 'evomind-capability-evidence'
+          $resultPath = Join-Path $env:RUNNER_TEMP 'capability-certification-result.json'
+          try {
+            Invoke-WebRequest -Uri $env:CAPABILITY_EVIDENCE_URL -OutFile $bundle -UseBasicParsing -ErrorAction Stop
+          } catch {
+            throw 'External capability evidence download failed'
+          }
+          python scripts\extract_capability_evidence_bundle.py `
+            $bundle $extract --expected-sha256 $env:CAPABILITY_BUNDLE_SHA256
+          if ($LASTEXITCODE -ne 0) { throw 'External capability evidence bundle was rejected' }
+
+          $arguments = @(
+            'scripts\verify_capability_certification.py',
+            (Join-Path $extract 'report.json'),
+            '--repo-root', $PWD.Path,
+            '--artifact-root', $extract,
+            '--expected-report-sha256', $env:CAPABILITY_REPORT_SHA256,
+            '--expected-suite-id', $env:CAPABILITY_SUITE_ID,
+            '--expected-suite-sha256', $env:CAPABILITY_SUITE_SHA256,
+            '--expected-evaluator-id', $env:CAPABILITY_EVALUATOR_ID,
+            '--expected-evaluator-sha256', $env:CAPABILITY_EVALUATOR_SHA256,
+            '--minimum-hidden-tasks', '100',
+            '--minimum-domains', '8',
+            '--minimum-tasks-per-domain', '3',
+            '--minimum-repeats', '3',
+            '--minimum-success-rate', '0.80',
+            '--minimum-wilson-lower-bound', '0.75',
+            '--baseline-noninferiority-margin', '0.05',
+            '--maximum-timeout-rate', '0',
+            '--minimum-upgrade-candidates', '2',
+            '--output', $resultPath
+          )
+          $baselines = @($env:CAPABILITY_BASELINE_AGENTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if ($baselines.Count -lt 2) { throw 'At least two external baseline agents are required' }
+          foreach ($baseline in $baselines) { $arguments += @('--baseline-agent', $baseline) }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) { throw 'External capability certification did not pass' }
+
+          $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+          if ($result.status -cne 'PASS' -or $result.release_allowed -ne $true) {
+            throw 'Capability verifier did not emit a release-allowed PASS result'
+          }
+          $report = Get-Content -LiteralPath (Join-Path $extract 'report.json') -Raw | ConvertFrom-Json
+          $sourceArchiveSha = [string]$report.subject.source_archive_sha256
+          if ($sourceArchiveSha -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'Certified source archive digest is invalid'
+          }
+          $resultSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $resultPath).Hash.ToLowerInvariant()
+          "result-sha256=$resultSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "source-archive-sha256=$sourceArchiveSha" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+      - name: Upload immutable capability certification result
+        id: upload-capability-result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: capability-certification-${{ github.sha }}
+          path: ${{ runner.temp }}\capability-certification-result.json
+          if-no-files-found: error
+          compression-level: 0
+          overwrite: false
+          include-hidden-files: false
+          retention-days: 1
+
+  release-artifacts:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [python-release, frontend-release, capability-certification]
     runs-on: windows-latest
     timeout-minutes: 90
     outputs:
@@ -148,6 +271,7 @@ jobs:
       artifact-digest: ${{ steps.upload-release-assets.outputs.artifact-digest }}
       sha256-manifest-digest: ${{ steps.seal-sha256.outputs.sha256-manifest-digest }}
     permissions:
+      actions: read
       contents: read
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -243,6 +367,38 @@ jobs:
           $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
           python -m pip --python .\.release-sbom\Scripts\python.exe install $wheel.FullName
           python -m pip --python .\.release-sbom\Scripts\python.exe check
+      - name: Download and bind external capability certification
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          artifact-ids: ${{ needs.capability-certification.outputs.artifact-id }}
+          path: .capability-certification
+          merge-multiple: true
+      - name: Verify certification result and certified source bytes
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          if ('${{ needs.capability-certification.outputs.artifact-id }}' -notmatch '^\d+$') {
+            throw 'Capability certification did not provide an immutable artifact ID'
+          }
+          if ('${{ needs.capability-certification.outputs.artifact-digest }}' -notmatch '^(?:sha256:)?[0-9a-fA-F]{64}$') {
+            throw 'Capability certification did not provide a valid artifact digest'
+          }
+          $resultPath = '.capability-certification\capability-certification-result.json'
+          $resultSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $resultPath).Hash.ToLowerInvariant()
+          if ($resultSha -cne '${{ needs.capability-certification.outputs.result-sha256 }}') {
+            throw 'Downloaded capability certification result changed after verification'
+          }
+          $result = Get-Content -LiteralPath $resultPath -Raw | ConvertFrom-Json
+          if ($result.status -cne 'PASS' -or $result.release_allowed -ne $true) {
+            throw 'Downloaded capability certification result is not release-allowed'
+          }
+          $source = Get-ChildItem dist\*-workstation-source.zip | Select-Object -First 1
+          $sourceSha = (Get-FileHash -Algorithm SHA256 -LiteralPath $source.FullName).Hash.ToLowerInvariant()
+          if ($sourceSha -cne '${{ needs.capability-certification.outputs.source-archive-sha256 }}') {
+            throw 'Built workstation source bytes do not match externally certified source bytes'
+          }
+          Copy-Item -LiteralPath $resultPath `
+            -Destination "dist\xcientist-$env:PACKAGE_VERSION.capability-certification.json"
       - name: Fresh source install and live production acceptance
         shell: pwsh
         env:

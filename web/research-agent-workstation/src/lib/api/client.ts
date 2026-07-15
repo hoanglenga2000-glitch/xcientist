@@ -1,4 +1,4 @@
-import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistEngineeringLoopResponse, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
+import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistEngineeringLoopResponse, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradeCampaignRequest, ScientistUpgradeCampaignSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
 
 async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { error?: string; ok?: boolean };
@@ -163,6 +163,22 @@ export async function getScientistSelfUpgradeLoop() {
 export async function runScientistSelfUpgradeLoop() {
   return readJson<{ ok: boolean; action: string; scientist_self_upgrade_loop: ScientistSelfUpgradeLoopSummary; scientist_upgrade_plan?: ScientistUpgradePlanSummary | null; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
     await fetch("/api/scientist/self-upgrade", { method: "POST" })
+  );
+}
+
+export async function getScientistUpgradeCampaign() {
+  return readJson<{ ok: boolean; action: string; scientist_upgrade_campaign: ScientistUpgradeCampaignSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/upgrade-campaign")
+  );
+}
+
+export async function runScientistUpgradeCampaign(request: ScientistUpgradeCampaignRequest) {
+  return readJson<{ ok: boolean; action: string; scientist_upgrade_campaign: ScientistUpgradeCampaignSummary; no_training_started?: boolean; official_submit?: string }>(
+    await fetch("/api/scientist/upgrade-campaign", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(request)
+    })
   );
 }
 

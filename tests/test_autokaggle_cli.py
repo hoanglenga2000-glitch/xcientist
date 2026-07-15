@@ -1713,6 +1713,8 @@ def test_scientist_readiness_report_writes_unified_report_without_training(isola
     assert isinstance(result["overall_score"], int)
     assert result["claim_readiness"]["rank_or_medal_claim"] == "blocked_without_kaggle_response_artifact"
     assert result["claim_readiness"]["official_submit_claim"] == "blocked_until_explicit_human_approval"
+    assert result["research_parity_gate"]["status"] == "blocked"
+    assert "external_capability_certification_not_verified" in result["research_parity_gate"]["blockers"]
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
     assert any(item["name"] == "compute_resource_gate" for item in result["readiness_matrix"])
@@ -1859,7 +1861,9 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
     if result["execution_readiness"]["runtime_execution_ready"] is False:
         assert result["launch_readiness"] != "strong_local_agent_ready"
         assert result["claim_readiness"]["training_readiness_claim"] == "blocked_by_external_resource_or_data_gate"
-        assert result["claim_readiness"]["ai_scientist_parity_claim"] == "blocked_without_end_to_end_training_and_recovery_evidence"
+        assert result["claim_readiness"]["ai_scientist_parity_claim"] == (
+            "blocked_without_external_hidden_suite_certification_and_active_upgrade_campaign"
+        )
     assert result["claim_readiness"]["rank_or_medal_claim"] == "blocked_without_kaggle_response_artifact"
     assert result["no_training_started"] is True
 
@@ -2214,6 +2218,8 @@ def test_scientist_self_audit_rejects_artifact_only_parity_claims(isolated_autok
     assert result["evidence_sources"]["parity"]["gpu_blocked"] is True
     assert result["evidence_sources"]["parity"]["setup_gate_enforced"] is True
     assert result["execution_readiness"]["status"] == "blocked_by_external_resource_or_data_gate"
+    assert result["research_parity_gate"]["status"] == "blocked"
+    assert result["research_parity_gate"]["parity_claim_allowed"] is False
     parity_cap = next(item for item in result["capabilities"] if item["name"] == "ai_scientist_parity")
     assert "execute: compute/data gates are either clear or hard-blocked with a contract" in parity_cap["passed_checks"]
     assert "LEAKME" not in serialized

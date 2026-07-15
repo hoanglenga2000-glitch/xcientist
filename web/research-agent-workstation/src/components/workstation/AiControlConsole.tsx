@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import * as api from "@/lib/api/client";
+import type { ScientistUpgradeCampaignSummary } from "@/lib/api/types";
 import { JsonInspector } from "./Common";
 
 type Locale = "zh-CN" | "en-US";
@@ -34,6 +35,7 @@ type ControlIntent =
   | "scientist_context_packet"
   | "scientist_upgrade_plan"
   | "scientist_self_upgrade_loop"
+  | "scientist_upgrade_campaign"
   | "scientist_patch_work_order"
   | "scientist_innovation_backlog"
   | "scientist_hypothesis_review"
@@ -1257,6 +1259,25 @@ function parseControlCommand(input: string, taskId: string): ParsedControlComman
     };
   }
   if ([
+    "upgrade campaign status",
+    "candidate campaign status",
+    "research parity gate",
+    "research parity status",
+    "external capability certification",
+    "certification status",
+    "可信升级活动",
+    "研究级对标门禁",
+    "外部能力认证"
+  ].some((kw) => lower.includes(kw))) {
+    return {
+      intent: "scientist_upgrade_campaign",
+      taskId,
+      metadata: { trigger: "ai_control_console", raw_input: input },
+      risk: "safe",
+      description: "Refresh the external certification, champion campaign, rollback, and research parity gates."
+    };
+  }
+  if ([
     "self-upgrade loop",
     "self upgrade loop",
     "upgrade loop",
@@ -1751,6 +1772,7 @@ export function AiControlConsole({
   const [scientistContextPacket, setScientistContextPacket] = useState<ScientistContextPacketView | null>(null);
   const [scientistUpgradePlan, setScientistUpgradePlan] = useState<ScientistUpgradePlanView | null>(null);
   const [scientistSelfUpgradeLoop, setScientistSelfUpgradeLoop] = useState<ScientistSelfUpgradeLoopView | null>(null);
+  const [scientistUpgradeCampaign, setScientistUpgradeCampaign] = useState<ScientistUpgradeCampaignSummary | null>(null);
   const [scientistPatchWorkOrder, setScientistPatchWorkOrder] = useState<ScientistPatchWorkOrderView | null>(null);
   const [scientistEngineeringLoop, setScientistEngineeringLoop] = useState<ScientistEngineeringLoopView | null>(null);
   const [scientistInnovationBacklog, setScientistInnovationBacklog] = useState<ScientistInnovationBacklogView | null>(null);
@@ -1780,6 +1802,8 @@ export function AiControlConsole({
   const [scientistContextPacketBusy, setScientistContextPacketBusy] = useState(false);
   const [scientistUpgradePlanBusy, setScientistUpgradePlanBusy] = useState(false);
   const [scientistSelfUpgradeBusy, setScientistSelfUpgradeBusy] = useState(false);
+  const [scientistUpgradeCampaignBusy, setScientistUpgradeCampaignBusy] = useState(false);
+  const [scientistPromotionApproved, setScientistPromotionApproved] = useState(false);
   const [scientistPatchWorkOrderBusy, setScientistPatchWorkOrderBusy] = useState(false);
   const [scientistEngineeringBusy, setScientistEngineeringBusy] = useState(false);
   const [scientistInnovationBusy, setScientistInnovationBusy] = useState(false);
@@ -1905,6 +1929,13 @@ export function AiControlConsole({
       })
       .catch(() => {
         if (alive) setScientistSelfUpgradeLoop(null);
+      });
+    api.getScientistUpgradeCampaign()
+      .then((payload) => {
+        if (alive) setScientistUpgradeCampaign(payload.scientist_upgrade_campaign ?? null);
+      })
+      .catch(() => {
+        if (alive) setScientistUpgradeCampaign(null);
       });
     api.getScientistPatchWorkOrder()
       .then((payload) => {
@@ -2194,6 +2225,10 @@ export function AiControlConsole({
         case "scientist_self_upgrade_loop":
           rawResponse = await runScientistSelfUpgradeLoop();
           pushMessage("system", "Scientist Self-Upgrade Loop completed: the next capability gap was converted into a code-agent work order, action queue, trace, and lesson. No training was started.");
+          break;
+        case "scientist_upgrade_campaign":
+          rawResponse = await runScientistUpgradeCampaignAction("status");
+          pushMessage("system", "Upgrade campaign status refreshed: external certification and active champion evidence remain independently gated.");
           break;
         case "scientist_patch_work_order":
           rawResponse = await runScientistPatchWorkOrder();
@@ -2554,6 +2589,29 @@ export function AiControlConsole({
     }
   }
 
+  async function runScientistUpgradeCampaignAction(action: "status" | "run" | "promote" | "rollback") {
+    setScientistUpgradeCampaignBusy(true);
+    try {
+      if (action !== "status") {
+        await api.runScientistUpgradeCampaign({
+          action,
+          human_approved: action === "promote" ? scientistPromotionApproved : undefined,
+          timeout_seconds: 300
+        });
+      }
+      const refreshed = await api.getScientistUpgradeCampaign();
+      setScientistUpgradeCampaign(refreshed.scientist_upgrade_campaign ?? null);
+      if (action === "promote") setScientistPromotionApproved(false);
+      return refreshed;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Upgrade campaign action failed";
+      pushMessage("error", message);
+      return null;
+    } finally {
+      setScientistUpgradeCampaignBusy(false);
+    }
+  }
+
   async function runScientistPatchWorkOrder() {
     setScientistPatchWorkOrderBusy(true);
     try {
@@ -2850,6 +2908,17 @@ export function AiControlConsole({
       : scientistEngineeringLoop?.present
         ? "amber"
         : "slate";
+  const scientistCertificationEvidence = (scientistUpgradeCampaign?.certification ?? {}) as Record<string, unknown>;
+  const scientistCampaignEvidence = (scientistUpgradeCampaign?.upgrade_campaign ?? {}) as Record<string, unknown>;
+  const scientistCampaignStatus = String(
+    scientistCampaignEvidence.campaign_status
+      ?? scientistCampaignEvidence.status
+      ?? scientistUpgradeCampaign?.status
+      ?? "not_run"
+  );
+  const scientistCertificationStatus = String(scientistCertificationEvidence.status ?? "not_certified");
+  const scientistParityCertified = scientistUpgradeCampaign?.parity_claim_allowed === true;
+  const scientistCampaignTone: StatusTone = scientistParityCertified ? "green" : "red";
 
   return (
     <main className="space-y-4">
@@ -3214,6 +3283,102 @@ export function AiControlConsole({
               <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-slate-700">
                 training={scientistParityLifecycle?.no_training_started === false ? "started" : "not_started"} · submit={scientistParityLifecycle?.official_submit ?? "blocked"}
               </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card data-testid="verified-upgrade-campaign">
+        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <CardTitle>{tx(locale, "Verified Upgrade Campaign", "可信升级活动")}</CardTitle>
+            <CardDescription>
+              {tx(
+                locale,
+                "External hidden-suite certification and the active champion campaign are evaluated as separate release gates.",
+                "外部隐藏测试认证与当前冠军升级活动分别作为独立发布门禁。"
+              )}
+            </CardDescription>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void runScientistUpgradeCampaignAction("status")}
+              disabled={scientistUpgradeCampaignBusy}
+              title={tx(locale, "Refresh campaign status", "刷新升级状态")}
+            >
+              <RefreshCcw className={`h-4 w-4 ${scientistUpgradeCampaignBusy ? "animate-spin" : ""}`} />
+              {tx(locale, "Refresh", "刷新")}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void runScientistUpgradeCampaignAction("run")}
+              disabled={scientistUpgradeCampaignBusy}
+            >
+              <Play className="h-4 w-4" />
+              {tx(locale, "Evaluate Candidates", "评估候选")}
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => void runScientistUpgradeCampaignAction("promote")}
+              disabled={scientistUpgradeCampaignBusy || !scientistPromotionApproved || scientistCampaignStatus !== "awaiting_human_promotion"}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              {tx(locale, "Promote", "晋升")}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => void runScientistUpgradeCampaignAction("rollback")}
+              disabled={scientistUpgradeCampaignBusy || scientistCampaignStatus !== "active"}
+            >
+              <History className="h-4 w-4" />
+              {tx(locale, "Rollback", "回滚")}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
+          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <Row label={tx(locale, "Parity Gate", "对标门禁")} value={<StatusBadge tone={scientistCampaignTone}>{scientistParityCertified ? "certified" : "blocked"}</StatusBadge>} />
+            <Row label={tx(locale, "Certification", "外部认证")} value={scientistCertificationStatus} />
+            <Row label={tx(locale, "Campaign", "升级活动")} value={scientistCampaignStatus} />
+            <Row label={tx(locale, "Score Cap", "评分上限")} value={scientistUpgradeCampaign?.score_cap ?? 84} />
+            <Row label={tx(locale, "Champion Ref", "冠军引用")} value={String(scientistCampaignEvidence.champion_ref ?? "refs/evomind/champion")} />
+            <Row label={tx(locale, "Canary", "运行时探针")} value={String(scientistCampaignEvidence.promotion_verified === true)} />
+            <Row label={tx(locale, "Rollback Proof", "回滚证明")} value={String(scientistCampaignEvidence.rollback_verified === true)} />
+            <label className="mt-3 flex items-start gap-2 border-t border-slate-200 pt-3 text-xs text-slate-700">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={scientistPromotionApproved}
+                onChange={(event) => setScientistPromotionApproved(event.target.checked)}
+              />
+              <span>{tx(locale, "I approve promotion of the selected strictly improved candidate.", "我确认晋升已通过严格提升门禁的候选版本。")}</span>
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Blocking Evidence", "阻断证据")}</div>
+              <div className="space-y-2">
+                {(scientistUpgradeCampaign?.blockers ?? []).length === 0 ? (
+                  <div className="text-xs text-emerald-700">{tx(locale, "No parity blockers are active.", "当前没有对标阻断项。")}</div>
+                ) : null}
+                {(scientistUpgradeCampaign?.blockers ?? []).map((blocker) => (
+                  <div key={blocker} className="break-all rounded border border-rose-100 bg-rose-50 px-2 py-1.5 font-mono text-[11px] text-rose-800">{blocker}</div>
+                ))}
+              </div>
+            </div>
+            <div className="rounded-md border border-slate-200 bg-white p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Bound Evidence", "绑定证据")}</div>
+              <Row label={tx(locale, "Result Digest", "结果摘要")} value={String(scientistCertificationEvidence.result_sha256 ?? "(none)")} />
+              <Row label={tx(locale, "Exact Source", "精确源码")} value={String(scientistCertificationEvidence.source_identity_matches === true)} />
+              <Row label={tx(locale, "Strict Improvement", "严格提升")} value={String(scientistCampaignEvidence.strict_improvement_verified === true)} />
+              <Row label={tx(locale, "Champion Match", "冠军匹配")} value={String(scientistCampaignEvidence.champion_ref_matches === true)} />
+            </div>
+            <div className="max-h-80 overflow-auto rounded-md md:col-span-2">
+              <JsonInspector data={{ certification: scientistCertificationEvidence, campaign: scientistCampaignEvidence }} />
             </div>
           </div>
         </CardContent>

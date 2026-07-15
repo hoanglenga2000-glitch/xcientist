@@ -909,6 +909,38 @@ def _show_scientist_hypothesis_review(session: SessionState, root: Path) -> int:
     return 0 if result.get("ok", True) else 1
 
 
+def _show_scientist_hypothesis_panel(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_hypothesis_panel_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_hypothesis_panel", session, root)
+    _agent_reply("\n".join(render_scientist_hypothesis_panel_summary(result)), title="Scientist hypothesis panel")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_release_evidence(session: SessionState, root: Path, tool: str, title: str) -> int:
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch(tool, session, root)
+    lines = [f"[{tool}]", f"status: {result.get('status') or 'unknown'}"]
+    if "verified" in result:
+        lines.append(f"verified: {result.get('verified') is True}")
+    if "active_and_verified" in result:
+        lines.append(f"active_and_verified: {result.get('active_and_verified') is True}")
+    if "parity_claim_allowed" in result:
+        lines.append(f"parity_claim_allowed: {result.get('parity_claim_allowed') is True}")
+    blockers = result.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        lines.append("blockers:")
+        lines.extend(f"  - {item}" for item in blockers[:8])
+    if result.get("reason"):
+        lines.append(f"reason: {result.get('reason')}")
+    if result.get("artifact_path"):
+        lines.append(f"artifact: {result.get('artifact_path')}")
+    _agent_reply("\n".join(lines), title=title)
+    return 0 if result.get("ok", False) else 1
+
+
 def _show_scientist_experiment_blueprint(session: SessionState, root: Path) -> int:
     from .terminal_events import render_scientist_experiment_blueprint_summary
     from .terminal_tools import TerminalTools
@@ -1517,6 +1549,7 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  memory-consolidate       write Scientist lessons into retrospective memory")
     print("  innovate-plan            generate memory-guided proposal backlog before training")
     print("  review-hypotheses        rank proposed research hypotheses before training")
+    print("  hypothesis-panel         parallel specialist hypotheses + independent criticism")
     print("  blueprint                generate gated experiment blueprint from reviewed hypothesis")
     print("  innovation-feedback      write hypothesis/blueprint gate outcome into innovation memory")
     print("  situation                synthesize evidence, blockers, uncertainty, strategy, and memory")
@@ -1622,6 +1655,10 @@ def _print_help() -> None:
     print("  evomind briefing            build per-turn Scientist context packet")
     print("  evomind upgrade-plan        convert self-audit backlog into engineering plan")
     print("  evomind self-upgrade        create a safe work order for the next P0 capability upgrade")
+    print("  evomind upgrade-campaign    status/init/run/promote/rollback immutable candidate campaigns")
+    print("  evomind certification-status verify the anchored external hidden-suite certificate")
+    print("  evomind certification-install import a result using an explicit out-of-band SHA-256")
+    print("  evomind parity-status       require both certification and an active verified campaign")
     print("  evomind patch-order         create a code-agent patch work order from latest evidence")
     print("  evomind engineer            validate the latest patch in an isolated Git worktree")
     print("  evomind engineer --generate ask Code Agent for a diff, validate it, and stop before merge")
@@ -1631,6 +1668,7 @@ def _print_help() -> None:
     print("  evomind memory-consolidate  write Scientist lessons into retrospective memory")
     print("  evomind innovate-plan       generate memory-guided proposal backlog before training")
     print("  evomind review-hypotheses   rank proposed hypotheses against evidence/gates")
+    print("  evomind hypothesis-panel    run parallel specialist generation and independent critics")
     print("  evomind blueprint           turn reviewed hypothesis into gated experiment plan")
     print("  evomind innovation-feedback record gate feedback into innovation memory")
     print("  evomind situation           synthesize the current AI Scientist situation model")
@@ -1706,6 +1744,16 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_hypothesis_review(session, root)
+    if cmd in {"hypothesis-panel", "research-panel", "parallel-hypotheses", "multi-agent-hypotheses"}:
+        cfg = load_config(root)
+        # Direct CLI aliases bypass ``run_console``, so hydrate the provider
+        # environment here before the panel creates its six fresh clients.
+        # Without this, securely stored credentials are invisible and a fully
+        # configured installation silently degrades to deterministic fallback.
+        inject_engine_env(cfg)
+        session = SessionState.from_root(root, cfg=cfg)
+        session.last_goal = " ".join(argv[1:]).strip() or session.last_goal
+        return _show_scientist_hypothesis_panel(session, root)
     if cmd in {"blueprint", "experiment-blueprint", "plan-experiment", "candidate-blueprint"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_experiment_blueprint(session, root)
@@ -1751,6 +1799,30 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"self-upgrade", "self-upgrade-loop", "upgrade-loop", "capability-loop"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_self_upgrade_loop(session, root)
+    if cmd in {"upgrade-campaign", "candidate-campaign", "promotion-campaign"}:
+        from .scientist_upgrade_gateway import run_upgrade_campaign_cli
+
+        return run_upgrade_campaign_cli(argv[1:], root)
+    if cmd in {"certification-status", "capability-certification", "external-certification"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_release_evidence(
+            session,
+            root,
+            "scientist_capability_certification",
+            "External capability certification",
+        )
+    if cmd in {"certification-install", "install-certification"}:
+        from .scientist_upgrade_gateway import run_certification_install_cli
+
+        return run_certification_install_cli(argv[1:], root)
+    if cmd in {"parity-status", "research-parity", "parity-gate"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_release_evidence(
+            session,
+            root,
+            "scientist_research_parity_gate",
+            "Research parity gate",
+        )
     if cmd in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_patch_work_order(session, root)

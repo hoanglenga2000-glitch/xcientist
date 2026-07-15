@@ -1291,6 +1291,47 @@ def render_scientist_innovation_backlog_summary(result: dict) -> list[str]:
     return lines
 
 
+def render_scientist_hypothesis_panel_summary(result: dict) -> list[str]:
+    """Render the parallel proposal/critic panel without exposing transcripts."""
+    ok = result.get("ok", True)
+    lines = [f"[tool:scientist_hypothesis_panel] {'OK' if ok else 'BLOCKED'}"]
+    lines.append(f"  selected_task: {result.get('selected_task') or '(none)'}")
+    lines.append(f"  mode: {result.get('mode') or 'unknown'}")
+    lines.append(
+        "  calls: "
+        f"model={result.get('model_call_count', 0)} fallback={result.get('fallback_call_count', 0)}"
+    )
+    lines.append(f"  selection_status: {result.get('selection_status') or 'unknown'}")
+    selected = result.get("selected_hypothesis")
+    if isinstance(selected, dict):
+        lines.append("  selected_hypothesis:")
+        lines.append(
+            f"    #{selected.get('rank')} {selected.get('proposal_id')} "
+            f"role={selected.get('role')} score={selected.get('panel_score')} "
+            f"confidence={selected.get('adjusted_confidence')}"
+        )
+        lines.append(f"    hypothesis: {selected.get('hypothesis')}")
+        lines.append(f"    falsification: {selected.get('falsification_test')}")
+    ranked = result.get("ranked_hypotheses") or []
+    if ranked:
+        lines.append("  ranked_hypotheses:")
+        for item in ranked[:8]:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                f"    - #{item.get('rank')} {item.get('proposal_id')} role={item.get('role')} "
+                f"score={item.get('panel_score')} status={item.get('status')} "
+                f"vetoes={item.get('critical_veto_count')} disagreement={item.get('review_disagreement')}"
+            )
+    lines.append(f"  artifact: {result.get('artifact_path')}")
+    lines.append("  no_training_started: True")
+    lines.append(
+        "  official_submit: "
+        + str(result.get("official_submit") or "blocked_until_explicit_human_approval")
+    )
+    return lines
+
+
 def render_scientist_hypothesis_review_summary(result: dict) -> list[str]:
     """Render the proposal critique/ranking board for terminal users."""
     ok = result.get("ok", True)

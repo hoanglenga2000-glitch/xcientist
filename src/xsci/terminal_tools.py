@@ -3005,6 +3005,20 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         system = get_system_status(session, root)
     except Exception as exc:  # pragma: no cover - defensive only
         system = {"ok": False, "tool": "system_status", "message": type(exc).__name__, "blockers": []}
+    try:
+        from .scientist_release_evidence import read_research_parity_gate
+        from .scientist_upgrade_gateway import resolve_upgrade_repository
+
+        research_parity_gate = read_research_parity_gate(resolve_upgrade_repository(root))
+    except Exception as exc:  # pragma: no cover - defensive only
+        research_parity_gate = {
+            "tool": "research_parity_gate",
+            "status": "blocked",
+            "parity_claim_allowed": False,
+            "score_cap": 84,
+            "blockers": ["research_parity_gate_error"],
+            "reason": type(exc).__name__,
+        }
 
     action_items = action_queue.get("actions") if isinstance(action_queue, dict) else []
     if not isinstance(action_items, list):
@@ -3316,6 +3330,14 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     else:
         behavior_score_cap = 59
         behavior_status = "not_measured"
+    external_parity_certified = research_parity_gate.get("parity_claim_allowed") is True
+    if external_parity_certified:
+        behavior_score_cap = 100
+        behavior_status = "externally_certified_named_baseline_noninferiority"
+    else:
+        parity_cap = research_parity_gate.get("score_cap")
+        if isinstance(parity_cap, int) and not isinstance(parity_cap, bool):
+            behavior_score_cap = min(behavior_score_cap, parity_cap)
     overall_score = min(structural_score, behavior_score_cap)
 
     gaps: list[dict[str, Any]] = []
@@ -3449,6 +3471,31 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "evomind autopilot",
             [".xsci/terminal_events.jsonl", ".xsci/scientist_turns.jsonl"],
         )
+    parity_blockers = research_parity_gate.get("blockers")
+    if isinstance(parity_blockers, list) and "external_capability_certification_not_verified" in parity_blockers:
+        add_backlog(
+            "external_capability_certification",
+            "Pass an independently anchored hidden-suite certification against Codex and Claude Code",
+            "P0",
+            "Local structure and proxy tasks do not establish frontier-agent non-inferiority.",
+            "evomind certification-status",
+            [
+                ".xsci/capability_certification_result.json",
+                "external report, suite, evaluator, raw results, and artifact SHA-256 anchors",
+            ],
+        )
+    if isinstance(parity_blockers, list) and "active_self_upgrade_campaign_not_verified" in parity_blockers:
+        add_backlog(
+            "verified_self_upgrade_campaign",
+            "Activate a strict-improvement upgrade campaign with canary and rollback evidence",
+            "P0",
+            "Self-evolution requires frozen evaluation, multiple immutable candidates, CAS promotion, and tested rollback.",
+            "evomind upgrade-campaign status",
+            [
+                ".xsci/scientist_upgrade_campaign.json",
+                ".xsci/upgrade_campaigns/<campaign_id>/self_upgrade_campaign_evidence.json",
+            ],
+        )
 
     evidence_sources = {
         "autopilot": {
@@ -3549,6 +3596,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "behavior_score_cap": behavior_score_cap,
             "effective_score": overall_score,
         },
+        "research_parity_gate": research_parity_gate,
     }
     next_safe_commands = [
         "evomind self-audit",
@@ -3557,9 +3605,11 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "evomind recovery",
         "evomind loop",
         "evomind autopilot",
+        "evomind certification-status",
+        "evomind upgrade-campaign status",
     ]
     capability_readiness = (
-        "strong_agent_capability_ready" if overall_score >= 85 else
+        "externally_certified_research_agent_ready" if overall_score >= 85 and external_parity_certified else
         "usable_but_needs_agent_upgrades" if overall_score >= 70 else
         "not_ready_for_strong_ai_scientist_demo"
     )
@@ -3586,16 +3636,19 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             else "blocked_by_external_resource_or_data_gate"
         ),
         "ai_scientist_parity_claim": (
-            "blocked_without_end_to_end_training_and_recovery_evidence"
-            if not runtime_execution_ready
-            else "agent_parity_proxy_only_requires_more_tasks"
+            "externally_certified_noninferiority_against_named_codex_and_claude_baselines"
+            if external_parity_certified
+            else "blocked_without_external_hidden_suite_certification_and_active_upgrade_campaign"
         ),
         "rank_or_medal_claim": "blocked_without_kaggle_response_artifact",
         "official_submit_claim": "blocked_until_explicit_human_approval",
         "reason": (
+            "External hidden-suite certification and an active verified upgrade campaign support the bounded parity claim."
+            if external_parity_certified
+            else
             "Capability score is separated from execution readiness; blocked compute/data gates prevent broad launch or benchmark claims."
             if not runtime_execution_ready
-            else "Execution gate is currently clear, but official submit/rank/medal claims still require human approval and Kaggle response artifacts."
+            else "Execution may be ready, but research parity remains blocked until external certification and an active verified upgrade campaign both pass."
         ),
         "no_training_started": True,
         "official_submit": "blocked_until_explicit_human_approval",
@@ -3627,6 +3680,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "structural_score": structural_score,
         "behavior_score_cap": behavior_score_cap,
         "behavior_benchmark_status": behavior_status,
+        "research_parity_gate": research_parity_gate,
         "previous_score": previous_score if isinstance(previous_score, int) else None,
         "score_delta": score_delta,
         "capability_readiness": capability_readiness,
@@ -3676,6 +3730,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "capability_readiness": capability_readiness,
         "launch_readiness": launch_readiness,
         "claim_readiness": claim_readiness,
+        "research_parity_gate": research_parity_gate,
         "capabilities": capabilities,
         "gaps": gaps,
         "upgrade_backlog": backlog,
@@ -3867,6 +3922,13 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
 
     claim_readiness = self_audit.get("claim_readiness") if isinstance(self_audit.get("claim_readiness"), dict) else {}
     execution_readiness = self_audit.get("execution_readiness") if isinstance(self_audit.get("execution_readiness"), dict) else {}
+    research_parity_gate = self_audit.get("research_parity_gate") if isinstance(self_audit.get("research_parity_gate"), dict) else {}
+    parity_ready = research_parity_gate.get("parity_claim_allowed") is True
+    parity_blockers = [
+        _redacted_memory_text(item, limit=220)
+        for item in (research_parity_gate.get("blockers") if isinstance(research_parity_gate.get("blockers"), list) else [])
+        if _redacted_memory_text(item, limit=220)
+    ]
     memory = evolution.get("retrospective_memory", {}) if isinstance(evolution, dict) else {}
     memory_records = int(memory.get("records") or 0) if isinstance(memory, dict) else 0
     blockers = [
@@ -3912,6 +3974,12 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
             "evomind resume-continuation",
         ),
         _readiness_gate_status(
+            "research_parity_certification",
+            parity_ready,
+            str(research_parity_gate.get("claim") or "research parity is not externally certified"),
+            "evomind parity-status",
+        ),
+        _readiness_gate_status(
             "rank_medal_claim_gate",
             False,
             "Kaggle rank/medal claims require official response artifacts.",
@@ -3932,6 +4000,8 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         recommended_next_commands.append("evomind resume-continuation")
     if not memory_records:
         recommended_next_commands.append("evomind memory-consolidate")
+    if not parity_ready:
+        recommended_next_commands.extend(["evomind certification-status", "evomind upgrade-campaign status"])
     recommended_next_commands.extend([
         "evomind self-audit",
         "evomind upgrade-plan",
@@ -3944,6 +4014,8 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         {"name": "upgrade_backlog", "path": self_audit.get("backlog_artifact_path") or str(xsci / "scientist_upgrade_backlog.json"), "present": (xsci / "scientist_upgrade_backlog.json").exists()},
         {"name": "capability_trend", "path": (self_audit.get("capability_trend") or {}).get("path") if isinstance(self_audit.get("capability_trend"), dict) else str(xsci / "scientist_capability_trend.jsonl"), "present": (xsci / "scientist_capability_trend.jsonl").exists()},
         {"name": "continuation_status", "path": continuation_status.get("artifact_path") or str(xsci / "scientist_continuation_status.json"), "present": (xsci / "scientist_continuation_status.json").exists()},
+        {"name": "capability_certification", "path": str(xsci / "capability_certification_result.json"), "present": (xsci / "capability_certification_result.json").exists()},
+        {"name": "upgrade_campaign", "path": str(xsci / "scientist_upgrade_campaign.json"), "present": (xsci / "scientist_upgrade_campaign.json").exists()},
         {"name": "readiness_report", "path": str(artifact_path), "present": True},
         {"name": "readiness_markdown", "path": str(markdown_path), "present": True},
     ]
@@ -3960,7 +4032,7 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         "claim_readiness": claim_readiness,
         "execution_readiness": execution_readiness,
         "readiness_matrix": readiness_matrix,
-        "blocking_reasons": blockers[:8],
+        "blocking_reasons": list(dict.fromkeys(blockers + parity_blockers))[:10],
         "recommended_next_commands": recommended_next_commands,
         "artifact_evidence": artifact_evidence,
         "source_artifacts": {
@@ -3990,7 +4062,9 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
                 "gpu_blocked": gpu_blocked,
                 "runtime_execution_ready": runtime_ready,
             },
+            "research_parity_gate": research_parity_gate,
         },
+        "research_parity_gate": research_parity_gate,
         "artifact_path": str(artifact_path),
         "markdown_artifact_path": str(markdown_path),
         "no_training_started": True,
@@ -8878,6 +8952,47 @@ def get_scientist_engineering_loop(session: SessionState, root: Path) -> dict[st
     return run_scientist_engineering_loop(session, root, generate_patch=False)
 
 
+def get_scientist_hypothesis_panel(session: SessionState, root: Path) -> dict[str, Any]:
+    """Run parallel specialist generation and independent hypothesis criticism."""
+    from .scientist_hypothesis_panel import run_scientist_hypothesis_panel
+
+    return run_scientist_hypothesis_panel(
+        session,
+        root,
+        goal=session.last_goal or session.selected_task or "current research objective",
+    )
+
+
+def get_scientist_capability_certification(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Read the hash-anchored external capability certification status."""
+    from .scientist_release_evidence import read_capability_certification_status
+    from .scientist_upgrade_gateway import resolve_upgrade_repository
+
+    payload = read_capability_certification_status(resolve_upgrade_repository(root))
+    payload["ok"] = payload.get("verified") is True
+    return payload
+
+
+def get_scientist_upgrade_campaign(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Read and verify the active immutable self-upgrade campaign."""
+    from .scientist_release_evidence import read_active_upgrade_campaign_status
+    from .scientist_upgrade_gateway import resolve_upgrade_repository
+
+    payload = read_active_upgrade_campaign_status(resolve_upgrade_repository(root))
+    payload["ok"] = payload.get("active_and_verified") is True
+    return payload
+
+
+def get_scientist_research_parity_gate(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Combine external certification and active upgrade evidence."""
+    from .scientist_release_evidence import read_research_parity_gate
+    from .scientist_upgrade_gateway import resolve_upgrade_repository
+
+    payload = read_research_parity_gate(resolve_upgrade_repository(root))
+    payload["ok"] = payload.get("parity_claim_allowed") is True
+    return payload
+
+
 class TerminalTools:
     """Namespace / dispatcher for the terminal's lightweight tool set.
 
@@ -8914,6 +9029,10 @@ class TerminalTools:
         "scientist_engineering_loop": get_scientist_engineering_loop,
         "scientist_memory_consolidation": get_scientist_memory_consolidation,
         "scientist_innovation_backlog": get_scientist_innovation_backlog,
+        "scientist_hypothesis_panel": get_scientist_hypothesis_panel,
+        "scientist_capability_certification": get_scientist_capability_certification,
+        "scientist_upgrade_campaign": get_scientist_upgrade_campaign,
+        "scientist_research_parity_gate": get_scientist_research_parity_gate,
         "scientist_hypothesis_review": get_scientist_hypothesis_review,
         "scientist_experiment_blueprint": get_scientist_experiment_blueprint,
         "scientist_innovation_trial_feedback": get_scientist_innovation_trial_feedback,

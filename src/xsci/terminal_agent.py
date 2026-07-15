@@ -41,6 +41,7 @@ from .terminal_events import (
     render_scientist_continuation_status_summary,
     render_scientist_engineering_loop_summary,
     render_scientist_experiment_blueprint_summary,
+    render_scientist_hypothesis_panel_summary,
     render_scientist_hypothesis_review_summary,
     render_scientist_innovation_backlog_summary,
     render_scientist_innovation_trial_feedback_summary,
@@ -1056,6 +1057,8 @@ class TerminalAgent:
             return render_scientist_memory_consolidation_summary(result)
         if tool_name == "scientist_innovation_backlog":
             return render_scientist_innovation_backlog_summary(result)
+        if tool_name == "scientist_hypothesis_panel":
+            return render_scientist_hypothesis_panel_summary(result)
         if tool_name == "scientist_hypothesis_review":
             return render_scientist_hypothesis_review_summary(result)
         if tool_name == "scientist_experiment_blueprint":
@@ -1235,6 +1238,7 @@ class TerminalAgent:
             "scientist_engineering_loop": "scientist_engineering_loop",
             "scientist_memory_consolidation": "scientist_memory_consolidation",
             "scientist_innovation_backlog": "scientist_innovation_backlog",
+            "scientist_hypothesis_panel": "scientist_hypothesis_panel",
             "scientist_situation_model": "scientist_situation_model",
         }
         tool_name = tool_map.get(payload, payload) if payload else "system_status"
@@ -1573,6 +1577,28 @@ class TerminalAgent:
                 for path in [result.get("artifact_path"), result.get("innovation_log_path")]
                 if path
             ]
+            return TerminalResult(
+                rc=0 if result.get("ok", True) else 1,
+                should_exit=False,
+                action="tool_call",
+                summary="\n".join(lines),
+                selected_task=session.selected_task,
+                artifacts=list(dict.fromkeys(artifacts)),
+                blocked=not result.get("ok", True),
+            )
+
+        if tool_name == "scientist_hypothesis_panel":
+            emitter.emit("Hypothesis panel", "running parallel specialists and independent critics", status="running")
+            result = TerminalTools.dispatch(tool_name, session, root)
+            selected = result.get("selected_hypothesis") if isinstance(result.get("selected_hypothesis"), dict) else {}
+            emitter.emit(
+                "Hypothesis panel",
+                f"mode={result.get('mode')}; selected={selected.get('proposal_id', 'none')}; no training started",
+                status="passed" if result.get("ok", True) else "blocked",
+                artifact=str(result.get("artifact_path") or "") or None,
+            )
+            lines = render_scientist_hypothesis_panel_summary(result)
+            artifacts = [str(path) for path in [result.get("artifact_path"), result.get("history_path")] if path]
             return TerminalResult(
                 rc=0 if result.get("ok", True) else 1,
                 should_exit=False,
