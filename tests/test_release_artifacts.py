@@ -43,6 +43,8 @@ CRITICAL_SOURCE_FILES = (
     "scripts/extract_capability_evidence_bundle.py",
     "scripts/mle_bench_split75_contract.py",
     "scripts/run_ci_checks.py",
+    "scripts/verify_workstation_click_smoke.mjs",
+    "scripts/verify_workstation_interactive_controls.mjs",
     "scripts/verify_capability_certification.py",
     "src/research_os/benchmark_manager.py",
     "src/xsci/capability_certification.py",
@@ -113,6 +115,12 @@ REQUIRED_FILES = {
         encoding="utf-8"
     ),
     "scripts/run_new_user_release_acceptance.ps1": "# acceptance\n",
+    "scripts/verify_workstation_click_smoke.mjs": (
+        ROOT / "scripts" / "verify_workstation_click_smoke.mjs"
+    ).read_text(encoding="utf-8"),
+    "scripts/verify_workstation_interactive_controls.mjs": (
+        ROOT / "scripts" / "verify_workstation_interactive_controls.mjs"
+    ).read_text(encoding="utf-8"),
     "scripts/start_hpc_socks_bridge.py": "# safe proxy launcher\n",
     "scripts/start_verified_workstation.ps1": "# start\n",
     "scripts/verify_backend_resource_status.py": "# backend status\n",

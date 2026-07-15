@@ -80,8 +80,17 @@ def test_runtime_exposes_fail_closed_certification_campaign_and_parity_gate() ->
 
     assert '["status", "run", "promote", "rollback"]' in route
     assert "Explicit human approval is required for promotion" in route
-    assert "campaignResultFromError" in route
-    assert "score_cap: 84" in route
+    assert "normalizeCampaignStatus" in route
+    assert "blockedCampaignStatusFromError" in route
+    assert "blockedScoreCap = 84" in route
+    assert 'result.tool !== "research_parity_gate"' in route
+    assert "result.parity_claim_allowed !== false" in route
+    assert "scoreCap !== blockedScoreCap" in route
+    assert "normalizeCampaignCommand" in route
+    assert "result.action !== expectedAction" in route
+    assert "sameStrings(blockers, expectedBlockers)" in route
+    assert 'error: "Upgrade campaign status failed"' in route
+    assert "error instanceof Error ? error.message" not in route
     assert 'action: "scientist_upgrade_campaign_status"' in route
     assert "activation_command" not in route
     assert "Verified Upgrade Campaign" in ui
@@ -128,17 +137,24 @@ def test_upgrade_campaign_get_exposes_blocked_status_as_consumable_transport_suc
 
     assert "payload.ok === false" in client
     assert 'fetch("/api/scientist/upgrade-campaign")' in client
-    cli_result_branch = route.split("if (cliResult) {", 1)[1].split("const message =", 1)[0]
-    assert "return NextResponse.json({" in cli_result_branch
-    assert "ok: true" in cli_result_branch
-    assert "parity_claim_allowed: false" in cli_result_branch
-    assert "score_cap: 84" in cli_result_branch
-    assert 'official_submit: "blocked_until_explicit_human_approval"' in cli_result_branch
+    assert "normalizeCampaignStatus(await invokeCampaign" in route
+    assert "blockedCampaignStatusFromError(error)" in route
+    assert 'error: "Upgrade campaign is blocked"' in route
+    assert '"Upgrade campaign command was blocked"' in route
+    assert 'official_submit: "blocked_until_explicit_human_approval"' in route
     assert '"test:upgrade-campaign"' in package
     assert "npm run test:upgrade-campaign" in workflow_text
     assert "payload.scientist_upgrade_campaign.ok, false" in route_contract
     assert "payload.scientist_upgrade_campaign.parity_claim_allowed, false" in route_contract
     assert "payload.scientist_upgrade_campaign.score_cap, 84" in route_contract
+    assert '"valid_blocked_error"' in route_contract
+    assert '"contradictory"' in route_contract
+    assert '"malformed"' in route_contract
+    assert '"command_blocked"' in route_contract
+    assert '"command_wrong_action"' in route_contract
+    assert '"forged_run_success"' in route_contract
+    assert "response.status, 500" in route_contract
+    assert "postResponse.status, 409" in route_contract
 
 
 def test_release_bundle_verifier_pins_all_r16_trust_boundary_sources() -> None:
@@ -146,6 +162,8 @@ def test_release_bundle_verifier_pins_all_r16_trust_boundary_sources() -> None:
     for path in (
         ".github/workflows/ci.yml",
         "scripts/extract_capability_evidence_bundle.py",
+        "scripts/verify_workstation_click_smoke.mjs",
+        "scripts/verify_workstation_interactive_controls.mjs",
         "scripts/verify_capability_certification.py",
         "src/xsci/capability_certification.py",
         "src/xsci/scientist_hypothesis_panel.py",

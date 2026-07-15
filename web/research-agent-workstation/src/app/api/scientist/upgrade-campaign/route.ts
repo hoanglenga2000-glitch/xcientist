@@ -9,6 +9,8 @@ export const dynamic = "force-dynamic";
 
 const execFileAsync = promisify(execFile);
 const defaultRequestPath = ".xsci/scientist_upgrade_campaign_request.json";
+const blockedScoreCap = 84;
+const controllerSchema = "evomind.self_upgrade_controller.v1";
 
 function pythonExecutable() {
   return process.env.WORKSTATION_PYTHON || process.env.PYTHON || "python";
@@ -36,22 +38,220 @@ async function invokeCampaign(args: string[], timeoutSeconds: number) {
   return sanitizeClientJson(JSON.parse(stdout) as Record<string, unknown>) as Record<string, unknown>;
 }
 
-function campaignResultFromError(error: unknown) {
-  const stdout = typeof (error as { stdout?: unknown })?.stdout === "string"
-    ? String((error as { stdout: string }).stdout)
-    : "";
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function parseCampaignResult(stdout: string) {
+  if (!stdout) return null;
   try {
-    return stdout
-      ? sanitizeClientJson(JSON.parse(stdout) as Record<string, unknown>) as Record<string, unknown>
-      : null;
+    return recordValue(sanitizeClientJson(JSON.parse(stdout)));
   } catch {
     return null;
   }
 }
 
+function campaignResultFromError(error: unknown) {
+  const stdout = typeof (error as { stdout?: unknown })?.stdout === "string"
+    ? String((error as { stdout: string }).stdout)
+    : "";
+  return parseCampaignResult(stdout);
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function booleanValue(value: unknown) {
+  return value === true;
+}
+
+function sameStrings(actual: unknown[], expected: string[]) {
+  return actual.length === expected.length
+    && actual.every((value, index) => value === expected[index]);
+}
+
+function normalizeCampaignStatus(value: unknown) {
+  const result = recordValue(sanitizeClientJson(value));
+  const certification = recordValue(result?.certification);
+  const campaign = recordValue(result?.upgrade_campaign);
+  const blockers = result?.blockers;
+  if (
+    !result
+    || result.tool !== "research_parity_gate"
+    || !certification
+    || !campaign
+    || !Array.isArray(blockers)
+    || blockers.some((blocker) => typeof blocker !== "string" || !blocker)
+  ) {
+    return null;
+  }
+
+  if (
+    certification.tool !== "capability_certification_status"
+    || campaign.tool !== "scientist_upgrade_campaign_status"
+    || typeof certification.verified !== "boolean"
+    || typeof certification.release_allowed !== "boolean"
+    || typeof certification.parity_claim_allowed !== "boolean"
+    || typeof campaign.active_and_verified !== "boolean"
+    || typeof result.certification_campaign_source_binding_verified !== "boolean"
+    || typeof result.certification_campaign_artifact_binding_verified !== "boolean"
+  ) {
+    return null;
+  }
+
+  const certificationVerified = certification.verified === true;
+  const campaignVerified = campaign.active_and_verified === true;
+  if (
+    certificationVerified !== (
+      certification.status === "certified"
+      && certification.release_allowed === true
+      && certification.parity_claim_allowed === true
+    )
+    || campaignVerified !== (campaign.status === "active_verified")
+  ) {
+    return null;
+  }
+
+  const sourceBindingVerified = result.certification_campaign_source_binding_verified === true;
+  const artifactBindingVerified = result.certification_campaign_artifact_binding_verified === true;
+  if ((!certificationVerified || !campaignVerified) && (sourceBindingVerified || artifactBindingVerified)) {
+    return null;
+  }
+  const expectedBlockers = [
+    ...(!certificationVerified ? ["external_capability_certification_not_verified"] : []),
+    ...(!campaignVerified ? ["active_self_upgrade_campaign_not_verified"] : []),
+    ...(certificationVerified && campaignVerified && !sourceBindingVerified
+      ? ["certification_campaign_source_mismatch"]
+      : []),
+    ...(certificationVerified && campaignVerified && !artifactBindingVerified
+      ? ["certification_campaign_artifact_mismatch"]
+      : [])
+  ];
+  if (!sameStrings(blockers, expectedBlockers)) return null;
+
+  const scoreCap = result.score_cap;
+  if (result.status === "blocked") {
+    if (
+      result.parity_claim_allowed !== false
+      || scoreCap !== blockedScoreCap
+      || blockers.length === 0
+      || result.claim !== "research parity is not externally certified"
+    ) {
+      return null;
+    }
+  } else if (result.status === "certified_research_parity") {
+    if (
+      result.parity_claim_allowed !== true
+      || scoreCap !== 100
+      || blockers.length !== 0
+      || certification.verified !== true
+      || campaign.active_and_verified !== true
+      || result.certification_campaign_source_binding_verified !== true
+      || result.certification_campaign_artifact_binding_verified !== true
+      || result.claim !== "externally certified non-inferiority against named Codex and Claude baselines"
+    ) {
+      return null;
+    }
+  } else {
+    return null;
+  }
+
+  const resultSha256 = stringValue(certification.result_sha256);
+  return {
+    ok: result.status === "certified_research_parity",
+    tool: "research_parity_gate",
+    status: result.status,
+    parity_claim_allowed: result.parity_claim_allowed,
+    score_cap: scoreCap,
+    certification: {
+      tool: "capability_certification_status",
+      status: certification.status,
+      verified: certificationVerified,
+      release_allowed: certification.release_allowed,
+      parity_claim_allowed: certification.parity_claim_allowed,
+      ...(resultSha256.match(/^[0-9a-f]{64}$/) ? { result_sha256: resultSha256 } : {}),
+      source_identity_matches: booleanValue(certification.source_identity_matches)
+    },
+    upgrade_campaign: {
+      tool: "scientist_upgrade_campaign_status",
+      status: campaign.status,
+      campaign_status: stringValue(campaign.campaign_status),
+      active_and_verified: campaignVerified,
+      champion_ref: stringValue(campaign.champion_ref) || "refs/evomind/champion",
+      promotion_verified: booleanValue(campaign.promotion_verified),
+      rollback_verified: booleanValue(campaign.rollback_verified),
+      strict_improvement_verified: booleanValue(campaign.strict_improvement_verified),
+      champion_ref_matches: booleanValue(campaign.champion_ref_matches)
+    },
+    certification_campaign_source_binding_verified: sourceBindingVerified,
+    certification_campaign_artifact_binding_verified: artifactBindingVerified,
+    blockers: [...blockers],
+    claim: result.claim
+  };
+}
+
+function blockedCampaignStatusFromError(error: unknown) {
+  const result = normalizeCampaignStatus(campaignResultFromError(error));
+  return result?.status === "blocked" ? result : null;
+}
+
+function blockedCampaignCommandFromError(error: unknown, expectedAction: string) {
+  const result = campaignResultFromError(error);
+  if (
+    result?.ok !== false
+    || result.tool !== "scientist_upgrade_campaign"
+    || result.status !== "blocked"
+    || result.action !== expectedAction
+  ) {
+    return null;
+  }
+  return {
+    ok: false,
+    tool: "scientist_upgrade_campaign",
+    action: result.action,
+    status: "blocked"
+  };
+}
+
+function normalizeCampaignCommand(value: unknown, action: string) {
+  const result = recordValue(sanitizeClientJson(value));
+  const expectedStatuses: Record<string, string[]> = {
+    run: ["awaiting_human_promotion", "held_no_strict_improvement"],
+    promote: ["active"],
+    rollback: ["rolled_back"]
+  };
+  const allowed = expectedStatuses[action];
+  if (
+    !result
+    || !allowed
+    || result.schema !== controllerSchema
+    || !allowed.includes(String(result.status ?? ""))
+    || typeof result.campaign_id !== "string"
+    || !result.campaign_id
+    || result.main_worktree_modified !== false
+    || result.no_training_started !== true
+  ) {
+    return null;
+  }
+  return {
+    ok: true,
+    tool: "scientist_upgrade_campaign",
+    action,
+    status: result.status,
+    campaign_id: result.campaign_id,
+    human_gate: stringValue(result.human_gate),
+    main_worktree_modified: false,
+    no_training_started: true
+  };
+}
+
 export async function GET() {
   try {
-    const result = await invokeCampaign(["status"], 60);
+    const result = normalizeCampaignStatus(await invokeCampaign(["status"], 60));
+    if (!result) throw new Error("invalid upgrade campaign status contract");
     return NextResponse.json({
       ok: true,
       action: "scientist_upgrade_campaign_status",
@@ -60,27 +260,22 @@ export async function GET() {
       official_submit: "blocked_until_explicit_human_approval"
     });
   } catch (error) {
-    const cliResult = campaignResultFromError(error);
+    const cliResult = blockedCampaignStatusFromError(error);
     if (cliResult) {
       return NextResponse.json({
         // The lookup succeeded; the nested campaign remains explicitly blocked.
         ok: true,
         action: "scientist_upgrade_campaign_status",
-        error: typeof cliResult.error === "string" ? cliResult.error : "Upgrade campaign is blocked",
-        scientist_upgrade_campaign: {
-          ...cliResult,
-          parity_claim_allowed: false,
-          score_cap: 84
-        },
+        error: "Upgrade campaign is blocked",
+        scientist_upgrade_campaign: cliResult,
         no_training_started: true,
         official_submit: "blocked_until_explicit_human_approval"
       });
     }
-    const message = error instanceof Error ? error.message : "Upgrade campaign status failed";
     return NextResponse.json({
       ok: false,
       action: "scientist_upgrade_campaign_status",
-      error: message,
+      error: "Upgrade campaign status failed",
       scientist_upgrade_campaign: { status: "unavailable", parity_claim_allowed: false },
       no_training_started: true,
       official_submit: "blocked_until_explicit_human_approval"
@@ -114,31 +309,45 @@ export async function POST(request: Request) {
   args.push("--timeout", String(timeoutSeconds));
 
   try {
-    const result = await invokeCampaign(args, timeoutSeconds);
-    const ok = action === "status" || [
-      "awaiting_human_promotion",
-      "held_no_strict_improvement",
-      "active",
-      "rolled_back"
-    ].includes(String(result.status ?? ""));
+    const invoked = await invokeCampaign(args, timeoutSeconds);
+    const result = action === "status"
+      ? normalizeCampaignStatus(invoked)
+      : normalizeCampaignCommand(invoked, action);
+    if (!result) throw new Error("invalid upgrade campaign result contract");
     return NextResponse.json({
-      ok,
+      ok: true,
       action: `scientist_upgrade_campaign_${action}`,
       scientist_upgrade_campaign: result,
       no_training_started: true,
       official_submit: "blocked_until_explicit_human_approval"
-    }, { status: ok ? 200 : 409 });
+    });
   } catch (error) {
-    const cliResult = campaignResultFromError(error);
-    const message = typeof cliResult?.error === "string"
-      ? cliResult.error
-      : error instanceof Error
-        ? error.message
-        : "Upgrade campaign command failed";
+    const statusResult = action === "status" ? blockedCampaignStatusFromError(error) : null;
+    if (statusResult) {
+      return NextResponse.json({
+        ok: true,
+        action: "scientist_upgrade_campaign_status",
+        error: "Upgrade campaign is blocked",
+        scientist_upgrade_campaign: statusResult,
+        no_training_started: true,
+        official_submit: "blocked_until_explicit_human_approval"
+      });
+    }
+    if (action === "status") {
+      return NextResponse.json({
+        ok: false,
+        action: "scientist_upgrade_campaign_status",
+        error: "Upgrade campaign status failed",
+        scientist_upgrade_campaign: { status: "unavailable", parity_claim_allowed: false },
+        no_training_started: true,
+        official_submit: "blocked_until_explicit_human_approval"
+      }, { status: 500 });
+    }
+    const cliResult = blockedCampaignCommandFromError(error, action);
     return NextResponse.json({
       ok: false,
       action: `scientist_upgrade_campaign_${action}`,
-      error: message,
+      error: cliResult ? "Upgrade campaign command was blocked" : "Upgrade campaign command failed",
       ...(cliResult ? { scientist_upgrade_campaign: cliResult } : {}),
       no_training_started: true,
       official_submit: "blocked_until_explicit_human_approval"

@@ -81,10 +81,18 @@ def resolve_upgrade_repository(workspace_root: Path | str, explicit: Path | str 
     workspace = Path(workspace_root).resolve()
     candidates: list[Path] = []
     if explicit is not None:
-        candidates.append(Path(explicit).resolve())
+        candidate = Path(explicit).resolve()
+        repository = _git_root(candidate) if candidate.is_dir() else None
+        if repository is not None:
+            return repository
+        raise UpgradeControllerError("explicit source repository is not a Git checkout")
     configured = os.environ.get("EVOMIND_SOURCE_REPOSITORY", "").strip()
     if configured:
-        candidates.append(Path(configured).resolve())
+        candidate = Path(configured).resolve()
+        repository = _git_root(candidate) if candidate.is_dir() else None
+        if repository is not None:
+            return repository
+        raise UpgradeControllerError("configured source repository is not a Git checkout")
     candidates.extend((workspace, Path.cwd().resolve(), Path(__file__).resolve().parents[2]))
     visited: set[str] = set()
     for candidate in candidates:
@@ -98,6 +106,55 @@ def resolve_upgrade_repository(workspace_root: Path | str, explicit: Path | str 
     raise UpgradeControllerError(
         "source Git repository was not found; run from a Git checkout or set EVOMIND_SOURCE_REPOSITORY"
     )
+
+
+def resolve_upgrade_evidence_root(workspace_root: Path | str, explicit: Path | str | None = None) -> Path:
+    """Resolve a read-only evidence root without making source archives executable."""
+
+    if explicit is not None:
+        candidate = Path(explicit).resolve()
+        evidence_root = _upgrade_evidence_root(candidate)
+        if evidence_root is not None:
+            return evidence_root
+        raise UpgradeControllerError("explicit evidence repository is not a valid EvoMind source")
+    configured = os.environ.get("EVOMIND_SOURCE_REPOSITORY", "").strip()
+    if configured:
+        candidate = Path(configured).resolve()
+        evidence_root = _upgrade_evidence_root(candidate)
+        if evidence_root is not None:
+            return evidence_root
+        raise UpgradeControllerError("configured evidence repository is not a valid EvoMind source")
+    workspace = Path(workspace_root).resolve()
+    workspace_evidence_root = _upgrade_evidence_root(workspace)
+    if workspace_evidence_root is not None:
+        return workspace_evidence_root
+    candidates = [Path.cwd().resolve(), Path(__file__).resolve().parents[2]]
+    visited: set[str] = set()
+    for candidate in candidates:
+        key = os.path.normcase(str(candidate))
+        if key in visited or not candidate.is_dir():
+            continue
+        visited.add(key)
+        evidence_root = _upgrade_evidence_root(candidate)
+        if evidence_root is not None:
+            return evidence_root
+    raise UpgradeControllerError("EvoMind source or Git repository was not found for evidence status")
+
+
+def _upgrade_evidence_root(candidate: Path) -> Path | None:
+    if not candidate.is_dir():
+        return None
+    repository = _git_root(candidate)
+    if repository is not None:
+        return repository
+    root = candidate
+    required = (
+        root / "pyproject.toml",
+        root / "README.md",
+        root / "LICENSE",
+        root / "src" / "xsci" / "scientist_release_evidence.py",
+    )
+    return root if all(path.is_file() for path in required) else None
 
 
 def initialize_upgrade_repository(source_root: Path | str) -> dict[str, Any]:
@@ -372,7 +429,11 @@ def run_upgrade_campaign_cli(argv: Sequence[str], repository: Path | str) -> int
             result = initialize_upgrade_repository(source)
             print(json.dumps(result, ensure_ascii=False, indent=2))
             return 0
-        root = resolve_upgrade_repository(repository, args.repository)
+        root = (
+            resolve_upgrade_evidence_root(repository, args.repository)
+            if args.action == "status"
+            else resolve_upgrade_repository(repository, args.repository)
+        )
         request_path = args.request if args.request.is_absolute() else root / args.request
         if args.action == "status":
             result = read_research_parity_gate(root)
@@ -463,6 +524,7 @@ __all__ = [
     "REQUEST_SCHEMA",
     "build_activation_callback",
     "initialize_upgrade_repository",
+    "resolve_upgrade_evidence_root",
     "resolve_upgrade_repository",
     "run_certification_install_cli",
     "run_upgrade_campaign_cli",

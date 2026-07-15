@@ -4,13 +4,17 @@ import json
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from xsci import kaggle
 from xsci.kaggle_conversation import _forced_tool_hints, _terminal_tool_specs
 from xsci.kaggle_intent import classify
 from xsci.kaggle_session import SessionState
+from xsci.scientist_upgrade_controller import UpgradeControllerError
 from xsci.scientist_upgrade_gateway import (
     build_activation_callback,
     initialize_upgrade_repository,
+    resolve_upgrade_evidence_root,
     resolve_upgrade_repository,
     run_upgrade_campaign_cli,
 )
@@ -72,6 +76,7 @@ def test_real_entrypoint_prefers_current_source_repo_over_global_workspace(
     capsys,
     monkeypatch,
 ) -> None:
+    monkeypatch.delenv("EVOMIND_SOURCE_REPOSITORY", raising=False)
     repository = _repository(tmp_path)
     global_workspace = tmp_path / "global-workspace"
     global_workspace.mkdir()
@@ -206,3 +211,54 @@ def test_extracted_source_archive_can_initialize_clean_campaign_repository(tmp_p
     assert (source / ".git").is_dir()
     assert _git(source, "status", "--porcelain=v1", "--untracked-files=all") == ""
     assert resolve_upgrade_repository(source) == source
+
+
+def test_extracted_source_archive_exposes_fail_closed_evidence_without_git(tmp_path: Path, capsys) -> None:
+    source = tmp_path / "extracted-source"
+    (source / "src" / "xsci").mkdir(parents=True)
+    (source / "pyproject.toml").write_text("[project]\nname='xcientist'\n", encoding="utf-8")
+    (source / "README.md").write_text("# EvoMind\n", encoding="utf-8")
+    (source / "LICENSE").write_text("MIT\n", encoding="utf-8")
+    (source / "src" / "xsci" / "scientist_release_evidence.py").write_text(
+        "PARITY_SCORE_CAP_WITHOUT_CERTIFICATION = 84\n",
+        encoding="utf-8",
+    )
+
+    assert resolve_upgrade_evidence_root(source) == source
+    exit_code = run_upgrade_campaign_cli(["status", "--json", "--repository", str(source)], tmp_path)
+    payload = json.loads(capsys.readouterr().out)
+
+    assert exit_code == 0
+    assert payload["status"] == "blocked"
+    assert payload["parity_claim_allowed"] is False
+    assert payload["score_cap"] == 84
+    assert payload["blockers"] == [
+        "external_capability_certification_not_verified",
+        "active_self_upgrade_campaign_not_verified",
+    ]
+
+    run_exit = run_upgrade_campaign_cli(["run", "--repository", str(source)], tmp_path)
+    run_payload = json.loads(capsys.readouterr().out)
+    assert run_exit == 1
+    assert run_payload["status"] == "blocked"
+    assert "not a Git checkout" in run_payload["error"]
+
+
+def test_explicit_invalid_evidence_root_does_not_fall_back_to_development_checkout(tmp_path: Path) -> None:
+    invalid = tmp_path / "invalid-source"
+    invalid.mkdir()
+
+    with pytest.raises(UpgradeControllerError, match="explicit evidence repository"):
+        resolve_upgrade_evidence_root(tmp_path, invalid)
+
+
+def test_configured_invalid_evidence_root_does_not_fall_back_to_development_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invalid = tmp_path / "configured-invalid-source"
+    invalid.mkdir()
+    monkeypatch.setenv("EVOMIND_SOURCE_REPOSITORY", str(invalid))
+
+    with pytest.raises(UpgradeControllerError, match="configured evidence repository"):
+        resolve_upgrade_evidence_root(tmp_path)

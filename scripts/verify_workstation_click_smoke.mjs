@@ -316,6 +316,7 @@ async function run() {
     "--headless=new",
     "--disable-gpu",
     "--disable-dev-shm-usage",
+    "--disable-extensions",
     "--no-first-run",
     "--no-default-browser-check",
     `--remote-debugging-port=${port}`,

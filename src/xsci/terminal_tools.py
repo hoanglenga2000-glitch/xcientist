@@ -3007,9 +3007,9 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         system = {"ok": False, "tool": "system_status", "message": type(exc).__name__, "blockers": []}
     try:
         from .scientist_release_evidence import read_research_parity_gate
-        from .scientist_upgrade_gateway import resolve_upgrade_repository
+        from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
 
-        research_parity_gate = read_research_parity_gate(resolve_upgrade_repository(root))
+        research_parity_gate = read_research_parity_gate(resolve_upgrade_evidence_root(root))
     except Exception as exc:  # pragma: no cover - defensive only
         research_parity_gate = {
             "tool": "research_parity_gate",
@@ -8966,9 +8966,9 @@ def get_scientist_hypothesis_panel(session: SessionState, root: Path) -> dict[st
 def get_scientist_capability_certification(_session: SessionState, root: Path) -> dict[str, Any]:
     """Read the hash-anchored external capability certification status."""
     from .scientist_release_evidence import read_capability_certification_status
-    from .scientist_upgrade_gateway import resolve_upgrade_repository
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
 
-    payload = read_capability_certification_status(resolve_upgrade_repository(root))
+    payload = read_capability_certification_status(resolve_upgrade_evidence_root(root))
     payload["ok"] = payload.get("verified") is True
     return payload
 
@@ -8976,9 +8976,9 @@ def get_scientist_capability_certification(_session: SessionState, root: Path) -
 def get_scientist_upgrade_campaign(_session: SessionState, root: Path) -> dict[str, Any]:
     """Read and verify the active immutable self-upgrade campaign."""
     from .scientist_release_evidence import read_active_upgrade_campaign_status
-    from .scientist_upgrade_gateway import resolve_upgrade_repository
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
 
-    payload = read_active_upgrade_campaign_status(resolve_upgrade_repository(root))
+    payload = read_active_upgrade_campaign_status(resolve_upgrade_evidence_root(root))
     payload["ok"] = payload.get("active_and_verified") is True
     return payload
 
@@ -8986,9 +8986,9 @@ def get_scientist_upgrade_campaign(_session: SessionState, root: Path) -> dict[s
 def get_scientist_research_parity_gate(_session: SessionState, root: Path) -> dict[str, Any]:
     """Combine external certification and active upgrade evidence."""
     from .scientist_release_evidence import read_research_parity_gate
-    from .scientist_upgrade_gateway import resolve_upgrade_repository
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
 
-    payload = read_research_parity_gate(resolve_upgrade_repository(root))
+    payload = read_research_parity_gate(resolve_upgrade_evidence_root(root))
     payload["ok"] = payload.get("parity_claim_allowed") is True
     return payload
 

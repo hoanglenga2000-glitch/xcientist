@@ -228,6 +228,7 @@ def test_cdp_smokes_support_node20_without_a_global_websocket() -> None:
         assert 'createRequire(new URL("../web/research-agent-workstation/package.json"' in source
         assert 'globalThis.WebSocket ?? requireFromWeb("ws")' in source
         assert "new WebSocketClient(this.wsUrl)" in source
+        assert '"--disable-extensions"' in source
 
 
 def test_tasks_agent_logs_action_is_rendered_and_routed() -> None:
