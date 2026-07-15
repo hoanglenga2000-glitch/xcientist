@@ -36,6 +36,19 @@ async function invokeCampaign(args: string[], timeoutSeconds: number) {
   return sanitizeClientJson(JSON.parse(stdout) as Record<string, unknown>) as Record<string, unknown>;
 }
 
+function campaignResultFromError(error: unknown) {
+  const stdout = typeof (error as { stdout?: unknown })?.stdout === "string"
+    ? String((error as { stdout: string }).stdout)
+    : "";
+  try {
+    return stdout
+      ? sanitizeClientJson(JSON.parse(stdout) as Record<string, unknown>) as Record<string, unknown>
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function GET() {
   try {
     const result = await invokeCampaign(["status"], 60);
@@ -47,6 +60,22 @@ export async function GET() {
       official_submit: "blocked_until_explicit_human_approval"
     });
   } catch (error) {
+    const cliResult = campaignResultFromError(error);
+    if (cliResult) {
+      return NextResponse.json({
+        // The lookup succeeded; the nested campaign remains explicitly blocked.
+        ok: true,
+        action: "scientist_upgrade_campaign_status",
+        error: typeof cliResult.error === "string" ? cliResult.error : "Upgrade campaign is blocked",
+        scientist_upgrade_campaign: {
+          ...cliResult,
+          parity_claim_allowed: false,
+          score_cap: 84
+        },
+        no_training_started: true,
+        official_submit: "blocked_until_explicit_human_approval"
+      });
+    }
     const message = error instanceof Error ? error.message : "Upgrade campaign status failed";
     return NextResponse.json({
       ok: false,
@@ -100,15 +129,7 @@ export async function POST(request: Request) {
       official_submit: "blocked_until_explicit_human_approval"
     }, { status: ok ? 200 : 409 });
   } catch (error) {
-    const stdout = typeof (error as { stdout?: unknown })?.stdout === "string"
-      ? String((error as { stdout: string }).stdout)
-      : "";
-    let cliResult: Record<string, unknown> | null = null;
-    try {
-      cliResult = stdout ? sanitizeClientJson(JSON.parse(stdout) as Record<string, unknown>) as Record<string, unknown> : null;
-    } catch {
-      cliResult = null;
-    }
+    const cliResult = campaignResultFromError(error);
     const message = typeof cliResult?.error === "string"
       ? cliResult.error
       : error instanceof Error

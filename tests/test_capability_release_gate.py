@@ -80,6 +80,9 @@ def test_runtime_exposes_fail_closed_certification_campaign_and_parity_gate() ->
 
     assert '["status", "run", "promote", "rollback"]' in route
     assert "Explicit human approval is required for promotion" in route
+    assert "campaignResultFromError" in route
+    assert "score_cap: 84" in route
+    assert 'action: "scientist_upgrade_campaign_status"' in route
     assert "activation_command" not in route
     assert "Verified Upgrade Campaign" in ui
     assert "scientistPromotionApproved" in ui
@@ -88,6 +91,54 @@ def test_runtime_exposes_fail_closed_certification_campaign_and_parity_gate() ->
     assert "initialize_upgrade_repository" in gateway
     assert "PARITY_SCORE_CAP_WITHOUT_CERTIFICATION = 84" in evidence
     assert "explicit_out_of_band_digest_import" in evidence
+
+
+def test_upgrade_campaign_get_exposes_blocked_status_as_consumable_transport_success() -> None:
+    route = (
+        ROOT
+        / "web"
+        / "research-agent-workstation"
+        / "src"
+        / "app"
+        / "api"
+        / "scientist"
+        / "upgrade-campaign"
+        / "route.ts"
+    ).read_text(encoding="utf-8")
+    client = (
+        ROOT
+        / "web"
+        / "research-agent-workstation"
+        / "src"
+        / "lib"
+        / "api"
+        / "client.ts"
+    ).read_text(encoding="utf-8")
+    package = (
+        ROOT / "web" / "research-agent-workstation" / "package.json"
+    ).read_text(encoding="utf-8")
+    workflow_text = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    route_contract = (
+        ROOT
+        / "web"
+        / "research-agent-workstation"
+        / "scripts"
+        / "verify-upgrade-campaign-contract.mjs"
+    ).read_text(encoding="utf-8")
+
+    assert "payload.ok === false" in client
+    assert 'fetch("/api/scientist/upgrade-campaign")' in client
+    cli_result_branch = route.split("if (cliResult) {", 1)[1].split("const message =", 1)[0]
+    assert "return NextResponse.json({" in cli_result_branch
+    assert "ok: true" in cli_result_branch
+    assert "parity_claim_allowed: false" in cli_result_branch
+    assert "score_cap: 84" in cli_result_branch
+    assert 'official_submit: "blocked_until_explicit_human_approval"' in cli_result_branch
+    assert '"test:upgrade-campaign"' in package
+    assert "npm run test:upgrade-campaign" in workflow_text
+    assert "payload.scientist_upgrade_campaign.ok, false" in route_contract
+    assert "payload.scientist_upgrade_campaign.parity_claim_allowed, false" in route_contract
+    assert "payload.scientist_upgrade_campaign.score_cap, 84" in route_contract
 
 
 def test_release_bundle_verifier_pins_all_r16_trust_boundary_sources() -> None:
@@ -101,6 +152,7 @@ def test_release_bundle_verifier_pins_all_r16_trust_boundary_sources() -> None:
         "src/xsci/scientist_release_evidence.py",
         "src/xsci/scientist_upgrade_controller.py",
         "src/xsci/scientist_upgrade_gateway.py",
+        "web/research-agent-workstation/scripts/verify-upgrade-campaign-contract.mjs",
     ):
         assert f'"{path}"' in verifier
 

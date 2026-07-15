@@ -135,6 +135,8 @@ jobs:
         run: npm run typecheck
       - name: Build workstation
         run: npm run build
+      - name: Verify upgrade campaign status contract
+        run: npm run test:upgrade-campaign
       - name: Exercise production security boundaries
         run: npm run security:runtime
 

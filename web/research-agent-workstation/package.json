@@ -9,6 +9,7 @@
     "start:docker-port": "next start --hostname 0.0.0.0 --port 3090",
     "lint": "eslint .",
     "security:test": "node scripts/verify-security-boundaries.mjs && node scripts/verify-hpc-gate-adversarial.mjs",
+    "test:upgrade-campaign": "node scripts/verify-upgrade-campaign-contract.mjs",
     "test:kaggle-status": "node scripts/verify-kaggle-status-contract.mjs",
     "security:runtime": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-production-security.ps1",
     "typecheck": "tsc --noEmit --incremental false",
