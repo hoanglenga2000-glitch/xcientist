@@ -119,6 +119,7 @@ def test_release_acceptance_threads_port_to_every_live_check() -> None:
     restart = (ROOT / "scripts" / "restart_workstation_frontend.ps1").read_text(encoding="utf-8-sig")
 
     assert '$BaseUrl = "http://127.0.0.1:$Port"' in acceptance
+    assert "Set-Location -LiteralPath $Root" in acceptance
     for script_name in (
         "verify_new_user_release_readiness.py",
         "verify_workstation_launch_readiness.py",

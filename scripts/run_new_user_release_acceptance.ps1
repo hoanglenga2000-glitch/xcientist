@@ -21,6 +21,7 @@ $Web = Join-Path $Root "web\research-agent-workstation"
 $BaseUrl = "http://127.0.0.1:$Port"
 $ReportJson = Join-Path $Root "workspace\new_user_release_acceptance.json"
 $ReportMd = Join-Path $Root "reports\NEW_USER_RELEASE_ACCEPTANCE.md"
+Set-Location -LiteralPath $Root
 $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
