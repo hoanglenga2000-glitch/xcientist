@@ -179,7 +179,8 @@ $checks += Run-Check "installer_smoke_no_secrets" {
         "-File", (Join-Path $Root "install.ps1"),
         "-SkipBuild",
         "-SkipSecretPrompt",
-        "-SkipVerify"
+        "-SkipVerify",
+        "-NoPathPrepend"
       ) `
       -WorkingDirectory $Root `
       -WindowStyle Hidden `

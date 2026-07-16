@@ -427,6 +427,7 @@ def test_release_acceptance_threads_port_to_every_live_check() -> None:
 
 def test_release_acceptance_uses_selected_python_and_initializes_database() -> None:
     acceptance = (ROOT / "scripts" / "run_new_user_release_acceptance.ps1").read_text(encoding="utf-8-sig")
+    installer = (ROOT / "install.ps1").read_text(encoding="utf-8-sig")
 
     assert '[string]$PythonExecutable = ""' in acceptance
     assert "$PythonExe = (Get-Command python -ErrorAction Stop).Source" in acceptance
@@ -445,6 +446,7 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     ]
     assert "-SkipNpmInstall" not in installer_block
     assert '"-SkipBuild"' in installer_block
+    assert '"-NoPathPrepend"' in installer_block
     assert "Start-Process" in installer_block
     assert "-RedirectStandardError $stderr" in installer_block
     assert "installer.ExitCode" in installer_block
@@ -452,6 +454,8 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     assert acceptance.index('Run-Check "stop_existing_workstation_frontend"') < acceptance.index(
         'Run-Check "installer_smoke_no_secrets"'
     )
+    assert "[switch]$NoPathPrepend" in installer
+    assert "@{ NoPathPrepend = $true }" in installer
 
 
 def test_release_acceptance_supports_a_fully_isolated_windows_profile() -> None:

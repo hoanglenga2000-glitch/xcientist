@@ -11,7 +11,8 @@ param(
   [switch]$SkipBuild,
   [switch]$SkipNpmInstall,
   [switch]$SkipSecretPrompt,
-  [switch]$SkipVerify
+  [switch]$SkipVerify,
+  [switch]$NoPathPrepend
 )
 
 $ErrorActionPreference = "Stop"
@@ -203,7 +204,12 @@ if (-not $SkipBuild) {
 }
 
 Write-Step "Step 4/5: Install CLI commands"
-& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
+$cliInstallArguments = if ($NoPathPrepend) {
+  @{ NoPathPrepend = $true }
+} else {
+  @{ PrependShimPath = $true }
+}
+& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") @cliInstallArguments
 if ($LASTEXITCODE -ne 0) {
   Write-Host "  [FAIL] CLI wrapper installation failed." -ForegroundColor Red
   exit 1
