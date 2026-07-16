@@ -1,18 +1,18 @@
-version: "2026-06-07"
+version: "2026-07-16"
 status_policy:
   completed: implemented_and_verified_locally
   controlled_pending: intentionally_not_enabled_without_credentials_or_user_approval
   future: planned_after_current_gates_remain_stable
 items:
   - id: kaggle_token_integration
-    title: Kaggle token 接入
+    title: Kaggle authenticated access
     status: controlled_pending
-    reason: 本机当前没有 kaggle.json 和 Kaggle CLI，不能伪造官方 leaderboard。
+    reason: The Kaggle 2.2.2 CLI and a DPAPI-protected access token are configured; real API authentication remains pending and official submission stays human-gated.
     acceptance:
-      - Detect kaggle.json in an approved location.
-      - Install and verify the Kaggle CLI.
-      - Download one task through the official API.
-      - Record real submission or explicitly mark submission skipped.
+      - Load the protected credential without writing plaintext into the repository.
+      - Verify the installed Kaggle CLI and Python package.
+      - Pass an explicitly authorized real API authentication smoke.
+      - Keep every official submission behind explicit Human Gate approval.
   - id: third_research_dataset
     title: 第三个真实科研数据案例
     status: future

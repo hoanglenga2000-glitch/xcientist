@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
+import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 CODE_AGENT_MISSING = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"]
@@ -21,14 +21,26 @@ def fail(message: str) -> None:
 
 
 def post_json(url: str, payload: dict[str, Any], timeout: int = 45) -> dict[str, Any]:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "Origin": origin},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as error:
+        try:
+            payload = json.loads(error.read().decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            raise error
+        if not isinstance(payload, dict):
+            raise error
+        payload["http_status"] = error.code
+        return payload
 
 
 def get_json(url: str) -> dict[str, Any]:
@@ -214,8 +226,14 @@ def verify_gpu(base_url: str, container_name: str | None, allow_real_external: b
             "invalid_template_artifact": invalid.get("artifact_path"),
         }
 
-    if connection.get("configured") is not True or job.get("configured") is not True or gated_job.get("configured") is not True:
-        fail(f"GPU is configured but endpoints did not run as configured: connection={connection}, job={job}, gated_job={gated_job}")
+    if (
+        connection.get("configured") is not True
+        or job.get("configured") is not True
+        or gated_job.get("configured") is not True
+    ):
+        fail(
+            f"GPU is configured but endpoints did not run as configured: connection={connection}, job={job}, gated_job={gated_job}"
+        )
     if connection.get("status") != "passed" or job.get("status") != "submitted":
         fail(f"GPU configured endpoints did not pass smoke statuses: connection={connection}, job={job}")
     if gated_job.get("status") != "rejected":
@@ -268,10 +286,16 @@ def write_markdown(report: dict[str, Any], target: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Verify Code Agent and GPU SSH external gateways through live API endpoints.")
+    parser = argparse.ArgumentParser(
+        description="Verify Code Agent and GPU SSH external gateways through live API endpoints."
+    )
     parser.add_argument("--url", default="http://127.0.0.1:8088", help="Dashboard base URL.")
     parser.add_argument("--container-name", default=None, help="Optional Docker container name for artifact checks.")
-    parser.add_argument("--allow-real-external", action="store_true", help="Allow real Claude SDK and SSH smoke tests when credentials are configured.")
+    parser.add_argument(
+        "--allow-real-external",
+        action="store_true",
+        help="Allow real Claude SDK and SSH smoke tests when credentials are configured.",
+    )
     parser.add_argument("--write-report", action="store_true", help="Write JSON and Markdown report under docs/.")
     return parser.parse_args()
 
@@ -281,7 +305,12 @@ def main() -> None:
     base_url = args.url.rstrip("/")
     code_agent = verify_code_agent(base_url, args.container_name, args.allow_real_external)
     gpu = verify_gpu(base_url, args.container_name, args.allow_real_external)
-    acceptable_statuses = {"not_configured_verified", "configured_not_invoked", "configured_smoke_tested", "configured_resource_blocked"}
+    acceptable_statuses = {
+        "not_configured_verified",
+        "configured_not_invoked",
+        "configured_smoke_tested",
+        "configured_resource_blocked",
+    }
     passed = code_agent["status"] in acceptable_statuses and gpu["status"] in acceptable_statuses
     report = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),

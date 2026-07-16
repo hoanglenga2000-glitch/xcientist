@@ -2,17 +2,17 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from research_agent_workstation.server.adapters.storage_adapter import LocalStorageAdapter
-from research_agent_workstation.server.services.code_agent_context_service import CodeAgentContextService
+from research_agent_workstation.server.adapters.storage_adapter import LocalStorageAdapter  # noqa: E402
+from research_agent_workstation.server.services.code_agent_context_service import CodeAgentContextService  # noqa: E402
 
 
 def fail(message: str) -> None:
@@ -23,6 +23,29 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify Code Agent patch import/review/apply/rollback/compare lifecycle.")
     parser.add_argument("--task-id", default="house_prices")
     return parser.parse_args()
+
+
+def configured_experiment_root() -> Path:
+    evidence_root = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    default = Path(evidence_root) / "experiments" if evidence_root else ROOT / "experiments"
+    configured = Path(os.environ.get("RESEARCH_EXPERIMENT_ROOT", default))
+    return (configured if configured.is_absolute() else ROOT / configured).resolve()
+
+
+def latest_comparable_runs(task_id: str) -> tuple[Path | None, Path]:
+    task_root = configured_experiment_root() / task_id
+    try:
+        runs = sorted(
+            path
+            for path in task_root.iterdir()
+            if path.is_dir() and (path / "model_results.json").is_file()
+        )
+    except OSError as error:
+        fail(f"experiment root unavailable for task {task_id!r}")
+        raise AssertionError("unreachable") from error
+    if not runs:
+        fail(f"no comparable experiment runs found for task {task_id!r}")
+    return (runs[-2] if len(runs) >= 2 else None, runs[-1])
 
 
 def main() -> None:
@@ -50,7 +73,8 @@ def main() -> None:
     rolled_back = service.rollback_patch(args.task_id, patch_id)
     if rolled_back.get("apply_status") != "rolled_back":
         fail(f"patch was not rolled back: {rolled_back}")
-    comparison = service.compare_runs_before_after_patch(args.task_id)
+    before_run, after_run = latest_comparable_runs(args.task_id)
+    comparison = service.compare_runs_before_after_patch(args.task_id, before_run, after_run)
     if not comparison.get("after_run"):
         fail(f"comparison did not find an after run: {comparison}")
     print(

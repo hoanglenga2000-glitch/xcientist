@@ -1434,6 +1434,7 @@ export async function getWorkstationSummary() {
     : null;
   const gpuCurrentAllocationBlocked = !liveGpuPassed && latestGpuAllocationBlockerMetadata?.status === "blocked_current_allocation";
   const kaggleDpapi = kaggleDpapiProbeStatus(kaggleDpapiReadiness as Record<string, unknown> | null);
+  const workstationPythonConfigured = Boolean(process.env.WORKSTATION_PYTHON?.trim());
 
   return {
     tasks: [
@@ -1464,6 +1465,35 @@ export async function getWorkstationSummary() {
             notes: connector.detail
           }
         ] as const),
+        [
+          "llm",
+          {
+            name: "Research LLM",
+            state: "rule_based",
+            configured: true,
+            notes: "The local deterministic research planner remains available without an external provider."
+          }
+        ] as const,
+        [
+          "python_runner",
+          {
+            name: "Python Runner",
+            state: workstationPythonConfigured ? "local" : "not_configured",
+            configured: workstationPythonConfigured,
+            notes: workstationPythonConfigured
+              ? "Local Python execution is available for non-training research workflows."
+              : "WORKSTATION_PYTHON is not configured for local research execution."
+          }
+        ] as const,
+        [
+          "storage",
+          {
+            name: "Workspace Storage",
+            state: "local_workspace",
+            configured: true,
+            notes: "Research artifacts are stored under the configured local workspace root."
+          }
+        ] as const,
         [
           "code_agent",
           {

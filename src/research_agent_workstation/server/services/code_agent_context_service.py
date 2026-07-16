@@ -132,8 +132,8 @@ class CodeAgentContextService:
             after_run = runs[-1]
         comparison = {
             "task_id": task_id,
-            "before_run": str(before_run) if before_run else None,
-            "after_run": str(after_run) if after_run else None,
+            "before_run": self._display_run_path(task_id, before_run),
+            "after_run": self._display_run_path(task_id, after_run),
             "before_metrics": self._read_best_metrics(before_run) if before_run else {},
             "after_metrics": self._read_best_metrics(after_run) if after_run else {},
             "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -142,6 +142,11 @@ class CodeAgentContextService:
         self.storage.ensure_dir(compare_dir)
         self.storage.write_json(compare_dir / f"compare_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", comparison)
         return comparison
+
+    def _display_run_path(self, task_id: str, run_dir: Path | None) -> str | None:
+        if not run_dir:
+            return None
+        return (Path("runtime") / "experiments" / Path(task_id).name / run_dir.name).as_posix()
 
     def _patch_record(self, task_id: str, patch_id: str) -> tuple[Path, Path, dict]:
         patch_dir = self.workspace_root / "workspace" / "tasks" / task_id / "code" / "patches"

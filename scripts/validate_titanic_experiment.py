@@ -30,6 +30,22 @@ def normalize_recorded_path(path_text: str) -> Path:
     return Path(path_text.replace("\\", "/"))
 
 
+def resolve_evidence_path(path_text: str, experiment_dir: Path | None = None) -> Path:
+    path = normalize_recorded_path(path_text)
+    if path.is_absolute() and path.exists():
+        return path
+    evidence_root_text = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    if evidence_root_text and not path.is_absolute():
+        candidate = Path(evidence_root_text).resolve() / path
+        if candidate.exists():
+            return candidate
+    if experiment_dir is not None:
+        candidate = experiment_dir / path.name
+        if candidate.exists():
+            return candidate
+    return path if path.is_absolute() else Path.cwd() / path
+
+
 def main() -> None:
     args = parse_args()
     experiment_dir = Path(args.experiment_dir)
@@ -85,12 +101,11 @@ def main() -> None:
     if missing_stages:
         fail(f"workflow stage audit missing stages: {missing_stages}")
 
-    submission_path = normalize_recorded_path(submission_check["path"])
-    if not submission_path.is_absolute():
-        submission_path = Path.cwd() / submission_path
+    submission_path = resolve_evidence_path(submission_check["path"], experiment_dir)
     require_file(submission_path, "submission")
 
-    sample_path = Path(config["data"]["sample_submission"])
+    sample_path = resolve_evidence_path(config["data"]["sample_submission"])
+    require_file(sample_path, "sample submission")
     submission = pd.read_csv(submission_path)
     sample = pd.read_csv(sample_path)
     if submission.columns.tolist() != sample.columns.tolist():

@@ -30,6 +30,11 @@ def resolve_path(path_text: str, experiment_dir: Path | None = None) -> Path:
     path = Path(path_text.replace("\\", "/"))
     if path.is_absolute() and path.exists():
         return path
+    evidence_root_text = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    if evidence_root_text and not path.is_absolute():
+        candidate = Path(evidence_root_text).resolve() / path
+        if candidate.exists():
+            return candidate
     normalized = path_text.replace("\\", "/")
     marker = "/experiments/"
     if marker in normalized:
@@ -90,7 +95,7 @@ def validate_submission(config: dict[str, Any], log: dict[str, Any], experiment_
 
     submission_path = resolve_path(submission_check["path"], experiment_dir)
     require_file(submission_path, "submission")
-    sample_path = Path(config["data"]["sample_submission"])
+    sample_path = resolve_path(config["data"]["sample_submission"])
     require_file(sample_path, "sample submission")
 
     submission = pd.read_csv(submission_path)

@@ -8,6 +8,15 @@ import pytest
 
 from scripts import verify_verified_workstation_launch_audit as audit
 
+PROCESS_MATCHES_RUNTIME = audit.process_matches_runtime
+
+
+@pytest.fixture(autouse=True)
+def _verified_runtime_probes(monkeypatch) -> None:
+    monkeypatch.setattr(audit, "process_matches_runtime", lambda pid, port, root: True)
+    monkeypatch.setattr(audit, "pids_on_port", lambda port: [os.getpid()])
+    monkeypatch.setattr(audit, "fetch_dashboard_health", lambda url: {"http_status": 200, "task_count": 2})
+
 
 def _write_audit(
     tmp_path,
@@ -15,6 +24,8 @@ def _write_audit(
     deepseek: bool,
     claude: bool,
     include_deepseek_smoke: bool = False,
+    kaggle: bool = False,
+    kaggle_authenticated: bool = False,
     generated_at: str | None = None,
 ) -> tuple:
     json_path = tmp_path / "verified_workstation_launch_audit.json"
@@ -49,9 +60,20 @@ def _write_audit(
             "signals": {"code_agent_configured_not_invoked": True},
         },
         {
+            "label": "kaggle_dpapi_readiness",
+            "ok": True,
+            "signals": {
+                "kaggle_authenticated_real_api": kaggle_authenticated,
+                "human_gate_required_for_submission": True,
+            },
+        },
+        {
             "label": "kaggle_secret_smoke",
             "ok": True,
-            "signals": {},
+            "signals": {
+                "kaggle_configured_not_invoked": kaggle and not kaggle_authenticated,
+                "human_gate_required_for_submission": True,
+            },
         },
         {
             "label": "plaintext_secret_scan",
@@ -73,7 +95,7 @@ def _write_audit(
                 "dpapi_loaded": {
                     "deepseek": deepseek,
                     "claude": claude,
-                    "kaggle": False,
+                    "kaggle": kaggle,
                     "hpc_ssh": False,
                 },
                 "external_provider_runtime_verified": provider_verified,
@@ -105,6 +127,71 @@ def test_verified_launch_accepts_claude_as_the_protected_llm(monkeypatch, tmp_pa
     assert payload["status"] == "passed"
     assert "deepseek_smoke" not in payload["smoke_labels"]
     assert payload["external_provider_runtime_verified"] is False
+    assert payload["dashboard_runtime"]["listener_verified"] is True
+
+
+def test_verified_launch_rejects_unrelated_live_pid(monkeypatch, tmp_path) -> None:
+    json_path, markdown_path = _write_audit(tmp_path, deepseek=False, claude=True)
+    monkeypatch.setattr(audit, "ROOT", tmp_path)
+    monkeypatch.setattr(audit, "AUDIT_JSON", json_path)
+    monkeypatch.setattr(audit, "AUDIT_MD", markdown_path)
+    monkeypatch.setattr(audit, "process_matches_runtime", lambda pid, port, root: False)
+
+    with pytest.raises(SystemExit, match="process command line does not match"):
+        audit.main()
+
+
+def test_verified_launch_rejects_pid_without_reported_listener(monkeypatch, tmp_path) -> None:
+    json_path, markdown_path = _write_audit(tmp_path, deepseek=False, claude=True)
+    monkeypatch.setattr(audit, "ROOT", tmp_path)
+    monkeypatch.setattr(audit, "AUDIT_JSON", json_path)
+    monkeypatch.setattr(audit, "AUDIT_MD", markdown_path)
+    monkeypatch.setattr(audit, "pids_on_port", lambda port: [])
+
+    with pytest.raises(SystemExit, match="does not own the reported listener"):
+        audit.main()
+
+
+def test_verified_launch_rejects_unhealthy_runtime(monkeypatch, tmp_path) -> None:
+    json_path, markdown_path = _write_audit(tmp_path, deepseek=False, claude=True)
+    monkeypatch.setattr(audit, "ROOT", tmp_path)
+    monkeypatch.setattr(audit, "AUDIT_JSON", json_path)
+    monkeypatch.setattr(audit, "AUDIT_MD", markdown_path)
+    monkeypatch.setattr(audit, "fetch_dashboard_health", lambda url: None)
+
+    with pytest.raises(SystemExit, match="health endpoint is not reachable"):
+        audit.main()
+
+
+def test_runtime_process_match_binds_next_cli_and_exact_port(monkeypatch, tmp_path) -> None:
+    next_cli = tmp_path / "web" / "research-agent-workstation" / "node_modules" / "next" / "dist" / "bin" / "next"
+    monkeypatch.setattr(
+        audit,
+        "process_command_line",
+        lambda pid: f'node "{next_cli}" start --hostname 127.0.0.1 --port 8089',
+    )
+
+    assert PROCESS_MATCHES_RUNTIME(7171, 8089, tmp_path) is True
+    assert PROCESS_MATCHES_RUNTIME(7171, 8088, tmp_path) is False
+
+
+def test_verified_launch_accepts_kaggle_auth_from_readiness_report(monkeypatch, tmp_path, capsys) -> None:
+    json_path, markdown_path = _write_audit(
+        tmp_path,
+        deepseek=False,
+        claude=True,
+        kaggle=True,
+        kaggle_authenticated=True,
+    )
+    monkeypatch.setattr(audit, "ROOT", tmp_path)
+    monkeypatch.setattr(audit, "AUDIT_JSON", json_path)
+    monkeypatch.setattr(audit, "AUDIT_MD", markdown_path)
+
+    audit.main()
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["status"] == "passed"
+    assert "kaggle_dpapi_readiness" in payload["smoke_labels"]
 
 
 def test_verified_launch_rejects_when_no_protected_llm_is_loaded(monkeypatch, tmp_path) -> None:

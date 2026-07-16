@@ -42,6 +42,8 @@ build/
 node_modules/
 .next/
 web/research-agent-workstation/.runtime-logs/
+docs/verified_workstation_launch_audit.json
+docs/verified_workstation_launch_audit.md
 *.tsbuildinfo
 next-env.d.ts
 

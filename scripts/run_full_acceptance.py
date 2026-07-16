@@ -12,6 +12,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def configured_experiment_root() -> Path:
+    evidence_root = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    default = Path(evidence_root) / "experiments" if evidence_root else ROOT / "experiments"
+    configured = Path(os.environ.get("RESEARCH_EXPERIMENT_ROOT", default))
+    return (configured if configured.is_absolute() else ROOT / configured).resolve()
+
+
+def redact_runtime_paths(value: str) -> str:
+    redacted = value
+    configured_roots = [
+        os.environ.get("RESEARCH_EVIDENCE_ROOT"),
+        os.environ.get("RESEARCH_EXPERIMENT_ROOT"),
+    ]
+    for configured in configured_roots:
+        if not configured:
+            continue
+        resolved = str(Path(configured).resolve())
+        for variant in {resolved, resolved.replace("\\", "/")}:
+            redacted = redacted.replace(variant, "<runtime-evidence>")
+    return redacted
+
+
 def run_command(command: list[str]) -> dict:
     env = os.environ.copy()
     env.setdefault("PYTHONPYCACHEPREFIX", str(Path(os.environ.get("TEMP", "/tmp")) / "research_agent_pycache"))
@@ -19,10 +41,10 @@ def run_command(command: list[str]) -> dict:
     env.setdefault("RESEARCH_AGENT_READ_ONLY_ACCEPTANCE", "1")
     completed = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, env=env)
     return {
-        "command": " ".join(command),
+        "command": redact_runtime_paths(" ".join(command)),
         "returncode": completed.returncode,
-        "stdout": completed.stdout.strip(),
-        "stderr": completed.stderr.strip(),
+        "stdout": redact_runtime_paths(completed.stdout.strip()),
+        "stderr": redact_runtime_paths(completed.stderr.strip()),
     }
 
 
@@ -150,8 +172,23 @@ def _has_required_files(run_dir: Path, required_files: list[str]) -> bool:
 
 
 def latest_experiment(task_id: str, required_files: list[str] | None = None) -> str:
-    task_root = ROOT / "experiments" / task_id
-    runs = sorted(path for path in task_root.iterdir() if path.is_dir())
+    experiment_root = configured_experiment_root()
+    task_root = experiment_root / task_id
+    try:
+        runs = sorted(path for path in task_root.iterdir() if path.is_dir())
+    except OSError as error:
+        raise SystemExit(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "failed_command": f"latest experiment lookup for {task_id}",
+                    "stdout": "",
+                    "stderr": f"experiment root unavailable for task {task_id!r}",
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        ) from error
     if not runs:
         raise SystemExit(
             json.dumps(
@@ -159,7 +196,7 @@ def latest_experiment(task_id: str, required_files: list[str] | None = None) -> 
                     "status": "failed",
                     "failed_command": f"latest experiment lookup for {task_id}",
                     "stdout": "",
-                    "stderr": f"no experiment runs found under {task_root}",
+                    "stderr": f"no experiment runs found for task {task_id!r}",
                 },
                 ensure_ascii=False,
                 indent=2,
@@ -168,7 +205,7 @@ def latest_experiment(task_id: str, required_files: list[str] | None = None) -> 
     if required_files:
         for run_dir in reversed(runs):
             if _has_required_files(run_dir, required_files):
-                return str(run_dir.relative_to(ROOT))
+                return str(run_dir)
         raise SystemExit(
             json.dumps(
                 {
@@ -176,7 +213,7 @@ def latest_experiment(task_id: str, required_files: list[str] | None = None) -> 
                     "failed_command": f"latest complete experiment lookup for {task_id}",
                     "stdout": "",
                     "stderr": (
-                        f"no complete experiment run found under {task_root}; "
+                        f"no complete experiment run found for task {task_id!r}; "
                         f"required_files={required_files}"
                     ),
                 },
@@ -184,7 +221,7 @@ def latest_experiment(task_id: str, required_files: list[str] | None = None) -> 
                 indent=2,
             )
         )
-    return str(runs[-1].relative_to(ROOT))
+    return str(runs[-1])
 
 
 def main() -> None:
@@ -196,7 +233,25 @@ def main() -> None:
         action="store_true",
         help="Skip the prior launch-audit check when the verified launcher is producing that audit in this run.",
     )
+    parser.add_argument(
+        "--evidence-root",
+        default=None,
+        help="External workspace root containing both experiments/ and tasks/ evidence.",
+    )
+    parser.add_argument(
+        "--experiment-root",
+        default=None,
+        help="External runtime evidence root containing titanic, house_prices, and telco_churn folders.",
+    )
     args = parser.parse_args()
+    if args.evidence_root:
+        os.environ["RESEARCH_EVIDENCE_ROOT"] = str(
+            (Path(args.evidence_root) if Path(args.evidence_root).is_absolute() else ROOT / args.evidence_root).resolve()
+        )
+    if args.experiment_root:
+        os.environ["RESEARCH_EXPERIMENT_ROOT"] = str(
+            (Path(args.experiment_root) if Path(args.experiment_root).is_absolute() else ROOT / args.experiment_root).resolve()
+        )
 
     checks = []
     commands = [

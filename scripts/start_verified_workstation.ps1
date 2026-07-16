@@ -221,6 +221,15 @@ function Invoke-SmokeSuite {
   $results = @()
   $baseUrl = "http://127.0.0.1:$Port"
 
+  $kaggleReadinessArgs = @(
+    (Join-Path $Root "scripts\verify_kaggle_dpapi_readiness.py"),
+    "--write-report"
+  )
+  if ($AllowRealExternal) {
+    $kaggleReadinessArgs += "--allow-real-external"
+  }
+  $results += Invoke-JsonCommand -Label "kaggle_dpapi_readiness" -Executable $Python -Arguments $kaggleReadinessArgs
+
   $results += Invoke-JsonCommand -Label "backend_resource_status" -Executable $Python -Arguments @(
     (Join-Path $Root "scripts\verify_backend_resource_status.py"),
     "--url",
@@ -254,9 +263,6 @@ function Invoke-SmokeSuite {
     (Join-Path $Root "scripts\manage_kaggle_secret.ps1"),
     "smoke"
   )
-  if ($AllowRealExternal) {
-    $kaggleArgs += "-AllowRealExternal"
-  }
   $results += Invoke-JsonCommand -Label "kaggle_secret_smoke" -Executable "powershell" -Arguments $kaggleArgs
 
   $results += Invoke-JsonCommand -Label "plaintext_secret_scan" -Executable $Python -Arguments @(
@@ -309,6 +315,12 @@ function Get-AllowlistedResultSignals {
     $signals.kaggle_authenticated_real_api = (
       [string]$payload.verification_state -eq "authenticated_real_api" -and
       [bool]$payload.real_external_called
+    )
+    $signals.human_gate_required_for_submission = [bool]$payload.human_gate_required_for_submission
+  } elseif ($Label -eq "kaggle_dpapi_readiness") {
+    $signals.kaggle_authenticated_real_api = (
+      [string]$payload.credential_status -eq "authenticated_real_api" -and
+      [bool]$payload.authenticated
     )
     $signals.human_gate_required_for_submission = [bool]$payload.human_gate_required_for_submission
   }
