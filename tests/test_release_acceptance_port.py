@@ -331,6 +331,20 @@ def test_verified_launch_runtime_reports_do_not_dirty_the_worktree() -> None:
     assert "docs/verified_workstation_launch_audit.md" in ignored
 
 
+def test_verified_launcher_captures_dashboard_manager_native_output_safely() -> None:
+    launcher = (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
+    manager = launcher[
+        launcher.index("function Invoke-DashboardManagerJson") : launcher.index("$dashboardPayload =")
+    ]
+
+    assert '$previousErrorActionPreference = $ErrorActionPreference' in manager
+    assert '$ErrorActionPreference = "Continue"' in manager
+    assert '$raw = @(& $python (Join-Path $Root "scripts\\manage_workstation_dashboard.py") @Arguments 2>&1)' in manager
+    assert "$exitCode = $LASTEXITCODE" in manager
+    assert '$ErrorActionPreference = $previousErrorActionPreference' in manager
+    assert '($raw -join "`n") | ConvertFrom-Json' in manager
+
+
 def test_verified_launcher_refreshes_kaggle_readiness_before_backend_status() -> None:
     launcher = (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
 

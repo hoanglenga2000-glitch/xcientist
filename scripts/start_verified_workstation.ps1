@@ -495,10 +495,22 @@ if ($Command -eq "status") {
 
 function Invoke-DashboardManagerJson {
   param([string[]]$Arguments)
-  $global:LASTEXITCODE = 0
-  $raw = @(& $python (Join-Path $Root "scripts\manage_workstation_dashboard.py") @Arguments 2>&1)
-  if ($LASTEXITCODE -ne 0) {
-    throw "Dashboard manager failed with exit code $LASTEXITCODE."
+  $previousErrorActionPreference = $ErrorActionPreference
+  $raw = @()
+  $exitCode = -1
+  try {
+    # Windows PowerShell 5.1 can promote native stderr records to terminating
+    # errors under Stop even when the process returns success and valid JSON.
+    $ErrorActionPreference = "Continue"
+    $global:LASTEXITCODE = 0
+    $raw = @(& $python (Join-Path $Root "scripts\manage_workstation_dashboard.py") @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($exitCode -ne 0) {
+    $diagnostic = @($raw | Select-Object -Last 20 | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+    throw "Dashboard manager failed with exit code $exitCode.$([Environment]::NewLine)$diagnostic"
   }
   try {
     ($raw -join "`n") | ConvertFrom-Json
