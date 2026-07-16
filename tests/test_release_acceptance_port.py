@@ -21,6 +21,20 @@ def load_script(name: str) -> ModuleType:
     return module
 
 
+def test_server_health_parses_windows_netstat_without_slow_cim_queries() -> None:
+    module = load_script("verify_workstation_server_health")
+    output = """
+      TCP    127.0.0.1:8088         0.0.0.0:0              LISTENING       1234
+      TCP    [::1]:8088             [::]:0                 LISTENING       5678
+      TCP    127.0.0.1:8088         127.0.0.1:52000        ESTABLISHED     9999
+      TCP    127.0.0.1:18089        0.0.0.0:0              LISTENING       4321
+      UDP    127.0.0.1:8088         *:*                                    2468
+    """
+
+    assert module.parse_windows_listener_pids(output, 8088) == [1234, 5678]
+    assert module.parse_windows_listener_pids(output, 18089) == [4321]
+
+
 def test_new_user_readiness_uses_requested_base_url(monkeypatch) -> None:
     module = load_script("verify_new_user_release_readiness")
     seen: list[str] = []

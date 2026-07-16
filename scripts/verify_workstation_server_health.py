@@ -72,21 +72,29 @@ def fetch_text(base_url: str, path: str, timeout: float) -> dict[str, Any]:
         }
 
 
+def parse_windows_listener_pids(output: str, port: int) -> list[int]:
+    pids: list[int] = []
+    expected_port = str(port)
+    for line in output.splitlines():
+        parts = line.split()
+        if len(parts) < 5 or parts[0].upper() != "TCP" or parts[3].upper() != "LISTENING":
+            continue
+        if parts[1].rsplit(":", 1)[-1] != expected_port or not parts[-1].isdigit():
+            continue
+        pids.append(int(parts[-1]))
+    return sorted(set(pids))
+
+
 def pids_on_port(port: int) -> list[int]:
     if sys.platform == "win32":
-        command = [
-            "powershell",
-            "-NoProfile",
-            "-Command",
-            f"Get-NetTCPConnection -LocalPort {port} -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique",
-        ]
-        result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=10)
-        pids: list[int] = []
-        for line in result.stdout.splitlines():
-            line = line.strip()
-            if line.isdigit():
-                pids.append(int(line))
-        return sorted(set(pids))
+        result = subprocess.run(
+            ["netstat", "-ano", "-p", "tcp"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        return parse_windows_listener_pids(result.stdout, port)
     result = subprocess.run(["sh", "-c", f"ss -ltnp 'sport = :{port}' 2>/dev/null || true"], cwd=ROOT, capture_output=True, text=True, timeout=10)
     pids = []
     for match in re.finditer(r"pid=(\d+)", result.stdout):
