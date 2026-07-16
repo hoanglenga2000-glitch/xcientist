@@ -416,10 +416,14 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
 
     assert '[string]$PythonExecutable = ""' in acceptance
     assert "$PythonExe = (Get-Command python -ErrorAction Stop).Source" in acceptance
+    assert 'Run-Check "acceptance_test_dependencies"' in acceptance
+    assert 'Join-Path $Root "requirements-dev.txt"' in acceptance
+    assert "-m pip install $pytestRequirement --quiet" in acceptance
     assert "& $PythonExe -m pytest" in acceptance
     assert "& $PythonExe scripts\\verify_no_plaintext_secrets.py" in acceptance
     assert "$env:WORKSTATION_PYTHON = $PythonExe" in acceptance
     assert "-PythonExecutable $PythonExe" in acceptance
+    assert acceptance.index('Run-Check "acceptance_test_dependencies"') < acceptance.index('Run-Check "cli_tests"')
 
     assert 'Join-Path $Root "install.ps1"' in acceptance
     installer_block = acceptance[
@@ -465,8 +469,13 @@ def test_restart_frontend_propagates_workspace_and_python_runtime() -> None:
     assert '$env:DATABASE_URL = if ($DatabaseUrl)' in restart
     assert '"prisma\\workstation.db"' in restart
     assert '"scripts\\prisma-db-push.mjs"' in restart
-    assert '& node.exe $prismaPush "--skip-generate"' in restart
-    assert restart.index('& node.exe $prismaPush "--skip-generate"') < restart.index("$server = Start-Process")
+    assert '$previousErrorActionPreference = $ErrorActionPreference' in restart
+    assert '$ErrorActionPreference = "Continue"' in restart
+    assert '$prismaOutput = @(& node.exe $prismaPush "--skip-generate" 2>&1)' in restart
+    assert "$prismaExitCode = $LASTEXITCODE" in restart
+    assert restart.index('$prismaOutput = @(& node.exe $prismaPush "--skip-generate" 2>&1)') < restart.index(
+        "$server = Start-Process"
+    )
 
 
 def test_prisma_db_push_forwards_cli_arguments() -> None:

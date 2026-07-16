@@ -72,9 +72,22 @@ $env:DATABASE_URL = if ($DatabaseUrl) {
 }
 $prismaPush = Join-Path $project.Path "scripts\prisma-db-push.mjs"
 if ($env:DATABASE_URL.StartsWith("file:", [System.StringComparison]::OrdinalIgnoreCase)) {
-  & node.exe $prismaPush "--skip-generate"
-  if ($LASTEXITCODE -ne 0) {
-    throw "Prisma database initialization failed with exit code $LASTEXITCODE."
+  $previousErrorActionPreference = $ErrorActionPreference
+  $prismaOutput = @()
+  $prismaExitCode = $null
+  try {
+    # Windows PowerShell 5.1 promotes native stderr to ErrorRecord objects when
+    # ErrorActionPreference is Stop. Prisma writes progress to stderr on success.
+    $ErrorActionPreference = "Continue"
+    $global:LASTEXITCODE = 0
+    $prismaOutput = @(& node.exe $prismaPush "--skip-generate" 2>&1)
+    $prismaExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($prismaExitCode -ne 0) {
+    $diagnostic = @($prismaOutput | Select-Object -Last 20 | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+    throw "Prisma database initialization failed with exit code $prismaExitCode.$([Environment]::NewLine)$diagnostic"
   }
 }
 

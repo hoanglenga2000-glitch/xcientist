@@ -199,6 +199,32 @@ $checks += Run-Check "installer_smoke_no_secrets" {
     Remove-Item -LiteralPath $stdout, $stderr -Force -ErrorAction SilentlyContinue
   }
 }
+$checks += Run-Check "acceptance_test_dependencies" {
+  $requirementsDev = Join-Path $Root "requirements-dev.txt"
+  $pytestRequirement = Get-Content -LiteralPath $requirementsDev |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -match '^pytest(?:[<>=!~].*)?$' } |
+    Select-Object -First 1
+  if (-not $pytestRequirement) {
+    throw "requirements-dev.txt does not declare pytest"
+  }
+
+  $previousErrorActionPreference = $ErrorActionPreference
+  $installOutput = @()
+  $installExitCode = $null
+  try {
+    $ErrorActionPreference = "Continue"
+    $global:LASTEXITCODE = 0
+    $installOutput = @(& $PythonExe -m pip install $pytestRequirement --quiet 2>&1)
+    $installExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($installExitCode -ne 0) {
+    $diagnostic = @($installOutput | Select-Object -Last 20 | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+    throw "acceptance test dependency install failed with exit code $installExitCode.$([Environment]::NewLine)$diagnostic"
+  }
+}
 $checks += Run-Check "cli_tests" {
   & $PythonExe -m pytest tests/test_kaggle_menu.py tests/test_autokaggle_cli.py tests/test_xsci_cli.py tests/test_xsci_phase2.py tests/test_xsci_phase3.py tests/test_kaggle_stream.py -q
 }
