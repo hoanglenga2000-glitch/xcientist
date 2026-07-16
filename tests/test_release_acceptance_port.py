@@ -405,7 +405,8 @@ def test_release_acceptance_threads_port_to_every_live_check() -> None:
     assert '"node_modules\\next\\dist\\bin\\next"' in restart
     assert '[ValidateSet("development", "production")]' in restart
     assert '$nextCommand = if ($Mode -eq "production") { "start" } else { "dev" }' in restart
-    assert "-Port $Port -Mode production" in acceptance
+    assert "-Port $Port `" in acceptance
+    assert "-Mode production `" in acceptance
     assert 'Run-Check "start_production_workstation_frontend"' in acceptance
     assert '"--build"' in (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
 
@@ -417,6 +418,8 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     assert "$PythonExe = (Get-Command python -ErrorAction Stop).Source" in acceptance
     assert "& $PythonExe -m pytest" in acceptance
     assert "& $PythonExe scripts\\verify_no_plaintext_secrets.py" in acceptance
+    assert "$env:WORKSTATION_PYTHON = $PythonExe" in acceptance
+    assert "-PythonExecutable $PythonExe" in acceptance
 
     assert 'Join-Path $Root "install.ps1"' in acceptance
     installer_block = acceptance[
@@ -431,6 +434,39 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     assert acceptance.index('Run-Check "stop_existing_workstation_frontend"') < acceptance.index(
         'Run-Check "installer_smoke_no_secrets"'
     )
+
+
+def test_release_acceptance_supports_a_fully_isolated_windows_profile() -> None:
+    acceptance = (ROOT / "scripts" / "run_new_user_release_acceptance.ps1").read_text(encoding="utf-8-sig")
+
+    assert '[string]$ProfileRoot = ""' in acceptance
+    for variable in (
+        "USERPROFILE",
+        "HOME",
+        "HOMEDRIVE",
+        "HOMEPATH",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "XSCI_SHIM_DIR",
+    ):
+        assert f"$env:{variable}" in acceptance
+    assert "$env:PSModuleAnalysisCachePath" in acceptance
+    assert "evomind-powershell-cache" in acceptance
+
+
+def test_restart_frontend_propagates_workspace_and_python_runtime() -> None:
+    restart = (ROOT / "scripts" / "restart_workstation_frontend.ps1").read_text(encoding="utf-8-sig")
+
+    assert '[string]$PythonExecutable = ""' in restart
+    assert '[string]$DatabaseUrl = ""' in restart
+    assert "$env:WORKSTATION_ROOT = $workspaceRoot.Path" in restart
+    assert "$env:WORKSTATION_PYTHON" in restart
+    assert "Get-Command python -ErrorAction SilentlyContinue" in restart
+    assert '$env:DATABASE_URL = if ($DatabaseUrl)' in restart
+    assert '"prisma\\workstation.db"' in restart
+    assert '"scripts\\prisma-db-push.mjs"' in restart
+    assert '& node.exe $prismaPush "--skip-generate"' in restart
+    assert restart.index('& node.exe $prismaPush "--skip-generate"') < restart.index("$server = Start-Process")
 
 
 def test_prisma_db_push_forwards_cli_arguments() -> None:
@@ -484,6 +520,18 @@ def test_cdp_smokes_support_node20_without_a_global_websocket() -> None:
         assert 'globalThis.WebSocket ?? requireFromWeb("ws")' in source
         assert "new WebSocketClient(this.wsUrl)" in source
         assert '"--disable-extensions"' in source
+        assert 'import { createServer } from "node:net"' in source
+        assert "async function allocateCdpPort" in source
+        assert 'stdio: ["ignore", "ignore", "pipe"]' in source
+        assert 'blocker: "browser_cdp_unavailable"' in source
+        assert "chrome_stderr_tail" in source
+
+    click_smoke = (ROOT / "scripts" / "verify_workstation_click_smoke.mjs").read_text(encoding="utf-8-sig")
+    controls_smoke = (ROOT / "scripts" / "verify_workstation_interactive_controls.mjs").read_text(
+        encoding="utf-8-sig"
+    )
+    assert "9223 + (process.pid % 1000)" not in click_smoke
+    assert '?? "9224"' not in controls_smoke
 
 
 def test_tasks_agent_logs_action_is_rendered_and_routed() -> None:

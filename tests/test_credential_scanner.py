@@ -305,6 +305,38 @@ def test_source_bundle_without_git_uses_strict_filesystem_inventory(tmp_path):
     assert scanned_files == 2
 
 
+def test_source_bundle_skips_only_exact_powershell_module_analysis_cache(tmp_path):
+    module_cache = tmp_path / "Microsoft" / "Windows" / "PowerShell" / "ModuleAnalysisCache"
+    module_cache.parent.mkdir(parents=True)
+    module_cache.write_bytes(b"\xffgenerated-cache")
+    adjacent = module_cache.with_name("ModuleAnalysisCache.note")
+    adjacent.write_text("source note\n", encoding="utf-8")
+
+    candidates, discovery_findings = discover_candidate_files(tmp_path)
+    findings, scanned_files = scan_repository(tmp_path)
+
+    assert discovery_findings == []
+    assert {path.relative_to(tmp_path).as_posix() for path in candidates} == {
+        "Microsoft/Windows/PowerShell/ModuleAnalysisCache",
+        "Microsoft/Windows/PowerShell/ModuleAnalysisCache.note"
+    }
+    assert findings == []
+    assert scanned_files == 1
+
+
+def test_tracked_powershell_module_analysis_cache_is_not_exempt(tmp_path):
+    _git(tmp_path, "init", "--quiet")
+    module_cache = tmp_path / "Microsoft" / "Windows" / "PowerShell" / "ModuleAnalysisCache"
+    module_cache.parent.mkdir(parents=True)
+    module_cache.write_bytes(b"\xfftracked-cache")
+    _git(tmp_path, "add", ".")
+
+    findings, scanned_files = scan_repository(tmp_path)
+
+    assert [finding["pattern"] for finding in findings] == ["unicode_decode_error"]
+    assert scanned_files == 1
+
+
 def test_source_bundle_quarantine_directory_is_fail_closed(tmp_path):
     quarantined = tmp_path / "scripts" / "_quarantine" / "retired.py"
     quarantined.parent.mkdir(parents=True)

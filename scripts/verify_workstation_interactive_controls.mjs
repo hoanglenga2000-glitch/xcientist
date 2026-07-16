@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -16,7 +17,7 @@ const baseUrl = process.argv.includes("--base-url")
   ? process.argv[process.argv.indexOf("--base-url") + 1]
   : "http://127.0.0.1:8088";
 const writeReport = process.argv.includes("--write-report");
-const port = Number(process.env.WORKSTATION_CONTROL_AUDIT_CDP_PORT ?? "9224");
+const cdpPortEnvironment = "WORKSTATION_CONTROL_AUDIT_CDP_PORT";
 
 const pageTargets = [
   "overview",
@@ -52,6 +53,38 @@ function findChrome() {
   return chromeCandidates.find((candidate) => candidate && existsSync(candidate)) ?? null;
 }
 
+function explicitCdpPort(environmentName) {
+  const raw = process.env[environmentName]?.trim();
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 1 || value > 65535) {
+    throw new Error(`${environmentName} must be an integer TCP port between 1 and 65535.`);
+  }
+  return value;
+}
+
+async function allocateCdpPort(environmentName) {
+  const configured = explicitCdpPort(environmentName);
+  if (configured !== null) return configured;
+  return await new Promise((resolvePort, rejectPort) => {
+    const reservation = createServer();
+    reservation.unref();
+    reservation.once("error", rejectPort);
+    reservation.listen(0, "127.0.0.1", () => {
+      const address = reservation.address();
+      if (!address || typeof address === "string") {
+        reservation.close();
+        rejectPort(new Error("Unable to reserve a local CDP port."));
+        return;
+      }
+      reservation.close((error) => {
+        if (error) rejectPort(error);
+        else resolvePort(address.port);
+      });
+    });
+  });
+}
+
 async function fetchJson(url, timeoutMs = 8000) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -64,8 +97,12 @@ async function fetchJson(url, timeoutMs = 8000) {
 }
 
 async function stopBrowser(process) {
-  if (!process || process.killed) return;
-  process.kill();
+  if (!process || process.killed || process.exitCode !== null) return;
+  try {
+    process.kill();
+  } catch {
+    return;
+  }
   await new Promise((resolveStop) => {
     const timer = setTimeout(resolveStop, 2500);
     process.once("exit", () => {
@@ -141,15 +178,19 @@ class CdpClient {
   }
 }
 
-async function waitForChrome(portNumber) {
+async function waitForChrome(portNumber, chromeProcess, diagnostics) {
   for (let attempt = 0; attempt < 50; attempt++) {
+    if (diagnostics.spawnError) throw diagnostics.spawnError;
+    if (chromeProcess.exitCode !== null) {
+      throw new Error(`Chrome exited before CDP became ready (exit ${chromeProcess.exitCode}).`);
+    }
     try {
       return await fetchJson(`http://127.0.0.1:${portNumber}/json/version`, 2000);
     } catch {
       await sleep(200);
     }
   }
-  throw new Error("Chrome DevTools endpoint did not become ready.");
+  throw new Error("Chrome DevTools endpoint did not become ready within 10 seconds.");
 }
 
 async function evalValue(client, expression) {
@@ -255,6 +296,8 @@ async function run() {
       base_url: baseUrl,
       status: "blocked",
       blocker: "browser_unavailable",
+      chrome: null,
+      cdp_port: null,
       page_results: [],
       failed_pages: pageTargets,
       missing_control_count: null,
@@ -263,23 +306,34 @@ async function run() {
   }
 
   const userDataDir = join(root, "workspace", `.chrome-control-audit-${Date.now()}`);
-  await mkdir(userDataDir, { recursive: true });
-  const chromeProcess = spawn(chrome, [
-    "--headless=new",
-    "--disable-gpu",
-    "--disable-dev-shm-usage",
-    "--disable-extensions",
-    "--no-first-run",
-    "--no-default-browser-check",
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${userDataDir}`,
-    `${baseUrl}/?page=overview`
-  ], { stdio: "ignore" });
-
+  let port = null;
+  let chromeProcess;
   let client;
-  let cleanupWarning = null;
+  let report;
+  const diagnostics = { spawnError: null, stderr: "" };
   try {
-    const version = await waitForChrome(port);
+    port = await allocateCdpPort(cdpPortEnvironment);
+    await mkdir(userDataDir, { recursive: true });
+    chromeProcess = spawn(chrome, [
+      "--headless=new",
+      "--disable-gpu",
+      "--disable-dev-shm-usage",
+      "--disable-extensions",
+      "--no-first-run",
+      "--no-default-browser-check",
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${userDataDir}`,
+      `${baseUrl}/?page=overview`
+    ], { stdio: ["ignore", "ignore", "pipe"] });
+    chromeProcess.once("error", (error) => {
+      diagnostics.spawnError = error;
+    });
+    chromeProcess.stderr?.setEncoding("utf8");
+    chromeProcess.stderr?.on("data", (chunk) => {
+      diagnostics.stderr = `${diagnostics.stderr}${chunk}`.slice(-8000);
+    });
+
+    const version = await waitForChrome(port, chromeProcess, diagnostics);
     const tabs = await fetchJson(`http://127.0.0.1:${port}/json`);
     const tab = tabs.find((item) => item.type === "page") ?? tabs[0];
     client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
@@ -299,26 +353,48 @@ async function run() {
     });
     const failedPages = pageResults.filter((item) => !item.ok).map((item) => item.page);
     const missingControlCount = pageResults.reduce((total, item) => total + item.missing.length, 0);
-    return {
+    report = {
       schema: "academic_research_os.workstation_interactive_controls.v1",
       created_at: createdAt,
       base_url: baseUrl,
       status: failedPages.length === 0 && missingControlCount === 0 && runtimeErrors.length === 0 ? "passed" : "failed",
       blocker: null,
       chrome,
+      cdp_port: port,
       page_results: pageResults,
       failed_pages: failedPages,
       missing_control_count: missingControlCount,
       runtime_error_count: runtimeErrors.length,
       runtime_errors: runtimeErrors.slice(0, 10),
-      cleanup_warning: cleanupWarning,
+      cleanup_warning: null,
       claim_boundary: "This audit inspects visible interactive controls after client-side routing has settled. A control passes if it has data-ui-action, data-testid, data-ui-component, href, input semantics, or an explicit disabled state. It does not start training, GPU jobs, Kaggle submission, or Figma writes."
+    };
+  } catch (error) {
+    report = {
+      schema: "academic_research_os.workstation_interactive_controls.v1",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: "failed",
+      blocker: "browser_cdp_unavailable",
+      chrome,
+      cdp_port: port,
+      error: error instanceof Error ? error.message : String(error),
+      chrome_exit_code: chromeProcess?.exitCode ?? null,
+      chrome_stderr_tail: diagnostics.stderr.trim().slice(-4000),
+      page_results: [],
+      failed_pages: pageTargets,
+      missing_control_count: null,
+      runtime_error_count: 0,
+      runtime_errors: [],
+      cleanup_warning: null,
+      claim_boundary: "The real browser interaction audit did not complete because its isolated Chrome DevTools endpoint was unavailable."
     };
   } finally {
     client?.close();
     await stopBrowser(chromeProcess);
-    cleanupWarning = await cleanupUserDataDir(userDataDir);
+    report.cleanup_warning = await cleanupUserDataDir(userDataDir);
   }
+  return report;
 }
 
 function toMarkdown(report) {

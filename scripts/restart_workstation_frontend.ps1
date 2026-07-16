@@ -1,6 +1,8 @@
 param(
   [int]$Port = 8088,
   [string]$ProjectDir = "",
+  [string]$PythonExecutable = "",
+  [string]$DatabaseUrl = "",
   [ValidateSet("development", "production")]
   [string]$Mode = "development"
 )
@@ -13,6 +15,7 @@ if (-not $ProjectDir) {
 }
 
 $project = Resolve-Path $ProjectDir
+$workspaceRoot = Resolve-Path (Join-Path $project.Path "..\..")
 $next = Join-Path $project ".next"
 $processIds = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
@@ -40,6 +43,40 @@ if ($Mode -eq "production") {
 
 # Child processes started by Start-Process inherit this PowerShell environment.
 $env:NODE_ENV = if ($Mode -eq "production") { "production" } else { "development" }
+$env:WORKSTATION_ROOT = $workspaceRoot.Path
+
+$selectedPython = $PythonExecutable
+if (-not $selectedPython) {
+  $selectedPython = $env:WORKSTATION_PYTHON
+}
+if (-not $selectedPython) {
+  $pythonCommand = Get-Command python -ErrorAction SilentlyContinue
+  if ($pythonCommand) {
+    $selectedPython = $pythonCommand.Source
+  }
+}
+if ($selectedPython) {
+  if (Test-Path -LiteralPath $selectedPython -PathType Leaf) {
+    $env:WORKSTATION_PYTHON = (Resolve-Path -LiteralPath $selectedPython).Path
+  } else {
+    $pythonCommand = Get-Command $selectedPython -ErrorAction Stop
+    $env:WORKSTATION_PYTHON = $pythonCommand.Source
+  }
+}
+
+$databasePath = Join-Path $project.Path "prisma\workstation.db"
+$env:DATABASE_URL = if ($DatabaseUrl) {
+  $DatabaseUrl
+} else {
+  "file:$($databasePath.Replace('\', '/'))"
+}
+$prismaPush = Join-Path $project.Path "scripts\prisma-db-push.mjs"
+if ($env:DATABASE_URL.StartsWith("file:", [System.StringComparison]::OrdinalIgnoreCase)) {
+  & node.exe $prismaPush "--skip-generate"
+  if ($LASTEXITCODE -ne 0) {
+    throw "Prisma database initialization failed with exit code $LASTEXITCODE."
+  }
+}
 
 $nextCli = Join-Path $project.Path "node_modules\next\dist\bin\next"
 if (-not (Test-Path -LiteralPath $nextCli)) {

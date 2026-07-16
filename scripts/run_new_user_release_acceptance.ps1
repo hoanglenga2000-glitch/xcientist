@@ -5,7 +5,8 @@ param(
   [int]$Port = 8088,
   [switch]$SkipBuild,
   [switch]$SkipBrowserSmoke,
-  [string]$PythonExecutable = ""
+  [string]$PythonExecutable = "",
+  [string]$ProfileRoot = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -26,6 +27,31 @@ $env:PYTHONUTF8 = "1"
 $env:PYTHONIOENCODING = "utf-8"
 $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
 
+# Keep PowerShell's generated module cache outside the source bundle. This
+# matters when acceptance is launched with an isolated LOCALAPPDATA value.
+$moduleCacheDir = Join-Path ([System.IO.Path]::GetTempPath()) "evomind-powershell-cache"
+New-Item -ItemType Directory -Force -Path $moduleCacheDir | Out-Null
+$env:PSModuleAnalysisCachePath = Join-Path $moduleCacheDir "ModuleAnalysisCache-$PID"
+
+if ($ProfileRoot) {
+  $resolvedProfileRoot = [System.IO.Path]::GetFullPath($ProfileRoot)
+  $roamingAppData = Join-Path $resolvedProfileRoot "AppData\Roaming"
+  $localAppData = Join-Path $resolvedProfileRoot "AppData\Local"
+  $shimDir = Join-Path $resolvedProfileRoot ".xsci\bin"
+  New-Item -ItemType Directory -Force -Path $resolvedProfileRoot, $roamingAppData, $localAppData, $shimDir | Out-Null
+
+  $homeDrive = ([System.IO.Path]::GetPathRoot($resolvedProfileRoot)).TrimEnd("\")
+  $env:USERPROFILE = $resolvedProfileRoot
+  $env:HOME = $resolvedProfileRoot
+  if ($homeDrive) {
+    $env:HOMEDRIVE = $homeDrive
+    $env:HOMEPATH = $resolvedProfileRoot.Substring($homeDrive.Length)
+  }
+  $env:APPDATA = $roamingAppData
+  $env:LOCALAPPDATA = $localAppData
+  $env:XSCI_SHIM_DIR = $shimDir
+}
+
 if ($PythonExecutable) {
   if (Test-Path -LiteralPath $PythonExecutable -PathType Leaf) {
     $PythonExe = (Resolve-Path -LiteralPath $PythonExecutable).Path
@@ -37,6 +63,8 @@ if ($PythonExecutable) {
 }
 $pythonDir = Split-Path -Parent $PythonExe
 $env:Path = "$pythonDir;$env:Path"
+$env:WORKSTATION_PYTHON = $PythonExe
+$env:WORKSTATION_ROOT = $Root
 
 function Step([string]$Text) {
   Write-Host ""
@@ -187,7 +215,10 @@ if (-not $SkipBuild) {
 
 Step "Start and live EvoMind gateway checks"
 $checks += Run-Check "start_production_workstation_frontend" {
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\restart_workstation_frontend.ps1 -Port $Port -Mode production
+  & (Join-Path $Root "scripts\restart_workstation_frontend.ps1") `
+    -Port $Port `
+    -Mode production `
+    -PythonExecutable $PythonExe
 }
 $checks += Run-Check "workstation_launch_readiness" {
   & $PythonExe scripts\verify_workstation_launch_readiness.py --write-report --base-url $BaseUrl --fresh-install
@@ -234,6 +265,7 @@ $summary = [ordered]@{
   created_at = (Get-Date).ToString("s")
   status = $status
   default_gateway = "$BaseUrl/?page=control"
+  isolated_profile = [bool]$ProfileRoot
   failed_checks = $failedIds
   optional_training_blockers = @("gpu_resource_blocked", "deepseek_cache_below_80_for_batch_generation")
   claim_boundary = "This validates new-user EvoMind gateway release. It does not validate Kaggle training, official submission, rank, medal, or MLE-Bench-75 performance."

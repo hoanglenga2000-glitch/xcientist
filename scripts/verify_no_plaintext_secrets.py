@@ -40,6 +40,7 @@ TEST_FIXTURE_DIRS = {
     "testdata",
 }
 TEST_FIXTURE_FILES = {"tests/test_credential_scanner.py"}
+RUNTIME_CACHE_FILES = {"microsoft/windows/powershell/moduleanalysiscache"}
 BINARY_SUFFIXES = {
     ".7z",
     ".a",
@@ -344,6 +345,24 @@ def should_skip(path: Path, root: Path = ROOT) -> bool:
     return path.suffix.casefold() in BINARY_SUFFIXES
 
 
+def is_generated_runtime_cache(path: Path, root: Path = ROOT) -> bool:
+    try:
+        relative = path.resolve(strict=False).relative_to(root.resolve(strict=False))
+    except (OSError, ValueError):
+        return False
+    relative_name = relative.as_posix()
+    if relative_name.casefold() not in RUNTIME_CACHE_FILES:
+        return False
+    if not (root / ".git").exists():
+        return True
+    tracked = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "--error-unmatch", "--", relative_name],
+        check=False,
+        capture_output=True,
+    )
+    return tracked.returncode != 0
+
+
 def discover_candidate_files(root: Path = ROOT) -> tuple[list[Path], list[Finding]]:
     """Return tracked and non-ignored untracked paths using NUL-safe Git output."""
     command = [
@@ -516,6 +535,8 @@ def scan_repository(root: Path = ROOT) -> tuple[list[Finding], int]:
     candidates, findings = discover_candidate_files(root)
     scanned_files = 0
     for path in candidates:
+        if is_generated_runtime_cache(path, root):
+            continue
         file_findings, scanned = scan_file(path, root)
         findings.extend(file_findings)
         scanned_files += int(scanned)
