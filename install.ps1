@@ -208,7 +208,9 @@ if ($BundleMode) {
   if (-not $npm) { $npm = Get-Command npm -ErrorAction Stop }
   if (-not $SkipNpmInstall) {
     Push-Location $Web
-    try { Invoke-Checked $npm.Source @("ci", "--no-audit", "--no-fund") "npm ci" } finally { Pop-Location }
+    $savedNodeEnv = $env:NODE_ENV
+    $env:NODE_ENV = $null
+    try { Invoke-Checked $npm.Source @("ci", "--no-audit", "--no-fund") "npm ci" } finally { $env:NODE_ENV = $savedNodeEnv; Pop-Location }
   }
   Push-Location $Web
   try { Invoke-Checked $npm.Source @("run", "db:generate") "Prisma client generation" } finally { Pop-Location }
