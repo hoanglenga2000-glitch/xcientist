@@ -43,27 +43,42 @@ if ($shouldInstallAlias) {
     }
     New-Item -ItemType Directory -Force -Path $shimDir | Out-Null
 
+    $launcherSource = Join-Path $PSScriptRoot "evomind_cli_launcher.ps1"
+    $launcherTarget = Join-Path $shimDir "evomind-launch.ps1"
+    if (-not (Test-Path -LiteralPath $launcherSource -PathType Leaf)) {
+        throw "EvoMind launcher source is missing: $launcherSource"
+    }
+    Copy-Item -LiteralPath $launcherSource -Destination $launcherTarget -Force
+    $pythonExecutable = (& python -c "import sys; print(sys.executable)").Trim()
+    $launcherConfig = @{
+        schema = "evomind.windows_cli_launcher.v1"
+        repo_root = $repoRoot
+        python_executable = $pythonExecutable
+    } | ConvertTo-Json
+    [System.IO.File]::WriteAllText(
+        (Join-Path $shimDir "evomind-launcher.json"),
+        $launcherConfig + [Environment]::NewLine,
+        [System.Text.UTF8Encoding]::new($false)
+    )
+
     @"
 @echo off
-set PYTHONUTF8=1
-set PYTHONIOENCODING=utf-8
-python -X utf8 -m xsci.kaggle %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0evomind-launch.ps1" %*
+exit /b %ERRORLEVEL%
 "@ | Set-Content -Encoding ASCII (Join-Path $shimDir "evomind.cmd")
 
     @"
 @echo off
-set PYTHONUTF8=1
-set PYTHONIOENCODING=utf-8
-python -X utf8 -m xsci.kaggle %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0evomind-launch.ps1" %*
+exit /b %ERRORLEVEL%
 "@ | Set-Content -Encoding ASCII (Join-Path $shimDir "autokaggle.cmd")
 
     $legacyKaggleShim = Join-Path $shimDir "kaggle.cmd"
     if ($shouldInstallLegacyKaggleAlias) {
         @"
 @echo off
-set PYTHONUTF8=1
-set PYTHONIOENCODING=utf-8
-python -X utf8 -m xsci.kaggle %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0evomind-launch.ps1" %*
+exit /b %ERRORLEVEL%
 "@ | Set-Content -Encoding ASCII $legacyKaggleShim
     } elseif (Test-Path $legacyKaggleShim) {
         Remove-Item -LiteralPath $legacyKaggleShim -Force
@@ -72,9 +87,8 @@ python -X utf8 -m xsci.kaggle %*
 
     @"
 @echo off
-set PYTHONUTF8=1
-set PYTHONIOENCODING=utf-8
-python -X utf8 -m xsci.kaggle official %*
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0evomind-launch.ps1" official %*
+exit /b %ERRORLEVEL%
 "@ | Set-Content -Encoding ASCII (Join-Path $shimDir "kaggle-official.cmd")
 
     Write-Host ""
@@ -114,9 +128,10 @@ Write-Host ""
 Write-Host "Next:"
 Write-Host "  evomind --help"
 Write-Host "  evomind setup"
+Write-Host "  evomind open"
 Write-Host "  evomind"
 Write-Host "  evomind dashboard start"
-Write-Host "  http://127.0.0.1:8088/?page=control"
+Write-Host "  http://127.0.0.1:8088/?page=assistant"
 Write-Host "  evomind official competitions list"
 Write-Host ""
 Write-Host "Note: use 'evomind' as the product command. Use 'kaggle-official' or 'evomind official ...' for the official Kaggle CLI."

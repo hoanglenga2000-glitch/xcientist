@@ -1,0 +1,101 @@
+{
+  "schema": "evomind.canonical_json.fixture.v1",
+  "canonical_hash_schema": "evomind.canonical_json.f64.v1",
+  "cases": [
+    {
+      "name": "zero_integer",
+      "value": 0,
+      "expected_sha256": "42b3a26b82d0e143d6239f26d3ac9fd10cdadf3ef1906a0651d1e7b8677b3e7f",
+      "expected_canonical": "{\"$canonical\":[\"evomind.canonical_json.f64.v1\",{\"$number\":\"f64:0000000000000000\"}]}"
+    },
+    {
+      "name": "zero_float",
+      "value": 0.0,
+      "expected_sha256": "42b3a26b82d0e143d6239f26d3ac9fd10cdadf3ef1906a0651d1e7b8677b3e7f"
+    },
+    {
+      "name": "negative_zero",
+      "value": -0.0,
+      "expected_sha256": "42b3a26b82d0e143d6239f26d3ac9fd10cdadf3ef1906a0651d1e7b8677b3e7f"
+    },
+    {
+      "name": "one_integer",
+      "value": 1,
+      "expected_sha256": "9a5fe88e9896cabbb540a31866b393096c8f8a19d29898da63602b7b0435fc35"
+    },
+    {
+      "name": "one_float",
+      "value": 1.0,
+      "expected_sha256": "9a5fe88e9896cabbb540a31866b393096c8f8a19d29898da63602b7b0435fc35"
+    },
+    {
+      "name": "fractional_score",
+      "value": 0.834705514703,
+      "expected_sha256": "583c4533b192442214a5a700a7d8a3a0252d9ba81c5096a4955af87ef8af94e1",
+      "expected_canonical": "{\"$canonical\":[\"evomind.canonical_json.f64.v1\",{\"$number\":\"f64:3feab5e856ee1662\"}]}"
+    },
+    {
+      "name": "scientific_small",
+      "value": 1.25e-7,
+      "expected_sha256": "96d6e64cf90d5612f43f2c336e476a9f44f4a8868d6b74ff73d4cff5804e1c86"
+    },
+    {
+      "name": "scientific_tiny",
+      "value": 6.02214076e-23,
+      "expected_sha256": "3bd9fd086fe5ab171f55ebeeba49cb3b83a7af8f5e8cf6c496a926ed3b3333c7"
+    },
+    {
+      "name": "unicode_and_nested_card",
+      "value": {
+        "schema": "evomind.experience_mcgs.v1",
+        "node_id": "EXP000",
+        "operator": "Draft",
+        "quality": 0.834705514703,
+        "progress": 0.0,
+        "novelty": 1.0,
+        "labels": ["中文", "evolution", "😀"],
+        "cost": {
+          "prompt_tokens": 0,
+          "wall_seconds": 2.5
+        }
+      },
+      "expected_sha256": "a5d58b6c23fb29ab46b3c63df1a5d48cf2e6fd686c96bda8875f95dbc7e25106"
+    },
+    {
+      "name": "nested_board_aggregate",
+      "value": {
+        "schema": "evomind.experience_mcgs.v1",
+        "hash_canonicalization": "evomind.canonical_json.f64.v1",
+        "task_id": "fixture",
+        "append_order": ["exp_fixture"],
+        "cards": [
+          {
+            "card_id": "exp_fixture",
+            "node_id": "EXP000",
+            "operator": "Draft",
+            "quality": 0.834705514703,
+            "progress": 0.0,
+            "novelty": 1.0
+          }
+        ],
+        "task_global_aggregation": {
+          "card_count": 1,
+          "public_validation": {
+            "best_quality": 0.834705514703,
+            "new_best_count": 1
+          },
+          "cost": {
+            "total_tokens": 0,
+            "wall_seconds": 2.5,
+            "estimated_cost_usd": 0.0
+          }
+        }
+      },
+      "expected_sha256": "dd897d47784e294f4c7f54e7cdf453f3d056ca4c69ca2823b52981d080c70735"
+    }
+  ],
+  "equivalence_groups": [
+    ["zero_integer", "zero_float", "negative_zero"],
+    ["one_integer", "one_float"]
+  ]
+}

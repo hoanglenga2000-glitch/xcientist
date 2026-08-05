@@ -34,6 +34,7 @@ from .config import (
 from .kaggle_conversation import ConversationAgent
 from .kaggle_intent import (
     CAPABILITY,
+    CHAT,
     EXECUTION,
     GREETING,
     MEMORY,
@@ -84,7 +85,7 @@ _XSCI_COMMANDS = {
     "workspace", "code-workspace", "benchmark-agent", "agent-benchmark",
 }
 _CONVERSATION: Optional[ConversationAgent] = None
-_DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8088/?page=control"
+_DEFAULT_DASHBOARD_URL = "http://127.0.0.1:8088/?page=assistant"
 
 
 @dataclass
@@ -187,13 +188,13 @@ def _strong(text: str) -> str:
     return _ansi("97;1", text)
 
 
-def _safe_print(text: str = "") -> None:
+def _safe_print(text: str = "", *, end: str = "\n", flush: bool = False) -> None:
     try:
-        print(text)
+        print(text, end=end, flush=flush)
     except UnicodeEncodeError:
         encoding = sys.stdout.encoding or "utf-8"
         safe = str(text).encode(encoding, errors="replace").decode(encoding, errors="replace")
-        print(safe)
+        print(safe, end=end, flush=flush)
 
 
 def logo() -> str:
@@ -219,10 +220,49 @@ def _agent_reply(text: str, *, title: str = "EvoMind") -> None:
             _safe_print(f"  {line}")
 
 
+def _stream_agent_reply(text: str, session: SessionState, *, title: str = "EvoMind") -> str:
+    """Render a direct assistant turn token by token without exposing hidden reasoning."""
+    is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
+    _safe_print()
+    _safe_print(
+        _dim("● 正在理解问题...") if is_tty else "正在理解问题...",
+        end="" if is_tty else "\n",
+        flush=True,
+    )
+
+    answer_parts: list[str] = []
+    answer_started = False
+    status_updated = False
+    for event in _conversation().stream_chat(text, session):
+        if event.kind == "thinking_status" and is_tty and not answer_started and not status_updated:
+            _safe_print("\r\033[2K" + _dim("● 正在组织回答..."), end="", flush=True)
+            status_updated = True
+            continue
+        if event.kind != "text_delta" or not event.text:
+            continue
+        if not answer_started:
+            if is_tty:
+                _safe_print("\r\033[2K", end="", flush=True)
+            _safe_print(_strong(title))
+            _safe_print("  ", end="", flush=True)
+            answer_started = True
+        answer_parts.append(event.text)
+        _safe_print(event.text, end="", flush=True)
+
+    if answer_started:
+        _safe_print()
+    else:
+        if is_tty:
+            _safe_print("\r\033[2K", end="", flush=True)
+        _agent_reply("模型连接暂时中断。你的问题已经保留，可以直接重试。", title=title)
+    return "".join(answer_parts).strip()
+
+
 def _has_llm(cfg=None) -> bool:
     cfg = cfg or load_config()
     return bool(cfg.get("secrets.anthropic_api_key") or cfg.get("secrets.deepseek_api_key")
-                or os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("DEEPSEEK_API_KEY"))
+                or cfg.get("secrets.openai_api_key") or os.environ.get("ANTHROPIC_API_KEY")
+                or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY"))
 
 
 def _has_kaggle(cfg=None) -> bool:
@@ -316,13 +356,12 @@ def _model_status_text(session: SessionState) -> str:
         model = (
             os.environ.get("CLAUDE_CODE_MODEL")
             if family == "anthropic"
+            else os.environ.get("OPENAI_MODEL")
+            if family == "openai"
             else os.environ.get("DEEPSEEK_MODEL")
         ) or "(provider default)"
-    base_url = (
-        cfg.get("llm.anthropic_base_url")
-        if str(cfg.get("llm.provider") or "").lower() == "anthropic"
-        else cfg.get("llm.deepseek_base_url")
-    ) or "(provider default)"
+    family = str(cfg.get("llm.provider") or "").lower()
+    base_url = cfg.get(f"llm.{family}_base_url") or "(provider default)"
     return "\n".join([
         f"当前 LLM provider：{provider}",
         f"当前模型：{model}",
@@ -463,6 +502,128 @@ def _run_agent(task: str, root: Optional[Path] = None, *, goal: str = "",
     from .agent import run_agent
     return run_agent(task, goal=goal, compute=compute, resume=resume, cfg=cfg,
                      event_renderer=StageRenderer(), show_plan=False)
+
+
+def _is_titanic_aibuild_request(intent) -> bool:
+    request = getattr(intent, "request", None)
+    enabled = os.environ.get("EVOMIND_MULTI_AGENT_V1", "1").strip().lower() not in {"0", "false", "off", "no"}
+    if not enabled or request is None or request.dataset != "titanic" or not request.requests_execution:
+        return False
+    required = {"inspect_data", "compare", "train", "review", "report", "candidate_submission"}
+    return required.issubset(request.actions)
+
+
+def _is_llm_finetune_request(intent) -> bool:
+    request = getattr(intent, "request", None)
+    enabled = os.environ.get("EVOMIND_MULTI_AGENT_V1", "1").strip().lower() not in {"0", "false", "off", "no"}
+    return bool(
+        enabled
+        and request is not None
+        and request.task_type == "llm_finetune"
+        and request.requests_execution
+        and request.compute_policy.remote_gpu_required
+        and not request.compute_policy.local_gpu_allowed
+    )
+
+
+def _run_llm_finetune_request(root: Path, session: SessionState, intent) -> int:
+    from research_os.agent.llm_finetune_workflow import run_llm_finetune
+
+    request = intent.request
+    session.selected_task = "evomind-qwen7b-finetune"
+    session.last_goal = request.objective
+    session.current_compute_override = "gpu"
+    session.current_mode = MODE_EXECUTING
+    _agent_reply(
+        "已创建全新的 7B 领域微调 run。Supervisor 将自动准备 EvoMind 文档数据、生成 QLoRA 方案，"
+        "在远程 A40 上训练并交给独立 Reviewer 与 Claim Audit。所有步骤写入同一事件账本；"
+        "本地 GPU 和模型发布保持禁用。",
+        title="EvoMind Supervisor",
+    )
+    try:
+        run = run_llm_finetune(root, request)
+    except Exception as exc:
+        session.last_action = "llm_finetune_failed"
+        _agent_reply(
+            f"LLM fine-tune run stopped before a durable final state: {type(exc).__name__}: {exc}",
+            title="EvoMind needs continuation",
+        )
+        return 1
+    finally:
+        session.current_mode = MODE_CHAT
+    run_dir = root / "workspace" / "evomind_runs" / run.run_id
+    session.last_artifact = str(run_dir)
+    session.last_action = "llm_finetune_completed" if run.status == "completed" else "llm_finetune_needs_continuation"
+    if run.status != "completed":
+        requirements = "\n".join(f"- {item}" for item in run.open_requirements) or "- inspect run.json and failed task events"
+        _agent_reply(
+            f"Run `{run.run_id}` entered `{run.status}`.\n{requirements}\n\nRun directory: `{run_dir}`",
+            title="EvoMind needs continuation",
+        )
+        return 1
+    metrics = json.loads((run_dir / "llm_output" / "metrics.json").read_text(encoding="utf-8"))
+    _agent_reply(
+        "领域微调闭环已完成。\n\n"
+        f"Run: `{run.run_id}`\n"
+        f"Base model: `{metrics['base_model']}`\n"
+        f"Domain composite: `{metrics['before']['domain_composite']:.2f}` -> "
+        f"`{metrics['after']['domain_composite']:.2f}` (`{metrics['improvement_pp']:+.2f}` pp)\n"
+        "Compute: verified NVIDIA A40; local GPU unused\n"
+        "Reviewer: passed\nClaim Audit: passed\nModel publication: blocked\n\n"
+        f"Adapter: `{run_dir / 'llm_output' / 'adapter'}`\n"
+        f"Model card: `{run_dir / 'model_card.md'}`\n"
+        f"Report: `{run_dir / 'research_report.md'}`",
+        title="EvoMind completed",
+    )
+    return 0
+
+
+def _run_titanic_multi_agent_request(root: Path, session: SessionState, intent) -> int:
+    from research_os.agent.titanic_workflow import run_titanic_aibuild
+
+    request = intent.request
+    session.selected_task = "titanic"
+    session.last_goal = request.objective
+    session.current_compute_override = "gpu"
+    session.current_mode = MODE_EXECUTING
+    _agent_reply(
+        "已创建全新的 Titanic Multi-Agent run。Setup、数据审计、3 个 solution repository、"
+        "HPC 执行、独立 Reviewer 和报告将写入同一事件账本；本地 GPU 与 Kaggle 正式提交保持禁用。",
+        title="EvoMind Supervisor",
+    )
+    try:
+        run = run_titanic_aibuild(root, request)
+    except Exception as exc:
+        session.current_mode = MODE_CHAT
+        session.last_action = "multi_agent_failed"
+        _agent_reply(f"Multi-Agent run failed before a durable final state: {type(exc).__name__}: {exc}", title="EvoMind blocked")
+        return 1
+    finally:
+        session.current_mode = MODE_CHAT
+    run_dir = root / "workspace" / "evomind_runs" / run.run_id
+    session.last_artifact = str(run_dir)
+    session.last_action = "multi_agent_completed" if run.status == "completed" else "multi_agent_needs_continuation"
+    if run.status != "completed":
+        requirements = "\n".join(f"- {item}" for item in run.open_requirements) or "- inspect run.json and failed task events"
+        _agent_reply(
+            f"Run `{run.run_id}` entered `{run.status}`.\n{requirements}\n\n"
+            f"Run directory: `{run_dir}`",
+            title="EvoMind needs continuation",
+        )
+        return 1
+    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
+    _agent_reply(
+        f"完整闭环已完成。\n\n"
+        f"Run: `{run.run_id}`\n"
+        f"Selected: `{metrics['selected_solution']}`\n"
+        f"5-fold CV accuracy: `{metrics['cv_score']:.6f}`（不是 Kaggle 官方成绩）\n"
+        f"Reviewer: passed\n"
+        f"Kaggle submission: blocked by policy/Human Gate\n\n"
+        f"Report: `{run_dir / 'research_report.md'}`\n"
+        f"Candidate submission: `{run_dir / 'submission.csv'}`",
+        title="EvoMind completed",
+    )
+    return 0
 
 
 def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
@@ -1117,7 +1278,10 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return run_setup(force=True), False
     if verb == "official":
         return official_main(rest), False
-    if verb in {"dashboard", "open"}:
+    if verb == "open":
+        from .dashboard import open_dashboard
+        return open_dashboard(), False
+    if verb == "dashboard":
         return _delegate_xsci(["dashboard", *(rest or ["start"])], root), False
     if verb in {"auto", "autonomous"}:
         task = (rest[0] if rest else None) or session.selected_task
@@ -1261,18 +1425,17 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             print(f"task not found: {task}")
             return 1, False
 
-    if _wants_model_status(stripped):
-        result = TerminalAgent().handle(raw, session, root)
-        _agent_reply(result.summary, title="Model status")
-        session.last_action = result.action
-        return result.rc, False
-
     intent = classify(stripped)
     # Bug #5: record the turn's action so status/recovery show real history.
     # Specific branches below (TOOL_QUERY, EXECUTION, switch) refine this.
     session.last_action = intent.kind
 
     # ── TOOL_QUERY: lightweight tool calls (no training) ──────────
+    if intent.kind == TOOL_QUERY and intent.payload == "model_status":
+        result = TerminalAgent().handle(raw, session, root)
+        _agent_reply(result.summary, title="Model status")
+        session.last_action = result.action
+        return result.rc, False
     if intent.kind == TOOL_QUERY:
         result = TerminalAgent().handle(raw, session, root)
         _agent_reply(result.summary, title="EvoMind Tool")
@@ -1280,8 +1443,7 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return result.rc, False
 
     if intent.kind == GREETING:
-        reply = _conversation()._build_greeting(session)
-        _agent_reply(reply, title="EvoMind")
+        _stream_agent_reply(raw, session, title="EvoMind")
         return 0, False
     if intent.kind == STATUS:
         # Delegate to ConversationAgent's richer status report
@@ -1289,9 +1451,7 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         _agent_reply(reply, title="System status")
         return 0, False
     if intent.kind == CAPABILITY:
-        with thinking("thinking"):
-            reply = _conversation().capability(session)
-        _agent_reply(reply)
+        _stream_agent_reply(raw, session, title="EvoMind")
         return 0, False
     if intent.kind == TASK_ADD:
         if not intent.payload:
@@ -1331,6 +1491,15 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return 0, False
     if intent.kind == EXECUTION:
         session.last_goal = raw
+        # LLM fine-tuning is a first-class Multi-Agent workflow. It never falls
+        # through to a local runner, a Kaggle runner, or a mock GPU path.
+        if _is_llm_finetune_request(intent):
+            return _run_llm_finetune_request(root, session, intent), False
+        # A complete natural-language Titanic development request is handled by
+        # the unified AIBuild v1 Supervisor. This path creates current_run.json
+        # immediately and never falls back to the legacy local/mock runner.
+        if _is_titanic_aibuild_request(intent):
+            return _run_titanic_multi_agent_request(root, session, intent), False
         # Bug #2: "切换到 X [开始训练]" classifies as EXECUTION. Switch the task
         # first, then decide whether the same utterance also asked to train.
         if _has_switch_cue(raw):
@@ -1397,12 +1566,9 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return rc, False
 
     session.current_mode = MODE_CHAT
-    result = TerminalAgent().handle_scientist_turn(raw, session, root)
-    _agent_reply(result.summary, title="AI Scientist Turn")
-    session.last_action = result.action
-    if result.artifacts:
-        session.last_artifact = result.artifacts[-1]
-    return result.rc, False
+    _stream_agent_reply(raw, session, title="EvoMind")
+    session.last_action = "chat"
+    return 0, False
 
 
 def _show_innovations(session: SessionState, root: Path) -> int:
@@ -1596,12 +1762,20 @@ def _print_help() -> None:
     print("Usage:")
     print("  evomind                     enter the EvoMind research terminal")
     print("  evomind setup               first-run setup wizard")
+    print("  evomind open                open a fresh authenticated local workstation session")
     print("  evomind ready               show terminal/model/Kaggle/GPU readiness")
     print("  evomind status              same as ready")
     print("  evomind competitions [q]    browse/search Kaggle competitions")
     print("  evomind task add <url>      register a Kaggle/MLE-Bench task")
     print("  evomind download <task>     download competition data")
-    print("  evomind agent <task>        open the deep research agent on a task")
+    print("  evomind agent <task>        open the legacy competition agent for a task slug")
+    print("  evomind agent \"goal\"      create a persistent general-agent session")
+    print("  evomind resume <session>    resume from the durable runtime checkpoint")
+    print("  evomind sessions            list persistent runtime sessions")
+    print("  evomind approvals           list or decide exact-parameter approvals")
+    print("  evomind tools               list unified runtime tools and schemas")
+    print("  evomind benchmark           show the 60-task parity gate")
+    print("  evomind doctor              probe runtime, browser, and desktop adapters")
     print("  evomind ask \"goal\"          run one auditable AI Scientist turn")
     print("  evomind turn \"goal\"         alias for `evomind ask`")
     print("  evomind run <task>          run the audited evolution loop")
@@ -1665,12 +1839,25 @@ def _dispatch(argv: list[str], root: Path) -> int:
         return 0
     if cmd in {"setup", "configure", "--setup"}:
         return run_setup(force=True)
+    if cmd == "open":
+        from .dashboard import open_dashboard
+        return open_dashboard()
     if cmd == "official":
         return official_main(argv[1:])
     if cmd == "agent":
         if not argv[1:]:
             return run_console(root)
-        return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
+        # Preserve the established competition-agent contract for
+        # ``evomind agent <task> [goal ...]``.  A quoted free-form objective is
+        # received as one argument containing spaces and is intentionally
+        # routed to the persistent general-agent runtime below.
+        if " " not in argv[1] and argv[1].replace("-", "").replace("_", "").isalnum():
+            return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
+        from evomind_runtime.cli import run_cli
+        return run_cli(argv, root)
+    if cmd in {"resume", "sessions", "approvals", "tools", "benchmark", "doctor", "runtime-server"}:
+        from evomind_runtime.cli import run_cli
+        return run_cli(argv, root)
     if cmd in {"workspace", "code-workspace"}:
         return _run_workspace_command(argv[1:], root)
     if cmd in {"benchmark-agent", "agent-benchmark"}:
@@ -1797,6 +1984,12 @@ def _dispatch(argv: list[str], root: Path) -> int:
             except FileNotFoundError:
                 print(f"task not found: {task}")
                 return 1
+            session = SessionState.from_root(root, cfg=load_config(root))
+            session.selected_task = task
+            session.refresh_recent_run(root)
+            session.refresh_task_brief(root)
+            session.last_action = "task_use"
+            session.persist(root)
             print(f"selected task: {task}")
             return 0
     if cmd in _XSCI_COMMANDS:
@@ -2023,12 +2216,10 @@ def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
 
 
 def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
-    """Run one non-interactive AI Scientist turn from the command line.
+    """Run one non-interactive natural-language turn from the command line.
 
-    This gives installed users a Claude-Code-like one-shot command:
-    `evomind ask "inspect the current task and tell me the next safe step"`.
-    It deliberately reuses the safe Scientist Turn path, so it writes evidence
-    artifacts and stops before training, downloads, or official submission.
+    Chat stays direct, research uses the Scientist path, and explicit execution
+    uses the same Supervisor route as the interactive terminal and UI.
     """
     args = list(argv)
     json_mode = False
@@ -2066,6 +2257,70 @@ def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
     cfg = load_config(root)
     inject_engine_env(cfg)
     session = SessionState.from_root(root, cfg=cfg)
+    intent = classify(prompt)
+    if intent.kind in {CHAT, GREETING, CAPABILITY}:
+        if json_mode:
+            answer = _conversation().chat(prompt, session)
+        else:
+            answer_parts: list[str] = []
+            for event in _conversation().stream_chat(prompt, session):
+                if event.kind == "text_delta" and event.text:
+                    answer_parts.append(event.text)
+                    _safe_print(event.text, end="", flush=True)
+            answer = "".join(answer_parts).strip()
+            _safe_print("")
+        session.last_action = "chat"
+        session.last_goal = prompt
+        session.persist(root)
+        if json_mode:
+            _safe_print(json.dumps({
+                "ok": True,
+                "action": "chat",
+                "selected_task": session.selected_task or "",
+                "summary": answer,
+                "artifacts": [],
+                "blocked": False,
+            }, ensure_ascii=False, indent=2))
+        return 0
+
+    if intent.kind == EXECUTION:
+        captured = io.StringIO()
+        output_context = contextlib.redirect_stdout(captured) if json_mode else contextlib.nullcontext()
+        with output_context:
+            rc, _should_exit = _dispatch_intent(prompt, root, session)
+        session.persist(root)
+        if json_mode:
+            from research_os.agent.aibuild_v1 import read_current_run_pointer
+
+            pointer = read_current_run_pointer(root) or {}
+            run_payload = {}
+            run_dir_value = pointer.get("run_dir")
+            if run_dir_value:
+                run_path = root / str(run_dir_value) / "run.json"
+                if run_path.is_file():
+                    with contextlib.suppress(OSError, json.JSONDecodeError):
+                        run_payload = json.loads(run_path.read_text(encoding="utf-8"))
+            task_graph = list((run_payload.get("tasks") or {}).values())
+            active_agents = sorted({
+                str(item.get("role") or "")
+                for item in task_graph
+                if item.get("status") == "running" and item.get("role")
+            })
+            _safe_print(json.dumps({
+                "ok": rc == 0,
+                "action": "multi_agent_execution",
+                "task_id": pointer.get("task_id") or "",
+                "run_id": pointer.get("run_id") or "",
+                "status": run_payload.get("status") or "unknown",
+                "seq": int(run_payload.get("seq") or 0),
+                "task_graph": task_graph,
+                "active_agents": active_agents,
+                "open_requirements": run_payload.get("open_requirements") or [],
+                "next_action": run_payload.get("next_action") or "",
+                "transcript": captured.getvalue(),
+            }, ensure_ascii=False, indent=2))
+        return rc
+
     if json_mode:
         with contextlib.redirect_stdout(io.StringIO()):
             result = TerminalAgent().handle_scientist_turn(prompt, session, root, max_tools=max_tools)

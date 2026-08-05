@@ -54,7 +54,7 @@ def ssh_connect():
     ssh = paramiko.SSHClient()
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     ssh.connect(hostname='100.85.169.63', port=1235,
-                username='aimslab-panliu3', password='lInVYkYbgF',
+                username='aimslab-panliu3', password='<redacted-password>',
                 sock=sock, timeout=20, banner_timeout=30,
                 allow_agent=False, look_for_keys=False)
     return ssh

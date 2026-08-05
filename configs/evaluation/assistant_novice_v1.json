@@ -1,0 +1,154 @@
+{
+  "schema": "evomind.assistant_quality_suite.v1",
+  "suite_id": "evomind_novice_research_agent_v1",
+  "version": 2,
+  "language": "zh-CN",
+  "selected_task": "siim-isic-melanoma-classification",
+  "required_provider": "openai",
+  "required_model": "gpt-5.6-sol",
+  "pass_threshold": 0.85,
+  "allowed_tool_names": [
+    "verified_context",
+    "model_status",
+    "system_status",
+    "task_list",
+    "inspect_task",
+    "data_check",
+    "recent_run",
+    "gpu_status",
+    "kaggle_status",
+    "literature_search",
+    "next_steps",
+    "evolution_status",
+    "scientist_checkpoint",
+    "research_decision",
+    "scientist_workplan",
+    "scientist_turn_plan",
+    "scientist_repair_plan",
+    "scientist_execution_contract",
+    "scientist_step_trace",
+    "scientist_recovery",
+    "scientist_action_queue",
+    "scientist_next_action",
+    "scientist_autopilot",
+    "scientist_loop",
+    "scientist_self_audit",
+    "scientist_upgrade_plan",
+    "scientist_self_upgrade_loop",
+    "scientist_memory_consolidation",
+    "scientist_innovation_backlog",
+    "scientist_hypothesis_review",
+    "scientist_experiment_blueprint",
+    "scientist_situation_model",
+    "switch_task"
+  ],
+  "cases": [
+    {
+      "case_id": "siim_results_for_novice",
+      "category": "evidence_grounded_explanation",
+      "prompt": "我是小白，想让你帮我理解上次 SIIM-ISIC 实验结果。请用大白话告诉我：这次实验做了什么、结果好不好、有哪些证据、有没有官方 Kaggle 成绩、交付物在哪里，以及下一步如果要继续进化模型应该怎么做。",
+      "required_tools": ["verified_context"],
+      "minimum_answer_chars": 800,
+      "maximum_answer_chars": 8000,
+      "checks": [
+        {"check_id": "run_identity", "dimension": "evidence_grounding", "weight": 8, "all_of": ["evomind_siim_isic_a800_job90353_20260730_095826"]},
+        {"check_id": "core_metrics", "dimension": "evidence_grounding", "weight": 18, "all_of": ["0.9225", "0.2397", "0.2952"]},
+        {"check_id": "uncertainty", "dimension": "scientific_rigor", "weight": 8, "any_of": ["95%", "置信区间", "0.9110"]},
+        {"check_id": "leakage_controls", "dimension": "scientific_rigor", "weight": 12, "all_of": ["患者", "内容", "OOF"]},
+        {"check_id": "grader_boundary", "dimension": "claim_integrity", "weight": 10, "any_of": ["失败即关闭", "failed_closed"], "regex_any": ["(?:没有(?:得到|产生|返回|可用的?)分数|分数\\s*(?:为|是|为空)\\s*null?|score\\s*[:=]\\s*null)"]},
+        {"check_id": "official_boundary", "dimension": "claim_integrity", "weight": 12, "regex_all": ["(?:没有官方\\s*Kaggle\\s*(?:成绩|分数)|official_submission_executed\\s*[:=]\\s*false)", "(?:(?:未执行|没有执行|未进行|没有进行)\\s*(?:官方\\s*)?(?:Kaggle\\s*)?提交|(?:官方\\s*(?:Kaggle\\s*)?|Kaggle\\s*官方\\s*)?提交.{0,6}(?:未执行|没有执行|未进行|没有进行)|official_submission_executed\\s*[:=]\\s*false)"]},
+        {"check_id": "real_deliverables", "dimension": "actionability", "weight": 15, "all_of": ["evomind-siim-isic-report.pdf", "evomind-siim-isic-results.csv", "evomind-siim-isic-code.zip", "evomind-siim-isic-evidence.zip", "/api/multi-agent/runs/"]},
+        {"check_id": "evolution_plan", "dimension": "actionability", "weight": 10, "regex_all": ["校准", "(?:误报|假阳性|false positive)", "分组"]},
+        {"check_id": "copyable_followup", "dimension": "novice_clarity", "weight": 7, "any_of": ["你可以直接发这句话", "可以直接复制"]}
+      ],
+      "forbidden_any": ["house_prices", "SalePrice", "http://localhost"],
+      "forbidden_regex": ["(?:官方 Kaggle|Kaggle 官方)(?:成绩|分数)[^。\\n]{0,20}(?:是|为)\\s*0\\.9225", "\\.\\.\\."]
+    },
+    {
+      "case_id": "grouped_validation_for_novice",
+      "category": "multi_source_reasoning",
+      "prompt": "我是小白，为什么这个医学图片实验不能把图片随便随机分成训练集和验证集？请结合上次 SIIM 实验的真实证据和参考文献讲清楚，最后告诉我下一句该怎么问。",
+      "required_tools": ["verified_context"],
+      "minimum_answer_chars": 500,
+      "maximum_answer_chars": 7000,
+      "checks": [
+        {"check_id": "patient_group", "dimension": "scientific_rigor", "weight": 15, "regex_all": ["(?:患者|病人)", "训练", "验证"]},
+        {"check_id": "content_group", "dimension": "scientific_rigor", "weight": 15, "any_of": ["重复内容", "内容组", "内容分组", "病灶内容", "内容零重叠", "近重复"]},
+        {"check_id": "leakage_effect", "dimension": "scientific_rigor", "weight": 15, "regex_all": ["泄漏", "(?:虚高|偏高|偏乐观|抬高|高估|拿高分)"]},
+        {"check_id": "run_evidence", "dimension": "evidence_grounding", "weight": 15, "any_of": ["0.9225", "patient_group_overlap_zero", "患者组零"]},
+        {"check_id": "literature", "dimension": "evidence_grounding", "weight": 15, "regex_any": ["10\\.1111/jdv\\.20479", "10\\.1016/j\\.media\\.2021\\.102305"]},
+        {"check_id": "source_distinction", "dimension": "claim_integrity", "weight": 10, "regex_all": ["(?:文献|论文|参考资料)", "(?:当前 Run|本次 Run|上次 SIIM 实验|当前实验)"]},
+        {"check_id": "novice_explanation", "dimension": "novice_clarity", "weight": 8, "regex_any": ["(?:大白话|简单说|好比|相当于|直观例子|简单.{0,4}例子|举个.{0,8}例子|像把|就像)"]},
+        {"check_id": "copyable_followup", "dimension": "actionability", "weight": 7, "any_of": ["下一句", "直接发", "继续问"]}
+      ],
+      "forbidden_any": ["house_prices", "SalePrice", "http://localhost"],
+      "forbidden_regex": ["\\.\\.\\."]
+    },
+    {
+      "case_id": "next_evolution_plan_for_novice",
+      "category": "bounded_planning",
+      "prompt": "我是小白，想继续提高上次 SIIM 模型，但现在先不要训练，也不要提交 Kaggle。请你先看真实结果，再给我最多三个容易理解的改进方向、怎么比较、什么条件下才算真的进步，以及我下一句可以直接复制的话。",
+      "required_tools": ["verified_context"],
+      "minimum_answer_chars": 500,
+      "maximum_answer_chars": 7000,
+      "checks": [
+        {"check_id": "baseline_metrics", "dimension": "evidence_grounding", "weight": 15, "any_of": ["0.9225", "0.2397", "0.2952"]},
+        {"check_id": "calibration", "dimension": "scientific_rigor", "weight": 15, "any_of": ["校准", "Brier", "Platt", "isotonic"]},
+        {"check_id": "bounded_branches", "dimension": "actionability", "weight": 15, "regex_any": ["(?:三个|3 个|3个).*(?:方向|分支|实验)", "方向一.*方向二.*方向三"]},
+        {"check_id": "controlled_comparison", "dimension": "scientific_rigor", "weight": 15, "regex_any": ["(?:单变量|相同分组|同一分组|固定基线|相同的患者.{0,8}内容分组|一次只改|其他.{0,12}不变)"]},
+        {"check_id": "promotion_gate", "dimension": "scientific_rigor", "weight": 15, "regex_any": ["(?:晋升门槛|只有当|通过条件|才.{0,6}真的进步|才进入下一轮|达不到.{0,20}不晋升|停止条件|回滚条件)"]},
+        {"check_id": "no_side_effects", "dimension": "claim_integrity", "weight": 15, "regex_all": ["(?:不要启动任何训练|不要训练|不训练|不会训练|未训练|没有训练|未启动训练|没有启动.{0,6}训练)", "(?:不要提交\\s*Kaggle|未执行\\s*Kaggle(?:\\s*提交)?|不提交\\s*Kaggle|没有执行(?:任何)?外部提交|未执行外部提交)"]},
+        {"check_id": "copyable_followup", "dimension": "novice_clarity", "weight": 10, "any_of": ["你可以直接发这句话", "直接复制"]}
+      ],
+      "forbidden_any": ["house_prices", "SalePrice", "http://localhost"],
+      "forbidden_regex": ["\\.\\.\\."]
+    },
+    {
+      "case_id": "deliverables_for_novice",
+      "category": "artifact_retrieval",
+      "prompt": "我是小白，上次实验最后到底留下了哪些文件？请告诉我先看哪个，给我能点击的下载链接、文件大小和校验值，不要启动任何训练。",
+      "required_tools": ["verified_context"],
+      "minimum_answer_chars": 350,
+      "maximum_answer_chars": 6000,
+      "checks": [
+        {"check_id": "all_files", "dimension": "evidence_grounding", "weight": 25, "all_of": ["evomind-siim-isic-report.pdf", "evomind-siim-isic-results.csv", "evomind-siim-isic-code.zip", "evomind-siim-isic-evidence.zip"]},
+        {"check_id": "download_links", "dimension": "actionability", "weight": 20, "all_of": ["/api/multi-agent/runs/", "download"]},
+        {"check_id": "sizes", "dimension": "evidence_grounding", "weight": 15, "any_of": ["71,429", "71429"], "all_of": ["bytes"]},
+        {"check_id": "hashes", "dimension": "evidence_grounding", "weight": 20, "all_of": ["477761766f81", "429faa05f2e9", "bfc531b9de0e", "96f89980c4ee"]},
+        {"check_id": "reading_order", "dimension": "novice_clarity", "weight": 10, "any_of": ["先看", "建议先打开", "首先看"]},
+        {"check_id": "no_training", "dimension": "claim_integrity", "weight": 10, "regex_any": ["(?:不会启动.{0,6}训练|没有启动.{0,6}训练|不要启动.{0,6}训练|未启动.{0,6}训练)"]}
+      ],
+      "forbidden_any": ["house_prices", "SalePrice", "http://localhost"],
+      "forbidden_regex": ["\\.\\.\\."]
+    },
+    {
+      "case_id": "followup_constraint_carryover_for_novice",
+      "category": "multi_turn_constraint_carryover",
+      "history": [
+        {
+          "role": "user",
+          "content": "我是小白，帮我看上次 SIIM 结果并计划怎么提高，先不要训练，也不要提交 Kaggle。"
+        },
+        {
+          "role": "assistant",
+          "content": "已说明基线结果，下一轮可以继续细化。"
+        }
+      ],
+      "prompt": "那就根据刚才的结果告诉我下一步怎么改吧，简单一点，并给我一句可以直接复制的话。",
+      "required_tools": ["verified_context"],
+      "minimum_answer_chars": 300,
+      "maximum_answer_chars": 4500,
+      "checks": [
+        {"check_id": "baseline_metric", "dimension": "evidence_grounding", "weight": 15, "any_of": ["0.9225", "0.2397", "0.2952"]},
+        {"check_id": "no_training_carryover", "dimension": "claim_integrity", "weight": 15, "regex_any": ["(?:不会|未|没有|不|不要).{0,8}训练"]},
+        {"check_id": "no_submission_carryover", "dimension": "claim_integrity", "weight": 15, "regex_any": ["(?:不会|未|没有|不|不要).{0,12}(?:提交|Kaggle)"]},
+        {"check_id": "bounded_plan", "dimension": "actionability", "weight": 15, "regex_any": ["(?:最多|不超过|先做|优先).{0,30}(?:方向|步骤|实验|改进)", "(?:方向|步骤)一"]},
+        {"check_id": "controlled_comparison", "dimension": "scientific_rigor", "weight": 15, "regex_any": ["(?:单变量|相同分组|同一分组|固定基线|一次只改|其他.{0,12}不变)"]},
+        {"check_id": "promotion_gate", "dimension": "scientific_rigor", "weight": 15, "regex_any": ["(?:晋升|门槛|只有当|才算|才进入|停止|回滚)"]},
+        {"check_id": "copyable_followup", "dimension": "novice_clarity", "weight": 10, "any_of": ["直接复制", "直接发这句话", "可以复制"]}
+      ],
+      "forbidden_any": ["house_prices", "SalePrice", "http://localhost"],
+      "forbidden_regex": ["\\.\\.\\."]
+    }
+  ]
+}

@@ -795,8 +795,12 @@ def build_scientist_turn_plan(
     intent = classify(user_text or session.last_goal or "")
     payload = str(intent.payload or "")
     selected_task = bool(session.selected_task)
-    blocking_gates = session.blocking_setup()
-    advisory_gaps = session.missing_setup()
+    execution_blocking_gates = session.blocking_setup()
+    execution_advisory_gaps = session.missing_setup()
+    read_only_query = intent.kind == TOOL_QUERY
+    defer_execution_gates = read_only_query and payload == "literature_search"
+    blocking_gates = [] if defer_execution_gates else execution_blocking_gates
+    advisory_gaps = [] if defer_execution_gates else execution_advisory_gaps
     can_execute = session.can_execute()
     selected_tools = _select_tool_sequence(
         intent.kind,
@@ -904,6 +908,8 @@ def build_scientist_turn_plan(
             "can_execute": can_execute,
             "blocking_gates": blocking_gates,
             "advisory_gaps": advisory_gaps,
+            "deferred_execution_gates": execution_blocking_gates if defer_execution_gates else [],
+            "deferred_execution_advisories": execution_advisory_gaps if defer_execution_gates else [],
         },
         "selected_tools": selected_tools,
         "tool_sequence": [item["tool"] for item in selected_tools],

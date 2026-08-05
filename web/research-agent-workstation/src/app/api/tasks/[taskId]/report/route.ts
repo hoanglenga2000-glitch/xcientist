@@ -18,9 +18,10 @@ const FALLBACK_REPORTS = [
   "titanic_local_report.md"
 ] as const;
 
-export async function GET(_request: Request, { params }: { params: { taskId: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const report = await prisma.report.findFirst({ where: { taskId }, orderBy: { updatedAt: "desc" } });
   return NextResponse.json({ ok: true, task_id: taskId, report: serializeReport(report ?? await filesystemReport(taskId)) });
 }
@@ -124,9 +125,10 @@ async function filesystemReport(taskId: string) {
   return null;
 }
 
-export async function PATCH(request: Request, { params }: { params: { taskId: string } }) {
+export async function PATCH(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const body = await request.json().catch(() => ({}));
   const title = String(body.title ?? `${taskId} Research Report`);
   const markdown = String(body.markdown_content ?? body.markdown ?? "");

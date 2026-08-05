@@ -1,3 +1,92 @@
+# 本地优先资源包：正式首启路径
+
+本工作站面向 Windows 单机、单用户使用。基础包默认只监听
+`127.0.0.1:8088`，模型调用默认发现 `http://127.0.0.1:65068/v1` 的
+OpenAI-compatible 本地网关。网关或凭据暂未就绪时，工作站以
+`degraded` 状态启动并继续提供 deterministic local fallback；页面、任务、
+数据、工作流和报告功能不会因模型网关缺失而启动失败。
+
+## 1. 解压和安装
+
+将发布压缩包解压到普通用户可写目录。中文和空格路径均受支持，例如：
+
+```powershell
+cd "D:\科研工具\我的工作站"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\install.ps1
+```
+
+安装器会：
+
+1. 按 `WORKSTATION_PYTHON → runtime\python → .venv → PATH` 发现 Python；
+2. 创建项目私有 `.venv`，不向全局 Python 安装包；
+3. 优先使用 `runtime\wheels` 离线安装，缺少 wheel 时才在线回退；
+4. 验证 standalone Web 运行时或构建源码版；
+5. 在迁移前备份 SQLite，并执行可重复迁移与完整性检查；
+6. 发现或启动本地模型网关，写入无密钥的状态报告；
+7. 创建 `user-data`，用户数据库、工作区、日志和升级备份均保存在其中。
+
+严格离线安装：
+
+```powershell
+.\install.ps1 -OfflineOnly
+```
+
+## 2. 启动、状态、重启和停止
+
+```powershell
+.\start.ps1
+.\status.ps1
+.\start.ps1                 # 幂等；已运行时直接报告
+python .\scripts\manage_workstation_dashboard.py restart --port 8088
+.\stop.ps1
+```
+
+打开：`http://127.0.0.1:8088/?page=assistant`
+
+`status.ps1` 同时返回：安装状态、Python 路径、Dashboard PID、实际监听 PID、
+端口一致性、HTTP 健康状态、本地网关状态及 fallback 状态。停止和重启必须同时
+确认进程退出与端口释放；不会只依赖 Windows 上不可靠的 `os.kill(pid, 0)`。
+
+## 3. 本地网关和凭据
+
+```powershell
+python .\scripts\manage_local_gateway.py status
+python .\scripts\manage_local_gateway.py diagnose
+powershell -File .\scripts\manage_openai_gateway_secret.ps1 status
+powershell -File .\scripts\manage_openai_gateway_secret.ps1 install-from-stdin
+```
+
+凭据使用 Windows DPAPI 保存到当前用户配置目录，不进入 `.env`、资源包、日志或
+状态 JSON。本地网关状态有三类：
+
+- `ready`：网关、凭据和 `/v1/models` 均通过；
+- `degraded_auth/degraded_http`：进程可达，但认证或模型就绪未完成；
+- `degraded_unavailable`：网关未运行，deterministic local fallback 生效。
+
+若资源包包含 `runtime\gateway\manifest.json`，安装/启动脚本会按 manifest 启动
+受管网关；否则仅发现用户已有的本地网关，不执行任意命令字符串。
+
+## 4. 数据迁移、升级、回滚和卸载
+
+```powershell
+.\migrate.ps1
+.\upgrade.ps1 -PackagePath "D:\Downloads\research-workstation-next.zip"
+.\rollback.ps1
+.\uninstall.ps1 -Confirm
+```
+
+升级流程固定为：停止 → 校验 release manifest/SHA-256 → 备份当前应用和数据库 →
+原子替换 → 数据迁移 → 健康启动。任何阶段失败会恢复应用备份。卸载默认保留
+`user-data`；只有显式执行以下命令才删除用户数据：
+
+```powershell
+.\uninstall.ps1 -Confirm -PurgeUserData
+```
+
+---
+
+---
+
 # EvoMind 新用户一键配置指南
 
 本文面向第一次下载和使用 EvoMind 的新用户。目标是让用户在本机完成安装、配置模型 API、配置 Kaggle API、可选配置 GPU/HPC 服务器，然后进入 EvoMind 工作站页面，开始受控的数据训练流程。
@@ -5,7 +94,7 @@
 默认入口：
 
 ```text
-http://127.0.0.1:8088/?page=control
+http://127.0.0.1:8088/?page=assistant
 ```
 
 核心命令：
@@ -234,7 +323,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_verified_works
 然后打开：
 
 ```text
-http://127.0.0.1:8088/?page=control
+http://127.0.0.1:8088/?page=assistant
 ```
 
 如果只想重启前端：

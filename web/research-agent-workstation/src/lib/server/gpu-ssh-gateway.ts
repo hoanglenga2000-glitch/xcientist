@@ -221,12 +221,11 @@ function sshBaseArgs() {
 
 function pythonCommand() {
   if (process.env.WORKSTATION_PYTHON) return process.env.WORKSTATION_PYTHON;
-  if (process.platform !== "win32") return "python3";
-  const candidates = [
-    "C:\\codex-python\\python.exe",
-    path.join(os.homedir(), ".cache", "codex-runtimes", "codex-primary-runtime", "dependencies", "python", "python.exe")
-  ];
-  return candidates.find((candidate) => fs.existsSync(candidate)) ?? "python";
+  if (process.env.PYTHON) return process.env.PYTHON;
+  // The packaged launcher resolves and exports WORKSTATION_PYTHON once. Keeping
+  // user-specific absolute interpreter candidates in a server module makes
+  // Next's standalone tracer copy the build machine's private runtime path.
+  return process.platform === "win32" ? "python" : "python3";
 }
 
 async function runPasswordSshCommand(command: string, timeout: number, maxBuffer: number) {
@@ -1262,7 +1261,7 @@ async function submitPlaygroundS6E6BoostingEnsembleGpuJob(input: {
     ? input.resourceRequest.gpu_device_id.trim()
     : "auto";
   const normalizedResourceRequest = {
-    ...(input.resourceRequest ?? {}),
+    ...input.resourceRequest,
     gpu: input.resourceRequest?.gpu ?? "available",
     task: "playground_series_s6e6",
     mode: "boosting_ensemble_lgb_xgb_cat",

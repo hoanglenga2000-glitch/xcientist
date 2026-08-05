@@ -1,10 +1,16 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/db";
-import { claudeApiKeyStatus, deepSeekApiKeyStatus, deepSeekConfig, gpuSshConfig, gpuSshStatus } from "@/lib/server/capabilities";
+import type { ActionLog, ConnectorStatus, Evidence, ExperimentRun, Gate, Report, Workflow } from "@prisma/client";
+import { claudeApiKeyStatus, deepSeekApiKeyStatus, deepSeekConfig, gpuSshConfig, gpuSshStatus, openAiApiKeyStatus, openAiConfig } from "@/lib/server/capabilities";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
 import { decodeJson, sanitizeClientJson } from "@/lib/server/json";
-import { latestExperimentPath, latestScoreGatedWorkstationRunPath, latestWorkstationRunPath, readJsonFile, resolveWorkspacePath, workspaceRoot } from "@/lib/server/paths";
+import { latestExperimentPath, latestScoreGatedWorkstationRunPath, latestWorkstationRunPath, readJsonFile as readJsonFileRaw, resolveWorkspacePath, workspaceRoot } from "@/lib/server/paths";
+import { loadLiteratureStateForAllTasks } from "@/lib/server/literature-agent-actions";
+import {
+  selectLatestValidLiteratureManifest,
+  type LiteratureManifestCandidate
+} from "@/lib/server/literature-manifest-selection";
 
 type RuntimeSummary = {
   task_id: string;
@@ -31,6 +37,13 @@ type RuntimeSummary = {
   submission_audit?: Record<string, unknown> | null;
   score_regression_diagnosis?: Record<string, unknown> | null;
   score_regression_recovery_plan?: Record<string, unknown> | null;
+  current_run?: Record<string, unknown> | null;
+  task_graph?: Record<string, unknown> | null;
+  handoffs?: Array<Record<string, unknown>>;
+  review?: Record<string, unknown> | null;
+  hpc_probe?: Record<string, unknown> | null;
+  preserved_parent_run_id?: string | null;
+  preserved_parent_artifact_manifest?: Record<string, unknown> | null;
 };
 
 type XsciRunCandidate = {
@@ -77,6 +90,42 @@ const stages = [
   "reflection"
 ].map((stage) => ({ stage, status: "reserved" }));
 
+type FileCacheEntry<T> = {
+  value: T;
+  mtimeMs: number;
+  expiresAt: number;
+};
+
+const FILE_CACHE_TTL_MS = Math.max(1_000, Number(process.env.WORKSTATION_FILE_CACHE_TTL_MS ?? 15_000));
+const FULL_SUMMARY_TTL_MS = Math.max(2_000, Number(process.env.WORKSTATION_SUMMARY_CACHE_TTL_MS ?? 15_000));
+const LIGHT_SUMMARY_TTL_MS = Math.max(250, Number(process.env.WORKSTATION_LIGHT_SUMMARY_CACHE_TTL_MS ?? 1_000));
+const jsonFileCache = new Map<string, FileCacheEntry<any>>();
+const textFileCache = new Map<string, FileCacheEntry<string>>();
+
+async function cachedFileValue<T>(
+  filePath: string,
+  cache: Map<string, FileCacheEntry<T>>,
+  loader: () => Promise<T>,
+): Promise<T> {
+  const now = Date.now();
+  const cached = cache.get(filePath);
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  const mtimeMs = await fs.stat(filePath).then((stat) => stat.mtimeMs).catch(() => 0);
+  if (cached && cached.mtimeMs === mtimeMs) {
+    cached.expiresAt = now + FILE_CACHE_TTL_MS;
+    return cached.value;
+  }
+
+  const value = await loader();
+  cache.set(filePath, { value, mtimeMs, expiresAt: now + FILE_CACHE_TTL_MS });
+  return value;
+}
+
+async function readJsonFile(filePath: string) {
+  return cachedFileValue(filePath, jsonFileCache, () => readJsonFileRaw(filePath));
+}
+
 function readJsonl(text: string) {
   return text
     .split(/\r?\n/)
@@ -113,17 +162,12 @@ function safeSummaryText(value: unknown, fallback = "") {
   return text.length > 700 ? `${text.slice(0, 697)}...` : text;
 }
 
-function basename(value: string) {
-  return value.replaceAll("\\", "/").split("/").filter(Boolean).pop() ?? value;
-}
-
 function inferTaskFromRunId(runId: string) {
   return runId.replace(/_(gpu|local)_\d{8}_\d{6}$/i, "");
 }
 
 async function readTextFile(filePath: string) {
-  const fs = await import("node:fs/promises");
-  return fs.readFile(filePath, "utf-8").catch(() => "");
+  return cachedFileValue(filePath, textFileCache, () => fs.readFile(filePath, "utf-8").catch(() => ""));
 }
 
 async function fileStatMtime(path: string) {
@@ -134,6 +178,37 @@ async function fileStatMtime(path: string) {
 async function loadXsciTerminalAgentSummary() {
   const fs = await import("node:fs/promises");
   const root = resolveWorkspacePath("experiments/evolution");
+  // TerminalEventEmitter writes to the workspace root. Keep the historical
+  // .xsci sink as a compatibility source for older runs, then merge by event
+  // identity so Runtime shows the latest terminal action exactly once.
+  const terminalEventSources = [
+    { relativePath: "terminal_events.jsonl", absolutePath: resolveWorkspacePath("terminal_events.jsonl") },
+    { relativePath: ".xsci/terminal_events.jsonl", absolutePath: resolveWorkspacePath(".xsci/terminal_events.jsonl") }
+  ];
+  const terminalEventRows = (await Promise.all(terminalEventSources.map(async (source, sourceIndex) => {
+    const text = await readTextFile(source.absolutePath);
+    return readJsonl(text).map((event, eventIndex) => ({ event, sourceIndex, eventIndex }));
+  }))).flat();
+  terminalEventRows.sort((left, right) => {
+    const leftTime = Date.parse(String(left.event.ts ?? ""));
+    const rightTime = Date.parse(String(right.event.ts ?? ""));
+    if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) return leftTime - rightTime;
+    return left.sourceIndex - right.sourceIndex || left.eventIndex - right.eventIndex;
+  });
+  const terminalEventKeys = new Set<string>();
+  const terminalEvents = terminalEventRows
+    .filter(({ event }) => {
+      const key = [event.type, event.stage, event.message, event.status, event.artifact, event.ts].map((value) => String(value ?? "")).join("\u0001");
+      if (terminalEventKeys.has(key)) return false;
+      terminalEventKeys.add(key);
+      return true;
+    })
+    .map(({ event }) => event);
+  const terminalEventsPath = terminalEventRows.some(({ sourceIndex }) => sourceIndex === 0)
+    ? terminalEventSources[0].relativePath
+    : terminalEventRows.some(({ sourceIndex }) => sourceIndex === 1)
+      ? terminalEventSources[1].relativePath
+      : null;
   const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
   const candidates = (await Promise.all(entries
     .filter((entry) => entry.isDirectory() && !entry.name.startsWith("_"))
@@ -165,6 +240,7 @@ async function loadXsciTerminalAgentSummary() {
     : null;
   const eventsText = latest?.hasEvents ? await readTextFile(`${latest.absolutePath}/events.jsonl`) : "";
   const events = readJsonl(eventsText);
+  const displayEvents = terminalEvents.length ? terminalEvents : events;
   const iterations = Array.isArray(summary?.iterations)
     ? summary.iterations.slice(-12).map((item) => asRecordForSummary(item)).filter(Boolean)
     : [];
@@ -214,7 +290,7 @@ async function loadXsciTerminalAgentSummary() {
   ];
 
   return {
-    status: latest ? latest.hasEvents ? "live_events" : summary ? "summary_only" : "pending_run" : "no_runs",
+    status: displayEvents.length ? "live_events" : latest ? summary ? "summary_only" : "pending_run" : "no_runs",
     dashboard_url: "http://127.0.0.1:8088",
     evolution_root: "experiments/evolution",
     run_count: candidates.length,
@@ -233,8 +309,11 @@ async function loadXsciTerminalAgentSummary() {
     n_promotions: typeof summary?.n_promotions === "number" ? summary.n_promotions : iterations.filter((item) => item.promoted === true).length,
     events_path: latest ? `${latest.relativePath}/events.jsonl` : null,
     events_present: latest?.hasEvents ?? false,
-    event_count: events.length,
-    recent_events: events.slice(-12).map((event) => sanitizeSummaryRecord(event)),
+    event_count: displayEvents.length,
+    recent_events: displayEvents.slice(-12).map((event) => sanitizeSummaryRecord(event)),
+    terminal_events_path: terminalEvents.length ? terminalEventsPath : null,
+    terminal_event_count: terminalEvents.length,
+    recent_terminal_events: terminalEvents.slice(-20).map((event) => sanitizeSummaryRecord(event)),
     summary_path: latest?.hasSummary ? `${latest.relativePath}/summary.json` : null,
     summary_present: latest?.hasSummary ?? false,
     iterations: iterations.map((item) => sanitizeSummaryRecord(item)),
@@ -244,6 +323,52 @@ async function loadXsciTerminalAgentSummary() {
     commands,
     claim_boundary: "No official Kaggle rank, medal, or MLE-Bench claim is shown unless a Kaggle response artifact exists and passes claim audit."
   };
+}
+
+async function loadLatestLiteratureSummary() {
+  const fs = await import("node:fs/promises");
+  const tasksRoot = resolveWorkspacePath("workspace/tasks");
+  const taskEntries = await fs.readdir(tasksRoot, { withFileTypes: true }).catch(() => []);
+  const candidates: LiteratureManifestCandidate[] = [];
+  for (const taskEntry of taskEntries.filter((entry) => entry.isDirectory())) {
+    const ragRoot = path.join(tasksRoot, taskEntry.name, "rag");
+    const entries = await fs.readdir(ragRoot, { withFileTypes: true }).catch(() => []);
+    const taskCandidates: LiteratureManifestCandidate[] = [];
+    for (const entry of entries.filter((item) => item.isFile() && /^context_.*\.json$/i.test(item.name))) {
+      const absolutePath = path.join(ragRoot, entry.name);
+      const [stat, payload] = await Promise.all([
+        fs.stat(absolutePath).catch(() => null),
+        readJsonFile(absolutePath) as Promise<Record<string, unknown> | null>
+      ]);
+      if (stat?.isFile() && payload) {
+        taskCandidates.push({
+          absolutePath,
+          expectedTaskId: taskEntry.name,
+          mtimeMs: stat.mtimeMs,
+          payload
+        });
+      }
+    }
+    const selected = selectLatestValidLiteratureManifest(taskCandidates);
+    if (selected) candidates.push(selected);
+  }
+  const latest = candidates.sort((a, b) => b.mtimeMs - a.mtimeMs)[0];
+  if (!latest) return { present: false, papers: [], claim_audit: [], context_path: null, manifest_path: null, source_errors: [], integrity: null };
+  const payload = latest.payload as Record<string, unknown>;
+  return {
+    ...payload,
+    present: true,
+    manifest_path: toRelativeLiteraturePath(latest.absolutePath),
+    context_path: typeof payload.context_path === "string" ? payload.context_path : null,
+    papers: Array.isArray(payload.papers) ? payload.papers.slice(0, 40) : [],
+    claim_audit: Array.isArray(payload.claim_audit) ? payload.claim_audit.slice(0, 40) : [],
+    source_errors: Array.isArray(payload.source_errors) ? payload.source_errors : [],
+    integrity: payload.integrity ?? null
+  };
+}
+
+function toRelativeLiteraturePath(absolutePath: string) {
+  return path.relative(workspaceRoot, absolutePath).replaceAll("\\", "/");
 }
 
 async function loadScientistAutopilotSummary() {
@@ -623,6 +748,29 @@ async function loadScientistReasoningSynthesisSummary() {
   });
 }
 
+async function loadScientistTerminalTurnSummary() {
+  const relativePath = ".xsci/scientist_terminal_turn.json";
+  const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
+  if (!payload) {
+    return {
+      present: false,
+      artifact_path: relativePath,
+      tool: "scientist_terminal_turn",
+      selected_task: null,
+      user_goal: "",
+      executed_tools: [],
+      artifacts: [],
+      no_training_started: true,
+      official_submit: "blocked_until_explicit_human_approval"
+    };
+  }
+  return sanitizeClientJson({
+    present: true,
+    artifact_path: relativePath,
+    ...payload
+  });
+}
+
 async function loadScientistEngineeringLoopSummary() {
   const relativePath = ".xsci/scientist_engineering_loop.json";
   const payload = await readJsonFile(resolveWorkspacePath(relativePath)) as Record<string, unknown> | null;
@@ -917,6 +1065,69 @@ function asRecordForSummary(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
+function finiteSummaryNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function siimHpcRuntimeWithEvidence(
+  runtime: unknown,
+  trainingHistory: unknown,
+  telemetryText: string,
+): Record<string, unknown> | null {
+  const runtimeRecord = asRecordForSummary(runtime);
+  if (!Object.keys(runtimeRecord).length) return null;
+  const history = asRecordForSummary(trainingHistory);
+  const formalSeeds = Array.isArray(history.formal_seeds)
+    ? history.formal_seeds.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+    : Array.isArray(runtimeRecord.formal_seeds)
+      ? runtimeRecord.formal_seeds.filter((value): value is number => typeof value === "number" && Number.isFinite(value))
+      : [];
+  const sourceRuns = Array.isArray(history.source_runs)
+    ? history.source_runs.map(asRecordForSummary)
+    : [];
+  const foldRecords = sourceRuns.flatMap((sourceRun) => {
+    const sourceHistory = asRecordForSummary(sourceRun.history);
+    return Array.isArray(sourceHistory.folds) ? sourceHistory.folds.map(asRecordForSummary) : [];
+  });
+  const selectedEpochs = foldRecords
+    .map((record) => finiteSummaryNumber(record.selected_epoch))
+    .filter((value): value is number => value !== null);
+  const allocatedMemory = foldRecords.flatMap((record) => [
+    finiteSummaryNumber(record.selection_peak_memory_allocated_mib),
+    finiteSummaryNumber(record.peak_memory_allocated_mib),
+  ]).filter((value): value is number => value !== null);
+  const telemetry = readJsonl(telemetryText);
+  const gpuSamples = telemetry.map((event) => asRecordForSummary(event.gpu)).filter((sample) => Object.keys(sample).length > 0);
+  const memoryUsed = gpuSamples.map((sample) => finiteSummaryNumber(sample.memory_used_mib)).filter((value): value is number => value !== null);
+  const utilizations = gpuSamples.map((sample) => finiteSummaryNumber(sample.utilization_percent)).filter((value): value is number => value !== null);
+  const otherMemory = telemetry.map((event) => finiteSummaryNumber(event.other_process_memory_mib)).filter((value): value is number => value !== null);
+  const fallbackOuterFolds = finiteSummaryNumber(history.outer_folds) ?? 0;
+  const completedOuterFolds = foldRecords.length || fallbackOuterFolds;
+  const totalOuterFolds = formalSeeds.length ? formalSeeds.length * 5 : completedOuterFolds;
+  const existingProgress = asRecordForSummary(runtimeRecord.training_progress);
+  const existingTelemetry = asRecordForSummary(runtimeRecord.telemetry_summary);
+  return {
+    ...runtimeRecord,
+    training_progress: Object.keys(existingProgress).length ? existingProgress : {
+      status: runtimeRecord.training_status === "completed" ? "completed" : "pending",
+      completed_formal_seeds: formalSeeds.length,
+      total_formal_seeds: 3,
+      completed_outer_folds: completedOuterFolds,
+      total_outer_folds: totalOuterFolds,
+      selected_epoch_min: selectedEpochs.length ? Math.min(...selectedEpochs) : null,
+      selected_epoch_max: selectedEpochs.length ? Math.max(...selectedEpochs) : null,
+      peak_model_memory_allocated_mib: allocatedMemory.length ? Math.max(...allocatedMemory) : null,
+    },
+    telemetry_summary: Object.keys(existingTelemetry).length ? existingTelemetry : {
+      sample_count: telemetry.length,
+      peak_gpu_memory_used_mib: memoryUsed.length ? Math.max(...memoryUsed) : null,
+      max_gpu_utilization_percent: utilizations.length ? Math.max(...utilizations) : null,
+      max_other_process_memory_mib: otherMemory.length ? Math.max(...otherMemory) : 0,
+      hold_sample_count: telemetry.filter((event) => Array.isArray(event.hold_reasons) && event.hold_reasons.length > 0).length,
+    },
+  };
+}
+
 function sanitizeSummaryRecord(record: Record<string, unknown>) {
   return Object.fromEntries(Object.entries(record).map(([key, value]) => {
     if (typeof value === "string") return [key, safeSummaryText(value)];
@@ -1187,6 +1398,265 @@ async function latestCompleteRuntimePath(taskId: string) {
   return null;
 }
 
+async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown> | null): Promise<RuntimeSummary | null> {
+  if (!pointer || pointer.schema !== "evomind.current_run.v1") return null;
+  const runDir = typeof pointer.run_dir === "string" ? pointer.run_dir : "";
+  const taskId = typeof pointer.task_id === "string" ? pointer.task_id : "";
+  const runId = typeof pointer.run_id === "string" ? pointer.run_id : "";
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{8,160}$/.test(runId)) return null;
+  const expectedRunDir = path.join("workspace", "evomind_runs", runId);
+  if (path.normalize(runDir) !== path.normalize(expectedRunDir)) return null;
+  const absoluteRunDir = path.resolve(workspaceRoot, runDir);
+  const relativeBoundary = path.relative(workspaceRoot, absoluteRunDir);
+  if (!relativeBoundary || relativeBoundary.startsWith("..") || path.isAbsolute(relativeBoundary)) return null;
+  const [
+    run, taskGraph, eventsText, handoffsText, artifactManifest, review, rootMetrics, reportMarkdown,
+    currentHpcProbe, llmHpcProbe, requestPayload, qloraConfig, datasetManifest, llmMetrics,
+    llmEvaluation, llmEnvironment, llmTelemetryText, adapterReload, claimAudit, refinementPayload,
+    datasetProfile, experimentComparison, hpcRuntime, historicalThresholds, deliverables,
+    privateGrader, privateGraderLedger, candidateFreeze, trainingHistory, hpcTelemetryText,
+  ] = await Promise.all([
+    readJsonFile(`${absoluteRunDir}/run.json`),
+    readJsonFile(`${absoluteRunDir}/task_graph.json`),
+    readTextFile(`${absoluteRunDir}/events.jsonl`),
+    readTextFile(`${absoluteRunDir}/handoffs.jsonl`),
+    readJsonFile(`${absoluteRunDir}/artifact_manifest.json`),
+    readJsonFile(`${absoluteRunDir}/review.json`),
+    readJsonFile(`${absoluteRunDir}/metrics.json`),
+    readTextFile(`${absoluteRunDir}/research_report.md`),
+    readJsonFile(`${absoluteRunDir}/hpc_probe.json`),
+    readJsonFile(`${absoluteRunDir}/hpc_llm_probe.json`),
+    readJsonFile(`${absoluteRunDir}/request.json`),
+    readJsonFile(`${absoluteRunDir}/qlora_config.json`),
+    readJsonFile(`${absoluteRunDir}/data/dataset_manifest.json`),
+    readJsonFile(`${absoluteRunDir}/llm_output/metrics.json`),
+    readJsonFile(`${absoluteRunDir}/llm_output/evaluation.json`),
+    readJsonFile(`${absoluteRunDir}/llm_output/environment.json`),
+    readTextFile(`${absoluteRunDir}/llm_output/telemetry.jsonl`),
+    readJsonFile(`${absoluteRunDir}/llm_output/adapter_reload.json`),
+    readJsonFile(`${absoluteRunDir}/claim_audit.json`),
+    readJsonFile(`${absoluteRunDir}/refinement.json`),
+    readJsonFile(`${absoluteRunDir}/dataset_profile.json`),
+    readJsonFile(`${absoluteRunDir}/experiment_comparison.json`),
+    readJsonFile(`${absoluteRunDir}/hpc_runtime.json`),
+    readJsonFile(`${absoluteRunDir}/historical_thresholds.json`),
+    readJsonFile(`${absoluteRunDir}/deliverables.json`),
+    readJsonFile(`${absoluteRunDir}/private_grader.json`),
+    readJsonFile(`${absoluteRunDir}/private_grader_ledger.json`),
+    readJsonFile(`${absoluteRunDir}/candidate_freeze.json`),
+    readJsonFile(`${absoluteRunDir}/training_history.json`),
+    readTextFile(`${absoluteRunDir}/hpc_telemetry.jsonl`)
+  ]);
+  if (!run || (run as Record<string, unknown>).run_id !== runId) return null;
+  const events = readJsonl(eventsText).filter((event) => event.run_id === runId);
+  const handoffs = readJsonl(handoffsText).filter((handoff) => handoff.run_id === runId);
+  const tasks = ((run as Record<string, unknown>).tasks ?? {}) as Record<string, Record<string, unknown>>;
+  const activeAgents = Object.values(tasks)
+    .filter((task) => task.status === "running")
+    .map((task) => ({ task_id: task.task_id, role: task.role, status: task.status }));
+  const trainingLogs: string[] = [];
+  for (const task of Object.values(tasks)) {
+    if (task.role !== "TunerAgent" || typeof task.solution_id !== "string") continue;
+    const logText = await readTextFile(`${absoluteRunDir}/solutions/${task.solution_id}/output/training.log`);
+    if (logText) trainingLogs.push(...logText.split(/\r?\n/).filter(Boolean).slice(-12).map((line) => `[${task.solution_id}] ${line}`));
+  }
+  const llmTrainingLog = await readTextFile(`${absoluteRunDir}/llm_output/training.log`);
+  if (llmTrainingLog) trainingLogs.push(...llmTrainingLog.split(/\r?\n/).filter(Boolean).slice(-20).map((line) => `[hpc_train] ${line}`));
+  const requestRecord = requestPayload as Record<string, unknown> | null;
+  const refinementRecord = refinementPayload as Record<string, unknown> | null;
+  const parentRunId = typeof refinementRecord?.parent_run_id === "string"
+    && /^[A-Za-z0-9_-]{8,160}$/.test(refinementRecord.parent_run_id)
+    && refinementRecord.parent_run_id !== runId
+    ? refinementRecord.parent_run_id
+    : null;
+  const preservedParentArtifactManifest = parentRunId
+    ? await readJsonFile(path.join(workspaceRoot, "workspace", "evomind_runs", parentRunId, "artifact_manifest.json")) as Record<string, unknown> | null
+    : null;
+  const preservedParentArtifacts = Array.isArray(preservedParentArtifactManifest?.artifacts)
+    ? preservedParentArtifactManifest.artifacts as Array<Record<string, unknown>>
+    : [];
+  const isLlmRun = requestRecord?.task_type === "llm_finetune";
+  const metrics = (isLlmRun ? llmMetrics : rootMetrics) as Record<string, unknown> | null;
+  const currentHpcRuntime = taskId === "siim-isic-melanoma-classification"
+    ? siimHpcRuntimeWithEvidence(hpcRuntime, trainingHistory, hpcTelemetryText)
+    : hpcRuntime;
+  const llmTraining = metrics?.training as Record<string, unknown> | undefined;
+  const llmFacts = isLlmRun ? {
+    task_type: "llm_finetune",
+    base_model: metrics?.base_model ?? (qloraConfig as Record<string, unknown> | null)?.base_model ?? null,
+    dataset: datasetManifest,
+    qlora_config: qloraConfig,
+    training: llmTraining ? {
+      step: llmTraining.steps ?? null,
+      loss: llmTraining.train_loss ?? null,
+      gpu_memory_mb: llmTraining.max_cuda_memory_mb ?? null,
+    } : null,
+    before_after_eval: metrics ? {
+      before: metrics.before ?? null,
+      after: metrics.after ?? null,
+      improvement_pp: metrics.improvement_pp ?? null,
+    } : null,
+    evaluation: llmEvaluation,
+    environment: llmEnvironment,
+    telemetry: readJsonl(llmTelemetryText),
+    adapter_reload: adapterReload,
+    claim_audit: claimAudit,
+  } : null;
+  const snapshot = {
+    schema: "evomind.current_runtime_snapshot.v1",
+    task_id: taskId,
+    run_id: runId,
+    status: (run as Record<string, unknown>).status,
+    seq: (run as Record<string, unknown>).seq,
+    active_agents: activeAgents,
+    open_requirements: (run as Record<string, unknown>).open_requirements ?? [],
+    next_action: (run as Record<string, unknown>).next_action ?? null,
+    metrics,
+    llm: llmFacts,
+    reviewer: review,
+    claim_audit: claimAudit,
+    gates: (run as Record<string, unknown>).gates ?? {},
+    request: requestRecord,
+    dataset_profile: datasetProfile ?? (run as Record<string, unknown>).dataset_profile ?? null,
+    experiment_comparison: experimentComparison ?? (run as Record<string, unknown>).experiment_comparison ?? null,
+    hpc_runtime: currentHpcRuntime ?? (run as Record<string, unknown>).hpc_runtime ?? null,
+    historical_thresholds: historicalThresholds ?? (run as Record<string, unknown>).historical_thresholds ?? null,
+    deliverables: deliverables ?? (run as Record<string, unknown>).deliverables ?? null,
+    private_grader: privateGrader,
+    private_grader_ledger: privateGraderLedger,
+    candidate_freeze: candidateFreeze,
+    preserved_parent: parentRunId ? {
+      run_id: parentRunId,
+      version: refinementRecord?.parent_version ?? "parent",
+      artifact_count: preservedParentArtifacts.length,
+      review_status: preservedParentArtifactManifest?.review_status ?? null,
+      preserved: true,
+    } : null,
+    pointer
+  };
+  const reviewRecord = review as Record<string, unknown> | null;
+  const metricsRecord = metrics;
+  const manifestRecord = artifactManifest as Record<string, unknown> | null;
+  const acceptedCandidates = Array.isArray(reviewRecord?.accepted_candidates)
+    ? reviewRecord.accepted_candidates as Array<Record<string, unknown>>
+    : [];
+  const reviewChecks = Array.isArray(reviewRecord?.checks)
+    ? reviewRecord.checks as Array<Record<string, unknown>>
+    : [];
+  const manifestArtifacts = Array.isArray(manifestRecord?.artifacts)
+    ? manifestRecord.artifacts as Array<Record<string, unknown>>
+    : [];
+  const selectedSolution = typeof metricsRecord?.selected_solution === "string" ? metricsRecord.selected_solution : null;
+  const gpuCandidate = acceptedCandidates.find((candidate) => candidate.uses_cuda === true);
+  const gpuSolutionId = typeof gpuCandidate?.solution_id === "string" ? gpuCandidate.solution_id : null;
+  const gpuReview = reviewChecks.find((check) => check.solution_id === gpuSolutionId);
+  const evidenceHashes = (refs: string[]) => manifestArtifacts
+    .filter((artifact) => typeof artifact.path === "string" && refs.includes(artifact.path))
+    .map((artifact) => artifact.sha256)
+    .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const selectedRefs = isLlmRun ? ["llm_output/metrics.json", "review.json"] : ["metrics.json", "review.json"];
+  const gpuRefs = gpuSolutionId
+    ? [
+        `solutions/${gpuSolutionId}/hpc_job.json`,
+        `solutions/${gpuSolutionId}/output/environment.json`,
+        `solutions/${gpuSolutionId}/output/metrics.json`,
+        "review.json"
+      ]
+    : ["review.json"];
+  const submissionRefs = ["artifact_manifest.json", "research_report.md"];
+  const evidenceGraph = isLlmRun ? {
+    schema: "evomind.claim_evidence_graph.v1",
+    run_id: runId,
+    claims: [
+      {
+        claim_id: "remote_gpu_domain_qlora_observed",
+        statement: "A domain QLoRA run is supported only when the verified NVIDIA HPC environment, metrics, telemetry, and adapter reload artifacts agree.",
+        status: reviewRecord?.status === "passed" && (claimAudit as Record<string, unknown> | null)?.status === "passed" ? "supported" : "blocked",
+        evidence_refs: ["llm_output/environment.json", "llm_output/metrics.json", "llm_output/telemetry.jsonl", "llm_output/adapter_reload.json", "review.json", "claim_audit.json"],
+        artifact_hashes: evidenceHashes(["llm_output/environment.json", "llm_output/metrics.json", "llm_output/telemetry.jsonl", "llm_output/adapter_reload.json", "review.json", "claim_audit.json"])
+      },
+      {
+        claim_id: "model_publication_blocked",
+        statement: "The reviewed domain adapter remains unpublished behind the Human Gate.",
+        status: manifestRecord?.model_publication === "blocked" ? "supported" : "blocked",
+        evidence_refs: ["artifact_manifest.json", "research_report.md"],
+        artifact_hashes: evidenceHashes(["research_report.md"])
+      }
+    ]
+  } : {
+    schema: "evomind.claim_evidence_graph.v1",
+    run_id: runId,
+    claims: [
+      {
+        claim_id: "selected_candidate_reviewed",
+        statement: selectedSolution ? `${selectedSolution} was selected from independently reviewed candidates.` : "No reviewed candidate selected.",
+        status: reviewRecord?.status === "passed" && selectedSolution ? "supported" : "blocked",
+        evidence_refs: selectedRefs,
+        artifact_hashes: evidenceHashes(selectedRefs)
+      },
+      {
+        claim_id: "hpc_gpu_training_observed",
+        statement: gpuSolutionId ? `${gpuSolutionId} produced reviewer-verified CUDA telemetry on the HPC runtime.` : "No GPU candidate evidence found.",
+        status: gpuCandidate && gpuReview?.passed === true && gpuReview.gpu_telemetry === true && gpuReview.hpc_job_binding === true
+          ? "supported"
+          : "blocked",
+        evidence_refs: gpuRefs,
+        artifact_hashes: evidenceHashes(gpuRefs)
+      },
+      {
+        claim_id: "official_submission_blocked",
+        statement: "The run generated a candidate submission but did not perform an official Kaggle submission.",
+        status: manifestRecord?.official_submission === "blocked" ? "supported" : "blocked",
+        evidence_refs: submissionRefs,
+        artifact_hashes: evidenceHashes(submissionRefs)
+      }
+    ]
+  };
+  return {
+    task_id: taskId,
+    latest_experiment_dir: runDir,
+    latest_workstation_run_dir: runDir,
+    task_state: run as Record<string, unknown>,
+    agent_trace: events,
+    event_log: events,
+    artifact_manifest: artifactManifest as Record<string, unknown> | null,
+    evidence_graph: evidenceGraph,
+    experiment_graph: taskGraph as Record<string, unknown> | null,
+    gate_engine: { gates: (run as Record<string, unknown>).gates ?? {}, review, claim_audit: claimAudit },
+    runtime_snapshot: snapshot,
+    report_markdown: reportMarkdown,
+    training_log: trainingLogs,
+    current_run: {
+      ...pointer,
+      status: (run as Record<string, unknown>).status,
+      last_seq: (run as Record<string, unknown>).seq,
+      updated_at: (run as Record<string, unknown>).updated_at ?? pointer.updated_at,
+    },
+    task_graph: taskGraph as Record<string, unknown> | null,
+    handoffs,
+    review: review as Record<string, unknown> | null,
+    hpc_probe: (llmHpcProbe ?? currentHpcProbe) as Record<string, unknown> | null,
+    preserved_parent_run_id: parentRunId,
+    preserved_parent_artifact_manifest: preservedParentArtifactManifest,
+  };
+}
+
+export async function loadMultiAgentRuntimeByRunId(taskId: string, runId: string): Promise<RuntimeSummary | null> {
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(taskId) || !/^[A-Za-z0-9_-]{8,160}$/.test(runId)) return null;
+  return loadMultiAgentRuntimeFromPointer({
+    schema: "evomind.current_run.v1",
+    task_id: taskId,
+    run_id: runId,
+    run_dir: path.join("workspace", "evomind_runs", runId),
+  });
+}
+
+async function loadCurrentMultiAgentRuntime(): Promise<RuntimeSummary | null> {
+  const pointerPath = resolveWorkspacePath("workspace/current_run.json");
+  const pointer = await readJsonFile(pointerPath) as Record<string, unknown> | null;
+  return loadMultiAgentRuntimeFromPointer(pointer);
+}
+
 async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSummary> {
   const latestRaw = await latestExperimentPath(taskId);
   const latestWorkstationRun = await latestWorkstationRunPath(taskId);
@@ -1302,9 +1772,9 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
   };
 }
 
-export async function getWorkstationSummary() {
+async function buildFullWorkstationSummary() {
   await ensureWorkstationSeeded();
-  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistEngineeringLoop, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate] = await Promise.all([
+  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistTerminalTurn, scientistEngineeringLoop, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate, literatureContext, literatureByTask] = await Promise.all([
     prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
@@ -1327,6 +1797,7 @@ export async function getWorkstationSummary() {
     loadScientistStrategyOptimizerSummary(),
     loadScientistContextPacketSummary(),
     loadScientistReasoningSynthesisSummary(),
+    loadScientistTerminalTurnSummary(),
     loadScientistEngineeringLoopSummary(),
     loadScientistInnovationBacklogSummary(),
     loadScientistHypothesisReviewSummary(),
@@ -1351,19 +1822,42 @@ export async function getWorkstationSummary() {
     readJsonFile(resolveWorkspacePath("workspace/workstation_learning_loop_readiness_20260630.json")),
     hpcGpuProbeStatus(),
     latestGpuSshConnectionStatus(),
-    latestS6E6BoostingDependencyStatus()
+    latestS6E6BoostingDependencyStatus(),
+    loadLatestLiteratureSummary(),
+    loadLiteratureStateForAllTasks()
   ]);
+  const currentMultiAgentRuntime = await loadCurrentMultiAgentRuntime();
   const runtimeByTask = Object.fromEntries(runtimes.map((item) => [item.task_id, item]));
-  const runtime = runtimes.find((item) => item.task_id === "house_prices" && item.latest_experiment_dir) ?? runtimes.find((item) => item.latest_experiment_dir) ?? runtimes[0];
-  const runtimeTasks = runtimes
+  if (currentMultiAgentRuntime) runtimeByTask[currentMultiAgentRuntime.task_id] = currentMultiAgentRuntime;
+  const runtime = currentMultiAgentRuntime ?? runtimes.find((item) => item.latest_experiment_dir) ?? runtimes[0];
+  const runtimeCandidates = currentMultiAgentRuntime
+    ? [currentMultiAgentRuntime, ...runtimes.filter((item) => item.task_id !== currentMultiAgentRuntime.task_id)]
+    : runtimes;
+  const runtimeMetricsFor = (item: RuntimeSummary): Record<string, unknown> | undefined => {
+    const latestMetric = item.runtime_snapshot?.latest_metric;
+    if (latestMetric && typeof latestMetric === "object") return latestMetric as Record<string, unknown>;
+    const aggregate = item.runtime_snapshot?.metrics;
+    if (!aggregate || typeof aggregate !== "object") return undefined;
+    const metricRecord = aggregate as Record<string, unknown>;
+    const metric = typeof metricRecord.metric === "string" ? metricRecord.metric.toLowerCase() : "";
+    const score = metricRecord.cv_score;
+    if (typeof score !== "number") return undefined;
+    return {
+      metric,
+      best_score: score,
+      ...(metric === "accuracy" ? { cv_accuracy_mean: score } : {}),
+      ...(metric === "rmsle" ? { cv_rmsle_mean: score } : {})
+    };
+  };
+  const runtimeTasks = runtimeCandidates
     .filter((item) => item.latest_experiment_dir)
     .map((item) => ({
       id: item.task_id,
       name: item.task_id.replaceAll("_", " "),
       task_type: "tabular_runtime",
       target: null,
-      metric: String((item.runtime_snapshot?.latest_metric as Record<string, unknown> | undefined) ? Object.keys(item.runtime_snapshot?.latest_metric as Record<string, unknown>)[0] ?? "" : ""),
-      status: String(item.task_state?.state ?? "runtime_ready"),
+      metric: String(runtimeMetricsFor(item)?.metric ?? Object.keys(runtimeMetricsFor(item) ?? {})[0] ?? ""),
+      status: String(item.task_state?.status ?? item.task_state?.state ?? "runtime_ready"),
       priority: "Runtime",
       owner: "Research Agent Runtime",
       config_path: `configs/${item.task_id}.yaml`,
@@ -1373,16 +1867,16 @@ export async function getWorkstationSummary() {
     }));
   const runtimeTaskIdsSet = new Set(runtimeTasks.map((task) => task.id));
 
-  const runtimeRun = runtimes
+  const runtimeRun = runtimeCandidates
     .filter((item) => item.latest_experiment_dir)
     .map((item) => {
-      const runtimeMetrics = item.runtime_snapshot?.latest_metric as Record<string, number> | undefined;
+      const runtimeMetrics = runtimeMetricsFor(item);
       const runtimeRunId = typeof item.latest_experiment_dir === "string" ? item.latest_experiment_dir.split(/[\\/]/).pop() : undefined;
       return {
           id: runtimeRunId,
           task_id: item.task_id,
           output_dir: item.latest_experiment_dir,
-          status: "passed",
+          status: String(item.task_state?.status ?? item.task_state?.state ?? "passed"),
           best_model: ((item.experiment_graph as any)?.nodes?.[0]?.model as string | undefined) ?? "runtime_baseline",
           best_metrics: runtimeMetrics ?? null,
           accepted: true,
@@ -1391,7 +1885,49 @@ export async function getWorkstationSummary() {
           finished_at: null
         };
     });
-  const dbRuns = runs.map((run) => {
+  const runtimeManifest = currentMultiAgentRuntime?.artifact_manifest as Record<string, unknown> | null | undefined;
+  const currentRuntimeArtifacts = Array.isArray(runtimeManifest?.artifacts)
+    ? runtimeManifest.artifacts as Array<Record<string, unknown>>
+    : [];
+  const preservedParentManifest = currentMultiAgentRuntime?.preserved_parent_artifact_manifest as Record<string, unknown> | null | undefined;
+  const preservedParentArtifacts = Array.isArray(preservedParentManifest?.artifacts)
+    ? preservedParentManifest.artifacts as Array<Record<string, unknown>>
+    : [];
+  const runtimeEvidenceSource = currentRuntimeArtifacts.length > 0
+    ? {
+        artifacts: currentRuntimeArtifacts,
+        manifest: runtimeManifest,
+        runId: String(currentMultiAgentRuntime?.current_run?.run_id ?? "current"),
+        source: "multi_agent_artifact_manifest",
+        claimBinding: "current_reviewed_run",
+      }
+    : {
+        artifacts: preservedParentArtifacts,
+        manifest: preservedParentManifest,
+        runId: currentMultiAgentRuntime?.preserved_parent_run_id ?? "preserved_parent",
+        source: "preserved_parent_artifact_manifest",
+        claimBinding: "preserved_reviewed_parent",
+      };
+  const runtimeEvidence = currentMultiAgentRuntime
+    ? runtimeEvidenceSource.artifacts.map((artifact, index) => ({
+        id: `runtime:${runtimeEvidenceSource.runId}:${index + 1}`,
+        task_id: currentMultiAgentRuntime.task_id,
+        run_id: runtimeEvidenceSource.runId,
+        label: String(artifact.kind ?? artifact.path ?? `Artifact ${index + 1}`),
+        name: String(artifact.kind ?? artifact.path ?? `Artifact ${index + 1}`),
+        artifact_type: String(artifact.kind ?? "verified_artifact"),
+        verification_status: "verified",
+        artifact_path: typeof artifact.path === "string" ? artifact.path : null,
+        hash: typeof artifact.sha256 === "string" ? artifact.sha256 : null,
+        bytes: typeof artifact.bytes === "number" ? artifact.bytes : null,
+        source: runtimeEvidenceSource.source,
+        claim_binding: runtimeEvidenceSource.claimBinding,
+        created_at: typeof runtimeEvidenceSource.manifest?.generated_at === "string"
+          ? runtimeEvidenceSource.manifest.generated_at
+          : currentMultiAgentRuntime.current_run?.updated_at ?? null,
+      }))
+    : [];
+  const dbRuns = runs.map((run: any) => {
     const metrics = decodeJson<Record<string, any>>(run.metricsJson);
     return {
       id: run.id,
@@ -1414,9 +1950,36 @@ export async function getWorkstationSummary() {
   const runKeys = new Set(runtimeRun.map((run) => run.output_dir));
   const gpuCredentialPresent = gpuSshStatus() === "configured";
   const deepSeekConfigured = deepSeekApiKeyStatus() === "configured";
+  const openAiConfigured = openAiApiKeyStatus() === "configured";
   const codeAgentConfigured = claudeApiKeyStatus() === "configured" || deepSeekConfigured;
   const deepSeek = deepSeekConfig();
+  const openAi = openAiConfig();
   const gpu = gpuSshConfig();
+  const gpuRoute = gpu.socksProxy.host
+    ? `${gpu.socksProxy.host}:${gpu.socksProxy.port} SOCKS5 bridge`
+    : "direct SSH route";
+  const currentRunHpcProbe = currentMultiAgentRuntime?.hpc_probe;
+  const currentRunGpuInventory = Array.isArray(currentRunHpcProbe?.gpu_inventory)
+    ? currentRunHpcProbe.gpu_inventory as Array<Record<string, unknown>>
+    : [];
+  const currentRunTorch = currentRunHpcProbe?.torch && typeof currentRunHpcProbe.torch === "object"
+    ? currentRunHpcProbe.torch as Record<string, unknown>
+    : null;
+  const currentRunReviewChecks = Array.isArray(currentMultiAgentRuntime?.review?.checks)
+    ? currentMultiAgentRuntime.review.checks as Array<Record<string, unknown>>
+    : [];
+  const currentRunGpuReviewPassed = currentRunReviewChecks.some((check) =>
+    check.passed === true && check.cuda_contract === true && check.gpu_telemetry === true && check.hpc_job_binding === true
+  );
+  const currentRunHpcReady = currentMultiAgentRuntime?.task_state?.status === "completed"
+    && currentRunHpcProbe?.status === "passed"
+    && currentRunTorch?.cuda_available === true
+    && currentRunGpuInventory.length > 0
+    && currentRunGpuReviewPassed;
+  const currentRunGpuSummary = currentRunGpuInventory
+    .map((entry) => typeof entry.name === "string" ? entry.name : "")
+    .filter(Boolean)
+    .join(", ") || "current-run GPU";
   const gpuPendingState = "GPU Environment Created / Web Terminal Ready / External SSH Pending";
   const liveGpuSummary = liveGpu.gpuSummary || "nvidia-smi evidence present";
   const gpuVerifiedState = `GPU Verified: ${liveGpuSummary} via SSH Gateway`;
@@ -1424,19 +1987,19 @@ export async function getWorkstationSummary() {
   const gpuLegacyVerifiedState = "GPU Verified: 4 x NVIDIA A800-SXM4-80GB via Login Node / Web Terminal";
   const gpuLegacySshReadyState = "GPU SSH Gateway Ready: 4 x NVIDIA A800-SXM4-80GB / historical CUDA smoke passed";
   const s6e6GatewayBlocked = s6e6DependencyGate.status === "blocked_resource_gateway";
-  const gpuFreshSmokeBlocked = liveGpu.present === true && liveGpu.passed === false;
+  const gpuFreshSmokeBlocked = !currentRunHpcReady && liveGpu.present === true && liveGpu.passed === false;
   const liveGpuPassed = liveGpu.present === true && liveGpu.passed === true;
-  const latestGpuAllocationBlocker = actions.find((action) => action.action === "gpu_current_allocation_blocker");
+  const latestGpuAllocationBlocker = actions.find((action: any) => action.action === "gpu_current_allocation_blocker");
   const latestGpuAllocationBlockerMetadata = latestGpuAllocationBlocker
     ? decodeJson<Record<string, unknown>>(latestGpuAllocationBlocker.metadataJson)
     : null;
-  const gpuCurrentAllocationBlocked = !liveGpuPassed && latestGpuAllocationBlockerMetadata?.status === "blocked_current_allocation";
+  const gpuCurrentAllocationBlocked = !currentRunHpcReady && !liveGpuPassed && latestGpuAllocationBlockerMetadata?.status === "blocked_current_allocation";
   const kaggleDpapi = await kaggleDpapiProbeStatus(kaggleDpapiReadiness as Record<string, unknown> | null);
 
   return {
     tasks: [
       ...runtimeTasks,
-      ...tasks.filter((task) => !runtimeTaskIdsSet.has(task.id.replaceAll("-", "_"))).map((task) => ({
+      ...tasks.filter((task: any) => !runtimeTaskIdsSet.has(task.id.replaceAll("-", "_"))).map((task: any) => ({
       id: task.id,
       name: task.name,
       task_type: task.taskType,
@@ -1453,7 +2016,7 @@ export async function getWorkstationSummary() {
     ],
     connector_status: Object.fromEntries(
       [
-        ...connectors.filter((connector) => !["code_agent", "gpu", "kaggle"].includes(connector.provider)).map((connector) => [
+        ...connectors.filter((connector: any) => !["code_agent", "gpu", "kaggle"].includes(connector.provider)).map((connector: any) => [
           connector.provider,
           {
             name: connector.name,
@@ -1481,6 +2044,19 @@ export async function getWorkstationSummary() {
           }
         ] as const,
         [
+          "openai",
+          {
+            name: "OpenAI-compatible Agent LLM",
+            state: openAiConfigured ? `OpenAI Agent Ready (${openAi.model})` : "Not Configured",
+            configured: openAiConfigured,
+            notes: openAiConfigured ? "OPENAI_API_KEY detected; assistant streaming and tool calling use the configured OpenAI-compatible gateway." : "Set OPENAI_API_KEY to enable the OpenAI-compatible assistant runtime.",
+            model: openAi.model,
+            base_url: openAi.baseUrl,
+            streaming: openAiConfigured,
+            tool_calling: openAiConfigured
+          }
+        ] as const,
+        [
           "deepseek",
           {
             name: "DeepSeek",
@@ -1495,7 +2071,9 @@ export async function getWorkstationSummary() {
           "gpu",
           {
             name: "GPU SSH Gateway",
-            state: gpuCurrentAllocationBlocked
+            state: currentRunHpcReady
+              ? `GPU SSH Gateway Ready: ${currentRunGpuSummary} / current-run nvidia-smi and CUDA training passed`
+              : gpuCurrentAllocationBlocked
               ? `GPU Blocked: current allocation ${String(latestGpuAllocationBlockerMetadata?.host ?? "unknown")}:${String(latestGpuAllocationBlockerMetadata?.port ?? "unknown")} closed before SSH handshake`
               : gpuFreshSmokeBlocked
               ? `GPU Blocked: fresh SSH/CUDA smoke failed (${liveGpu.path ?? "no artifact"})`
@@ -1511,16 +2089,18 @@ export async function getWorkstationSummary() {
                     ? gpuLegacyVerifiedState
                 : gpuPendingState,
             configured: gpuCredentialPresent,
-            current_allocation_blocked: gpuCurrentAllocationBlocked || gpuFreshSmokeBlocked || s6e6GatewayBlocked,
-            current_gate_ready: gpuCredentialPresent && !gpuCurrentAllocationBlocked && !gpuFreshSmokeBlocked && !s6e6GatewayBlocked && liveGpu.passed === true,
-            notes: gpuCurrentAllocationBlocked
+            current_allocation_blocked: currentRunHpcReady ? false : gpuCurrentAllocationBlocked || gpuFreshSmokeBlocked || s6e6GatewayBlocked,
+            current_gate_ready: gpuCredentialPresent && (currentRunHpcReady || (!gpuCurrentAllocationBlocked && !gpuFreshSmokeBlocked && !s6e6GatewayBlocked && liveGpu.passed === true)),
+            notes: currentRunHpcReady
+              ? `The current Multi-Agent run completed on ${currentRunGpuSummary}; hpc_probe.json, per-fold CUDA telemetry, downloaded artifact hashes, and Independent Reviewer checks all passed. Historical connection records remain audit-only.`
+              : gpuCurrentAllocationBlocked
               ? `A newer rotating GPU allocation failed fresh SSH validation. Host=${String(latestGpuAllocationBlockerMetadata?.host ?? "unknown")}, port=${String(latestGpuAllocationBlockerMetadata?.port ?? "unknown")}, direct TCP=${String(latestGpuAllocationBlockerMetadata?.tcp_direct ?? "unknown")}, SSH=${String(latestGpuAllocationBlockerMetadata?.ssh_direct ?? "unknown")}. Historical A800 evidence remains archived, but workstation training is blocked until a fresh allocation passes SSH/CUDA smoke.`
               : gpuFreshSmokeBlocked
               ? `DPAPI SSH credentials are loaded, but the latest GPU SSH/CUDA smoke failed. Latest evidence: ${liveGpu.path ?? "missing"}. Historical A800 evidence remains archived; workstation training is blocked until /api/gpu/connections/test passes on the current allocation.`
               : s6e6GatewayBlocked
               ? `Historical NVIDIA A800 GPU evidence exists, but the current S6E6 dependency gate is blocked before training. Blocker: ${s6e6DependencyGate.blocker ?? "resource gateway unavailable"}. Latest gate: ${s6e6DependencyGate.path}. Next action: ${s6e6DependencyGate.nextAction ?? "refresh the rotating GPU allocation and rerun the dependency gate"}.`
               : gpuCredentialPresent && liveGpu.passed
-              ? `Windows DPAPI credentials are present and the project SSH helper reached the current GPU allocation through the documented 127.0.0.1:7890 SOCKS5 bridge. Latest evidence: ${liveGpu.path}. Python runtime: ${liveGpu.pythonRuntime ?? "unknown"}; torch import: ${liveGpu.torchImport === null ? "unknown" : String(liveGpu.torchImport)}. GPU jobs remain whitelist-template only; arbitrary shell is not exposed.`
+              ? `Windows DPAPI credentials are present and the project SSH helper reached the current GPU allocation through the configured ${gpuRoute}. Latest evidence: ${liveGpu.path}. Python runtime: ${liveGpu.pythonRuntime ?? "unknown"}; torch import: ${liveGpu.torchImport === null ? "unknown" : String(liveGpu.torchImport)}. GPU jobs remain whitelist-template only; arbitrary shell is not exposed.`
               : liveGpu.passed
                 ? `Latest SSH gateway evidence proves ${liveGpuSummary}, but no loaded SSH credential is present for automated jobs.`
                 : gpuCredentialPresent && hpcProbe.fullyReadyAllowed
@@ -1531,6 +2111,7 @@ export async function getWorkstationSummary() {
             proxy: gpu.socksProxy.host ? "socks5" : "direct",
             evidence: {
               hpc_probe: hpcProbe,
+              current_multi_agent_hpc_probe: currentRunHpcProbe ?? null,
               latest_ssh_connection: liveGpu,
               latest_s6e6_dependency_gate: s6e6DependencyGate,
               latest_current_allocation_blocker: latestGpuAllocationBlocker
@@ -1582,7 +2163,10 @@ export async function getWorkstationSummary() {
             KAGGLE_ENABLED: kaggleDpapi.configured ? "true" : "false",
             KAGGLE_TOKEN_STATUS: kaggleDpapi.credential_status,
             KAGGLE_TOOLCHAIN_STATUS: kaggleDpapi.toolchain_ready ? "ready" : "missing",
-            LLM_PROVIDER: "rule_based",
+            LLM_PROVIDER: process.env.EVOLUTION_PRIMARY_PROVIDER || (openAiConfigured ? "openai" : "rule_based"),
+            OPENAI_API_KEY_STATUS: openAiApiKeyStatus(),
+            OPENAI_MODEL: openAi.model,
+            OPENAI_BASE_URL: openAi.baseUrl,
             DEEPSEEK_API_KEY_STATUS: deepSeekApiKeyStatus(),
             DEEPSEEK_MODEL: deepSeek.model,
             DATABASE_PROVIDER: "sqlite"
@@ -1590,8 +2174,8 @@ export async function getWorkstationSummary() {
         ] as const
       ]
     ),
-    runs: [...runtimeRun, ...dbRuns.filter((run) => !run.output_dir || !runKeys.has(run.output_dir))],
-    actions: actions.map((action) => ({
+    runs: [...runtimeRun, ...dbRuns.filter((run: any) => !run.output_dir || !runKeys.has(run.output_dir))],
+    actions: actions.map((action: any) => ({
       id: action.id,
       action: action.action,
       task_id: action.taskId,
@@ -1601,7 +2185,7 @@ export async function getWorkstationSummary() {
       metadata: decodeJson(action.metadataJson),
       at: action.createdAt.toISOString()
     })),
-    gates: gates.map((gate) => ({
+    gates: gates.map((gate: any) => ({
       id: gate.id,
       task_id: gate.taskId,
       run_id: gate.runId,
@@ -1612,7 +2196,7 @@ export async function getWorkstationSummary() {
       created_at: gate.createdAt.toISOString(),
       decided_at: gate.decidedAt?.toISOString() ?? null
     })),
-    evidence: evidence.map((item) => ({
+    evidence: [...runtimeEvidence, ...evidence.map((item: any) => ({
       id: item.id,
       task_id: item.taskId,
       run_id: item.runId,
@@ -1622,8 +2206,8 @@ export async function getWorkstationSummary() {
       source: item.source,
       claim_binding: item.claimBinding,
       created_at: item.createdAt.toISOString()
-    })),
-    reports: reports.map((report) => ({
+    }))],
+    reports: reports.map((report: any) => ({
       id: report.id,
       task_id: report.taskId,
       run_id: report.runId,
@@ -1636,7 +2220,7 @@ export async function getWorkstationSummary() {
       selected_section: report.selectedSection,
       submitted_at: report.submittedAt?.toISOString() ?? null
     })),
-    workflows: workflows.map((workflow) => ({
+    workflows: workflows.map((workflow: any) => ({
       id: workflow.id,
       task_id: workflow.taskId,
       name: workflow.name,
@@ -1655,7 +2239,7 @@ export async function getWorkstationSummary() {
     mlevolve_alignment_matrix: mlevolveAlignmentMatrix,
     mlebench_style_leaderboard: mlebenchStyleLeaderboard,
     verified_launch_audit: {
-      ...(verifiedLaunchAudit as Record<string, unknown> | null ?? {}),
+      ...(verifiedLaunchAudit as Record<string, unknown> | null),
       latest_readiness: launchReadiness,
       launch_state: (launchReadiness as Record<string, unknown> | null)?.launch_state ?? (verifiedLaunchAudit as Record<string, unknown> | null)?.launch_state ?? null,
       blockers: (launchReadiness as Record<string, unknown> | null)?.blockers ?? (verifiedLaunchAudit as Record<string, unknown> | null)?.blockers ?? [],
@@ -1665,7 +2249,20 @@ export async function getWorkstationSummary() {
     learning_loop_readiness: learningLoopReadiness,
     runtime,
     runtime_by_task: runtimeByTask,
-    terminal_agent: terminalAgent,
+    terminal_agent: currentMultiAgentRuntime
+      ? {
+          ...terminalAgent,
+          task_id: currentMultiAgentRuntime.task_id,
+          latest_run_id: currentMultiAgentRuntime.current_run?.run_id ?? null,
+          latest_run_dir: currentMultiAgentRuntime.latest_experiment_dir,
+          status: currentMultiAgentRuntime.task_state?.status ?? "unknown",
+          last_seq: currentMultiAgentRuntime.task_state?.seq ?? 0,
+          events: currentMultiAgentRuntime.event_log ?? [],
+          source: "workspace/current_run.json"
+        }
+      : terminalAgent,
+    literature_context: literatureContext,
+    literature_by_task: literatureByTask,
     scientist_autopilot: scientistAutopilot,
     scientist_action_queue: scientistActionQueue,
     scientist_continuation_status: scientistContinuationStatus,
@@ -1678,6 +2275,7 @@ export async function getWorkstationSummary() {
     scientist_strategy_optimizer: scientistStrategyOptimizer,
     scientist_context_packet: scientistContextPacket,
     scientist_reasoning_synthesis: scientistReasoningSynthesis,
+    scientist_terminal_turn: scientistTerminalTurn,
     scientist_engineering_loop: scientistEngineeringLoop,
     scientist_innovation_backlog: scientistInnovationBacklog,
     scientist_hypothesis_review: scientistHypothesisReview,
@@ -1691,5 +2289,233 @@ export async function getWorkstationSummary() {
     scientist_step_trace: scientistStepTrace,
     scientist_autopilot_status: scientistAutopilotStatus,
     workspace_root: workspaceRoot
+  };
+}
+
+type SummaryRecord = Record<string, any>;
+
+const detailFields: Record<string, string[]> = {
+  assistant: ["runtime", "runtime_by_task", "terminal_agent", "scientist_context_packet", "scientist_terminal_turn"],
+  overview: ["runtime", "runtime_by_task", "terminal_agent", "scientist_autopilot", "scientist_autopilot_status", "scientist_next_action", "scientist_context_packet", "scientist_terminal_turn", "verified_launch_audit", "learning_loop_readiness"],
+  tasks: ["runtime", "runtime_by_task", "terminal_agent", "scientist_context_packet", "scientist_terminal_turn"],
+  data: ["kaggle_dpapi_readiness", "kaggle_experiment_inventory", "kaggle_new_competition_readiness", "learning_loop_readiness"],
+  gpu: ["runtime", "runtime_by_task", "kaggle_dpapi_readiness", "verified_launch_audit"],
+  evidence: ["runtime", "runtime_by_task", "terminal_agent", "evidence", "gates", "runs"],
+  literature: ["literature_context", "literature_by_task", "evidence", "runs"],
+  workflow: ["runtime", "runtime_by_task", "terminal_agent", "scientist_context_packet", "scientist_terminal_turn"],
+  code: ["runtime", "runtime_by_task", "scientist_engineering_loop", "scientist_context_packet", "scientist_terminal_turn"],
+  runtime: ["runtime", "runtime_by_task", "terminal_agent", "scientist_context_packet", "scientist_terminal_turn"],
+  experiments: ["runtime", "runtime_by_task", "kaggle_experiment_inventory", "learning_loop_readiness"],
+  evolution: [
+    "runtime", "runtime_by_task", "terminal_agent", "scientist_autopilot", "scientist_action_queue",
+    "scientist_continuation_status", "scientist_loop", "scientist_loop_lessons", "scientist_memory_consolidation",
+    "scientist_self_audit", "scientist_readiness_report", "scientist_causal_diagnosis", "scientist_strategy_optimizer",
+    "scientist_context_packet", "scientist_reasoning_synthesis", "scientist_terminal_turn", "scientist_engineering_loop",
+    "scientist_innovation_backlog", "scientist_hypothesis_review", "scientist_experiment_blueprint",
+    "scientist_situation_model", "scientist_turn_plan", "scientist_workplan", "scientist_repair_plan",
+    "scientist_execution_contract", "scientist_turns", "scientist_step_trace", "scientist_autopilot_status"
+  ],
+  report: ["runtime", "runtime_by_task", "terminal_agent", "literature_context", "literature_by_task", "evidence", "gates", "runs", "reports"],
+  gates: ["runtime", "runtime_by_task", "terminal_agent", "evidence", "gates", "runs"],
+  settings: ["kaggle_dpapi_readiness", "verified_launch_audit"],
+  control: [
+    "runtime", "runtime_by_task", "terminal_agent", "final_delivery_status", "kaggle_new_competition_readiness",
+    "kaggle_dpapi_readiness", "kaggle_experiment_inventory", "top30_next_evolution_orders", "mlevolve_alignment_matrix",
+    "mlebench_style_leaderboard", "verified_launch_audit", "learning_loop_readiness", "literature_context",
+    "literature_by_task", "scientist_autopilot", "scientist_action_queue", "scientist_continuation_status",
+    "scientist_loop", "scientist_loop_lessons", "scientist_memory_consolidation", "scientist_self_audit",
+    "scientist_readiness_report", "scientist_causal_diagnosis", "scientist_strategy_optimizer", "scientist_context_packet",
+    "scientist_reasoning_synthesis", "scientist_terminal_turn", "scientist_engineering_loop", "scientist_innovation_backlog",
+    "scientist_hypothesis_review", "scientist_experiment_blueprint", "scientist_situation_model", "scientist_turn_plan",
+    "scientist_workplan", "scientist_repair_plan", "scientist_execution_contract", "scientist_turns",
+    "scientist_step_trace", "scientist_autopilot_status"
+  ]
+};
+
+function serializeTaskLite(task: any) {
+  return {
+    id: task.id,
+    name: task.name,
+    task_type: task.taskType,
+    target: task.target,
+    metric: task.metric,
+    status: task.status,
+    priority: task.priority,
+    owner: task.owner,
+    config_path: task.configPath,
+    task_dir: task.taskDir,
+    created_at: task.createdAt.toISOString(),
+    updated_at: task.updatedAt.toISOString()
+  };
+}
+
+async function buildLightweightSummary(): Promise<SummaryRecord> {
+  await ensureWorkstationSeeded();
+  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, finalDeliveryStatus, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, kaggleNewCompetitionReadiness, kaggleDpapiReadiness] = await Promise.all([
+    prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
+    prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
+    prisma.actionLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.gate.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.evidence.findMany({ orderBy: { createdAt: "desc" }, take: 30 }),
+    prisma.report.findMany({ orderBy: { updatedAt: "desc" }, take: 10 }),
+    prisma.workflow.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }),
+    readJsonFile(resolveWorkspacePath("docs/final_delivery_status_20260612.json")),
+    readJsonFile(resolveWorkspacePath("docs/verified_workstation_launch_audit.json")),
+    readJsonFile(resolveWorkspacePath("workspace/workstation_launch_readiness_20260630.json")),
+    readJsonFile(resolveWorkspacePath("workspace/workstation_learning_loop_readiness_20260630.json")),
+    readJsonFile(resolveWorkspacePath("docs/kaggle_new_competition_readiness.json")),
+    readJsonFile(resolveWorkspacePath("docs/kaggle_dpapi_readiness.json"))
+  ]);
+
+  const connectorStatus: Record<string, Record<string, unknown>> = Object.fromEntries(connectors.map((connector: ConnectorStatus) => [connector.provider, {
+    name: connector.name,
+    state: connector.state,
+    configured: connector.configured,
+    notes: connector.detail
+  }]));
+  const openAi = openAiConfig();
+  const deepSeek = deepSeekConfig();
+  const openAiConfigured = openAiApiKeyStatus() === "configured";
+  const deepSeekConfigured = deepSeekApiKeyStatus() === "configured";
+  connectorStatus.code_agent = {
+    name: "Code Agent",
+    state: claudeApiKeyStatus() === "configured" ? "Claude Agent SDK Ready" : deepSeekConfigured ? `DeepSeek Code Agent Ready (${deepSeek.model})` : "Not Configured",
+    configured: claudeApiKeyStatus() === "configured" || deepSeekConfigured
+  };
+  connectorStatus.openai = {
+    name: "OpenAI-compatible Agent LLM",
+    state: openAiConfigured ? `OpenAI Agent Ready (${openAi.model})` : "Not Configured",
+    configured: openAiConfigured,
+    model: openAi.model,
+    base_url: openAi.baseUrl
+  };
+  connectorStatus.deepseek = {
+    name: "DeepSeek",
+    state: deepSeekConfigured ? `DeepSeek Ready (${deepSeek.model})` : "Not Configured",
+    configured: deepSeekConfigured,
+    model: deepSeek.model,
+    base_url: deepSeek.baseUrl
+  };
+  const latestRun = runs[0];
+
+  return {
+    tasks: tasks.map(serializeTaskLite),
+    connector_status: connectorStatus,
+    runs: runs.map((run: ExperimentRun) => ({
+      id: run.id, task_id: run.taskId, output_dir: run.outputDir, status: run.status,
+      best_model: run.bestModel, metrics: decodeJson(run.metricsJson), validation_status: run.validationStatus,
+      process_id: run.processId, started_at: run.startedAt?.toISOString() ?? null,
+      finished_at: run.finishedAt?.toISOString() ?? null, created_at: run.createdAt.toISOString()
+    })),
+    actions: actions.map((action: ActionLog) => ({
+      id: action.id, action: action.action, task_id: action.taskId, run_id: action.runId,
+      message: action.message, artifact: action.artifactPath, metadata: decodeJson(action.metadataJson),
+      at: action.createdAt.toISOString()
+    })),
+    gates: gates.map((gate: Gate) => ({
+      id: gate.id, task_id: gate.taskId, run_id: gate.runId, gate_type: gate.gateType,
+      decision: gate.decision, reviewer: gate.reviewer, evidence: decodeJson(gate.evidenceJson),
+      created_at: gate.createdAt.toISOString(), decided_at: gate.decidedAt?.toISOString() ?? null
+    })),
+    evidence: evidence.map((item: Evidence) => ({
+      id: item.id, task_id: item.taskId, run_id: item.runId, label: item.label,
+      artifact_path: item.artifactPath, hash: item.hash, source: item.source,
+      claim_binding: item.claimBinding, created_at: item.createdAt.toISOString()
+    })),
+    reports: reports.map((report: Report) => ({
+      id: report.id, task_id: report.taskId, run_id: report.runId, title: report.title,
+      status: report.status, markdown_content: report.markdownContent, content: decodeJson(report.contentJson),
+      markdown_path: report.markdownPath, docx_path: report.docxPath,
+      selected_section: report.selectedSection, submitted_at: report.submittedAt?.toISOString() ?? null
+    })),
+    workflows: workflows.map((workflow: Workflow) => ({
+      id: workflow.id, task_id: workflow.taskId, name: workflow.name, status: workflow.status,
+      version: workflow.version, nodes: decodeJson(workflow.nodesJson), edges: decodeJson(workflow.edgesJson),
+      published_at: workflow.publishedAt?.toISOString() ?? null
+    })),
+    stages,
+    final_delivery_status: finalDeliveryStatus,
+    verified_launch_audit: {
+      ...(verifiedLaunchAudit as Record<string, unknown> | null),
+      latest_readiness: launchReadiness,
+      launch_state: (launchReadiness as Record<string, unknown> | null)?.launch_state ?? (verifiedLaunchAudit as Record<string, unknown> | null)?.launch_state ?? null,
+      blockers: (launchReadiness as Record<string, unknown> | null)?.blockers ?? (verifiedLaunchAudit as Record<string, unknown> | null)?.blockers ?? [],
+      critical_failures: (launchReadiness as Record<string, unknown> | null)?.critical_failures ?? [],
+      soft_failures: (launchReadiness as Record<string, unknown> | null)?.soft_failures ?? []
+    },
+    learning_loop_readiness: learningLoopReadiness,
+    kaggle_new_competition_readiness: kaggleNewCompetitionReadiness,
+    kaggle_dpapi_readiness: kaggleDpapiReadiness,
+    runtime: latestRun ? {
+      task_id: latestRun.taskId,
+      latest_experiment_dir: latestRun.outputDir,
+      task_state: { status: latestRun.status, updated_at: latestRun.updatedAt.toISOString() },
+      agent_trace: [],
+      event_log: [],
+      training_log: []
+    } : undefined,
+    workspace_root: workspaceRoot,
+    _meta: { mode: "lite", generated_at: new Date().toISOString() }
+  };
+}
+
+let lightSummaryCache: FileCacheEntry<SummaryRecord> | null = null;
+let lightSummaryPromise: Promise<SummaryRecord> | null = null;
+let fullSummaryCache: FileCacheEntry<SummaryRecord> | null = null;
+let fullSummaryPromise: Promise<SummaryRecord> | null = null;
+
+async function getLightSummary(force = false) {
+  const now = Date.now();
+  if (!force && lightSummaryCache && lightSummaryCache.expiresAt > now) return lightSummaryCache.value;
+  if (!force && lightSummaryPromise) return lightSummaryPromise;
+  const request = buildLightweightSummary().then((value) => {
+    lightSummaryCache = { value, mtimeMs: 0, expiresAt: Date.now() + LIGHT_SUMMARY_TTL_MS };
+    return value;
+  }).finally(() => {
+    lightSummaryPromise = null;
+  });
+  lightSummaryPromise = request;
+  return request;
+}
+
+async function getFullSummary(force = false) {
+  const now = Date.now();
+  if (!force && fullSummaryCache && fullSummaryCache.expiresAt > now) return fullSummaryCache.value;
+  if (!force && fullSummaryPromise) return fullSummaryPromise;
+  const request: Promise<SummaryRecord> = buildFullWorkstationSummary().then((value) => {
+    const record = value as SummaryRecord;
+    fullSummaryCache = { value: record, mtimeMs: 0, expiresAt: Date.now() + FULL_SUMMARY_TTL_MS };
+    return record;
+  }).finally(() => {
+    fullSummaryPromise = null;
+  });
+  fullSummaryPromise = request;
+  return request;
+}
+
+/**
+ * The default endpoint is intentionally lightweight. Heavy runtime, literature,
+ * scientist and inventory projections are loaded only for the active page and
+ * share a short server-side cache to prevent duplicate filesystem scans.
+ */
+export async function getWorkstationSummary(options: { detail?: string; force?: boolean; full?: boolean } = {}) {
+  const base = await getLightSummary(Boolean(options.force));
+  if (!options.detail && !options.full) return base;
+
+  const full = await getFullSummary(Boolean(options.force));
+  if (options.full) return full;
+
+  const fields = detailFields[options.detail ?? ""] ?? [];
+  const detail = Object.fromEntries(fields.filter((field) => field in full).map((field) => [field, full[field]]));
+  return {
+    ...base,
+    ...detail,
+    _meta: {
+      mode: "detail",
+      section: options.detail,
+      generated_at: new Date().toISOString(),
+      cache_ttl_ms: FULL_SUMMARY_TTL_MS
+    }
   };
 }

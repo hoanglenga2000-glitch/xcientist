@@ -164,3 +164,24 @@ def test_cold_start_reaches_multi_branch_and_aggregation():
     assert "aggregation" in seen                    # global stall -> fusion fired
 
 
+def test_experience_crossover_selects_two_distinct_family_parents_and_records_trace():
+    g = _graph()
+    g.nodes["EXP000"] = _node("EXP000", None, 0.70)
+    g.nodes["EXP000"].branch_type = "linear"
+    g.nodes["EXP001"] = _node("EXP001", "EXP000", 0.80)
+    g.nodes["EXP001"].branch_type = "tree"
+    sel = MCGSSelector(total_steps=8, search_mode="experience_mcgs_v1")
+    sel.global_stagnation = 3
+    plan = sel.select(g, step=3)
+    assert plan.operator == "Crossover"
+    assert len(plan.parent_exp_ids) == 2
+    assert len(set(plan.parent_exp_ids)) == 2
+    families = {g.nodes[parent_id].branch_type for parent_id in plan.parent_exp_ids}
+    assert families == {"linear", "tree"}
+    assert plan.parent_exp_ids[1] in plan.reference_exp_ids
+    assert sel.last_selection_trace is not None
+    assert sel.last_selection_trace.operator.value == "Crossover"
+    assert sel.last_selection_trace.selected_parent_ids == tuple(plan.parent_exp_ids)
+    assert sel.last_selection_trace.selection_reason == "two_distinct_successful_method_families"
+    assert sel.last_selection_trace.budget_snapshot["max_nodes"] == 8
+

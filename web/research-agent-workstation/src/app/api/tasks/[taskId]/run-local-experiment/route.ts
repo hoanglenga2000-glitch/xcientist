@@ -3,11 +3,13 @@ import { runLocalExperiment } from "@/lib/server/runs";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(_request: Request, { params }: { params: { taskId: string } }) {
+export async function POST(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   try {
-    return NextResponse.json(await runLocalExperiment(params.taskId));
+    const { taskId } = await params;
+    return NextResponse.json(await runLocalExperiment(taskId));
   } catch (error) {
+    const { taskId } = await params;
     const message = error instanceof Error ? error.message : "Unknown run error";
-    return NextResponse.json({ ok: false, task_id: params.taskId, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, task_id: taskId, error: message }, { status: 500 });
   }
 }

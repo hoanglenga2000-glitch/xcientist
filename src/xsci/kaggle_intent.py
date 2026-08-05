@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .user_request import UserRequest, parse_user_request
+
 GREETING = "greeting"
 STATUS = "status"
 CAPABILITY = "capability"
@@ -28,6 +30,7 @@ class Intent:
     kind: str
     payload: str = ""
     args: list[str] = field(default_factory=list)
+    request: UserRequest | None = None
 
 
 _GREETINGS = {
@@ -207,6 +210,12 @@ _REAL_TOOL_STATUS = (
     "什么工具", "哪些工具", "能调用什么", "有什么工具", "工具列表",
     "能用什么", "可以调用什么", "支持哪些",
 )
+_REAL_LITERATURE_QUERY = (
+    "检索论文", "搜索论文", "找论文", "查论文", "论文检索", "文献检索",
+    "搜索文献", "找文献", "查文献", "参考文献", "学术论文", "论文资料",
+    "literature search", "search papers", "find papers", "paper search",
+    "arxiv", "openalex", "crossref", "rag 文献", "rag论文", "rag paper",
+)
 _REAL_DATA_CHECK = (
     "数据准备", "数据好了", "数据在哪", "有没有数据", "检查数据",
     "数据就绪", "数据可用", "下载数据", "数据目录",
@@ -218,6 +227,25 @@ _REAL_RESUME = (
 _REAL_PROGRESS = (
     "进度", "结果怎么样", "跑完了吗", "训练好了吗", "最近结果",
     "查看结果", "查看进度", "看进度", "上次结果", "训练结果",
+)
+_REAL_CURRENT_RUN_STATUS = (
+    "上次模型微调完成到哪", "上次模型完成到哪", "模型微调完成到哪",
+    "当前模型微调状态", "上次微调状态", "当前运行状态", "当前 run 状态",
+    "当前run状态", "目前任务完成情况", "当前任务完成情况", "上次任务完成情况",
+    "previous fine-tune status", "last fine-tune status", "current run status",
+)
+_REAL_LOCAL_ENVIRONMENT = (
+    "检查本地开发环境", "检查开发环境", "本地工具环境", "本地开发工具",
+    "开发环境检查", "环境探针", "environment check", "check local environment",
+    "inspect local environment", "development environment",
+)
+_REAL_REFINEMENT_APPROVE = (
+    "批准微调", "确认微调", "批准这个微调", "确认这个微调", "批准优化方案",
+    "确认优化方案", "approve refinement", "approve the refinement",
+)
+_REAL_REFINEMENT_REJECT = (
+    "拒绝微调", "取消微调", "拒绝这个微调", "驳回优化方案",
+    "reject refinement", "reject the refinement",
 )
 _REAL_GPU_STATUS = (
     "gpu状态", "gpu 状态", "服务器状态", "gpu 就绪", "gpu 可用",
@@ -446,6 +474,69 @@ def _contains(text: str, needles) -> bool:
     return any(n in text for n in needles)
 
 
+def _is_literature_query(text: str) -> bool:
+    reviewed_reference = (
+        "刚检索", "已检索", "已经检索", "检索到", "检索的", "上述文献",
+        "当前文献", "已有文献", "所选论文", "这篇论文", "这些论文",
+        "previously retrieved", "retrieved literature", "selected paper",
+    )
+    synthesis_actions = (
+        "结合", "根据", "基于", "解释", "分析", "说明", "总结", "归纳", "比较",
+        "为什么", "意味着", "explain", "analyze", "summarize", "based on",
+    )
+    if _contains(text, reviewed_reference) and _contains(text, synthesis_actions):
+        return False
+    if _contains(text, _REAL_LITERATURE_QUERY):
+        return True
+    search_actions = ("检索", "搜索", "查找", "查询", "找", "search", "find", "retrieve")
+    literature_objects = ("论文", "文献", "参考资料", "paper", "papers", "literature", "arxiv", "openalex", "crossref")
+    return _contains(text, search_actions) and _contains(text, literature_objects)
+
+
+def _is_validation_explanation(text: str) -> bool:
+    validation = ("交叉验证", "cross validation", "cross-validation", "分组验证", "grouped validation")
+    grouping = ("患者", "重复", "病灶", "patient", "duplicate", "content group")
+    explanation = ("解释", "分析", "说明", "为什么", "偏差", "依据", "explain", "analyze", "bias")
+    return _contains(text, validation) and _contains(text, grouping) and _contains(text, explanation)
+
+
+def _is_metric_explanation(text: str) -> bool:
+    metrics = ("roc-auc", "roc_auc", "roc auc", "pr-auc", "pr_auc", "pr auc", "brier")
+    explanation = (
+        "为什么", "解释", "说明", "区别", "怎么看", "列出", "给出", "数值", "多少", "是多少",
+        "mean", "interpret", "explain", "list", "show", "report", "value",
+    )
+    return _contains(text, metrics) and _contains(text, explanation)
+
+
+def is_artifact_location_query(text: str) -> bool:
+    """Recognize a question about already-produced files, not a report action."""
+    normalized = (text or "").strip().lower()
+    location = (
+        "在哪", "哪里", "路径", "位置", "储存", "存储", "保存到", "本地电脑",
+        "下载链接", "download", "path", "location", "stored", "saved",
+    )
+    artifact = (
+        "证据包", "交付物", "报告", "结果", "代码包", "文件", "pdf", "csv", "zip",
+        "artifact", "deliverable", "evidence", "result", "output",
+    )
+    return _contains(normalized, location) and _contains(normalized, artifact)
+
+
+def _metric_query_requests_execution(text: str) -> bool:
+    """Treat a named existing Run as context, not as the English `run` verb."""
+    execution_terms = tuple(
+        term for term in _EXECUTION + _REAL_EXECUTION
+        if term not in {"run", "运行"}
+    )
+    if _contains(text, execution_terms):
+        return True
+    return _contains(text, (
+        "run training", "run the training", "run experiment", "run an experiment",
+        "run model", "run the model", "运行训练", "运行实验", "运行模型",
+    ))
+
+
 _NEGATED_EXECUTION_PATTERNS = (
     r"不要(?:再|立刻|立即|现在|马上)?(?:开始|启动|执行|运行|进行)?(?:任何)?(?:训练|建模|运行|执行|自进化|提交)",
     r"不(?:要|需要|用|必|必需|必須)?(?:开始|启动|执行|运行|进行)?(?:任何)?(?:训练|建模|运行|执行|自进化|提交)",
@@ -476,6 +567,34 @@ def _first_token(text: str) -> str:
     return text.strip().split(maxsplit=1)[0].lower() if text.strip() else ""
 
 
+def _is_progress_only_query(text: str) -> bool:
+    """Distinguish "训练好了吗" from a compound request that asks to train."""
+    if not (_contains(text, _PROGRESS) or _contains(text, _REAL_PROGRESS)):
+        return False
+    action_cues = (
+        "请", "帮我", "需要", "完成", "开始", "启动", "执行", "在hpc", "在 hpc",
+        "并训练", "然后训练", "训练并", "please", "need you", "start", "run and",
+    )
+    return not _contains(text, action_cues)
+
+
+def _is_llm_refinement_request(text: str) -> bool:
+    lineage = (
+        "上次模型", "上一轮", "当前模型", "已有模型", "原模型", "父版本",
+        "继续训练", "接着训练", "增量训练", "current model", "previous run",
+        "last run", "continue training", "incremental training", "parent adapter",
+    )
+    changes = (
+        "继续优化", "降低学习率", "调低学习率", "调整学习率", "修改学习率",
+        "短周期", "再训练一轮", "更新报告", "重新审核", "重新评测",
+        "refine", "lower the learning rate", "short cycle", "update the report",
+    )
+    return _contains(text, changes) and (
+        _contains(text, lineage)
+        or _contains(text, ("降低学习率", "调低学习率", "短周期", "lower the learning rate"))
+    )
+
+
 def classify(text: str) -> Intent:
     raw = (text or "").strip()
     low = raw.lower()
@@ -499,8 +618,39 @@ def classify(text: str) -> Intent:
         return Intent(GREETING)
 
     # ── TOOL_QUERY: lightweight tool calls that are NOT training ──
+    request = parse_user_request(raw)
+    execution_scoring_text = _mask_negated_execution(low)
+    hard_now = (
+        _contains(execution_scoring_text, _HARD_NOW)
+        or _contains(execution_scoring_text, _REAL_HARD_NOW)
+    )
+    # Asking where an existing result lives is a question for the LLM Agent.
+    # It must not be swallowed by the generic REPORT/status adapters.
+    if is_artifact_location_query(low):
+        return Intent(CHAT)
+    if (
+        _is_metric_explanation(low)
+        and not hard_now
+        and not _metric_query_requests_execution(execution_scoring_text)
+    ):
+        return Intent(CHAT)
+    if _contains(low, _REAL_REFINEMENT_APPROVE):
+        return Intent(TOOL_QUERY, payload="llm_refinement_approve", args=[raw])
+    if _contains(low, _REAL_REFINEMENT_REJECT):
+        return Intent(TOOL_QUERY, payload="llm_refinement_reject", args=[raw])
+    if _contains(low, _REAL_CURRENT_RUN_STATUS) and not hard_now:
+        return Intent(TOOL_QUERY, payload="current_run", args=[raw])
+    if _contains(low, _REAL_LOCAL_ENVIRONMENT) and not hard_now:
+        return Intent(TOOL_QUERY, payload="local_environment", args=[raw])
+    if _is_llm_refinement_request(low) and not _contains(low, _REAL_REFINEMENT_APPROVE + _REAL_REFINEMENT_REJECT):
+        return Intent(TOOL_QUERY, payload="llm_refinement", args=[raw])
     if (_contains(low, _MODEL_STATUS) or _contains(low, _REAL_MODEL_STATUS)) and not (_contains(low, _EXECUTION) or _contains(low, _REAL_EXECUTION)):
         return Intent(TOOL_QUERY, payload="model_status")
+    if (_is_literature_query(low)
+            and not (_contains(execution_scoring_text, _HARD_NOW) or _contains(execution_scoring_text, _REAL_HARD_NOW))
+            and not (_contains(execution_scoring_text, _EXECUTION) or _contains(execution_scoring_text, _REAL_EXECUTION))):
+        # Preserve the complete user turn for the shared live literature API.
+        return Intent(TOOL_QUERY, payload="literature_search", args=[raw])
     if (_contains(low, _REAL_SCIENTIST_MEMORY_CONSOLIDATION)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_memory_consolidation")
@@ -585,6 +735,12 @@ def classify(text: str) -> Intent:
     if (_contains(low, _REAL_SCIENTIST_CHECKPOINT)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_checkpoint")
+    # Atomic action extraction runs before generic status/report routing, but
+    # after exact read-only research tools. Thus "检查数据、训练、审核并生成报告"
+    # executes as one request while "为什么不能训练，做因果诊断" remains a
+    # diagnosis rather than accidentally starting a job.
+    if request.requests_execution and not _is_progress_only_query(low):
+        return Intent(EXECUTION, request=request)
     # "我有哪些任务" / "有哪些任务" / "注册了哪些"
     if (any(w in low for w in ("有哪些任务", "有哪些比赛", "哪些任务", "注册了哪些", "任务列表"))
             and not (_contains(low, _EXECUTION) or _contains(low, _REAL_EXECUTION))):
@@ -611,6 +767,21 @@ def classify(text: str) -> Intent:
         return Intent(EXECUTION, payload="resume")
 
     # ── Traditional intents ───────────────────────────────────────
+    if (
+        _is_metric_explanation(low)
+        and not hard_now
+        and not _metric_query_requests_execution(execution_scoring_text)
+    ):
+        return Intent(CHAT)
+    if (
+        _is_validation_explanation(low)
+        and not hard_now
+        and not _contains(execution_scoring_text, _EXECUTION)
+        and not _contains(execution_scoring_text, _REAL_EXECUTION)
+    ):
+        return Intent(CHAT)
+    if request.requests_research and not hard_now:
+        return Intent(PLANNING, request=request)
     if (_contains(low, _STATUS) or _contains(low, _REAL_STATUS)) and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW)):
         return Intent(STATUS)
     if _contains(low, _CAPABILITY) or _contains(low, _REAL_CAPABILITY):
@@ -620,11 +791,6 @@ def classify(text: str) -> Intent:
     if (_contains(low, _MEMORY) or _contains(low, _REAL_MEMORY)) and not (_contains(low, _EXECUTION) or _contains(low, _REAL_EXECUTION)):
         return Intent(MEMORY)
 
-    execution_scoring_text = _mask_negated_execution(low)
-    hard_now = (
-        _contains(execution_scoring_text, _HARD_NOW)
-        or _contains(execution_scoring_text, _REAL_HARD_NOW)
-    )
     wants_plan = (
         _contains(low, _PLANNING)
         or _contains(low, _REAL_PLANNING)
@@ -638,10 +804,12 @@ def classify(text: str) -> Intent:
         or _contains(execution_scoring_text, _REAL_EXECUTION)
     )
 
-    if wants_plan and not hard_now:
-        return Intent(PLANNING)
     if hard_now or wants_exec:
-        return Intent(EXECUTION)
+        return Intent(EXECUTION, request=request)
+    # Explicit no-training constraints only close the execution stage. Data
+    # analysis, hypothesis work, and experiment design remain a research plan.
+    if request.requests_research or wants_plan:
+        return Intent(PLANNING, request=request)
     return Intent(CHAT)
 
 

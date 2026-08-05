@@ -68,13 +68,18 @@ def main() -> None:
     labels = {item.get("label"): item for item in report.get("result_summaries") or []}
     required_labels = {
         "backend_resource_status",
-        "deepseek_smoke",
         "external_gateway_smoke",
         "kaggle_secret_smoke",
         "plaintext_secret_scan",
     }
     missing = sorted(required_labels - set(labels))
     require(not missing, "verified launcher audit is missing required smoke labels", {"missing": missing, "labels": sorted(labels)})
+    provider_smoke_labels = {"openai_gateway_smoke", "deepseek_smoke"}
+    require(
+        bool(provider_smoke_labels & set(labels)),
+        "verified launcher audit is missing an active LLM provider smoke",
+        {"expected_any": sorted(provider_smoke_labels), "labels": sorted(labels)},
+    )
     failed = {label: item for label, item in labels.items() if not item.get("ok")}
     require(not failed, "one or more verified launcher smoke steps failed", {"failed": failed})
 

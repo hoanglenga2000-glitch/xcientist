@@ -7,7 +7,6 @@
  */
 
 import { promises as fs } from "node:fs";
-import path from "node:path";
 import { prisma } from "@/lib/db";
 import { resolveWorkspacePath } from "@/lib/server/paths";
 
@@ -479,8 +478,7 @@ function scoreStrategyForTask(strategy: StrategyTemplate, profile: TaskProfile):
 
 function generateReasoning(
   strategy: StrategyTemplate,
-  profile: TaskProfile,
-  score: number
+  profile: TaskProfile
 ): string {
   const parts: string[] = [];
   const benchmark = strategy.known_benchmarks.find(
@@ -523,7 +521,7 @@ async function loadExperimentMemory(
     orderBy: { createdAt: "desc" },
     take: 50,
   });
-  return runs.map((run) => ({
+  return runs.map((run: any) => ({
     run_id: run.id,
     metrics: run.metricsJson
       ? (JSON.parse(run.metricsJson) as Record<string, unknown>)
@@ -674,7 +672,7 @@ export async function recommendStrategies(
       rank: index + 1,
       score: item.score,
       reasoning: profile
-        ? generateReasoning(item.strategy, profile, item.score)
+        ? generateReasoning(item.strategy, profile)
         : "No task profile available; using catalog defaults.",
       evidence_refs: item.strategy.known_benchmarks.map(
         (b) => `benchmark:${b.task_id}:${b.date}:${b.public_score}`

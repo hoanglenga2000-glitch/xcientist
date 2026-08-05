@@ -10,7 +10,7 @@ SERVER = {
     'host': '10.120.18.240',
     'port': 6988,
     'user': 'aimslab-TTA2',
-    'password': 'wM5T1Qfz5l',
+    'password': os.environ["GPU_SSH_PASSWORD"],
 }
 PROXY = ('127.0.0.1', 7897)
 REMOTE_RESULTS = '/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_proper_results'

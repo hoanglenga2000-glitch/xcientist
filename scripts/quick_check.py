@@ -1,3 +1,4 @@
+import os
 #!/usr/bin/env python3
 """Quick check: results storage + disk via S7"""
 import paramiko, socks, socket, json, time
@@ -12,7 +13,7 @@ def ssh_exec(cmd, timeout=30):
     sock = create_proxy_socket()
     sock.connect(("100.85.169.63", 1235))
     transport = paramiko.Transport(sock)
-    transport.connect(username="aimslab-zoeXIdNC", password="n6oewebu0p")
+    transport.connect(username="aimslab-zoeXIdNC", password=os.environ["GPU_SSH_PASSWORD"])
     session = transport.open_session()
     session.exec_command(cmd)
     stdout = b""

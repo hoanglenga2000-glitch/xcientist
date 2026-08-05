@@ -136,6 +136,49 @@ def render_tool_result_as_lines(result: dict) -> list[str]:
     return lines
 
 
+def render_literature_search_summary(result: dict) -> list[str]:
+    """Render real literature provenance without dumping the full API payload."""
+    ok = bool(result.get("ok", True))
+    lines = [f"[tool:literature_search] {'OK' if ok else 'BLOCKED'}"]
+    lines.append(f"  query: {_short(result.get('query'), limit=220)}")
+    lines.append(f"  papers: {result.get('paper_count', 0)}")
+    counts = result.get("source_counts") if isinstance(result.get("source_counts"), dict) else {}
+    if counts:
+        lines.append("  sources: " + ", ".join(f"{key}={value}" for key, value in counts.items() if value))
+    papers = result.get("papers") if isinstance(result.get("papers"), list) else []
+    if papers:
+        lines.append("  references:")
+        for index, paper in enumerate(papers[:6], start=1):
+            if not isinstance(paper, dict):
+                continue
+            citation = f"{_short(paper.get('title'), limit=150)} ({paper.get('year') or 'n.d.'}; {paper.get('source') or 'source'})"
+            if paper.get("doi"):
+                citation += f" DOI={paper.get('doi')}"
+            lines.append(f"    {index}. {citation}")
+    source_errors = result.get("source_errors") if isinstance(result.get("source_errors"), list) else []
+    if source_errors:
+        lines.append("  source_errors:")
+        for error in source_errors[:4]:
+            if isinstance(error, dict):
+                lines.append(f"    - {error.get('source')}: {_short(error.get('error'), limit=180)}")
+            else:
+                lines.append(f"    - {_short(error, limit=180)}")
+    for key in ("context_path", "manifest_path", "receipt_path"):
+        if result.get(key):
+            lines.append(f"  {key}: {result.get(key)}")
+    integrity = result.get("integrity") if isinstance(result.get("integrity"), dict) else {}
+    lines.append(
+        "  integrity: "
+        f"external_verified={integrity.get('external_verified', 0)}, "
+        f"imported={integrity.get('imported', 0)}, "
+        f"internal_context={integrity.get('internal_context', 0)}, "
+        f"fabricated={integrity.get('fabricated', 0)}"
+    )
+    lines.append("  no_training_started: True")
+    lines.append("  official_submit: blocked_until_explicit_human_approval")
+    return lines
+
+
 def _short(value: object, *, limit: int = 220) -> str:
     text = "" if value is None else str(value).replace("\n", " ").strip()
     return text if len(text) <= limit else text[: max(0, limit - 3)] + "..."

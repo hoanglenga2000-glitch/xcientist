@@ -14,13 +14,17 @@ from __future__ import annotations
 import json
 import os
 import re
+import subprocess
+import sys
 import textwrap
+import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
 from .kaggle_intent import (
+    CAPABILITY,
     CHAT,
     EXECUTION,
     GREETING,
@@ -328,9 +332,11 @@ class TerminalAgent:
 
         # ── Greetings ──────────────────────────────────────────────
         if intent.kind == GREETING:
+            from .kaggle_conversation import ConversationAgent
+
             result = TerminalResult(
                 rc=0, should_exit=False, action="greeting",
-                summary="你好，我是 EvoMind 对话终端。我可以帮你浏览比赛、检查数据、规划实验、启动训练。输入 `help` 查看命令。",
+                summary=ConversationAgent().chat(raw, session),
                 selected_task=session.selected_task,
             )
 
@@ -346,9 +352,17 @@ class TerminalAgent:
         elif intent.kind == PLANNING:
             result = self._handle_planning(raw, session, root)
 
-        # ── CHAT: make broad natural-language turns observable ──────
-        elif intent.kind == CHAT:
-            result = self.handle_scientist_turn(raw, session, root)
+        # ── CHAT: direct response; no research task graph or tool trace ─
+        elif intent.kind in {CHAT, CAPABILITY}:
+            from .kaggle_conversation import ConversationAgent
+
+            result = TerminalResult(
+                rc=0,
+                should_exit=False,
+                action="chat",
+                summary=ConversationAgent().chat(raw, session),
+                selected_task=session.selected_task,
+            )
 
         # ── Other intents that the main dispatcher handles directly ─
         else:
@@ -600,7 +614,8 @@ class TerminalAgent:
             except Exception:
                 pass
 
-            result = TerminalTools.dispatch(tool_name, session, root)
+            dispatch_kwargs = {"query": raw} if tool_name == "literature_search" else {}
+            result = TerminalTools.dispatch(tool_name, session, root, **dispatch_kwargs)
             evidence_results[tool_name] = result
             ok = bool(result.get("ok", True))
             artifact = str(result.get("artifact_path") or "")
@@ -638,30 +653,54 @@ class TerminalAgent:
             rendered_sections.append("\n".join(self._render_scientist_tool_summary(tool_name, result)))
 
         emitter.emit("Scientist reasoning", "synthesizing evidence into a direct research answer", status="running")
-        try:
-            from .scientist_reasoning import build_scientist_reasoning_synthesis
-
-            reasoning = build_scientist_reasoning_synthesis(
-                session,
-                root,
-                goal=raw,
-                evidence=evidence_results,
-                persist=True,
-            )
-        except Exception as exc:
+        literature_result = evidence_results.get("literature_search")
+        literature_specialized = bool(
+            isinstance(literature_result, dict)
+            and str(literature_result.get("answer_markdown") or "").strip()
+        )
+        if literature_specialized and isinstance(literature_result, dict):
+            integrity = literature_result.get("integrity") if isinstance(literature_result.get("integrity"), dict) else {}
+            external_verified = int(integrity.get("external_verified") or 0)
             reasoning = {
-                "ok": False,
-                "tool": "scientist_reasoning_synthesis",
-                "message": f"Reasoning synthesis failed: {type(exc).__name__}",
-                "answer_markdown": "",
+                "ok": bool(literature_result.get("ok", True)),
+                "tool": "literature_evidence_synthesis",
+                "message": f"evidence-backed literature answer; external_verified={external_verified}",
+                "answer_markdown": str(literature_result.get("answer_markdown") or ""),
+                "artifact_path": literature_result.get("manifest_path") or literature_result.get("context_path"),
+                "hypotheses": [],
                 "reasoning_quality": {
-                    "score": 0,
-                    "status": "insufficient",
-                    "missing_contract_items": ["reasoning_synthesis"],
+                    "score": 100 if external_verified > 0 else 40,
+                    "status": "evidence_backed" if external_verified > 0 else "insufficient",
+                    "missing_contract_items": [] if external_verified > 0 else ["relevant_external_literature"],
                 },
                 "no_training_started": True,
                 "official_submit": "blocked_until_explicit_human_approval",
             }
+        else:
+            try:
+                from .scientist_reasoning import build_scientist_reasoning_synthesis
+
+                reasoning = build_scientist_reasoning_synthesis(
+                    session,
+                    root,
+                    goal=raw,
+                    evidence=evidence_results,
+                    persist=True,
+                )
+            except Exception as exc:
+                reasoning = {
+                    "ok": False,
+                    "tool": "scientist_reasoning_synthesis",
+                    "message": f"Reasoning synthesis failed: {type(exc).__name__}",
+                    "answer_markdown": "",
+                    "reasoning_quality": {
+                        "score": 0,
+                        "status": "insufficient",
+                        "missing_contract_items": ["reasoning_synthesis"],
+                    },
+                    "no_training_started": True,
+                    "official_submit": "blocked_until_explicit_human_approval",
+                }
         reasoning_ok = bool(reasoning.get("ok", True))
         reasoning_artifact = str(reasoning.get("artifact_path") or "")
         reasoning_message = (
@@ -680,9 +719,10 @@ class TerminalAgent:
             status="passed" if reasoning_ok else "blocked",
             artifact=reasoning_artifact or None,
         )
+        evidence_results[str(reasoning.get("tool") or "scientist_reasoning_synthesis")] = reasoning
         executed.append(
             {
-                "tool": "scientist_reasoning_synthesis",
+                "tool": str(reasoning.get("tool") or "scientist_reasoning_synthesis"),
                 "ok": reasoning_ok,
                 "artifact_path": reasoning_artifact,
                 "message": reasoning_message,
@@ -692,10 +732,12 @@ class TerminalAgent:
             artifacts.append(reasoning_artifact)
         if reasoning.get("markdown_artifact_path"):
             artifacts.append(str(reasoning.get("markdown_artifact_path")))
-        rendered_sections.append("\n".join(render_scientist_reasoning_synthesis_summary(reasoning)))
+        if not literature_specialized:
+            rendered_sections.append("\n".join(render_scientist_reasoning_synthesis_summary(reasoning)))
 
         readiness = plan.get("readiness") if isinstance(plan.get("readiness"), dict) else {}
         blockers = [str(item) for item in (readiness.get("blocking_gates") or [])] if readiness else []
+        read_only_turn = str((plan.get("intent") or {}).get("kind") or "") == TOOL_QUERY if isinstance(plan.get("intent"), dict) else False
         executed_tool_names = {
             str(item.get("tool") or "")
             for item in executed
@@ -875,8 +917,9 @@ class TerminalAgent:
             "parity_loop_artifact": parity_loop_artifact,
             "next_safe_command": plan.get("next_safe_command"),
             "stop_conditions": plan.get("stop_conditions", []),
-            "execution_ready": not blockers,
-            "execution_blocked": bool(blockers),
+            "execution_ready": False if read_only_turn else not blockers,
+            "execution_blocked": False if read_only_turn else bool(blockers),
+            "read_only_completed": bool(read_only_turn and reasoning_ok),
             "blocking_gates": blockers,
             "reasoning_synthesis": reasoning,
             "adaptive_tool_loop": {
@@ -912,7 +955,7 @@ class TerminalAgent:
             parity_lifecycle,
         )
         answer_markdown = str(reasoning.get("answer_markdown") or "").strip()
-        summary = (
+        summary = answer_markdown if literature_specialized and answer_markdown else (
             answer_markdown + "\n\n---\n\n" + control_summary
             if answer_markdown
             else control_summary
@@ -985,12 +1028,15 @@ class TerminalAgent:
             pass
         self._guard.record_tool(f"scientist_turn: tools={len(executed)} next={plan.get('next_safe_command')}")
         self._guard.emit(session, event="PostScientistTurn")
+        rendered_summary = summary if literature_specialized else (
+            summary + "\n\n" + "\n\n".join(rendered_sections[:2]) + "\n\n" + rendered_sections[-1]
+        )
         return TerminalResult(
             rc=0 if payload.get("ok", True) else 1,
             should_exit=False,
             selected_task=session.selected_task,
             action="scientist_turn",
-            summary=summary + "\n\n" + "\n\n".join(rendered_sections[:2]) + "\n\n" + rendered_sections[-1],
+            summary=rendered_summary,
             artifacts=list(dict.fromkeys([path for path in artifacts if path])),
             blocked=not payload.get("ok", True),
         )
@@ -1206,6 +1252,7 @@ class TerminalAgent:
             "progress": "recent_run",
             "gpu_status": "gpu_status",
             "kaggle_status": "kaggle_status",
+            "literature_search": "literature_search",
             "system_status": "system_status",
             "evolution_status": "evolution_status",
             "scientist_checkpoint": "scientist_checkpoint",
@@ -1234,12 +1281,77 @@ class TerminalAgent:
             "scientist_memory_consolidation": "scientist_memory_consolidation",
             "scientist_innovation_backlog": "scientist_innovation_backlog",
             "scientist_situation_model": "scientist_situation_model",
+            "current_run": "current_run",
+            "local_environment": "local_environment",
+            "llm_refinement": "llm_refinement",
+            "llm_refinement_approve": "llm_refinement_approve",
+            "llm_refinement_reject": "llm_refinement_reject",
         }
         tool_name = tool_map.get(payload, payload) if payload else "system_status"
+
+        if tool_name == "current_run":
+            from .assistant_context import build_assistant_context, render_current_run_summary
+
+            packet = build_assistant_context(root)
+            return TerminalResult(
+                rc=0,
+                should_exit=False,
+                action="current_run_status",
+                summary=render_current_run_summary(packet),
+                selected_task=session.selected_task,
+            )
+
+        if tool_name == "local_environment":
+            from .assistant_context import build_assistant_context, render_environment_summary
+
+            packet = build_assistant_context(root, live_environment=True)
+            return TerminalResult(
+                rc=0,
+                should_exit=False,
+                action="local_environment_probe",
+                summary=render_environment_summary(packet),
+                selected_task=session.selected_task,
+            )
+
+        if tool_name == "llm_refinement":
+            prompt = str((intent.args or [""])[0] or "").strip()
+            return self._prepare_llm_refinement(prompt, session, root)
+
+        if tool_name in {"llm_refinement_approve", "llm_refinement_reject"}:
+            return self._decide_llm_refinement(
+                "approve" if tool_name.endswith("approve") else "reject",
+                session,
+                root,
+            )
 
         # Special: "tool_status" → list available tools, not a single tool result
         if tool_name == "tool_list" or payload in ("tool_status",):
             return self._show_tool_list(session, root)
+
+        if tool_name == "literature_search":
+            query = str((intent.args or [""])[0] or "").strip()
+            emitter.emit("Literature search", "querying arXiv, OpenAlex and Crossref with internal seeds disabled", status="running")
+            result = TerminalTools.dispatch(tool_name, session, root, query=query)
+            ok = bool(result.get("ok", True))
+            emitter.emit(
+                "Literature search",
+                f"{result.get('message') or 'search completed'}; papers={result.get('paper_count', 0)}",
+                status="passed" if ok else "blocked",
+                artifact=str(result.get("context_path") or result.get("receipt_path") or "") or None,
+            )
+            from .terminal_events import render_literature_search_summary
+            lines = render_literature_search_summary(result)
+            answer_markdown = str(result.get("answer_markdown") or "").strip()
+            artifacts = [str(path) for path in (result.get("context_path"), result.get("manifest_path"), result.get("receipt_path")) if path]
+            return TerminalResult(
+                rc=0 if ok else 1,
+                should_exit=False,
+                action="literature_search",
+                summary=answer_markdown or "\n".join(lines),
+                selected_task=session.selected_task,
+                artifacts=list(dict.fromkeys(artifacts)),
+                blocked=not ok,
+            )
 
         # Special: "task_list" needs session aware rendering
         if tool_name == "task_list":
@@ -1916,6 +2028,207 @@ class TerminalAgent:
         return TerminalResult(
             rc=0, should_exit=False, action="tool_call",
             summary="\n".join(lines), selected_task=session.selected_task,
+        )
+
+    def _prepare_llm_refinement(
+        self,
+        prompt: str,
+        session: SessionState,
+        root: Path,
+    ) -> TerminalResult:
+        """Create a bounded V-next proposal without starting training."""
+        from research_os.agent.aibuild_v1 import read_current_run_pointer
+        from research_os.agent.llm_refinement_workflow import create_refinement_plan
+
+        from .assistant_context import build_assistant_context, render_current_run_summary
+
+        pointer = read_current_run_pointer(root)
+        if not pointer or pointer.get("task_id") != "evomind-qwen7b-finetune":
+            return TerminalResult(
+                rc=1,
+                should_exit=False,
+                action="llm_refinement_plan",
+                summary="当前没有可作为父版本的 EvoMind 7B 微调运行。请先完成或恢复现有微调任务。",
+                selected_task=session.selected_task,
+                blocked=True,
+            )
+        try:
+            plan = create_refinement_plan(
+                root,
+                parent_run_id=str(pointer["run_id"]),
+                prompt=prompt,
+                task_id=str(pointer["task_id"]),
+            )
+        except ValueError as exc:
+            if "no supported training-parameter change" in str(exc):
+                packet = build_assistant_context(root)
+                return TerminalResult(
+                    rc=0,
+                    should_exit=False,
+                    action="llm_refinement_clarification",
+                    summary=(
+                        render_current_run_summary(packet)
+                        + "\n\n我已关联当前版本。请只说明这轮要改变的训练变量，例如："
+                        "“把学习率降低一半，继续训练 1 个周期，并重新评测、审核和更新报告”。"
+                    ),
+                    selected_task=session.selected_task,
+                )
+            return TerminalResult(
+                rc=1,
+                should_exit=False,
+                action="llm_refinement_plan",
+                summary=f"微调差异计划未通过边界检查：{exc}",
+                selected_task=session.selected_task,
+                blocked=True,
+            )
+        except (FileNotFoundError, OSError) as exc:
+            return TerminalResult(
+                rc=1,
+                should_exit=False,
+                action="llm_refinement_plan",
+                summary=f"当前父版本证据不完整，差异计划已停止：{type(exc).__name__}",
+                selected_task=session.selected_task,
+                blocked=True,
+            )
+
+        changes = []
+        for change in plan.get("requested_changes") or []:
+            if not isinstance(change, dict):
+                continue
+            changes.append(f"- {change.get('field')}: {change.get('old_value')} -> {change.get('value')}")
+        summary = "\n".join([
+            f"已基于当前 {plan.get('parent_version')} 生成 {plan.get('proposed_version')} 增量微调方案，旧版本保持不变。",
+            *(changes or ["- 未解析到参数变化"]),
+            "- 仅重跑：" + "、".join(str(item) for item in plan.get("affected_steps") or []),
+            "- 本地 GPU：禁用；模型发布：保持阻断",
+            "- 当前状态：等待 Human Gate",
+            "确认后直接说“批准微调”；要撤销则说“拒绝微调”。",
+        ])
+        artifact = root / "workspace" / "tasks" / str(pointer["task_id"]) / "refinements" / f"{plan['refinement_id']}.json"
+        return TerminalResult(
+            rc=0,
+            should_exit=False,
+            action="llm_refinement_plan",
+            summary=summary,
+            selected_task=str(pointer["task_id"]),
+            artifacts=[str(artifact)],
+        )
+
+    @staticmethod
+    def _spawn_refinement_worker(root: Path, *, task_id: str, refinement_id: str, run_id: str) -> int:
+        log_dir = root / "workspace" / "tasks" / task_id / "refinements" / "background"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"{run_id}.log"
+        env = {
+            **os.environ,
+            "PYTHONIOENCODING": "utf-8",
+            "PYTHONUTF8": "1",
+            "PYTHONPATH": os.pathsep.join(filter(None, [str(root / "src"), os.environ.get("PYTHONPATH", "")])),
+        }
+        command = [
+            sys.executable,
+            "-X",
+            "utf8",
+            "-m",
+            "xsci.multi_agent_cli",
+            "refine-run",
+            "--refinement-id",
+            refinement_id,
+            "--run-id",
+            run_id,
+            "--task-id",
+            task_id,
+        ]
+        creationflags = 0
+        start_new_session = os.name != "nt"
+        if os.name == "nt":
+            creationflags = (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "DETACHED_PROCESS", 0)
+                | getattr(subprocess, "CREATE_NO_WINDOW", 0)
+            )
+        with log_path.open("ab") as stream:
+            process = subprocess.Popen(  # noqa: S603
+                command,
+                cwd=root,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=stream,
+                stderr=subprocess.STDOUT,
+                close_fds=True,
+                creationflags=creationflags,
+                start_new_session=start_new_session,
+            )
+        return int(process.pid)
+
+    def _decide_llm_refinement(
+        self,
+        decision: str,
+        session: SessionState,
+        root: Path,
+    ) -> TerminalResult:
+        """Apply the explicit Human Gate decision and launch at most one child run."""
+        from research_os.agent.llm_refinement_workflow import (
+            decide_refinement_plan,
+            latest_refinement_plan,
+            reserve_refinement_run,
+        )
+
+        task_id = "evomind-qwen7b-finetune"
+        plan = latest_refinement_plan(root, task_id=task_id)
+        if not plan:
+            return TerminalResult(
+                rc=1,
+                should_exit=False,
+                action="llm_refinement_gate",
+                summary="没有等待确认的微调方案。请先用自然语言说明要修改的训练变量。",
+                selected_task=session.selected_task,
+                blocked=True,
+            )
+        refinement_id = str(plan.get("refinement_id") or "")
+        try:
+            decided = decide_refinement_plan(root, refinement_id, decision, task_id=task_id)
+            if decision == "reject":
+                return TerminalResult(
+                    rc=0,
+                    should_exit=False,
+                    action="llm_refinement_rejected",
+                    summary=f"{decided.get('proposed_version') or '新版本'} 微调方案已拒绝，当前模型和产物未发生变化。",
+                    selected_task=session.selected_task,
+                )
+            run_id = f"qwen7b_refine_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}_{uuid.uuid4().hex[:6]}"
+            reserved, should_start = reserve_refinement_run(
+                root,
+                refinement_id,
+                run_id,
+                task_id=task_id,
+            )
+            child_run_id = str(reserved.get("child_run_id") or run_id)
+            pid = self._spawn_refinement_worker(
+                root,
+                task_id=task_id,
+                refinement_id=refinement_id,
+                run_id=child_run_id,
+            ) if should_start else 0
+        except (FileNotFoundError, OSError, ValueError) as exc:
+            return TerminalResult(
+                rc=1,
+                should_exit=False,
+                action="llm_refinement_gate",
+                summary=f"Human Gate 决策未能进入执行队列：{type(exc).__name__}: {exc}",
+                selected_task=session.selected_task,
+                blocked=True,
+            )
+        return TerminalResult(
+            rc=0,
+            should_exit=False,
+            action="llm_refinement_started",
+            summary=(
+                f"Human Gate 已批准，{reserved.get('proposed_version') or '新版本'} 已创建并进入受控 HPC 队列。"
+                f"旧版本保持不变；仅重跑受影响节点。后台任务{'已启动' if pid else '已存在并复用'}，"
+                "完成后会重新执行 Evaluator、Independent Reviewer、Claim Audit 并更新报告。"
+            ),
+            selected_task=task_id,
         )
 
     def _handle_execution(self, raw: str, intent, session: SessionState,

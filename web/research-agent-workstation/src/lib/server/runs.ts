@@ -75,6 +75,37 @@ function pythonExecutable() {
   return "C:\\codex-python\\python.exe";
 }
 
+function localGpuPythonExecutable() {
+  return process.platform === "win32"
+    ? path.join(workspaceRoot, "workspace", "local-gpu-venv", "Scripts", "python.exe")
+    : path.join(workspaceRoot, "workspace", "local-gpu-venv", "bin", "python");
+}
+
+async function ensureEvolutionTaskRegistered(taskId: string) {
+  const evolutionConfigPath = path.join(workspaceRoot, "configs", "evolution", `${taskId}.json`);
+  const raw = await fs.readFile(evolutionConfigPath, "utf-8");
+  const config = JSON.parse(raw) as Record<string, unknown>;
+  const generatedConfig = path.join(workspaceRoot, "configs", "generated", `${taskId}.yaml`);
+  const hasGeneratedConfig = await fs.stat(generatedConfig).then((item) => item.isFile()).catch(() => false);
+  const taskData = {
+    name: typeof config.task_name === "string" ? config.task_name : taskId,
+    taskType: typeof config.task_type === "string" ? config.task_type : "classification",
+    target: typeof config.target_column === "string" ? config.target_column : null,
+    metric: typeof config.metric === "string" ? config.metric : null,
+    priority: "high",
+    owner: "AI Scientist",
+    configPath: hasGeneratedConfig
+      ? `configs/generated/${taskId}.yaml`
+      : `configs/evolution/${taskId}.json`,
+    taskDir: `tasks/${taskId}`
+  };
+  await prisma.task.upsert({
+    where: { id: taskId },
+    create: { id: taskId, status: "ready", ...taskData },
+    update: taskData
+  });
+}
+
 async function localTrainingFallbackDisabled() {
   const computeSetting = await prisma.setting.findUnique({ where: { key: "compute" } });
   const compute = decodeJson<Record<string, unknown>>(computeSetting?.valueJson) ?? {};
@@ -84,6 +115,20 @@ async function localTrainingFallbackDisabled() {
   const policyPath = path.join(workspaceRoot, "configs", "external_resources.yaml");
   const policy = await fs.readFile(policyPath, "utf-8").catch(() => "");
   return /local_training_fallback:\s*["']?disabled["']?/i.test(policy);
+}
+
+async function boundedLocalDemoTask(taskId: string) {
+  if (!taskId.startsWith("evomind_demo_") || !/^[A-Za-z0-9._-]+$/.test(taskId)) return false;
+  const configRoot = path.resolve(workspaceRoot, "configs", "evolution");
+  const candidate = path.resolve(configRoot, `${taskId}.json`);
+  if (path.dirname(candidate) !== configRoot) return false;
+  const payload = await fs.readFile(candidate, "utf-8").then(raw => JSON.parse(raw) as Record<string, unknown>).catch(() => null);
+  return Boolean(
+    payload
+    && payload.demo_campaign === true
+    && payload.task_name === taskId
+    && payload.compute_backend === "cpu"
+  );
 }
 
 async function blockedLocalTrainingResponse(action: string, taskId: string) {
@@ -528,17 +573,46 @@ export async function runMCGSExperiment(taskIdInput: string, options: { budgetNo
  * Returns a shape compatible with runEvolutionCycle's ingest step (search_result
  * carries exp_dir so ingest_summary can read engine A's summary.json).
  */
+export type EvolutionEngineRunOptions = {
+  runner?: "gpu" | "local_gpu" | "local";
+  iterations?: number;
+  mcgs?: boolean;
+  dataDir?: string;
+  searchMode?: "legacy_uct" | "experience_mcgs_v1";
+  maxNodes?: number;
+  maxTokens?: number;
+  maxWallSeconds?: number;
+  maxCost?: number | null;
+};
+
 export async function runEvolutionEngineExperiment(
   taskIdInput: string,
-  options: { runner?: "gpu" | "local"; iterations?: number; mcgs?: boolean; dataDir?: string } = {}
+  options: EvolutionEngineRunOptions = {}
 ) {
   await ensureWorkstationSeeded();
   const taskId = normalizeTaskId(taskIdInput);
   // Engine A's GPU runner is real remote training; the local runner is the only
   // "local compute" path and stays behind the same policy gate as the legacy engine.
   const runner = options.runner ?? "gpu";
-  if (runner === "local" && (await localTrainingFallbackDisabled())) {
+  const boundedDemo = runner === "local" && await boundedLocalDemoTask(taskId);
+  if (runner === "local" && !boundedDemo && (await localTrainingFallbackDisabled())) {
     return blockedLocalTrainingResponse("run_evolution_engine_blocked", taskId);
+  }
+  const iterations = options.iterations ?? 8;
+  if (boundedDemo && (iterations < 1 || iterations > 8)) {
+    throw new Error("The isolated local demo campaign is capped at eight nodes.");
+  }
+  const searchMode = options.searchMode ?? "legacy_uct";
+  const maxNodes = boundedDemo ? Math.min(options.maxNodes ?? iterations, 8) : options.maxNodes ?? iterations;
+  const maxTokens = boundedDemo ? Math.min(options.maxTokens ?? 100_000, 100_000) : options.maxTokens ?? 2_000_000;
+  const maxWallSeconds = boundedDemo ? Math.min(options.maxWallSeconds ?? 600, 600) : options.maxWallSeconds ?? 5_400;
+  const maxCost = boundedDemo ? 0.01 : options.maxCost ?? null;
+
+  await ensureEvolutionTaskRegistered(taskId);
+  const selectedPython = runner === "local_gpu" ? localGpuPythonExecutable() : pythonExecutable();
+  if (runner === "local_gpu") {
+    const localGpuRuntimeReady = await fs.stat(selectedPython).then((item) => item.isFile()).catch(() => false);
+    if (!localGpuRuntimeReady) throw new Error("Local RTX 4060 runtime is missing.");
   }
 
   await prisma.task.update({ where: { id: taskId }, data: { status: "running" } });
@@ -550,13 +624,34 @@ export async function runEvolutionEngineExperiment(
       startedAt: new Date()
     }
   });
-  await logAction({ action: "run_evolution_engine", taskId, runId: run.id, message: `research_os evolution engine (${runner}) started for ${taskId}.`, metadata: { runner, iterations: options.iterations ?? 8, mcgs: options.mcgs ?? true } });
+  await logAction({
+    action: "run_evolution_engine",
+    taskId,
+    runId: run.id,
+    message: `research_os evolution engine (${runner}/${searchMode}) started for ${taskId}.`,
+    metadata: {
+      runner,
+      iterations,
+      mcgs: options.mcgs ?? true,
+      search_mode: searchMode,
+      max_nodes: maxNodes,
+      max_tokens: maxTokens,
+      max_wall_seconds: maxWallSeconds,
+      max_cost: maxCost,
+      demo_campaign: boundedDemo
+    }
+  });
 
   const inputPayload = {
     task_id: taskId,
     runner,
-    iterations: options.iterations ?? 8,
+    iterations,
     mcgs: options.mcgs ?? true,
+    search_mode: searchMode,
+    max_nodes: maxNodes,
+    max_tokens: maxTokens,
+    max_wall_seconds: maxWallSeconds,
+    max_cost: maxCost,
     ...(options.dataDir ? { data_dir: options.dataDir } : {})
   };
   const inputDir = path.join(workspaceRoot, "workspace", "evolution", "_io");
@@ -566,10 +661,10 @@ export async function runEvolutionEngineExperiment(
 
   try {
     const { stdout } = await runManagedCommand({
-      command: pythonExecutable(),
+      command: selectedPython,
       args: ["scripts/evolution_run_cli.py", "--input", inputFile],
       cwd: workspaceRoot,
-      timeout: 5400000,  // 90 min: GPU evolution loop across multiple iterations
+      timeout: Math.ceil(maxWallSeconds * 1000),
       taskId,
       runId: run.id,
       onStart: (pid) => prisma.experimentRun.update({ where: { id: run.id }, data: { processId: pid } }).then(() => undefined)

@@ -222,6 +222,9 @@ def main() -> None:
         [sys.executable, "scripts/verify_resource_activation_runbook.py"],
         [sys.executable, "scripts/verify_verified_workstation_launch_audit.py"],
         [sys.executable, "scripts/verify_no_plaintext_secrets.py"],
+        [sys.executable, "scripts/verify_ruff_baseline.py"],
+        [sys.executable, "scripts/verify_workstation_semantic_tokens.py"],
+        [sys.executable, "scripts/verify_workstation_action_coverage.py"],
         [
             sys.executable, "-m", "compileall",
             "-x", r"scripts[\\/]_quarantine[\\/].*",

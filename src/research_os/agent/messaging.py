@@ -27,7 +27,15 @@ import urllib.error
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ..llm_client import LLMError, ProviderConfig, _env, _post_json
+from ..llm_client import (
+    LLMError,
+    ProviderConfig,
+    _env,
+    _openai_chat_url,
+    _post_json,
+    openai_request_options,
+    openai_request_profile_from_env,
+)
 
 
 @dataclass
@@ -85,6 +93,7 @@ class AssistantTurn:
     model: str = ""
     input_tokens: int = 0
     output_tokens: int = 0
+    request_profile: dict[str, str] = field(default_factory=dict)
 
     @property
     def wants_tool(self) -> bool:
@@ -286,18 +295,26 @@ class OpenAITransport(Transport):
     name = "openai"
 
     def build(self, messages, system, tools, max_tokens, temperature):
-        url = self.config.base_url.rstrip("/") + "/v1/chat/completions"
+        url = _openai_chat_url(self.config.base_url)
         headers = {"Authorization": f"Bearer {self.config.api_key}", "content-type": "application/json"}
         # System goes as a leading system message; tools use the function wrapper.
         wire_msgs = [{"role": "system", "content": system}, *_openai_messages(messages)]
         wire_tools = [{"type": "function", "function": {
             "name": t.name, "description": t.description, "parameters": t.input_schema}} for t in tools]
-        payload = {"model": self.config.model, "max_tokens": max_tokens,
-                   "temperature": temperature, "messages": wire_msgs, "tools": wire_tools}
+        payload = {
+            "model": self.config.model,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": wire_msgs,
+            "tools": wire_tools,
+            **openai_request_options(self.config),
+        }
         return url, headers, payload
 
     def parse(self, body: dict[str, Any]) -> AssistantTurn:
-        return _parse_openai_turn(body, self.config.model, provider=self.name)
+        turn = _parse_openai_turn(body, self.config.model, provider=self.name)
+        turn.request_profile = openai_request_options(self.config)
+        return turn
 
 
 class DeepSeekTransport(OpenAITransport):
@@ -331,9 +348,17 @@ def _resolve_transports() -> list[Transport]:
 
     okey = _env("OPENAI_API_KEY")
     if okey:
-        transports.append(OpenAITransport(ProviderConfig(
-            "openai", _env("OPENAI_BASE_URL", "https://api.openai.com"),
-            _env("OPENAI_MODEL", "gpt-4o"), okey)))
+        transports.append(
+            OpenAITransport(
+                ProviderConfig(
+                    "openai",
+                    _env("OPENAI_BASE_URL", "https://api.openai.com"),
+                    _env("OPENAI_MODEL", "gpt-4o"),
+                    okey,
+                    **openai_request_profile_from_env(),
+                )
+            )
+        )
 
     primary = (_env("EVOLUTION_PRIMARY_PROVIDER", "anthropic") or "anthropic").lower()
     strict = (_env("EVOLUTION_PROVIDER_STRICT", "") or "").strip().lower()

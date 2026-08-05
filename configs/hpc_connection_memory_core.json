@@ -1,0 +1,261 @@
+{
+  "schema": "evomind.hpc.connection_memory_core.v1",
+  "status": "mandatory",
+  "updated_at": "2026-07-30T15:23:37+08:00",
+  "source": {
+    "path": "D:/桌面/AIMSLAB HPC校外连接指南（实习生版本）.pdf",
+    "sha256": "7850dea325dd61cccf9ae19c5b11dcc75f840d12ec881d86259ffe3fe45a7b51",
+    "page_count": 4,
+    "visually_verified_pages": 4
+  },
+  "preflight_read_order": [
+    "AGENTS.md",
+    "docs/HPC_CONNECTION_MEMORY_CORE.md",
+    "configs/hpc_connection_memory_core.json"
+  ],
+  "connection_ready_invariant": "designated_proxy_path_verified AND job_container_verified",
+  "connection_state_machine": [
+    "named_job_profile",
+    "local_socks_proxy",
+    "designated_upstream_socks5_proxy",
+    "hpc_ssh_gateway",
+    "allocation_role_routing",
+    "pinned_host_key",
+    "host_gpu_identity_gate",
+    "job_container",
+    "allowed_remote_root"
+  ],
+  "execution_gate": {
+    "initial_state": "disconnected",
+    "gateway_reached_state": "gateway_reached",
+    "ready_state": "job_container_verified",
+    "container_entry_required": true,
+    "proxy_only_is_ready": false,
+    "gateway_only_is_ready": false,
+    "allocation_private_ip_metadata_is_ready": false,
+    "required_container_evidence": [
+      "designated_proxy_path_verified",
+      "pinned_gateway_host_key_verified",
+      "allocation_role_authenticated",
+      "expected_host_uuid_match",
+      "expected_gpu_uuid_match",
+      "expected_gpu_model_and_memory_match",
+      "allowed_remote_root_match"
+    ],
+    "allowed_before_container_verified": [
+      "read_local_connection_contract",
+      "check_designated_proxy_health",
+      "check_gateway_ssh_banner",
+      "perform_read_only_identity_probe"
+    ],
+    "forbidden_before_container_verified": [
+      "gpu_command",
+      "training",
+      "monitoring",
+      "artifact_collection",
+      "grader_execution",
+      "remote_write"
+    ],
+    "fail_closed": true
+  },
+  "source_policy": {
+    "origin": "AIMSLAB_off_campus_connection_guide",
+    "required_sequence": [
+      "designated_proxy",
+      "hpc_ssh_gateway",
+      "allocation_role_account"
+    ],
+    "manual_second_ssh_required": false,
+    "designated_proxy_only": true,
+    "direct_access_forbidden": true,
+    "other_proxy_forbidden": true,
+    "role_account_personal_only": true,
+    "role_account_sharing_allowed": false,
+    "role_account_reclaimed_on_assignment_end": true,
+    "bulk_file_transfer_over_ssh_forbidden": true
+  },
+  "guide_evidence": {
+    "page_1": [
+      "designated_upstream_socks5_endpoint",
+      "hpc_web_and_ssh_gateway_endpoints",
+      "proxy_credentials_and_hpc_role_account_are_distinct",
+      "clash_local_mixed_port_7890"
+    ],
+    "page_2": [
+      "clash_proxy_must_remain_enabled",
+      "gateway_ip_is_routed_through_designated_proxy"
+    ],
+    "pages_3_4": [
+      "ssh_proxycommand_uses_local_socks_endpoint",
+      "allocation_role_account_authenticates_at_gateway"
+    ],
+    "page_4": [
+      "bulk_file_transfer_over_ssh_forbidden",
+      "proxy_configuration_mutation_forbidden",
+      "role_account_sharing_forbidden",
+      "role_account_reclaimed_after_assignment",
+      "direct_or_other_proxy_access_forbidden"
+    ]
+  },
+  "project_identity_gate": {
+    "origin": "evomind_fail_closed_extension",
+    "required_bindings": [
+      "job_id",
+      "named_job_dpapi_profile",
+      "profile_state_active",
+      "allocation_binding_id",
+      "allocation_generation",
+      "profile_instance_id",
+      "profile_bound_allocation_role_account",
+      "pinned_host_key",
+      "expected_host_uuid",
+      "expected_gpu_uuid",
+      "allowed_remote_root"
+    ]
+  },
+  "gateway": {
+    "ssh_host": "100.85.169.63",
+    "ssh_port": 1235,
+    "web_port": 1234,
+    "proxy_required": true,
+    "off_campus_allocation_private_ip_direct_allowed": false,
+    "manual_local_socks_default": "127.0.0.1:7890",
+    "managed_profile_socks_allowed": true
+  },
+  "proxy_chain": {
+    "manual_client": "Clash",
+    "guide_local_socks_host": "127.0.0.1",
+    "guide_local_socks_port": 7890,
+    "designated_upstream_socks5_host": "8.163.52.223",
+    "designated_upstream_socks5_port": 1080,
+    "gateway_route_rule": "IP-CIDR,100.85.169.63/32,Proxy",
+    "managed_profile_local_port_allowed": true,
+    "managed_profile_must_preserve_designated_upstream": true,
+    "direct_route_allowed": false,
+    "other_upstream_proxy_allowed": false,
+    "credentials_embedded": false
+  },
+  "allocation_private_network": {
+    "address_pattern": "10.120.0.0/16",
+    "allocation_page_visibility": "metadata_only",
+    "off_campus_direct_target": "forbidden",
+    "off_campus_fallback_target": "forbidden",
+    "direct_probe_as_route_discovery": "forbidden",
+    "tcp_reachability_changes_route_policy": false
+  },
+  "profile_semantics": {
+    "name_pattern": "job<job_id>",
+    "profile_is_role_account": false,
+    "profile_is_ssh_username": false,
+    "role_account_source": "windows_dpapi_profile_credential",
+    "role_account_value_embedded_in_contract": false,
+    "job_id_profile_binding_required": true
+  },
+  "account_lifecycle": {
+    "states": [
+      "provisioning",
+      "active",
+      "frozen",
+      "retired"
+    ],
+    "metadata_schema": "evomind.hpc.dpapi_profile.v2",
+    "runtime_required_state": "active",
+    "runtime_credential_decryption_before_active_allowed": false,
+    "provisioning_credential_use": "one_shot_identity_bootstrap_only",
+    "allocation_binding_required": true,
+    "allocation_generation_must_be_positive": true,
+    "profile_instance_identity_required": true,
+    "legacy_metadata_migration": "fail_closed_secure_reenrollment_required",
+    "lifecycle_lock_file": ".hpc_profile_lifecycle.lock",
+    "serialized_operations": [
+      "dpapi_decryption",
+      "strict_ssh_connection",
+      "identity_bootstrap_activation_commit",
+      "freeze",
+      "retire"
+    ],
+    "tombstone_files": {
+      "frozen": "hpc_profile_frozen.tombstone.json",
+      "retired": "hpc_profile_retired.tombstone.json",
+      "runtime_loader_rejects_if_present": true,
+      "automatic_removal_allowed": false
+    },
+    "account_sharing_allowed": false,
+    "profile_sharing_allowed": false,
+    "on_allocation_or_account_revoked": "freeze_profile",
+    "freeze_triggers": [
+      "allocation_expired",
+      "allocation_reclaimed",
+      "role_account_reclaimed",
+      "role_account_replaced",
+      "pinned_host_key_mismatch",
+      "expected_host_uuid_mismatch",
+      "expected_gpu_uuid_mismatch",
+      "allowed_remote_root_mismatch"
+    ],
+    "frozen_actions": {
+      "connection_allowed": false,
+      "training_allowed": false,
+      "monitoring_allowed": false,
+      "collection_allowed": false,
+      "grader_allowed": false,
+      "retarget_allowed": false
+    },
+    "new_or_reissued_allocation_requires": [
+      "new_or_rebuilt_job_scoped_profile",
+      "secure_reenrollment",
+      "pinned_host_key",
+      "expected_host_uuid",
+      "expected_gpu_uuid",
+      "allowed_remote_root"
+    ],
+    "old_profile_reuse_allowed": false,
+    "old_profile_retarget_allowed": false
+  },
+  "forbidden_connection_modes": [
+    "off_campus_direct_to_allocation_private_ip",
+    "off_campus_direct_probe_or_ssh_to_10_120_private_ip",
+    "off_campus_without_designated_proxy",
+    "off_campus_through_non_designated_proxy",
+    "job_profile_treated_as_role_account",
+    "shared_role_account_or_profile",
+    "reuse_revoked_allocation_profile",
+    "password_in_source_or_command_line",
+    "unknown_host_key_auto_accept_after_bootstrap",
+    "training_before_host_gpu_identity_binding",
+    "bulk_dataset_transfer_over_ssh"
+  ],
+  "required_profile_fields": [
+    "credential_profile",
+    "schema",
+    "profile_state",
+    "allocation_binding_id",
+    "allocation_generation",
+    "profile_instance_id",
+    "lifecycle_revision",
+    "host",
+    "port",
+    "socks_host",
+    "socks_port",
+    "known_hosts_path",
+    "expected_host_uuid",
+    "expected_gpu_uuid",
+    "container_binding_sha256",
+    "remote_workspace"
+  ],
+  "allowed_remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "required_audit_values": {
+    "signals_sent": 0,
+    "other_processes_modified": false
+  },
+  "current_binding": {
+    "job_id": 90353,
+    "credential_profile": "job90353",
+    "credential_profile_is_role_account": false,
+    "role_account_storage": "windows_dpapi_profile_credential",
+    "role_account_value_embedded": false,
+    "routing": "local_socks_then_designated_upstream_proxy_then_gateway_then_profile_bound_role_account_then_container",
+    "must_revalidate_before_every_use": true
+  },
+  "secrets_stored": false
+}

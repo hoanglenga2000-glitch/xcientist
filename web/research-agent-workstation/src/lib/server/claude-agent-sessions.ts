@@ -3,7 +3,7 @@ import path from "node:path";
 import { logAction } from "@/lib/server/actions";
 import { claudeApiKeyStatus, claudeApiKeyValue, deepSeekApiKeyStatus, deepSeekConfig, hasClaudeApiKey, hasDeepSeekApiKey } from "@/lib/server/capabilities";
 import { attachDeepSeekCacheUsage, createDeepSeekCacheMessages, localResponseCacheUsage, readDeepSeekCachedResponse, recordDeepSeekCacheSession, writeDeepSeekCachedResponse, type DeepSeekCacheMetadata } from "@/lib/server/deepseek-cache";
-import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, toRelativePath, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 
 type ClaudeSessionStatus = "not_configured" | "running" | "completed" | "failed" | "cancelled";
 
@@ -261,7 +261,7 @@ function normalizePromptString(value: string) {
   return value
     .replaceAll(workspaceRoot, "$WORKSPACE_ROOT")
     .replaceAll("\\", "/")
-    .replace(/\b\d{4}-\d{2}-\d{2}T\d{2}[:.]\d{2}[:.]\d{2}(?:[.\-]\d+)?Z?\b/g, "$TIMESTAMP");
+    .replace(/\b\d{4}-\d{2}-\d{2}T\d{2}[:.]\d{2}[:.]\d{2}(?:[.-]\d+)?Z?\b/g, "$TIMESTAMP");
 }
 
 function stablePromptValue(value: unknown): unknown {

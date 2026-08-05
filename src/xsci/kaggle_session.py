@@ -24,8 +24,10 @@ def _has_llm(cfg: Config) -> bool:
     return bool(
         cfg.get("secrets.anthropic_api_key")
         or cfg.get("secrets.deepseek_api_key")
+        or cfg.get("secrets.openai_api_key")
         or os.environ.get("ANTHROPIC_API_KEY")
         or os.environ.get("DEEPSEEK_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
     )
 
 

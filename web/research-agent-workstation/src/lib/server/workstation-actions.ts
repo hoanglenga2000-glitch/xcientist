@@ -1,16 +1,16 @@
 import { promises as fs } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import net from "node:net";
 import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { prisma } from "@/lib/db";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
-import { cancelRunningJob } from "@/lib/server/job-registry";
+import { cancelRunningJob, runManagedCommand } from "@/lib/server/job-registry";
 import { logAction } from "@/lib/server/actions";
 import { encodeJson } from "@/lib/server/json";
 import { bootstrapS6E6BoostingEnvironment, submitGpuJob, testS6E6BoostingDependencies } from "@/lib/server/gpu-ssh-gateway";
-import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 import {
   createHpcExecutionGate,
   createWorkstationRun,
@@ -27,10 +27,13 @@ import {
 import {
   recommendStrategies,
   evaluateStrategyExecutionGate,
-  getStrategyById,
-  getAllStrategies,
-  getDefaultStrategyForTask
+  getAllStrategies
 } from "@/lib/server/strategy-registry";
+import {
+  executeLiteratureAgentAction,
+  isLiteratureAgentAction,
+  writeLiteratureActionReceipt
+} from "@/lib/server/literature-agent-actions";
 
 export type WorkstationActionPayload = {
   action?: string;
@@ -78,6 +81,440 @@ function pythonExecutable() {
   return "C:\\codex-python\\python.exe";
 }
 
+const safeTaskIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+function assertSafeTaskId(taskId: string) {
+  if (!safeTaskIdPattern.test(taskId) || taskId === "." || taskId === "..") {
+    throw new Error("task_id contains unsupported path characters.");
+  }
+  return taskId;
+}
+
+function workspaceRelativePath(value: string) {
+  const normalized = value.replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!normalized || normalized.startsWith("/") || /^[A-Za-z]:\//.test(normalized)) {
+    throw new Error(`Patch path must be workspace-relative: ${value}`);
+  }
+  const parts = normalized.split("/");
+  if (parts.some((part) => !part || part === "." || part === "..")) {
+    throw new Error(`Patch path escapes the workspace: ${value}`);
+  }
+  const target = path.resolve(workspaceRoot, ...parts);
+  const rootPrefix = `${path.resolve(workspaceRoot)}${path.sep}`;
+  if (target !== path.resolve(workspaceRoot) && !target.startsWith(rootPrefix)) {
+    throw new Error(`Patch path escapes the workspace: ${value}`);
+  }
+  return { relativePath: parts.join("/"), target };
+}
+
+function assertPatchTargetAllowed(taskId: string, relativePath: string) {
+  const allowedPrefixes = [
+    `workspace/tasks/${taskId}/code/current_code/`,
+    `tasks/${taskId}/code/`,
+    "src/",
+    "scripts/",
+    "configs/"
+  ];
+  if (!allowedPrefixes.some((prefix) => relativePath.startsWith(prefix))) {
+    throw new Error(`Patch target is outside the writable code scope: ${relativePath}`);
+  }
+}
+
+async function assertNoSymlinkTraversal(target: string) {
+  const relative = path.relative(workspaceRoot, target);
+  let cursor = path.resolve(workspaceRoot);
+  for (const segment of relative.split(path.sep).slice(0, -1)) {
+    cursor = path.join(cursor, segment);
+    const stat = await fs.lstat(cursor).catch(() => null);
+    if (stat?.isSymbolicLink()) throw new Error(`Symbolic-link traversal is blocked: ${relative}`);
+    if (stat && !stat.isDirectory()) throw new Error(`Patch parent is not a directory: ${relative}`);
+    if (!stat) break;
+  }
+}
+
+function sha256Buffer(content: Buffer | string) {
+  return createHash("sha256").update(content).digest("hex");
+}
+
+async function sha256File(filePath: string) {
+  const content = await fs.readFile(filePath).catch(() => null);
+  return content === null ? null : sha256Buffer(content);
+}
+
+type UnifiedHunk = {
+  oldStart: number;
+  oldCount: number;
+  newStart: number;
+  newCount: number;
+  lines: string[];
+};
+
+type UnifiedFilePatch = {
+  oldPath: string | null;
+  newPath: string | null;
+  hunks: UnifiedHunk[];
+};
+
+function cleanUnifiedPath(raw: string) {
+  const value = raw.trim().split(/\s+/)[0];
+  if (value === "/dev/null") return null;
+  return value.replace(/^"|"$/g, "").replace(/^[ab]\//, "").replaceAll("\\", "/");
+}
+
+function parseUnifiedPatch(patchText: string): UnifiedFilePatch[] {
+  if (/^GIT binary patch$/m.test(patchText) || /^Binary files /m.test(patchText)) {
+    throw new Error("Binary patches are not supported by the local atomic patch engine.");
+  }
+  if (/^(rename|copy) (?:from|to) /m.test(patchText)) {
+    throw new Error("Rename/copy patches must be split into explicit file patches.");
+  }
+  const lines = patchText.replaceAll("\r\n", "\n").split("\n");
+  const files: UnifiedFilePatch[] = [];
+  let current: UnifiedFilePatch | null = null;
+  let hunk: UnifiedHunk | null = null;
+  const flush = () => {
+    if (!current) return;
+    if (!current.hunks.length) throw new Error("Every patched file must contain a ranged unified-diff hunk.");
+    if (!current.oldPath && !current.newPath) throw new Error("Patch file headers are missing.");
+    files.push(current);
+    current = null;
+    hunk = null;
+  };
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) {
+      flush();
+      current = { oldPath: null, newPath: null, hunks: [] };
+      continue;
+    }
+    if (line.startsWith("--- ")) {
+      if (!current) current = { oldPath: null, newPath: null, hunks: [] };
+      current.oldPath = cleanUnifiedPath(line.slice(4));
+      continue;
+    }
+    if (line.startsWith("+++ ")) {
+      if (!current) throw new Error("Patch new-file header appears before old-file header.");
+      current.newPath = cleanUnifiedPath(line.slice(4));
+      continue;
+    }
+    const match = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+    if (match) {
+      if (!current) throw new Error("Patch hunk appears before file headers.");
+      hunk = {
+        oldStart: Number(match[1]),
+        oldCount: match[2] === undefined ? 1 : Number(match[2]),
+        newStart: Number(match[3]),
+        newCount: match[4] === undefined ? 1 : Number(match[4]),
+        lines: []
+      };
+      current.hunks.push(hunk);
+      continue;
+    }
+    if (hunk && (/^[ +\\-]/.test(line) || line === "")) {
+      if (line.startsWith("\\ No newline at end of file")) continue;
+      if (line === "") hunk.lines.push(" ");
+      else hunk.lines.push(line);
+    }
+  }
+  flush();
+  if (!files.length) throw new Error("No unified-diff file sections were found.");
+  return files;
+}
+
+function applyUnifiedHunks(sourceText: string, filePatch: UnifiedFilePatch) {
+  const hadFinalNewline = sourceText.endsWith("\n");
+  const source = sourceText === "" ? [] : sourceText.replaceAll("\r\n", "\n").split("\n");
+  if (hadFinalNewline) source.pop();
+  const output: string[] = [];
+  let cursor = 0;
+  for (const hunk of filePatch.hunks) {
+    const hunkStart = Math.max(0, hunk.oldStart - 1);
+    if (hunkStart < cursor || hunkStart > source.length) throw new Error("Patch hunk offset is outside the source file.");
+    output.push(...source.slice(cursor, hunkStart));
+    cursor = hunkStart;
+    let oldSeen = 0;
+    let newSeen = 0;
+    for (const line of hunk.lines) {
+      const marker = line[0];
+      const content = line.slice(1);
+      if (marker === " ") {
+        if (source[cursor] !== content) throw new Error(`Patch context mismatch at source line ${cursor + 1}.`);
+        output.push(content);
+        cursor += 1;
+        oldSeen += 1;
+        newSeen += 1;
+      } else if (marker === "-") {
+        if (source[cursor] !== content) throw new Error(`Patch deletion mismatch at source line ${cursor + 1}.`);
+        cursor += 1;
+        oldSeen += 1;
+      } else if (marker === "+") {
+        output.push(content);
+        newSeen += 1;
+      }
+    }
+    if (oldSeen !== hunk.oldCount || newSeen !== hunk.newCount) {
+      throw new Error(`Patch hunk count mismatch: expected -${hunk.oldCount}/+${hunk.newCount}, got -${oldSeen}/+${newSeen}.`);
+    }
+  }
+  output.push(...source.slice(cursor));
+  return output.length ? `${output.join("\n")}\n` : "";
+}
+
+type PatchMutation = {
+  relativePath: string;
+  target: string;
+  before: Buffer | null;
+  after: Buffer | null;
+  beforeSha256: string | null;
+  afterSha256: string | null;
+};
+
+async function planAtomicPatch(taskId: string, patchText: string) {
+  const sections = parseUnifiedPatch(patchText);
+  const seen = new Set<string>();
+  const mutations: PatchMutation[] = [];
+  for (const section of sections) {
+    const relativePath = section.newPath ?? section.oldPath;
+    if (!relativePath) throw new Error("Patch section has neither an old nor a new path.");
+    const resolved = workspaceRelativePath(relativePath);
+    assertPatchTargetAllowed(taskId, resolved.relativePath);
+    await assertNoSymlinkTraversal(resolved.target);
+    if (seen.has(resolved.relativePath)) throw new Error(`Patch contains duplicate file sections: ${resolved.relativePath}`);
+    seen.add(resolved.relativePath);
+    if (section.oldPath && section.newPath && section.oldPath !== section.newPath) {
+      throw new Error("Path-changing patches are not supported; use explicit delete/add sections.");
+    }
+    const before = await fs.readFile(resolved.target).catch(() => null);
+    if (section.oldPath && before === null) throw new Error(`Patch source file does not exist: ${resolved.relativePath}`);
+    if (!section.oldPath && before !== null) throw new Error(`New patch target already exists: ${resolved.relativePath}`);
+    const patchedText = applyUnifiedHunks(before?.toString("utf-8") ?? "", section);
+    if (section.newPath === null && patchedText !== "") {
+      throw new Error(`Deletion patch did not consume the complete source file: ${resolved.relativePath}`);
+    }
+    const after = section.newPath === null ? null : Buffer.from(patchedText, "utf-8");
+    mutations.push({
+      relativePath: resolved.relativePath,
+      target: resolved.target,
+      before,
+      after,
+      beforeSha256: before === null ? null : sha256Buffer(before),
+      afterSha256: after === null ? null : sha256Buffer(after)
+    });
+  }
+  return mutations;
+}
+
+async function atomicWriteFile(target: string, content: Buffer) {
+  await fs.mkdir(path.dirname(target), { recursive: true });
+  const temporary = path.join(path.dirname(target), `.${path.basename(target)}.${randomUUID()}.tmp`);
+  await fs.writeFile(temporary, content);
+  await fs.rename(temporary, target).catch(async (error) => {
+    await fs.rm(temporary, { force: true }).catch(() => undefined);
+    throw error;
+  });
+}
+
+async function writeJsonAtomic(target: string, payload: unknown) {
+  await atomicWriteFile(target, Buffer.from(`${JSON.stringify(payload, null, 2)}\n`, "utf-8"));
+}
+
+async function recoverInterruptedPatchTransactions(taskId: string) {
+  const root = workspaceRelativePath(`workspace/tasks/${taskId}/code/patches/transactions`).target;
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries.filter((item) => item.isDirectory())) {
+    const transactionRoot = path.join(root, entry.name);
+    const manifestPath = path.join(transactionRoot, "manifest.json");
+    const manifest = await readJsonFile(manifestPath) as Record<string, unknown> | null;
+    if (!manifest || !["applying", "rolling_back"].includes(String(manifest.status))) continue;
+    const files = Array.isArray(manifest.files) ? manifest.files as Array<Record<string, unknown>> : [];
+    if (manifest.status === "applying") {
+      for (const file of [...files].reverse()) {
+        const relativePath = String(file.path ?? "");
+        const resolved = workspaceRelativePath(relativePath);
+        assertPatchTargetAllowed(taskId, resolved.relativePath);
+        const backup = path.join(transactionRoot, "backups", ...relativePath.split("/"));
+        const backupExists = await fs.stat(backup).then((stat) => stat.isFile()).catch(() => false);
+        const currentHash = await sha256File(resolved.target);
+        const afterHash = typeof file.after_sha256 === "string" ? file.after_sha256 : null;
+        if (backupExists) {
+          await fs.rm(resolved.target, { force: true }).catch(() => undefined);
+          await fs.mkdir(path.dirname(resolved.target), { recursive: true });
+          await fs.rename(backup, resolved.target);
+        } else if (file.before_exists !== true && currentHash === afterHash) {
+          await fs.rm(resolved.target, { force: true });
+        }
+      }
+      manifest.status = "recovered_interrupted_apply";
+      manifest.recovered_at = new Date().toISOString();
+      await writeJsonAtomic(manifestPath, manifest);
+      continue;
+    }
+    for (const file of files) {
+      const relativePath = String(file.path ?? "");
+      const resolved = workspaceRelativePath(relativePath);
+      assertPatchTargetAllowed(taskId, resolved.relativePath);
+      const currentStash = path.join(transactionRoot, "rollback-current", ...relativePath.split("/"));
+      const stashExists = await fs.stat(currentStash).then((stat) => stat.isFile()).catch(() => false);
+      if (stashExists) {
+        await fs.rm(resolved.target, { force: true }).catch(() => undefined);
+        await fs.mkdir(path.dirname(resolved.target), { recursive: true });
+        await fs.rename(currentStash, resolved.target);
+      }
+    }
+    manifest.status = "applied";
+    manifest.rollback_recovered_at = new Date().toISOString();
+    await writeJsonAtomic(manifestPath, manifest);
+  }
+}
+
+async function applyPatchTransaction(taskId: string, patchPath: string, patchText: string) {
+  await recoverInterruptedPatchTransactions(taskId);
+  const mutations = await planAtomicPatch(taskId, patchText);
+  const transactionId = `patch_tx_${stamp()}_${randomUUID().slice(0, 8)}`;
+  const transactionRelative = `workspace/tasks/${taskId}/code/patches/transactions/${transactionId}`;
+  const transactionRoot = workspaceRelativePath(transactionRelative).target;
+  const backupRoot = path.join(transactionRoot, "backups");
+  const manifestPath = path.join(transactionRoot, "manifest.json");
+  await fs.mkdir(backupRoot, { recursive: true });
+  const manifest: Record<string, unknown> = {
+    schema: "evomind.atomic_patch_transaction.v1",
+    transaction_id: transactionId,
+    task_id: taskId,
+    patch_path: patchPath,
+    patch_sha256: sha256Buffer(patchText),
+    status: "applying",
+    created_at: new Date().toISOString(),
+    files: mutations.map((mutation) => ({
+      path: mutation.relativePath,
+      before_exists: mutation.before !== null,
+      before_sha256: mutation.beforeSha256,
+      after_exists: mutation.after !== null,
+      after_sha256: mutation.afterSha256,
+      committed: false
+    }))
+  };
+  await writeJsonAtomic(manifestPath, manifest);
+  const committed: PatchMutation[] = [];
+  try {
+    for (let index = 0; index < mutations.length; index += 1) {
+      const mutation = mutations[index];
+      const backup = path.join(backupRoot, ...mutation.relativePath.split("/"));
+      if (mutation.before !== null) {
+        await fs.mkdir(path.dirname(backup), { recursive: true });
+        await fs.rename(mutation.target, backup);
+      }
+      try {
+        if (mutation.after !== null) await atomicWriteFile(mutation.target, mutation.after);
+      } catch (error) {
+        if (mutation.before !== null) await fs.rename(backup, mutation.target).catch(() => undefined);
+        throw error;
+      }
+      committed.push(mutation);
+      (manifest.files as Array<Record<string, unknown>>)[index].committed = true;
+      await writeJsonAtomic(manifestPath, manifest);
+    }
+    for (const mutation of mutations) {
+      if (await sha256File(mutation.target) !== mutation.afterSha256) {
+        throw new Error(`Post-apply checksum mismatch: ${mutation.relativePath}`);
+      }
+    }
+    manifest.status = "applied";
+    manifest.applied_at = new Date().toISOString();
+    await writeJsonAtomic(manifestPath, manifest);
+  } catch (error) {
+    for (const mutation of committed.reverse()) {
+      const backup = path.join(backupRoot, ...mutation.relativePath.split("/"));
+      await fs.rm(mutation.target, { force: true }).catch(() => undefined);
+      if (mutation.before !== null) {
+        await fs.mkdir(path.dirname(mutation.target), { recursive: true });
+        await fs.rename(backup, mutation.target).catch(() => undefined);
+      }
+    }
+    manifest.status = "failed_rolled_back";
+    manifest.error = error instanceof Error ? error.message : String(error);
+    await writeJsonAtomic(manifestPath, manifest).catch(() => undefined);
+    throw error;
+  }
+  return { transactionId, transactionRelative, manifestPath, mutations };
+}
+
+async function latestAppliedPatchTransaction(taskId: string) {
+  const root = workspaceRelativePath(`workspace/tasks/${taskId}/code/patches/transactions`).target;
+  const entries = await fs.readdir(root, { withFileTypes: true }).catch(() => []);
+  const manifests = await Promise.all(entries.filter((entry) => entry.isDirectory()).map(async (entry) => {
+    const manifestPath = path.join(root, entry.name, "manifest.json");
+    const payload = await readJsonFile(manifestPath) as Record<string, unknown> | null;
+    const stat = await fs.stat(manifestPath).catch(() => null);
+    return payload && stat ? { payload, manifestPath, root: path.dirname(manifestPath), mtimeMs: stat.mtimeMs } : null;
+  }));
+  return manifests
+    .filter((item): item is NonNullable<typeof item> => Boolean(item && item.payload.status === "applied"))
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0] ?? null;
+}
+
+async function rollbackPatchTransaction(taskId: string, force = false) {
+  await recoverInterruptedPatchTransactions(taskId);
+  const transaction = await latestAppliedPatchTransaction(taskId);
+  if (!transaction) throw new Error("No applied patch transaction is available for rollback.");
+  const files = Array.isArray(transaction.payload.files) ? transaction.payload.files as Array<Record<string, unknown>> : [];
+  if (!files.length) throw new Error("Patch transaction manifest has no file records.");
+  for (const file of files) {
+    const resolved = workspaceRelativePath(String(file.path ?? ""));
+    assertPatchTargetAllowed(taskId, resolved.relativePath);
+    const current = await sha256File(resolved.target);
+    const expected = typeof file.after_sha256 === "string" ? file.after_sha256 : null;
+    if (!force && current !== expected) throw new Error(`Rollback blocked because the file changed after apply: ${resolved.relativePath}`);
+  }
+  const restored: Array<{ path: string; sha256: string | null }> = [];
+  const touched: string[] = [];
+  transaction.payload.status = "rolling_back";
+  transaction.payload.rollback_started_at = new Date().toISOString();
+  await writeJsonAtomic(transaction.manifestPath, transaction.payload);
+  try {
+    for (const file of [...files].reverse()) {
+      const relativePath = String(file.path ?? "");
+      const resolved = workspaceRelativePath(relativePath);
+      const beforeExists = file.before_exists === true;
+      const backup = path.join(transaction.root, "backups", ...relativePath.split("/"));
+      const currentStash = path.join(transaction.root, "rollback-current", ...relativePath.split("/"));
+      const currentExists = await fs.stat(resolved.target).then((stat) => stat.isFile()).catch(() => false);
+      if (currentExists) {
+        await fs.mkdir(path.dirname(currentStash), { recursive: true });
+        await fs.rename(resolved.target, currentStash);
+      }
+      touched.push(relativePath);
+      if (beforeExists) await atomicWriteFile(resolved.target, await fs.readFile(backup));
+      const checksum = await sha256File(resolved.target);
+      const expected = typeof file.before_sha256 === "string" ? file.before_sha256 : null;
+      if (checksum !== expected) throw new Error(`Rollback checksum mismatch: ${relativePath}`);
+      restored.push({ path: relativePath, sha256: checksum });
+    }
+    transaction.payload.status = "rolled_back";
+    transaction.payload.rolled_back_at = new Date().toISOString();
+    transaction.payload.rollback_files = restored;
+    await writeJsonAtomic(transaction.manifestPath, transaction.payload);
+  } catch (error) {
+    for (const relativePath of [...touched].reverse()) {
+      const resolved = workspaceRelativePath(relativePath);
+      const currentStash = path.join(transaction.root, "rollback-current", ...relativePath.split("/"));
+      await fs.rm(resolved.target, { force: true }).catch(() => undefined);
+      const stashExists = await fs.stat(currentStash).then((stat) => stat.isFile()).catch(() => false);
+      if (stashExists) {
+        await fs.mkdir(path.dirname(resolved.target), { recursive: true });
+        await fs.rename(currentStash, resolved.target).catch(() => undefined);
+      }
+    }
+    transaction.payload.status = "rollback_failed_restored";
+    transaction.payload.rollback_error = error instanceof Error ? error.message : String(error);
+    await writeJsonAtomic(transaction.manifestPath, transaction.payload).catch(() => undefined);
+    throw error;
+  }
+  return {
+    transactionId: String(transaction.payload.transaction_id ?? "unknown"),
+    transactionRelative: path.relative(workspaceRoot, transaction.root).replaceAll("\\", "/"),
+    restored
+  };
+}
+
 async function latestPatch(taskId: string) {
   const patchDir = resolveWorkspacePath(`workspace/tasks/${taskId}/code/patches`);
   const entries = await fs.readdir(patchDir, { withFileTypes: true }).catch(() => []);
@@ -100,7 +537,7 @@ async function patchFromReviewMetadata(taskId: string, metadata: Record<string, 
     if (!normalizedPatchPath.startsWith(`workspace/tasks/${taskId}/code/patches/`) || !normalizedPatchPath.endsWith(".diff")) {
       return null;
     }
-    const fullPath = resolveWorkspacePath(normalizedPatchPath);
+    const fullPath = workspaceRelativePath(normalizedPatchPath).target;
     const stat = await fs.stat(fullPath).catch(() => null);
     return stat?.isFile()
       ? { name: path.basename(normalizedPatchPath), fullPath, relativePath: normalizedPatchPath, mtimeMs: stat.mtimeMs }
@@ -108,10 +545,11 @@ async function patchFromReviewMetadata(taskId: string, metadata: Record<string, 
   }
   const sessionId = typeof metadata?.session_id === "string" ? metadata.session_id : "";
   if (sessionId) {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(sessionId)) return null;
     const manifest = await readJsonFile(resolveWorkspacePath(`workspace/code_agent_sessions/${sessionId}/session_manifest.json`)) as Record<string, unknown> | null;
     const sessionPatch = typeof manifest?.patch_path === "string" ? manifest.patch_path.replaceAll("\\", "/") : "";
-    if (!sessionPatch) return null;
-    const fullPath = resolveWorkspacePath(sessionPatch);
+    if (!sessionPatch || !sessionPatch.startsWith(`workspace/tasks/${taskId}/code/patches/`) || !sessionPatch.endsWith(".diff")) return null;
+    const fullPath = workspaceRelativePath(sessionPatch).target;
     const stat = await fs.stat(fullPath).catch(() => null);
     return stat?.isFile()
       ? { name: path.basename(sessionPatch), fullPath, relativePath: sessionPatch, mtimeMs: stat.mtimeMs }
@@ -223,8 +661,8 @@ async function pythonSyntaxCheck(taskId: string) {
     const exists = await fs.stat(candidate).then((stat) => stat.isFile()).catch(() => false);
     if (!exists) continue;
     try {
-      const executable = process.platform === "win32" ? "python" : "python3";
-      await execFileAsync(executable, ["-m", "py_compile", candidate], { timeout: 20000 });
+      const compileScript = "from pathlib import Path; import sys; p=Path(sys.argv[1]); compile(p.read_text(encoding='utf-8'), str(p), 'exec')";
+      await execFileAsync(pythonExecutable(), ["-c", compileScript, candidate], { timeout: 20000 });
       return { status: "passed", file: path.relative(resolveWorkspacePath("."), candidate), error: null };
     } catch (error) {
       return {
@@ -288,7 +726,8 @@ async function patchPythonSyntaxCheck(taskId: string, patchText: string) {
     for (const item of pythonFiles) {
       const scratchFile = path.join(scratchRoot, path.basename(item.file));
       await fs.writeFile(scratchFile, item.content, "utf-8");
-      await execFileAsync(pythonExecutable(), ["-m", "py_compile", scratchFile], { timeout: 20000 });
+      const compileScript = "from pathlib import Path; import sys; p=Path(sys.argv[1]); compile(p.read_text(encoding='utf-8'), str(p), 'exec')";
+      await execFileAsync(pythonExecutable(), ["-c", compileScript, scratchFile], { timeout: 20000 });
       checked.push(item.file);
     }
     return { status: "passed", files: checked, error: null };
@@ -2319,10 +2758,56 @@ async function diagnoseS6E6ScoreRegression() {
 
 export async function handleWorkstationAction(payload: WorkstationActionPayload) {
   const action = payload.action ?? "unknown";
-  const taskId = normalizeTaskId(payload.task_id ?? payload.taskId ?? "house_prices");
+  const taskId = assertSafeTaskId(normalizeTaskId(payload.task_id ?? payload.taskId ?? "house_prices"));
   await ensureTask(taskId);
 
+  if (isLiteratureAgentAction(action)) {
+    const executed = await executeLiteratureAgentAction({
+      action,
+      taskId,
+      metadata: payload.metadata ?? {}
+    });
+    const record = await logAction({
+      action,
+      taskId,
+      message: executed.message,
+      artifactPath: executed.artifactPath,
+      metadata: executed.metadata
+    });
+    return {
+      ok: true,
+      ...record,
+      artifact_path: executed.artifactPath,
+      ...executed.result
+    };
+  }
+
   switch (action) {
+    case "literature_search":
+    case "literature_import":
+    case "rag_export_context_markdown":
+    case "rag_export_manifest_json":
+    case "rag_refresh_index": {
+      const metadata = payload.metadata ?? {};
+      const contextPath = typeof metadata.context_path === "string" ? metadata.context_path : null;
+      const manifestPath = typeof metadata.manifest_path === "string" ? metadata.manifest_path : null;
+      const artifact = await writeLiteratureActionReceipt(taskId, action, {
+        ...metadata,
+        query: typeof metadata.query === "string" ? metadata.query : null,
+        context_path: contextPath,
+        manifest_path: manifestPath,
+        source: "frontend_terminal_link"
+      });
+      const record = await logAction({
+        action,
+        taskId,
+        message: `${action} recorded in the EvoMind evidence timeline.`,
+        artifactPath: artifact,
+        metadata: { context_path: contextPath, manifest_path: manifestPath, source: "frontend_terminal_link" }
+      });
+      return { ok: true, ...record, context_path: contextPath, manifest_path: manifestPath, artifact_path: artifact };
+    }
+    case "tasks_create_workstation_run":
     case "create_workstation_run": {
       const created = await createWorkstationRun({
         taskId,
@@ -2332,6 +2817,63 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         objective: typeof payload.metadata?.objective === "string" ? payload.metadata.objective : undefined
       });
       return created;
+    }
+    case "tasks_dispatch_agents":
+    case "dispatch_task_agents": {
+      const objective = typeof payload.metadata?.objective === "string" && payload.metadata.objective.trim()
+        ? payload.metadata.objective.trim().slice(0, 6000)
+        : `Execute the local research workflow for task ${taskId}. Produce a bounded plan, durable evidence, gate decisions, and a report-ready result without invoking irreversible external actions.`;
+      const created = await createWorkstationRun({
+        taskId,
+        trigger: "tasks_screen_agent_dispatch",
+        objective
+      });
+      const runId = created.run_id;
+      const requestPath = `workspace/evomind_requests/${runId}.txt`;
+      await writeTextArtifact(requestPath, objective);
+      const pythonPath = [resolveWorkspacePath("src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+      const executionDisabled = process.env.WORKSTATION_DISABLE_AGENT_EXECUTION === "1";
+      if (!executionDisabled) {
+        void runManagedCommand({
+          command: pythonExecutable(),
+          args: ["-m", "xsci.multi_agent_cli", "run", "--request-file", resolveWorkspacePath(requestPath), "--run-id", runId],
+          cwd: workspaceRoot,
+          env: { ...process.env, PYTHONPATH: pythonPath },
+          timeout: 45 * 60 * 1000,
+          taskId,
+          runId,
+          onStart: async (pid) => {
+            await prisma.experimentRun.update({ where: { id: runId }, data: { status: "running", processId: pid, startedAt: new Date() } });
+          }
+        }).then(async () => {
+          await prisma.experimentRun.update({ where: { id: runId }, data: { status: "completed", processId: null, finishedAt: new Date() } }).catch(() => undefined);
+        }).catch(async (error) => {
+          await prisma.experimentRun.update({
+            where: { id: runId },
+            data: { status: "failed", processId: null, finishedAt: new Date(), metricsJson: encodeJson({ dispatch_error: error instanceof Error ? error.message : String(error) }) }
+          }).catch(() => undefined);
+        });
+      } else {
+        await prisma.experimentRun.update({ where: { id: runId }, data: { status: "queued" } });
+      }
+      const record = await logAction({
+        action: "dispatch_task_agents",
+        taskId,
+        runId,
+        message: executionDisabled ? "Agent dispatch queued with execution disabled for isolated verification." : "Local multi-agent execution dispatched.",
+        artifactPath: requestPath,
+        metadata: { objective, execution_started: !executionDisabled, irreversible_actions: "human_gate" }
+      });
+      return {
+        ok: true,
+        ...record,
+        run_id: runId,
+        status: executionDisabled ? "queued" : "starting",
+        request_path: requestPath,
+        execution_started: !executionDisabled,
+        snapshot_url: `/api/multi-agent/runs/${encodeURIComponent(runId)}`,
+        events_url: `/api/multi-agent/runs/${encodeURIComponent(runId)}/events?after_seq=0`
+      };
     }
     case "onboard_playground_s6e6": {
       const onboarded = await ensurePlaygroundSeriesTask();
@@ -3072,6 +3614,76 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       const record = await logAction({ action, taskId, message: `Report section selected: ${section}.`, artifactPath: artifact });
       return { ok: true, ...record };
     }
+    case "code_add_new_file": {
+      const requested = typeof payload.metadata?.relative_path === "string" ? payload.metadata.relative_path : "";
+      const fallback = `workspace/tasks/${taskId}/code/current_code/untitled_${stamp()}.py`;
+      const resolved = workspaceRelativePath(requested || fallback);
+      if (!resolved.relativePath.startsWith(`workspace/tasks/${taskId}/code/current_code/`)) {
+        throw new Error("New Code Agent files must stay in the selected task current_code directory.");
+      }
+      await assertNoSymlinkTraversal(resolved.target);
+      const exists = await fs.stat(resolved.target).then((stat) => stat.isFile()).catch(() => false);
+      if (exists) return { ok: false, error: `File already exists: ${resolved.relativePath}` };
+      const content = typeof payload.metadata?.content === "string"
+        ? payload.metadata.content
+        : `"""Code Agent workspace file for ${taskId}."""\n\nfrom __future__ import annotations\n`;
+      await atomicWriteFile(resolved.target, Buffer.from(content, "utf-8"));
+      const checksum = await sha256File(resolved.target);
+      const record = await logAction({
+        action: "code_add_new_file",
+        taskId,
+        message: `Code workspace file created: ${resolved.relativePath}`,
+        artifactPath: resolved.relativePath,
+        metadata: { sha256: checksum, atomic_write: true }
+      });
+      return { ok: true, ...record, file_path: resolved.relativePath, sha256: checksum };
+    }
+    case "run_code_smoke_test": {
+      const patch = await patchFromReviewMetadata(taskId, payload.metadata);
+      const patchText = patch ? await fs.readFile(patch.fullPath, "utf-8").catch(() => "") : "";
+      const staticAnalysis = analyzePatch(taskId, patchText);
+      const currentSyntax = await pythonSyntaxCheck(taskId);
+      const patchSyntax = await patchPythonSyntaxCheck(taskId, patchText);
+      let applyCheck: { status: "passed" | "failed" | "skipped"; files: string[]; error: string | null };
+      if (!patch) {
+        applyCheck = { status: "skipped", files: [], error: "No imported patch diff found." };
+      } else {
+        try {
+          const planned = await planAtomicPatch(taskId, patchText);
+          applyCheck = { status: "passed", files: planned.map((item) => item.relativePath), error: null };
+        } catch (error) {
+          applyCheck = { status: "failed", files: staticAnalysis.files, error: error instanceof Error ? error.message : String(error) };
+        }
+      }
+      const status = patch
+        && staticAnalysis.passed
+        && currentSyntax.status !== "failed"
+        && patchSyntax.status !== "failed"
+        && applyCheck.status === "passed"
+        ? "passed"
+        : "failed";
+      const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/code_smoke_${stamp()}.json`, {
+        schema: "evomind.code_patch_smoke.v1",
+        task_id: taskId,
+        patch_path: patch?.relativePath ?? null,
+        status,
+        static_analysis: staticAnalysis,
+        current_python_syntax: currentSyntax,
+        patch_python_syntax: patchSyntax,
+        atomic_apply_check: applyCheck,
+        external_execution_started: false,
+        created_at: new Date().toISOString()
+      });
+      const record = await logAction({
+        action: "run_code_smoke_test",
+        taskId,
+        message: status === "passed" ? "Code patch smoke test passed." : "Code patch smoke test failed.",
+        artifactPath: artifact,
+        metadata: { status, patch_path: patch?.relativePath ?? null, apply_check: applyCheck.status }
+      });
+      return { ok: status === "passed", ...record, status, apply_check: applyCheck };
+    }
+    case "request_code_quality_gate":
     case "review_agent_patch": {
       const sourceAgent = String(payload.metadata?.source_agent ?? "manual");
       const patchStatus = String(payload.metadata?.patch_status ?? "suggested");
@@ -3080,10 +3692,20 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       const patchAnalysis = analyzePatch(taskId, patchText);
       const syntax = await pythonSyntaxCheck(taskId);
       const patchSyntax = await patchPythonSyntaxCheck(taskId, patchText);
+      let applyCheck: { status: "passed" | "failed"; files: string[]; error: string | null };
+      try {
+        const planned = patch ? await planAtomicPatch(taskId, patchText) : [];
+        applyCheck = patch
+          ? { status: "passed", files: planned.map((item) => item.relativePath), error: null }
+          : { status: "failed", files: [], error: "No imported patch diff found." };
+      } catch (error) {
+        applyCheck = { status: "failed", files: patchAnalysis.files, error: error instanceof Error ? error.message : String(error) };
+      }
       const overallStatus = patch
         && patchAnalysis.passed
         && syntax.status !== "failed"
         && patchSyntax.status !== "failed"
+        && applyCheck.status === "passed"
         ? "passed"
         : "failed";
       const reviewArtifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/patch_review_${stamp()}.json`, {
@@ -3112,6 +3734,9 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         patch_python_syntax_check: patchSyntax.status,
         patch_python_syntax_files: patchSyntax.files,
         patch_python_syntax_error: patchSyntax.error,
+        atomic_apply_check: applyCheck.status,
+        atomic_apply_files: applyCheck.files,
+        atomic_apply_error: applyCheck.error,
         smoke_test: "not_run_in_review_action",
         baseline_run_test: "requires_run_local_experiment_after_apply",
         submission_check: "requires_run_local_experiment_after_apply",
@@ -3181,7 +3806,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         taskId,
         message: overallStatus === "passed" ? "Code agent patch passed quality gate; human approval still required before apply." : "Code agent patch failed quality gate; apply is blocked.",
         artifactPath: reviewArtifact,
-        metadata: { source_agent: sourceAgent, patch_status: patchStatus, overall_status: overallStatus, review_artifact: reviewArtifact, quality_artifact: qualityArtifact, diff_artifact: diffArtifact, trace_artifact: traceArtifact, failure_review_artifact: failureReviewArtifact }
+        metadata: { source_agent: sourceAgent, patch_status: patchStatus, overall_status: overallStatus, review_artifact: reviewArtifact, quality_artifact: qualityArtifact, diff_artifact: diffArtifact, trace_artifact: traceArtifact, failure_review_artifact: failureReviewArtifact, atomic_apply_check: applyCheck.status }
       });
       return { ok: true, ...record, quality_status: overallStatus };
     }
@@ -3209,8 +3834,12 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       const gatePatchPath = typeof qualityGate.payload.patch_path === "string"
         ? qualityGate.payload.patch_path.replaceAll("\\", "/")
         : "";
-      const gatePatchExists = gatePatchPath
-        ? await fs.stat(resolveWorkspacePath(gatePatchPath)).then((stat) => stat.isFile()).catch(() => false)
+      const gatePatch = gatePatchPath ? workspaceRelativePath(gatePatchPath) : null;
+      const expectedPatchPrefix = `workspace/tasks/${taskId}/code/patches/`;
+      const gatePatchExists = gatePatch
+        && gatePatch.relativePath.startsWith(expectedPatchPrefix)
+        && gatePatch.relativePath.endsWith(".diff")
+        ? await fs.stat(gatePatch.target).then((stat) => stat.isFile()).catch(() => false)
         : false;
       if (!gatePatchPath || !gatePatchExists) {
         const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/apply_blocked_${stamp()}.json`, {
@@ -3230,6 +3859,8 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         });
         return { ok: false, ...record, error: "Patch apply blocked: missing bound patch artifact." };
       }
+      const patchText = await fs.readFile(gatePatch!.target, "utf-8");
+      const transaction = await applyPatchTransaction(taskId, gatePatch!.relativePath, patchText);
       const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/${action}_${stamp()}.json`, {
         task_id: taskId,
         source_agent: sourceAgent,
@@ -3237,38 +3868,49 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         action,
         patch_path: gatePatchPath,
         quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath),
-        applied_logical_only: true,
+        transaction_id: transaction.transactionId,
+        transaction_path: transaction.transactionRelative,
+        applied_logical_only: false,
+        files: transaction.mutations.map((mutation) => ({
+          path: mutation.relativePath,
+          before_sha256: mutation.beforeSha256,
+          after_sha256: mutation.afterSha256
+        })),
         next_required_step: "run_local_experiment",
         created_at: new Date().toISOString()
       });
       const record = await logAction({
         action,
         taskId,
-        message: "Patch apply recorded after passed Code Quality Gate; run local experiment to compare metrics.",
+        message: "Patch applied atomically after a passed Code Quality Gate; run the local experiment to compare metrics.",
         artifactPath: artifact,
-        metadata: { source_agent: sourceAgent, patch_status: patchStatus, quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath) }
+        metadata: { source_agent: sourceAgent, patch_status: patchStatus, quality_gate_path: path.relative(resolveWorkspacePath("."), qualityGate.fullPath), transaction_id: transaction.transactionId, transaction_path: transaction.transactionRelative }
       });
-      return { ok: true, ...record };
+      return { ok: true, ...record, transaction_id: transaction.transactionId, transaction_path: transaction.transactionRelative, applied_files: transaction.mutations.map((mutation) => mutation.relativePath) };
     }
     case "rollback_agent_patch": {
       const sourceAgent = String(payload.metadata?.source_agent ?? "manual");
-      const patchStatus = String(payload.metadata?.patch_status ?? "rollback_requested");
+      const patchStatus = String(payload.metadata?.patch_status ?? "rolled_back");
+      const rollback = await rollbackPatchTransaction(taskId, payload.metadata?.force === true);
       const artifact = await writeJsonArtifact(`workspace/tasks/${taskId}/code/patches/${action}_${stamp()}.json`, {
         task_id: taskId,
         source_agent: sourceAgent,
         patch_status: patchStatus,
         action,
-        review_required: true,
+        transaction_id: rollback.transactionId,
+        transaction_path: rollback.transactionRelative,
+        restored_files: rollback.restored,
+        review_required: false,
         created_at: new Date().toISOString()
       });
       const record = await logAction({
         action,
         taskId,
-        message: "Patch rollback recorded.",
+        message: "Patch transaction rolled back and checksums verified.",
         artifactPath: artifact,
-        metadata: { source_agent: sourceAgent, patch_status: patchStatus }
+        metadata: { source_agent: sourceAgent, patch_status: patchStatus, transaction_id: rollback.transactionId, transaction_path: rollback.transactionRelative }
       });
-      return { ok: true, ...record };
+      return { ok: true, ...record, transaction_id: rollback.transactionId, restored_files: rollback.restored };
     }
     case "language_select":
     case "settings_theme_change":

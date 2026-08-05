@@ -17,30 +17,66 @@ So the agent may *request* these; it can never *fake* the outcome.
 """
 from __future__ import annotations
 
+from .aibuild_v1 import (
+    build_aibuild_run,
+    default_roles,
+    read_current_run_pointer,
+    run_directory,
+    should_use_multi_agent,
+    write_current_run_pointer,
+)
 from .guardrails import GuardrailDecision, ToolGuardrailController
 from .ledger import MessageLedger
 from .memory_library import MemoryLibrary
 from .messaging import AgentMessageClient, ToolCall, ToolResult, ToolSpec
+from .multi_agent import (
+    AgentResult,
+    AgentRoleSpec,
+    AgentTask,
+    HandoffEnvelope,
+    MultiAgentStore,
+    MultiAgentSupervisor,
+    SupervisorRun,
+    build_idempotency_key,
+    create_run,
+    validate_task_graph,
+)
 from .report import build_report, write_report
-from .tools import ResearchToolbox
 from .session import AgentSession, AgentSessionConfig
 from .subagents import AUDIT_TOOLS, SubAgentResult, spawn_audit_agent
+from .tools import ResearchToolbox
 
 __all__ = [
     "AUDIT_TOOLS",
     "AgentMessageClient",
+    "AgentResult",
+    "AgentRoleSpec",
     "AgentSession",
     "AgentSessionConfig",
+    "AgentTask",
     "GuardrailDecision",
+    "HandoffEnvelope",
     "MemoryLibrary",
     "MessageLedger",
+    "MultiAgentStore",
+    "MultiAgentSupervisor",
     "ResearchToolbox",
     "SubAgentResult",
+    "SupervisorRun",
     "ToolCall",
     "ToolGuardrailController",
     "ToolResult",
     "ToolSpec",
     "build_report",
+    "build_idempotency_key",
+    "build_aibuild_run",
+    "create_run",
+    "default_roles",
     "spawn_audit_agent",
+    "read_current_run_pointer",
+    "run_directory",
+    "should_use_multi_agent",
+    "validate_task_graph",
     "write_report",
+    "write_current_run_pointer",
 ]

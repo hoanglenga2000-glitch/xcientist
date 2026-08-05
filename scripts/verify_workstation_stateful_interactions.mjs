@@ -26,68 +26,53 @@ const chromeCandidates = [
 
 const checks = [
   {
-    name: "settings_language_region_section",
+    name: "settings_theme_preview_light",
     page: "settings",
-    selector: "[data-ui-action='open_settings_section_language_region']",
-    activeSelector: "[data-ui-action='open_settings_section_language_region'][data-active-section='true']",
-    mustContain: ["C. Language & Region", "当前 section", "Language & Region"]
+    selector: "[data-ui-action='settings_theme_light']",
+    activeSelector: "[data-ui-action='settings_theme_light'][aria-pressed='true']",
+    mustContain: ["浅色", "当前"]
   },
   {
-    name: "settings_gpu_hpc_section",
+    name: "settings_language_preview_english",
     page: "settings",
-    selector: "[data-ui-action='open_settings_section_gpu_hpc']",
-    activeSelector: "[data-ui-action='open_settings_section_gpu_hpc'][data-active-section='true']",
-    mustContain: ["GPU / HPC Gateway Settings", "GPU / HPC", "需要人工 Gate"]
+    selector: "[data-ui-action='settings_language_en_us']",
+    activeSelector: "[data-ui-action='settings_language_en_us'][aria-pressed='true']",
+    mustContain: ["Settings", "General", "Appearance"]
   },
   {
-    name: "settings_design_governance_section",
+    name: "settings_theme_preview_system",
     page: "settings",
-    selector: "[data-ui-action='open_settings_section_design_governance']",
-    activeSelector: "[data-ui-action='open_settings_section_design_governance'][data-active-section='true']",
-    mustContain: ["Design Governance", "页面覆盖", "组件一致"]
+    selector: "[data-ui-action='settings_theme_system']",
+    activeSelector: "[data-ui-action='settings_theme_system'][aria-pressed='true']",
+    mustContain: [["System", "系统"], ["Current", "当前"]]
   },
   {
-    name: "runtime_llm_cache_tab",
-    page: "runtime",
-    selector: "[data-ui-action='runtime_trace_tab_llm_cache']",
-    activeSelector: "[data-ui-action='runtime_trace_tab_llm_cache'][data-active-trace-tab='true']",
-    mustContain: ["prompt_cache_lookup", "bounded_context_hash", "deepseek_batch_cache"]
+    name: "report_figures_tab",
+    page: "report",
+    selector: "[data-ui-action='report_view_figures']",
+    activeSelector: "[data-ui-action='report_view_figures'][aria-selected='true']",
+    mustContain: ["Figures"]
   },
   {
-    name: "runtime_tool_calls_tab",
-    page: "runtime",
-    beforeSelector: "[data-ui-action='runtime_trace_tab_llm_cache']",
-    selector: "[data-ui-action='runtime_trace_tab_tool_calls']",
-    activeSelector: "[data-ui-action='runtime_trace_tab_tool_calls'][data-active-trace-tab='true']",
-    mustContain: ["read_artifact", "generate_code", "create_hpc_manifest"]
+    name: "report_methods_tab",
+    page: "report",
+    selector: "[data-ui-action='report_view_methods']",
+    activeSelector: "[data-ui-action='report_view_methods'][aria-selected='true']",
+    mustContain: ["Training method", "Dataset contract"]
   },
   {
-    name: "evidence_validation_detail_tab",
-    page: "evidence",
-    selector: "[data-ui-action='artifact_detail_tab_1']",
-    activeSelector: "[data-ui-action='artifact_detail_tab_1'][data-active-artifact-tab='true']",
-    mustContain: ["Validation Detail / 验证详情", "required_artifacts_present", "validation_contract_1001"]
+    name: "report_audit_tab",
+    page: "report",
+    selector: "[data-ui-action='report_view_audit']",
+    activeSelector: "[data-ui-action='report_view_audit'][aria-selected='true']",
+    mustContain: ["Independent Reviewer", "Claim Audit"]
   },
   {
-    name: "evidence_dependency_tab",
-    page: "evidence",
-    selector: "[data-ui-action='artifact_detail_tab_2']",
-    activeSelector: "[data-ui-action='artifact_detail_tab_2'][data-active-artifact-tab='true']",
-    mustContain: ["Dependency Graph / 依赖关系", "Task -> Run -> Experiment", "gate_regression_v1"]
-  },
-  {
-    name: "code_agent_features_file",
-    page: "code",
-    selector: "[data-ui-action='open_code_file_features_py']",
-    activeSelector: "[data-ui-action='open_code_file_features_py'][data-selected-file='true']",
-    mustContain: ["features.py", "build_feature_matrix"]
-  },
-  {
-    name: "tasks_selected_task_row",
-    page: "tasks",
-    selector: "[data-ui-action='tasks_select_titanic']",
-    activeSelector: "[data-ui-action='tasks_select_titanic'][data-selected-task='true']",
-    mustContain: ["titanic", "Create Workstation Run"]
+    name: "desktop_sidebar_collapse",
+    page: "overview",
+    selector: "[data-ui-action='toggle_desktop_sidebar']",
+    activeSelector: ".workstation-shell[data-sidebar='collapsed']",
+    mustContain: ["EvoMind"]
   }
 ];
 
@@ -239,6 +224,19 @@ async function waitForSelector(client, selector, timeoutMs = 5000) {
   return false;
 }
 
+async function waitForEnabledSelector(client, selector, timeoutMs = 10000) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const enabled = await evalValue(client, `(() => {
+      const target = document.querySelector(${JSON.stringify(selector)});
+      return Boolean(target) && target.disabled !== true && target.getAttribute("aria-disabled") !== "true";
+    })()`);
+    if (enabled) return true;
+    await sleep(150);
+  }
+  return false;
+}
+
 async function runCheck(client, check) {
   await navigate(client, check.page);
   await sleep(250);
@@ -248,18 +246,26 @@ async function runCheck(client, check) {
     await sleep(250);
   }
   await waitForSelector(client, check.selector);
+  await waitForEnabledSelector(client, check.selector);
   const clickResult = await clickSelector(client, check.selector);
-  await sleep(450);
-  const state = await evalValue(client, `(() => {
-    const body = document.body.innerText;
-    return {
-      clicked: ${JSON.stringify(Boolean(clickResult.ok))},
-      clickReason: ${JSON.stringify(clickResult.reason ?? null)},
-      activeMarker: Boolean(document.querySelector(${JSON.stringify(check.activeSelector)})),
-      textMatches: ${JSON.stringify(check.mustContain)}.map((text) => ({ text, ok: body.includes(text) })),
-      hasRuntimeError: /Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(body)
-    };
-  })()`);
+  let state = null;
+  for (let attempt = 0; attempt < 40; attempt++) {
+    state = await evalValue(client, `(() => {
+      const body = document.body.innerText;
+      return {
+        clicked: ${JSON.stringify(Boolean(clickResult.ok))},
+        clickReason: ${JSON.stringify(clickResult.reason ?? null)},
+        activeMarker: Boolean(document.querySelector(${JSON.stringify(check.activeSelector)})),
+        textMatches: ${JSON.stringify(check.mustContain)}.map((requirement) => {
+          const options = Array.isArray(requirement) ? requirement : [requirement];
+          return { text: options.join(" / "), ok: options.some((text) => body.includes(text)) };
+        }),
+        hasRuntimeError: /Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(body)
+      };
+    })()`);
+    if (state.activeMarker && state.textMatches.every((item) => item.ok) && !state.hasRuntimeError) break;
+    await sleep(150);
+  }
   return {
     ...check,
     clicked: state.clicked,

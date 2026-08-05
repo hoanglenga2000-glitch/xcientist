@@ -5,7 +5,6 @@ import json
 import urllib.request
 from typing import Any
 
-
 REQUIRED_LOCAL_CONNECTORS = {
     "llm": "rule_based",
     "python_runner": "local",
@@ -29,6 +28,10 @@ EXTERNAL_CONNECTORS = {
 }
 
 OPTIONAL_EXTERNAL_CONNECTORS = {
+    "openai": {
+        "name": "OpenAI-compatible Agent LLM",
+        "required_when_configured": ["OPENAI_API_KEY"],
+    },
     "deepseek": {
         "name": "DeepSeek",
         "required_when_configured": ["DEEPSEEK_API_KEY"],
@@ -65,6 +68,10 @@ def configured_state_is_acceptable(key: str, state: str) -> bool:
 
 
 def gpu_current_gate_ready(item: dict[str, Any]) -> bool:
+    authoritative_gate = item.get("current_gate_ready")
+    if isinstance(authoritative_gate, bool):
+        return authoritative_gate
+
     evidence = item.get("evidence") or {}
     dependency_gate = evidence.get("latest_s6e6_dependency_gate") or {}
     latest_ssh = evidence.get("latest_ssh_connection") or {}
@@ -137,6 +144,7 @@ def main() -> None:
     env_keys = connectors.get("env_keys") or {}
     expected_env_contract = {
         "CODE_AGENT_PROVIDER": ["claude_agent_sdk", "deepseek_code_agent"],
+        "LLM_PROVIDER": ["openai", "rule_based"],
         "GPU_PROVIDER": "ssh_gateway",
         "DATABASE_PROVIDER": "sqlite",
     }
@@ -151,6 +159,8 @@ def main() -> None:
             fail("backend env contract is not ready", {"key": key, "expected": expected, "actual": env_keys.get(key)})
     if "DEEPSEEK_API_KEY_STATUS" not in env_keys or "DEEPSEEK_MODEL" not in env_keys:
         fail("backend DeepSeek env contract is missing", {"env_keys": env_keys})
+    if "OPENAI_API_KEY_STATUS" not in env_keys or "OPENAI_MODEL" not in env_keys or "OPENAI_BASE_URL" not in env_keys:
+        fail("backend OpenAI env contract is missing", {"env_keys": env_keys})
     if env_keys.get("KAGGLE_TOOLCHAIN_STATUS") != "ready" or env_keys.get("KAGGLE_TOKEN_STATUS") not in {"not_configured", "configured_dpapi"}:
         fail("backend Kaggle DPAPI/toolchain contract is missing", {"env_keys": env_keys})
 

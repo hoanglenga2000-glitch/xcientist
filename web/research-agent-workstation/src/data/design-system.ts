@@ -1,15 +1,15 @@
 export const designTokens = {
   colors: [
-    ["Navy", "#0F172A"],
-    ["Slate 700", "#334155"],
-    ["Slate 500", "#64748B"],
-    ["Slate 200", "#E2E8F0"],
-    ["Background", "#FAFAF9"],
-    ["Primary Blue", "#1D4ED8"],
-    ["Success Green", "#047857"],
-    ["Warning Amber", "#B45309"],
-    ["Danger Red", "#B91C1C"],
-    ["Info Indigo", "#4F46E5"]
+    ["Canvas", "#020706"],
+    ["Surface", "#07100F"],
+    ["Raised Surface", "#0B1716"],
+    ["Edge", "#1A3431"],
+    ["Primary Text", "#F2F7F6"],
+    ["Secondary Text", "#BCCAC7"],
+    ["Instrument Teal", "#66D1C3"],
+    ["Success", "#58C98B"],
+    ["Warning", "#E6AD67"],
+    ["Danger", "#E87979"]
   ],
   components: [
     "Research Brief Strip",

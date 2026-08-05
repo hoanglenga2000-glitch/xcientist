@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Launch script for MLE-Bench proper trainer on server."""
 import os, sys
-os.environ['GPU_SSH_PASSWORD'] = '31PFmLLb1f'
+if "GPU_SSH_PASSWORD" not in os.environ: raise RuntimeError("GPU_SSH_PASSWORD is required")
 sys.path.insert(0, r'D:\桌面\codex\科研港科技\scripts')
 from hpc_connect import hpc_exec
 

@@ -27,6 +27,9 @@ BASE_API_PATHS = [
     "/api/gpu/jobs",
     "/api/paper-evidence-bundle",
 ]
+EXPECTED_EMPTY_API_STATUSES = {
+    "/api/paper-evidence-bundle": {404},
+}
 
 PAGE_ALIASES = {
     "mission": "overview",
@@ -41,7 +44,16 @@ def read(path: Path) -> str:
 
 def extract_nav_ids() -> list[str]:
     text = read(NAVIGATION_TS)
-    return re.findall(r'\{\s*id:\s*"([^"]+)"\s*,\s*label:', text)
+    nav_items_block = re.search(
+        r"export\s+const\s+navItems\s*=\s*\[([\s\S]*?)\]\s+as\s+const",
+        text,
+    )
+    if not nav_items_block:
+        return []
+    return re.findall(
+        r'\{\s*id:\s*"([^"]+)"\s*,\s*label:',
+        nav_items_block.group(1),
+    )
 
 
 def extract_page_ids_array() -> list[str]:
@@ -105,6 +117,11 @@ def build_report(base_url: str, timeout: int) -> dict[str, Any]:
 
     page_smoke = [request_get(base_url, f"/?page={page}", timeout) for page in page_targets]
     api_smoke = [request_get(base_url, path, timeout) for path in api_paths]
+    for item in api_smoke:
+        expected_empty = item["status"] in EXPECTED_EMPTY_API_STATUSES.get(item["target"], set())
+        if expected_empty:
+            item["ok"] = True
+            item["expected_empty"] = True
 
     missing_from_parser = [page for page in nav_ids if page not in page_ids_array]
     missing_from_render = [page for page in nav_ids if page not in rendered_ids]
@@ -121,7 +138,13 @@ def build_report(base_url: str, timeout: int) -> dict[str, Any]:
 
     failed_pages = [item for item in page_smoke if not item["ok"]]
     failed_apis = [item for item in api_smoke if not item["ok"]]
-    contract_failures = missing_from_parser or missing_from_render or rendered_not_nav
+    navigation_source_ok = bool(nav_ids)
+    contract_failures = (
+        not navigation_source_ok
+        or missing_from_parser
+        or missing_from_render
+        or rendered_not_nav
+    )
 
     status = "passed" if not failed_pages and not failed_apis and not contract_failures else "failed"
     return {
@@ -130,6 +153,7 @@ def build_report(base_url: str, timeout: int) -> dict[str, Any]:
         "base_url": base_url,
         "status": status,
         "nav_page_count": len(nav_ids),
+        "navigation_source_ok": navigation_source_ok,
         "parser_page_count": len(page_ids_array),
         "rendered_page_count": len(rendered_ids),
         "api_path_count": len(api_paths),

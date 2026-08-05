@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 *.pem
+!packages/evomind-cli/keys/release-ed25519-public.pem
 *.key
 id_rsa
 id_rsa.*
@@ -37,6 +38,7 @@ build/
 # ── Node / Next.js ──
 node_modules/
 .next/
+.next-*/
 web/research-agent-workstation/.runtime-logs/
 *.tsbuildinfo
 next-env.d.ts
@@ -69,6 +71,9 @@ logs/
 *.tar.gz
 *.7z
 *.png
+!web/research-agent-workstation/public/brand/evomind-mark.png
+!web/research-agent-workstation/public/brand/evomind-mark-symbol.png
+!web/research-agent-workstation/src/app/icon.png
 *.jpg
 *.jpeg
 *.pdf
@@ -163,3 +168,34 @@ scripts/mlebench_proper_results/
 # ── Local dev scripts that write secrets to .env ──
 scripts/load_gpu_env.ps1
 scripts/setup_gpu_env.py
+
+# ── Local runtime / dev directories (not source code) ──
+.backups/
+.agent-tasks/
+artifacts/
+backups/
+migration/
+mlebench_model_cache/
+notes/
+video-production/
+/8
+/5.6
+
+# ── Internal dev docs (not needed by users) ──
+docs/*.json
+docs/*.tex
+docs/evomind_closeout_*/
+docs/evomind_pages_*/
+docs/evidence/
+docs/EvoMind_*.docx
+docs/EvoMind_*.md
+TEACHER_MEDAL_RATE_DASHBOARD.md
+UI_AGENT_PROMPT.md
+design-qa.md
+
+# ── Next.js standalone output & dev logs ──
+next-*.log
+next-*.err.log
+next-*.out.log
+*.QQ*.png
+ScreenShot_*.png

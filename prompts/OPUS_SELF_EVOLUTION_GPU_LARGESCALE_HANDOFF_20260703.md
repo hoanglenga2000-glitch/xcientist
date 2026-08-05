@@ -205,7 +205,7 @@ python scripts/run_evolution_batch.py --only champs leaf_classification nomad201
 - **中文路径 + shell cwd 重置**: 部分终端每条命令后把 cwd 重置回别处, 且 python 处理含中文的路径易崩。命令内先 `cd "D:\桌面\codex\科研港科技"`, 读写产物用**绝对路径**, 用 Read 工具而非 `cat` 管道去读结果文件。
 - **pytest 汇总行被吞**: 若 `grep passed` 拿不到, 把输出重定向到项目内文件再用 Read 读, 别依赖管道尾部。
 - **GPU 产物在远程**: `--runner gpu` 时 submission.csv 等在 A40 上, 本地 `experiments/evolution/<task>_gpu_*/` 只有 summary/search_graph/审计 JSON。要核对 CSV 行数/大小需 SSH 探远程 `~/jinghw/scripts/gpu_tra/evolution/<task>/<exp>/out/`。
-- **LLM key**: variation_generator 调 LLM 生成候选; 本地/GPU 都需要 `.env` 里的 key (由 load_gpu_env.ps1 写入)。无 key 时 propose 会失败并被记为 generation_failed。
+- **LLM key**: variation_generator 调 LLM 生成候选；仅通过进程环境或 `*_FILE` 注入，不由 load_gpu_env.ps1 写入 `.env`。无 key 时 propose 会失败并被记为 generation_failed。
 - **min_delta 门禁**: 分数只高一点点 (< 1e-4) 会被正确 hold, 这是**特性不是 bug** (防 CV 噪声误晋级)。
 
 ## 接手会话启动顺序 (照做)
@@ -214,7 +214,7 @@ python scripts/run_evolution_batch.py --only champs leaf_classification nomad201
 1. 读本 prompt 全文 + CLAUDE.md 的 SESSION RECOVERY 段
 2. 读透 §A.3 的五个核心模块源码 (src/research_os/), 能复述闭环数据流再动手
 3. 阶段 B: run_ci_checks.py → pytest tests/ (225) → 本地进化冒烟, 全绿才继续
-4. §4: load_gpu_env.ps1 加载凭据; SSH 探一次确认算力机可达、数据在位、代理连通
+4. §4: load_gpu_env.ps1 只验证 DPAPI 元数据；运行时凭据由安全加载器按需解密；SSH 探一次确认算力机可达、数据在位、代理连通
 5. 阶段 C.1: 单任务 GPU 打通 (aerial_cactus, 3 轮)
 6. 阶段 C.2: 批量大规模自进化 (先 --only 子集跑通, 再放全量; 加 --mcgs 与更多 iterations)
 7. 按 C.3 三件事逐项验收自学习/记录失败/自我改进; 用落盘 JSON 作证, 不凭印象
@@ -224,7 +224,6 @@ python scripts/run_evolution_batch.py --only champs leaf_classification nomad201
 ## 一句话交接
 
 引擎已稳定 (225 tests 绿, 三模态跑通), 阶段 B 是"再确认没坏", 阶段 C 是"放到 GPU 上用真实大数据看它自己进化"。观察的核心永远是那三件事: 它会不会自己变好、会不会记住失败、会不会拿失败改进自己 —— 全部以 `experiments/evolution/` 下的落盘产物为准。
-
 
 
 

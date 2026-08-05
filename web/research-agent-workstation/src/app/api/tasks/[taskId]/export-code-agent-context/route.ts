@@ -37,8 +37,9 @@ function buildInstructions(agentLabel: string, agentId: string, taskId: string, 
 `;
 }
 
-export async function POST(request: Request, { params }: { params: { taskId: string } }) {
-  const taskId = normalizeTaskId(params.taskId);
+export async function POST(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const body = await request.json().catch(() => ({}));
   const targetAgent = String(body.target_agent ?? body.source_agent ?? "claude_code");
   const summaryPath = path.join(workspaceRoot, "workspace", "workstation_summary.json");

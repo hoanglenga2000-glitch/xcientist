@@ -15,6 +15,8 @@ Exit code is non-zero if any gate fails.
 
 Usage:
     python scripts/run_ci_checks.py [--skip-tests] [--quiet]
+        [--pytest-junitxml PATH] [--pytest-basetemp PATH]
+        [--pytest-args-file PATH]
 """
 from __future__ import annotations
 
@@ -125,6 +127,8 @@ def _pytest_command() -> tuple[list[str] | None, str]:
             cwd=str(ROOT),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         if probe.returncode == 0:
             return [str(candidate), "-m", "pytest"], str(candidate)
@@ -134,23 +138,30 @@ def _pytest_command() -> tuple[list[str] | None, str]:
     return None, ""
 
 
-def gate_tests(quiet: bool) -> tuple[bool, str]:
+def gate_tests(
+    quiet: bool,
+    *,
+    pytest_run_args: list[str] | None = None,
+    pytest_collect_args: list[str] | None = None,
+) -> tuple[bool, str]:
     pytest_command, runner = _pytest_command()
     if not pytest_command:
         return False, "pytest not available in current Python, project venv, PYTEST_PYTHON, or PATH"
     test_env = os.environ.copy()
-    for key in ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX"):
+    for key in ("GIT_INDEX_FILE", "GIT_DIR", "GIT_WORK_TREE", "GIT_PREFIX", "PYTEST_ADDOPTS"):
         test_env.pop(key, None)
     existing_pythonpath = test_env.get("PYTHONPATH", "")
     test_env["PYTHONPATH"] = str(SRC) + (os.pathsep + existing_pythonpath if existing_pythonpath else "")
     # Count collected tests up front; some pytest builds omit the summary line
     # when stdout is piped, so we don't rely on parsing it.
     collect = subprocess.run(
-        [*pytest_command, "--collect-only", "-q"],
+        [*pytest_command, "--collect-only", "-q", *(pytest_collect_args or [])],
         cwd=str(ROOT),
         env=test_env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     total = 0
     matched = False
@@ -168,11 +179,13 @@ def gate_tests(quiet: bool) -> tuple[bool, str]:
     collected = str(total) if matched else "?"
 
     proc = subprocess.run(
-        [*pytest_command, "-q", "--no-header"],
+        [*pytest_command, "-q", "--no-header", *(pytest_run_args or [])],
         cwd=str(ROOT),
         env=test_env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     ok = proc.returncode == 0
     detail = (
@@ -191,14 +204,66 @@ def gate_tests(quiet: bool) -> tuple[bool, str]:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--skip-tests", action="store_true", help="skip the pytest gate")
     parser.add_argument("--quiet", action="store_true", help="reduce output")
+    parser.add_argument(
+        "--pytest-junitxml",
+        type=Path,
+        help="write the outer pytest run's JUnit XML to an absolute path outside the repository",
+    )
+    parser.add_argument(
+        "--pytest-basetemp",
+        type=Path,
+        help="use an absolute pytest base temp directory outside the repository",
+    )
+    parser.add_argument(
+        "--pytest-args-file",
+        type=Path,
+        help="run node IDs in the exact order listed by a pytest @args file",
+    )
     args = parser.parse_args()
+
+    def external_path(value: Path | None, option: str) -> Path | None:
+        if value is None:
+            return None
+        resolved = value.expanduser().resolve()
+        if resolved == ROOT or ROOT in resolved.parents:
+            parser.error(f"{option} must resolve outside the repository")
+        return resolved
+
+    junitxml = external_path(args.pytest_junitxml, "--pytest-junitxml")
+    basetemp = external_path(args.pytest_basetemp, "--pytest-basetemp")
+    args_file = args.pytest_args_file.expanduser().resolve() if args.pytest_args_file else None
+    if args_file is not None and not args_file.is_file():
+        parser.error("--pytest-args-file must reference an existing regular file")
+
+    pytest_run_args = ["-p", "no:cacheprovider"]
+    pytest_collect_args = ["-p", "no:cacheprovider"]
+    if junitxml is not None:
+        junitxml.parent.mkdir(parents=True, exist_ok=True)
+        pytest_run_args.append(f"--junitxml={junitxml}")
+    if basetemp is not None:
+        basetemp.parent.mkdir(parents=True, exist_ok=True)
+        pytest_run_args.append(f"--basetemp={basetemp}")
+        pytest_collect_args.append(f"--basetemp={basetemp.with_name(basetemp.name + '-collect')}")
+    if args_file is not None:
+        pytest_run_args.append(f"@{args_file}")
 
     gates = [("secrets", gate_secrets), ("compile", gate_compile), ("imports", gate_imports)]
     if not args.skip_tests:
-        gates.append(("tests", gate_tests))
+        gates.append((
+            "tests",
+            lambda quiet: gate_tests(
+                quiet,
+                pytest_run_args=pytest_run_args,
+                pytest_collect_args=pytest_collect_args,
+            ),
+        ))
 
     _print("=" * 64, args.quiet)
     _print("Research Workstation - Production Stability Check", args.quiet)

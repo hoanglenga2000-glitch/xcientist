@@ -8,7 +8,7 @@ submission gates.
 Default gateway:
 
 ```text
-http://127.0.0.1:8088/?page=control
+http://127.0.0.1:8088/?page=assistant
 ```
 
 ## What This System Provides
@@ -97,7 +97,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_verified_works
 Open:
 
 ```text
-http://127.0.0.1:8088/?page=control
+http://127.0.0.1:8088/?page=assistant
 ```
 
 Check the terminal agent:

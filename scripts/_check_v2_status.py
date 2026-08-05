@@ -1,3 +1,4 @@
+import os
 """Check v2 training status on 87729 via Clash SOCKS5 proxy."""
 import socket, struct, paramiko
 
@@ -10,7 +11,7 @@ sock.send(b'\x05\x01\x00\x01' + socket.inet_aton('100.85.169.63') + struct.pack(
 sock.recv(10)
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password='wM5T1Qfz5l',
+ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password=os.environ["GPU_SSH_PASSWORD"],
             sock=sock, timeout=15, allow_agent=False, look_for_keys=False)
 
 # Get summary lines

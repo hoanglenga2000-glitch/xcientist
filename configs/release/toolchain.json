@@ -1,0 +1,18 @@
+{
+  "schema": "evomind.release.toolchain.v1",
+  "node": {
+    "version": "24.13.0"
+  },
+  "npm": {
+    "version": "11.6.2"
+  },
+  "python": {
+    "version": "3.12.13",
+    "implementation": "CPython",
+    "abi": "cp312",
+    "platform": "win_amd64"
+  },
+  "uv": {
+    "version": "0.11.21"
+  }
+}

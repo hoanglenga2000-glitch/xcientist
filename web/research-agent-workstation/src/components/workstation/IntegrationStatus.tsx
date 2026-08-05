@@ -126,7 +126,7 @@ export function IntegrationStatus({ compact = false, locale }: { compact?: boole
     };
   }, []);
 
-  const status = { ...fallback.connector_status!, ...(summary.connector_status ?? {}) };
+  const status = { ...fallback.connector_status!, ...summary.connector_status };
   const providers = [
     status.code_agent,
     status.deepseek ?? fallback.connector_status!.deepseek!,
@@ -149,27 +149,27 @@ export function IntegrationStatus({ compact = false, locale }: { compact?: boole
       <CardContent className="space-y-3">
         <div className={compact ? "grid grid-cols-3 gap-2" : "grid grid-cols-2 gap-2 xl:grid-cols-3"}>
           {providers.map((provider) => (
-            <div key={provider.name} className="rounded-md border border-border bg-white px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+            <div key={provider.name} className="rounded-md border border-border bg-surface-raised px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.03)]">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-bold text-slate-700">{providerName(locale, provider.name)}</span>
+                <span className="text-xs font-bold text-ink-secondary">{providerName(locale, provider.name)}</span>
                 <StatusBadge tone={providerTone(provider)}>
                   {providerBadge(locale, provider)}
                 </StatusBadge>
               </div>
-              <div className="mt-2 min-h-8 text-xs leading-4 text-slate-600">{providerState(locale, provider.state)}</div>
+              <div className="mt-2 min-h-8 text-xs leading-4 text-ink-secondary">{providerState(locale, provider.state)}</div>
               {!compact && provider.notes ? (
-                <div className="mt-2 border-t border-slate-100 pt-2 text-[11px] leading-4 text-slate-500">{provider.notes}</div>
+                <div className="mt-2 border-t border-edge-light pt-2 text-[11px] leading-4 text-ink-muted">{provider.notes}</div>
               ) : null}
             </div>
           ))}
         </div>
         {!compact ? (
-          <div className="rounded-md border border-border bg-slate-50 p-3">
-            <div className="mb-2 flex items-center gap-2 text-xs font-bold text-slate-700">
+          <div className="rounded-md border border-border bg-surface-sunken p-3">
+            <div className="mb-2 flex items-center gap-2 text-xs font-bold text-ink-secondary">
               <Settings2 className="h-3.5 w-3.5" />
               {ui(locale, "Environment Slots", "环境配置槽位")}
             </div>
-            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-ink-secondary">
               {Object.entries(status.env_keys ?? fallback.connector_status!.env_keys).map(([key, value]) => (
                 <div key={key} className="flex justify-between gap-3">
                   <span className="font-semibold">{key}</span>

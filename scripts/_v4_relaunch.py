@@ -1,3 +1,4 @@
+import os
 """Re-launch V4 with correct conda Python."""
 import socket, struct, paramiko
 
@@ -11,7 +12,7 @@ sock.recv(10)
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password='wM5T1Qfz5l',
+ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password=os.environ["GPU_SSH_PASSWORD"],
             sock=sock, timeout=20, banner_timeout=20, auth_timeout=20,
             allow_agent=False, look_for_keys=False)
 print('Connected!')

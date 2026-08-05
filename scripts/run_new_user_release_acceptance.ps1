@@ -161,7 +161,7 @@ $summary = [ordered]@{
   schema = "xcientist.new_user_release_acceptance.v1"
   created_at = (Get-Date).ToString("s")
   status = $status
-  default_gateway = "http://127.0.0.1:$Port/?page=control"
+  default_gateway = "http://127.0.0.1:$Port/?page=assistant"
   failed_checks = $failedIds
   optional_training_blockers = @("gpu_resource_blocked", "deepseek_cache_below_80_for_batch_generation")
   claim_boundary = "This validates new-user EvoMind gateway release. It does not validate Kaggle training, official submission, rank, medal, or MLE-Bench-75 performance."
@@ -176,7 +176,7 @@ $md = @()
 $md += "# New User Release Acceptance"
 $md += ""
 $md += "- status: ``$status``"
-$md += "- default_gateway: http://127.0.0.1:$Port/?page=control"
+$md += "- default_gateway: http://127.0.0.1:$Port/?page=assistant"
 $md += "- failed_checks: ``$(@($summary.failed_checks) -join ', ')``"
 $md += "- optional_training_blockers: ``$(@($summary.optional_training_blockers) -join ', ')``"
 $md += ""

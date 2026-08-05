@@ -93,6 +93,30 @@ def test_llm_client_raises_when_no_providers(monkeypatch):
         client.generate("hi")
 
 
+def test_llm_client_strict_provider_does_not_fail_over(monkeypatch):
+    from research_os import llm_client as module
+
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-secret")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
+    monkeypatch.setenv("EVOLUTION_PROVIDER_STRICT", "1")
+    calls = []
+
+    def fail_openai(config, **_kwargs):
+        calls.append(config.name)
+        raise TimeoutError("primary unavailable")
+
+    def succeed_deepseek(config, **_kwargs):
+        calls.append(config.name)
+        return LLMResponse(text="unexpected", provider=config.name, model=config.model)
+
+    monkeypatch.setitem(module._CALLERS, "openai", fail_openai)
+    monkeypatch.setitem(module._CALLERS, "deepseek", succeed_deepseek)
+    client = LLMClient(primary="openai", fallback="deepseek", max_retries=0)
+    with pytest.raises(LLMError):
+        client.generate("hello")
+    assert calls == ["openai"]
+
+
 # ── variation_generator ──────────────────────────────────────────────────────
 def test_extract_code_picks_longest_block():
     text = "intro\n```python\nx=1\n```\nmid\n```python\nimport os\nprint('CV_SCORE=1.0')\n```"
@@ -967,6 +991,5 @@ def test_minimize_metric_records_positive_improvement_delta_for_innovation(tmp_p
     assert len(log["tried"]) == 1
     assert log["tried"][0]["metric_delta"] == pytest.approx(0.05)
     assert log["tried"][0]["success"] is True
-
 
 

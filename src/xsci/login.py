@@ -15,7 +15,7 @@ from typing import Optional
 
 from .config import set_global, write_secret
 
-_LLM_PROVIDERS = ("anthropic", "deepseek")
+_LLM_PROVIDERS = ("anthropic", "deepseek", "openai")
 
 
 def save_llm_credentials(provider: str, api_key: str, *, base_url: Optional[str] = None,
@@ -23,7 +23,7 @@ def save_llm_credentials(provider: str, api_key: str, *, base_url: Optional[str]
     """Persist an LLM provider's key (secret) and choice/base_url/model (config).
 
     ``provider`` is the ENGINE FAMILY the request is sent as (``anthropic`` = native
-    tool-use, ``deepseek`` = OpenAI-compatible). ``model`` is the user's chosen
+    tool-use, ``deepseek`` / ``openai`` = OpenAI-compatible). ``model`` is the user's chosen
     default; it is exported to the family's ``*_MODEL`` env var by
     :func:`config.inject_engine_env` so both the chat client and the deep agent use it.
     ``brand`` is the human name of the picked provider (e.g. "OpenAI (GPT)") kept only

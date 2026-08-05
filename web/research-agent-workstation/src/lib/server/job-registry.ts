@@ -11,6 +11,13 @@ const globalJobs = globalThis as unknown as { workstationJobs?: Map<string, Runn
 const jobs = globalJobs.workstationJobs ?? new Map<string, RunningJob>();
 globalJobs.workstationJobs = jobs;
 
+export class ManagedJobAlreadyRunningError extends Error {
+  constructor(public readonly taskId: string, public readonly runId: string) {
+    super(`A managed command is already active for run ${runId}.`);
+    this.name = "ManagedJobAlreadyRunningError";
+  }
+}
+
 function jobKeys(taskId: string, runId: string) {
   return [`task:${taskId}`, `run:${runId}`];
 }
@@ -21,6 +28,22 @@ function registerJob(job: RunningJob) {
 
 function unregisterJob(taskId: string, runId: string) {
   for (const key of jobKeys(taskId, runId)) jobs.delete(key);
+}
+
+export function runningJob(taskId: string, runId: string) {
+  const job = jobs.get(`run:${runId}`);
+  if (!job) return null;
+  if (job.child.exitCode !== null || job.child.signalCode !== null) {
+    unregisterJob(job.taskId, job.runId);
+    return null;
+  }
+  return {
+    taskId: job.taskId,
+    runId: job.runId,
+    processId: job.child.pid ?? null,
+    startedAt: job.startedAt.toISOString(),
+    requestedTaskMatches: job.taskId === taskId,
+  };
 }
 
 function killProcessTree(pid: number) {
@@ -51,6 +74,7 @@ export async function runManagedCommand({
   maxBuffer = 1024 * 1024 * 10,
   taskId,
   runId,
+  env,
   onStart
 }: {
   command: string;
@@ -60,10 +84,14 @@ export async function runManagedCommand({
   maxBuffer?: number;
   taskId: string;
   runId: string;
+  env?: NodeJS.ProcessEnv;
   onStart?: (pid: number) => Promise<void>;
 }) {
+  if (runningJob(taskId, runId)) {
+    throw new ManagedJobAlreadyRunningError(taskId, runId);
+  }
   return new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
-    const child = spawn(command, args, { cwd, windowsHide: true });
+    const child = spawn(command, args, { cwd, env, windowsHide: true });
     let stdout = "";
     let stderr = "";
     let settled = false;

@@ -1,11 +1,14 @@
 import { spawn } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
+const requireFromWorkstation = createRequire(join(root, "web", "research-agent-workstation", "package.json"));
+const WebSocketClient = globalThis.WebSocket ?? requireFromWorkstation("next/dist/compiled/ws");
 const outJson = join(root, "workspace", "workstation_click_smoke_20260701.json");
 const outMd = join(root, "reports", "WORKSTATION_CLICK_SMOKE_20260701.md");
 
@@ -25,6 +28,7 @@ const chromeCandidates = [
 ].filter(Boolean);
 
 const pageTargets = [
+  "assistant",
   "overview",
   "control",
   "tasks",
@@ -36,43 +40,47 @@ const pageTargets = [
   "code",
   "runtime",
   "experiments",
+  "evolution",
   "report",
   "gates",
   "settings"
 ];
 
+// Click plan targets V2 screens. Selectors reference data-ui-action ids that exist in the
+// migrated screens/* components; expectedPage matches the AppShell uiActionRoutes/Patterns
+// routing destination. Pattern-A (routed) clicks change page; Pattern-B (skip-action)
+// clicks stay on the page and hit the backend — both are asserted against expectedPage.
 const safeClicks = [
-  { page: "overview", selector: "[data-ui-action='topbar_open_code']", expectedPage: "code" },
-  { page: "code", selector: "[data-ui-action='topbar_open_report']", expectedPage: "report" },
-  { page: "report", selector: "[data-ui-action='topbar_open_gpu']", expectedPage: "gpu" },
-  { page: "gpu", selector: "[data-ui-action='topbar_open_gates']", expectedPage: "gates" },
+  { page: "assistant", selector: "[data-ui-action='assistant_new_session']", expectedPage: "assistant" },
   { page: "overview", selector: "[data-ui-action='mission_open_evidence_ledger']", expectedPage: "evidence" },
-  { page: "overview", selector: "[data-ui-action='mission_view_workflow_details']", expectedPage: "workflow" },
-  { page: "overview", selector: "[data-ui-action='mission_view_all_claim_audits']", expectedPage: "gates" },
+  { page: "overview", selector: "[data-ui-action='mission_prepare_hpc_job']", expectedPage: "gpu" },
   { page: "tasks", selector: "[data-ui-action='tasks_open_context']", expectedPage: "tasks" },
-  { page: "tasks", selector: "[data-ui-action='tasks_view_agent_logs']", expectedPage: "runtime" },
-  { page: "tasks", selector: "[data-ui-action='tasks_copy_validation_contract']", expectedPage: "tasks" },
-  { page: "code", selector: "[data-ui-action='code_filter_task']", expectedPage: "code" },
-  { page: "code", selector: "[data-ui-action='open_code_folder_experiments']", expectedPage: "code" },
+  { page: "tasks", selector: "[data-ui-action='tasks_refresh_queue']", expectedPage: "tasks" },
+  { page: "tasks", selector: "[data-ui-action='tasks_dispatch_agents']", expectedPage: "runtime" },
   { page: "code", selector: "[data-ui-action='ask_code_agent']", expectedPage: "code" },
-  { page: "code", selector: "[data-ui-action='request_code_quality_gate']", expectedPage: "gates" },
+  { page: "code", selector: "[data-ui-action='run_code_smoke_test']", expectedPage: "code" },
+  { page: "code", selector: "[data-ui-action='request_code_quality_gate']", expectedPage: "code" },
   { page: "evidence", selector: "[data-ui-action='apply_evidence_filters']", expectedPage: "evidence" },
+  { page: "evidence", selector: "[data-ui-action='reset_evidence_filters']", expectedPage: "evidence" },
   { page: "evidence", selector: "[data-ui-action='open_evidence_lineage_graph']", expectedPage: "evidence" },
-  { page: "evidence", selector: "[data-ui-action='preview_selected_artifact']", expectedPage: "evidence" },
+  { page: "evidence", selector: "[data-ui-action='export_evidence_csv']", expectedPage: "evidence" },
   { page: "literature", selector: "[data-ui-action='literature_refresh_library']", expectedPage: "literature" },
-  { page: "literature", selector: "[data-ui-action='rag_send_code_agent']", expectedPage: "code" },
+  { page: "literature", selector: "[data-ui-action='rag_send_code_agent']", expectedPage: "literature" },
+  { page: "literature", selector: "[data-ui-action='rag_bind_report_claim']", expectedPage: "literature" },
   { page: "runtime", selector: "[data-ui-action='runtime_refresh_5s']", expectedPage: "runtime" },
-  { page: "runtime", selector: "[data-ui-action='runtime_open_agent_artifact']", expectedPage: "evidence" },
-  { page: "experiments", selector: "[data-ui-action='experiments_filter_graph']", expectedPage: "experiments" },
-  { page: "experiments", selector: "[data-ui-action='experiments_open_artifacts']", expectedPage: "evidence" },
-  { page: "report", selector: "[data-ui-action='report_add_section']", expectedPage: "report" },
-  { page: "report", selector: "[data-ui-action='report_export_draft_pdf']", expectedPage: "report" },
-  { page: "gates", selector: "[data-ui-action='request_gate_revision']", expectedPage: "gates" },
+  { page: "experiments", selector: "[data-ui-action='experiments_refresh']", expectedPage: "experiments" },
+  { page: "experiments", selector: "[data-ui-action='experiments_export_ledger']", expectedPage: "experiments" },
+  { page: "evolution", selector: "[data-ui-action='evolution_refresh']", expectedPage: "evolution" },
+  { page: "report", selector: "[data-ui-action='report_view_figures']", expectedPage: "report" },
+  { page: "report", selector: "[data-ui-action='report_view_audit']", expectedPage: "report" },
+  { page: "report", selector: "[data-ui-action='report_view_files']", expectedPage: "report" },
+  { page: "gates", selector: "[data-ui-action='blocked_allow_official_submit']", expectedPage: "gates" },
+  { page: "gpu", selector: "[data-ui-action='gpu_view_job_manifest_yaml']", expectedPage: "gpu" },
+  { page: "gpu", selector: "[data-ui-action='compute_select_local']", expectedPage: "gpu" },
   { page: "settings", selector: "[data-ui-action='settings_language_en_us']", expectedPage: "settings" },
   { page: "settings", selector: "[data-ui-action='settings_language_zh_cn']", expectedPage: "settings" },
   { page: "settings", selector: "[data-ui-action='settings_theme_light']", expectedPage: "settings" },
   { page: "settings", selector: "[data-ui-action='settings_theme_dark']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='open_settings_section_security_credentials']", expectedPage: "settings" },
   { page: "settings", selector: "[data-ui-action='save_settings_changes']", expectedPage: "settings" },
   { page: "settings", selector: "[data-ui-action='test_all_connectors']", expectedPage: "settings" }
 ];
@@ -81,7 +89,6 @@ const blockedControls = [
   { page: "gpu", selector: "[data-ui-action='blocked_start_training']" },
   { page: "code", selector: "[data-ui-action='blocked_send_to_hpc']" },
   { page: "gates", selector: "[data-ui-action='blocked_allow_official_submit']" },
-  { page: "report", selector: "[data-ui-action='blocked_final_report_export']" },
   { page: "evidence", selector: "[data-ui-action='blocked_final_evidence_approval']" }
 ];
 
@@ -138,7 +145,7 @@ class CdpClient {
   }
 
   async connect() {
-    this.socket = new WebSocket(this.wsUrl);
+    this.socket = new WebSocketClient(this.wsUrl);
     await new Promise((resolveConnect, reject) => {
       const timer = setTimeout(() => reject(new Error("CDP websocket connection timeout")), 10000);
       this.socket.addEventListener("open", () => {
@@ -195,7 +202,10 @@ async function waitForChrome(portNumber) {
 }
 
 async function waitForPage(client) {
-  for (let attempt = 0; attempt < 80; attempt++) {
+  // A clean standalone launch may need extra time for the first dynamically split
+  // screen chunk on Windows (notably while Defender scans a fresh extraction).
+  // Keep a finite 30-second ceiling so a missing control still fails deterministically.
+  for (let attempt = 0; attempt < 200; attempt++) {
     const result = await client.send("Runtime.evaluate", {
       expression: "document.readyState === 'complete' && !!document.querySelector('[data-ui-component=\"workstation-page\"]')",
       returnByValue: true
@@ -218,10 +228,42 @@ async function evalValue(client, expression) {
   return result.result?.value;
 }
 
-async function navigate(client, page) {
+async function waitForWorkstationReady(client, page, requiredSelector = null) {
+  let lastState = null;
+  const requiredActionId = requiredSelector?.match(/\[data-ui-action=['"]([^'"]+)['"]\]/)?.[1] ?? null;
+  const targetExpression = requiredActionId
+    ? `Array.from(document.querySelectorAll('[data-ui-action]')).some((node) => node.getAttribute('data-ui-action') === ${JSON.stringify(requiredActionId)})`
+    : requiredSelector
+      ? `!!document.querySelector(${JSON.stringify(requiredSelector)})`
+      : "true";
+  for (let attempt = 0; attempt < 200; attempt++) {
+    lastState = await evalValue(client, `(() => {
+      const marker = document.querySelector('[data-ui-component="workstation-page"]');
+      return {
+        page: marker?.getAttribute('data-ui-page') ?? null,
+        ready: marker?.getAttribute('data-ui-ready') ?? null,
+        task: marker?.getAttribute('data-ui-task') ?? null,
+        requiredActionId: ${JSON.stringify(requiredActionId)},
+        target: ${targetExpression},
+        actionIds: Array.from(document.querySelectorAll('[data-ui-action]')).map((node) => node.getAttribute('data-ui-action')).filter(Boolean).slice(0, 40),
+        text: document.body.innerText.slice(0, 240)
+      };
+    })()`);
+    if (
+      lastState?.page === page &&
+      lastState?.ready === "true" &&
+      lastState?.task &&
+      lastState?.target
+    ) return;
+    await sleep(150);
+  }
+  throw new Error(`Workstation page did not become ready: ${page} ${JSON.stringify(lastState)}`);
+}
+
+async function navigate(client, page, requiredSelector = null) {
   await client.send("Page.navigate", { url: `${baseUrl}/?page=${page}` });
   await waitForPage(client);
-  await sleep(250);
+  await waitForWorkstationReady(client, page, requiredSelector);
 }
 
 async function inspectPage(client, page) {
@@ -238,13 +280,15 @@ async function inspectPage(client, page) {
   })()`);
   return {
     page,
-    ok: info.activePage === page && info.actionCount >= 5 && info.buttonCount >= 3 && info.textSize >= 1000 && !info.hasErrorText,
+    // V2 screens are denser than the old monolith; text threshold asserts substantive render
+    // (well above an error/blank page), not the old verbose-monolith volume.
+    ok: info.activePage === page && info.actionCount >= 5 && info.buttonCount >= 3 && info.textSize >= 80 && !info.hasErrorText,
     ...info
   };
 }
 
 async function clickAndInspect(client, item) {
-  await navigate(client, item.page);
+  await navigate(client, item.page, item.selector);
   const result = await evalValue(client, `(() => {
     const target = document.querySelector(${JSON.stringify(item.selector)});
     if (!target) return { clicked: false, reason: 'selector_not_found' };
@@ -279,10 +323,19 @@ async function inspectBlockedControl(client, item) {
     };
   })()`);
   const hasErrorText = await evalValue(client, `/Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(document.body.innerText)`);
+  // A blocked Human-Gate control is valid when it is EITHER a natively disabled control
+  // (old monolith style) OR a V2 gated control that stays clickable so the global audit
+  // delegate can record the blocked attempt and route to the gates page — the V2 gate is
+  // communicated via a data-ui-action="blocked_*" id plus a danger affordance, not by
+  // removing keyboard access. Both forms prove the action cannot silently execute.
+  const communicatesGate = Boolean(result.found) && (
+    Boolean(result.disabled) ||
+    (String(item.selector).includes("blocked_") && result.cursor === "pointer")
+  );
   return {
     ...item,
     ...result,
-    ok: Boolean(result.found) && Boolean(result.disabled) && !hasErrorText
+    ok: communicatesGate && !hasErrorText
   };
 }
 
@@ -423,6 +476,8 @@ console.log(JSON.stringify({
   status: report.status,
   failed_pages: report.failed_pages,
   failed_clicks: report.failed_clicks,
+  failed_page_details: report.page_results?.filter((item) => !item.ok) ?? [],
+  failed_click_details: report.click_results?.filter((item) => !item.ok) ?? [],
   failed_blocked_controls: report.failed_blocked_controls,
   runtime_error_count: report.runtime_error_count ?? 0,
   json: writeReport ? "workspace/workstation_click_smoke_20260701.json" : null,

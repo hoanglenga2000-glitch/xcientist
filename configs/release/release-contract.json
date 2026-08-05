@@ -1,0 +1,83 @@
+{
+  "schema": "evomind.release.contract.v2",
+  "format_version": 2,
+  "product_mode": "local-first-single-user",
+  "bundle_root": "EvoMind",
+  "layout": {
+    "app": "app",
+    "runtime": "runtime",
+    "scripts": "scripts",
+    "config": "config",
+    "data": "user-data",
+    "logs": "user-data/logs",
+    "backups": "user-data/backups",
+    "wheels": "runtime/wheels",
+    "metadata": "metadata"
+  },
+  "entrypoints": {
+    "install": "install.ps1",
+    "start": "start.ps1",
+    "stop": "stop.ps1",
+    "status": "status.ps1",
+    "migrate": "migrate.ps1",
+    "upgrade": "upgrade.ps1",
+    "rollback": "rollback.ps1",
+    "uninstall": "uninstall.ps1"
+  },
+  "web": {
+    "mode": "next-standalone",
+    "server": "app/server.js",
+    "build_id": "app/.next/BUILD_ID",
+    "bind": "127.0.0.1",
+    "port": 8088
+  },
+  "gateway": {
+    "base_url": "http://127.0.0.1:65068/v1",
+    "health_probe": "scripts/verify_openai_gateway.py",
+    "external_optional": false,
+    "fallback_local_deterministic": true
+  },
+  "persistence": {
+    "sqlite": "user-data/prisma/workstation.db",
+    "workspace": "user-data/workspace",
+    "migrations": "app/prisma/migrations",
+    "preserve_on_upgrade": true,
+    "preserve_on_uninstall_by_default": true
+  },
+  "builder": {
+    "toolchain_contract": "configs/release/toolchain.json",
+    "fresh_next_build_required": true,
+    "skip_build_allowed": false,
+    "output_root_sentinel": ".evomind-release-root.json",
+    "replacement_requires_explicit_switch": true,
+    "random_staging_required": true,
+    "atomic_directory_switch": true,
+    "rollback_retained": true
+  },
+  "reproducibility": {
+    "source_digest_required": true,
+    "source_date_epoch_from_git": true,
+    "build_receipt_required": true,
+    "build_id_bound_to_next_tree": true,
+    "published_time_outside_bundle": true,
+    "zip_entry_times_from_source_date_epoch": true
+  },
+  "supply_chain": {
+    "npm_lock_required": true,
+    "npm_ls_must_have_no_problems": true,
+    "uv_lock_required": true,
+    "wheel_hashes_required": true,
+    "wheelhouse_exact_set_required": true,
+    "wheelhouse_reuse_requires_offline_validation": true,
+    "cyclonedx_sbom_required": true,
+    "builder_metadata_merged_into_sbom": true
+  },
+  "release_targets": {
+    "base_bundle_max_mib": 500,
+    "clean_install_required": true,
+    "offline_when_wheels_present": true,
+    "sha256_manifest": true,
+    "no_user_data_in_bundle": true,
+    "no_reparse_points": true
+  }
+}

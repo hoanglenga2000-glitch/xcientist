@@ -11,9 +11,12 @@ Strategy per task:
 5. Track best-so-far, submit to Kaggle if improved
 """
 
-import json, os, sys, time, subprocess
-from pathlib import Path
+import json
+import sys
 from datetime import datetime
+from pathlib import Path
+
+import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -126,7 +129,6 @@ COMPETITIONS = {
 def load_data(task_id, cfg):
     """Load and preprocess competition data."""
     import pandas as pd
-    import numpy as np
     from sklearn.preprocessing import LabelEncoder, StandardScaler
 
     task_dir = ROOT / "tasks" / task_id / "data"
@@ -187,13 +189,10 @@ def load_data(task_id, cfg):
 def train_ensemble(X, y, cfg, random_state=42):
     """Train LGB+XGB+CatBoost ensemble with 5-fold OOF CV."""
     import numpy as np
-    from sklearn.model_selection import StratifiedKFold, KFold
     from sklearn.metrics import accuracy_score, mean_squared_error
+    from sklearn.model_selection import KFold, StratifiedKFold
 
     task_type = cfg["type"]
-    metric = cfg["metric"]
-    direction = cfg["direction"]
-
     is_classification = "classification" in task_type
     n_classes = len(np.unique(y)) if is_classification else 1
 
@@ -207,7 +206,7 @@ def train_ensemble(X, y, cfg, random_state=42):
     if is_classification:
         try:
             cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-        except:
+        except ValueError:
             cv = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     else:
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
@@ -333,7 +332,6 @@ def run_task(task_id, cfg):
             oof_score = (oof_acc == y).mean()
         else:
             sub[pred_col] = np.maximum(0, blend_test)
-            import numpy as np
             oof_score = np.sqrt(np.mean((np.log1p(y) - np.log1p(np.maximum(0, blend_oof))) ** 2))
 
         output_dir = ROOT / "experiments" / task_id / f"batch_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -377,7 +375,7 @@ if __name__ == "__main__":
                     traceback.print_exc()
 
     print(f"\n{'='*60}")
-    print(f"BATCH SUMMARY")
+    print("BATCH SUMMARY")
     print(f"{'='*60}")
     for task_id, r in sorted(results.items()):
         print(f"  {task_id:<45s} score={r['score']:.6f}")

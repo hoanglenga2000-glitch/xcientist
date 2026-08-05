@@ -39,8 +39,9 @@ function markdownToHtml(markdown: string, title: string) {
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"/><title>${htmlEscape(title)}</title><style>body{font-family:"Microsoft YaHei",Arial,sans-serif;max-width:920px;margin:40px auto;color:#0f172a;line-height:1.75}figure{margin:28px 0;padding:14px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}img{display:block;max-width:100%;margin:0 auto;background:#fff;border-radius:6px}figcaption{margin-top:8px;text-align:center;color:#64748b;font-size:12px;font-weight:600}</style></head><body>${body}</body></html>`;
 }
 
-export async function POST(request: Request, { params }: { params: { reportId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ reportId: string }> }) {
   await ensureWorkstationSeeded();
+  const { reportId } = await params;
   const body = await request.json().catch(() => ({}));
   const figurePath = String(body.figure_path ?? body.path ?? "");
   const caption = String(body.caption ?? "Generated figure");
@@ -48,7 +49,7 @@ export async function POST(request: Request, { params }: { params: { reportId: s
     return NextResponse.json({ ok: false, error: "figure_path is required" }, { status: 400 });
   }
 
-  const report = await prisma.report.findUnique({ where: { id: params.reportId } });
+  const report = await prisma.report.findUnique({ where: { id: reportId } });
   if (!report) {
     return NextResponse.json({ ok: false, error: "report not found" }, { status: 404 });
   }
@@ -67,7 +68,7 @@ export async function POST(request: Request, { params }: { params: { reportId: s
     saved_at: new Date().toISOString()
   };
   const updated = await prisma.report.update({
-    where: { id: params.reportId },
+    where: { id: reportId },
     data: {
       markdownContent: nextMarkdown,
       contentJson: encodeJson(content),

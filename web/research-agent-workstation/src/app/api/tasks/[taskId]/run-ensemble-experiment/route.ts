@@ -3,7 +3,7 @@ import { runEnsembleExperiment } from "@/lib/server/runs";
 
 export const dynamic = "force-dynamic";
 
-type RouteContext = { params: { taskId: string } };
+type RouteContext = { params: Promise<{ taskId: string }> };
 
 async function parseOptions(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -30,10 +30,12 @@ async function parseOptions(request: Request) {
 
 export async function POST(request: Request, { params }: RouteContext) {
   try {
+    const { taskId } = await params;
     const options = await parseOptions(request);
-    return NextResponse.json(await runEnsembleExperiment(params.taskId, options));
+    return NextResponse.json(await runEnsembleExperiment(taskId, options));
   } catch (error) {
+    const { taskId } = await params;
     const message = error instanceof Error ? error.message : "Unknown ensemble run error";
-    return NextResponse.json({ ok: false, task_id: params.taskId, error: message }, { status: 500 });
+    return NextResponse.json({ ok: false, task_id: taskId, error: message }, { status: 500 });
   }
 }

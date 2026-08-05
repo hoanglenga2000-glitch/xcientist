@@ -20,15 +20,15 @@ export function Button({
         "inline-flex items-center justify-center gap-1.5 rounded-md border text-xs font-black transition shadow-[0_1px_0_rgba(15,23,42,0.03)]",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 active:translate-y-px",
         variant === "primary" &&
-          "border-primary bg-primary text-white hover:bg-blue-700",
+          "border-primary bg-primary text-accent-fg hover:bg-accent-dark",
         variant === "secondary" &&
-          "border-slate-200 bg-white text-slate-800 hover:border-blue-200 hover:bg-blue-50/40",
+          "border-edge bg-surface-raised text-ink hover:border-accent-muted hover:bg-accent-light/40",
         variant === "ghost" &&
-          "border-transparent bg-transparent text-slate-600 shadow-none hover:bg-slate-100",
+          "border-transparent bg-transparent text-ink-secondary shadow-none hover:bg-surface-sunken",
         variant === "danger" &&
-          "border-red-600 bg-red-600 text-white hover:bg-red-700",
+          "border-danger bg-danger text-frame hover:bg-danger",
         variant === "success" &&
-          "border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800",
+          "border-success bg-success text-frame hover:bg-success/85",
         size === "sm" && "h-7 px-2.5",
         size === "md" && "h-8 px-3",
         size === "icon" && "h-8 w-8 p-0",

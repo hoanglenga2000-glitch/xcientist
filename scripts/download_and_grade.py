@@ -2,8 +2,7 @@
 """Download submissions from server and grade them with MLE-Bench."""
 import os, sys, base64, json, time
 from pathlib import Path
-
-os.environ['GPU_SSH_PASSWORD'] = '31PFmLLb1f'
+if "GPU_SSH_PASSWORD" not in os.environ: raise RuntimeError("GPU_SSH_PASSWORD is required")
 SCRIPTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS_DIR))
 from hpc_connect import hpc_connect

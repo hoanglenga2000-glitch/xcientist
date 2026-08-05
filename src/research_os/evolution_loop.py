@@ -21,6 +21,7 @@ import math
 import re
 import subprocess
 import sys
+import time
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -47,6 +48,10 @@ class RunResult:
     # code is the ONLY signal that a run was timed-out=124 / OOM-killed=137). None
     # means "not a subprocess outcome" (e.g. an infra exception before launch).
     exit_code: Optional[int] = None
+    gpu_seconds: float = 0.0
+    estimated_cost_usd: float = 0.0
+    evaluator_version: str = ""
+    environment_hash: str = ""
 
 
 class Runner(Protocol):
@@ -87,23 +92,45 @@ class LocalSubprocessRunner:
                 capture_output=True, text=True, timeout=self.timeout,
             )
         except subprocess.TimeoutExpired:
-            return RunResult(False, None, error=f"timeout after {self.timeout}s", out_dir=out_dir)
+            return RunResult(False, None, error=f"timeout after {self.timeout}s", out_dir=out_dir, exit_code=124)
         combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
         score = _parse_cv_score(proc.stdout or "")
         metrics_path = Path(out_dir) / "metrics.json"
-        if score is None and metrics_path.exists():
+        metrics: dict[str, Any] = {}
+        if metrics_path.exists():
             try:
-                score = float(json.loads(metrics_path.read_text(encoding="utf-8")).get("cv_score"))
-            except (ValueError, TypeError, json.JSONDecodeError):
-                score = None
+                decoded = json.loads(metrics_path.read_text(encoding="utf-8"))
+                if isinstance(decoded, dict):
+                    metrics = decoded
+                    if score is None:
+                        score = float(decoded.get("cv_score"))
+            except (ValueError, TypeError, json.JSONDecodeError, OSError):
+                metrics = {}
+                if score is None:
+                    score = None
+        evaluator_version = str(metrics.get("evaluator_version") or "")[:200]
+        environment_hash = str(metrics.get("environment_hash") or "").lower()
+        if not re.fullmatch(r"[0-9a-f]{64}", environment_hash):
+            environment_hash = ""
         artifacts = [str(p) for p in Path(out_dir).glob("*") if p.is_file()]
         if proc.returncode != 0 or score is None:
             return RunResult(
                 False, score, stdout_tail=combined[-1500:],
                 error=(proc.stderr or "no CV_SCORE emitted")[-1500:],
-                out_dir=out_dir, artifacts=artifacts,
+                out_dir=out_dir, artifacts=artifacts, exit_code=proc.returncode,
+                evaluator_version=evaluator_version,
+                environment_hash=environment_hash,
             )
-        return RunResult(True, score, stdout_tail=combined[-800:], out_dir=out_dir, artifacts=artifacts)
+        return RunResult(
+            True,
+            score,
+            stdout_tail=combined[-800:],
+            out_dir=out_dir,
+            artifacts=artifacts,
+            exit_code=proc.returncode,
+            evaluator_version=evaluator_version,
+            environment_hash=environment_hash,
+        )
 
 
 @dataclass
@@ -113,6 +140,9 @@ class EvolutionConfig:
     stagnation_patience: int = 2  # consecutive non-improving iters before Diff mode
     required_artifacts: list[str] = field(default_factory=lambda: ["metrics.json", "submission.csv"])
     transient_retries: int = 3  # re-run the SAME proposal on transient infra (SSH/SOCKS) errors; 3 suits long large-data runs where a flaky tunnel is likely to drop mid-training
+    # Immutable public-data contract hashes supplied by the campaign launcher.
+    # Private answer/grader hashes are deliberately excluded.
+    public_data_hashes: tuple[str, ...] = ()
 
 
 @dataclass
@@ -180,6 +210,15 @@ class EvolutionLoop:
         self.last_code: Optional[str] = None      # last attempted code (even if it failed)
         self.last_exp_id: Optional[str] = None
         self.last_error: str = ""                  # cleaned full error of last failed run (for Diff feedback)
+        self.terminal_reason: str = ""
+
+    def _experience_mode(self) -> bool:
+        mode = getattr(self.selector, "search_mode", "") if self.selector is not None else ""
+        return str(getattr(mode, "value", mode)) == "experience_mcgs_v1"
+
+    def _terminate(self, reason: str) -> None:
+        self.terminal_reason = str(reason)
+        self.graph.terminal_reason = self.terminal_reason
 
     def _emit(self, event_type: str, **fields: Any) -> None:
         """Emit one research event to the optional stream. Never raises.
@@ -322,6 +361,11 @@ class EvolutionLoop:
             **self._run_meta,
         )
         for iteration in range(self.config.max_iterations):
+            if self.selector is not None and hasattr(self.selector, "budget") and not self.selector.budget.can_continue:
+                self._terminate(self.selector.budget.exceeded_reason())
+                self._emit(ev.ITER_END, exp_id="", mode="", success=False, cv_score=None, promoted=False,
+                           terminal_reason=self.terminal_reason)
+                break
             exp_id = f"EXP{iteration:03d}"
             self._emit(ev.ITER_BEGIN, iteration=iteration, exp_id=exp_id)
             mode = self._decide_mode(iteration, consecutive_no_improve, last_failed)
@@ -336,16 +380,23 @@ class EvolutionLoop:
                 base_parent = self.last_exp_id
             # MCGS selection brain (opt-in). It decides which node to expand, the
             # expansion type, the coding mode, and which sibling solutions to
-            # reference. Any failure degrades gracefully to the linear logic above.
+            # reference. Experience mode is fail-closed: selector/ledger/export
+            # faults become an audited terminal state instead of silently changing
+            # the treatment into the legacy linear baseline.
             expansion_type = "primary"
             reference_solutions: list[Any] = []
             tree_parent = base_parent
-            if self.selector is not None and self.graph.nodes:
+            parent_exp_ids: list[str] = [tree_parent] if tree_parent else []
+            if self.selector is not None:
                 try:
                     plan = self.selector.select(self.graph, step=iteration)
                     mode = plan.coding_mode
                     expansion_type = plan.expansion_type
-                    tree_parent = plan.node_exp_id
+                    planned_parents = list(getattr(plan, "parent_exp_ids", []) or [])
+                    if not planned_parents and plan.node_exp_id in self.graph.nodes:
+                        planned_parents = [plan.node_exp_id]
+                    parent_exp_ids = list(dict.fromkeys(item for item in planned_parents if item))
+                    tree_parent = parent_exp_ids[0] if parent_exp_ids else (plan.node_exp_id if plan.node_exp_id in self.graph.nodes else None)
                     if plan.node_exp_id in self.code_by_exp:
                         base_code = self.code_by_exp[plan.node_exp_id]
                     reference_solutions = self._build_references(plan.reference_exp_ids)
@@ -355,11 +406,21 @@ class EvolutionLoop:
                         expansion_type=expansion_type, coding_mode=mode,
                         reference_exp_ids=list(plan.reference_exp_ids or []),
                         phase=getattr(plan, "phase", ""),
+                        operator=getattr(plan, "operator", ""),
+                        retrieval_card_ids=list(getattr(plan, "retrieval_card_ids", []) or []),
+                        parent_exp_ids=parent_exp_ids,
                     )
-                except Exception as exc:  # selector must never crash the loop
+                except Exception as exc:
+                    if self._experience_mode():
+                        self._terminate(f"selector_failed:{type(exc).__name__}")
+                        self._append_history(exp_id, mode, None, False, self.terminal_reason)
+                        self._emit(ev.ITER_END, exp_id=exp_id, mode=mode, success=False,
+                                   cv_score=None, promoted=False, terminal_reason=self.terminal_reason)
+                        break
                     self._append_history(exp_id, mode, None, False,
                                          f"selector_fallback: {type(exc).__name__}")
                     expansion_type, reference_solutions, tree_parent = "primary", [], base_parent
+                    parent_exp_ids = [tree_parent] if tree_parent else []
                     self._pending_plan = None
             else:
                 self._pending_plan = None
@@ -372,14 +433,30 @@ class EvolutionLoop:
             ctx = self.context
             if notes != self.context.extra_notes:
                 ctx = _with_notes(self.context, notes)
+            generation_started = time.monotonic()
             try:
-                proposal = self.generator.propose(
-                    ctx, exp_id=exp_id, mode=mode, cv_history=self.cv_history,
+                proposal_kwargs = dict(
+                    exp_id=exp_id, mode=mode, cv_history=self.cv_history,
                     lessons=self._lessons(), strategies=strategies, best_code=base_code,
                     parent_exp_id=tree_parent, expansion_type=expansion_type,
                     reference_solutions=reference_solutions,
+                    operator=getattr(getattr(self, "_pending_plan", None), "operator", ""),
                 )
+                experience_context = ""
+                if self.selector is not None and hasattr(self.selector, "prompt_context"):
+                    experience_context = str(self.selector.prompt_context() or "")
+                if experience_context:
+                    proposal_kwargs["experience_context"] = experience_context
+                proposal = self.generator.propose(ctx, **proposal_kwargs)
             except Exception as exc:  # generation failure is itself a recorded outcome
+                if self._experience_mode():
+                    self._terminate(f"generation_failed:{type(exc).__name__}")
+                    self._append_history(exp_id, mode, None, False, self.terminal_reason)
+                    self._emit(ev.SCORE, exp_id=exp_id, success=False, cv_score=None,
+                               error=self.terminal_reason)
+                    self._emit(ev.ITER_END, exp_id=exp_id, mode=mode, success=False,
+                               cv_score=None, promoted=False, terminal_reason=self.terminal_reason)
+                    break
                 self._append_history(exp_id, mode, None, False, f"generation_failed: {type(exc).__name__}")
                 self._emit(ev.SCORE, exp_id=exp_id, success=False, cv_score=None,
                            error=f"generation_failed: {type(exc).__name__}")
@@ -388,6 +465,7 @@ class EvolutionLoop:
                 last_failed = True
                 consecutive_no_improve += 1
                 continue
+            generation_wall_seconds = max(0.0, time.monotonic() - generation_started)
 
             self.last_code = proposal.code
             self.last_exp_id = exp_id
@@ -395,6 +473,7 @@ class EvolutionLoop:
             self._emit(
                 ev.PROPOSE, exp_id=exp_id, mode=mode, expansion_type=expansion_type,
                 parent_exp_id=tree_parent, hypothesis=proposal.hypothesis,
+                parent_exp_ids=parent_exp_ids,
                 changes_summary=proposal.changes_summary,
                 strategies=list(proposal.applied_strategies or []),
                 provider=proposal.provider, model=proposal.model,
@@ -405,6 +484,7 @@ class EvolutionLoop:
             # proposal: re-run the SAME code before giving up, so we don't waste an
             # LLM proposal on a network blip and needlessly flip into Diff mode.
             result = None
+            execution_started = time.monotonic()
             for attempt in range(self.config.transient_retries + 1):
                 try:
                     result = self.runner.run(proposal.code, data_dir=self.data_dir, out_dir=out_dir, exp_id=exp_id)
@@ -415,9 +495,15 @@ class EvolutionLoop:
                         continue
                     result = RunResult(False, None, error=err, out_dir=out_dir)
                     break
+            execution_wall_seconds = max(0.0, time.monotonic() - execution_started)
             self._emit(ev.SCORE, exp_id=exp_id, success=result.success,
                        cv_score=result.cv_score, exit_code=result.exit_code)
-            promoted, delta = self._integrate(proposal, result, tree_parent=tree_parent)
+            promoted, delta = self._integrate(
+                proposal,
+                result,
+                tree_parent=tree_parent,
+                parent_exp_ids=parent_exp_ids,
+            )
             best_node = self.graph.nodes.get(self.best_exp_id) if self.best_exp_id else None
             self._emit(
                 ev.PROMOTE, exp_id=exp_id, promoted=promoted, delta=delta,
@@ -430,9 +516,47 @@ class EvolutionLoop:
             if self.selector is not None and getattr(self, "_pending_plan", None) is not None:
                 try:
                     self.selector.register_child(self._pending_plan, exp_id)
+                    if hasattr(self.selector, "record_execution"):
+                        self.selector.record_execution(
+                            self.graph,
+                            exp_id=exp_id,
+                            plan=self._pending_plan,
+                            code=proposal.code,
+                            prompt=getattr(proposal, "prompt", ""),
+                            method_family=(proposal.applied_strategies[0] if proposal.applied_strategies else proposal.code_generation_mode),
+                            success=result.success,
+                            # Successful stdout contains metrics such as
+                            # ``CV_SCORE=...`` and is evidence, not an error.
+                            # Feeding it into the normalized error signature
+                            # pins all later routing to Debug forever.
+                            error="" if result.success else (result.error or result.stdout_tail),
+                            prompt_tokens=getattr(proposal, "llm_input_tokens", 0),
+                            completion_tokens=getattr(proposal, "llm_output_tokens", 0),
+                            wall_seconds=generation_wall_seconds + execution_wall_seconds,
+                            gpu_seconds=getattr(result, "gpu_seconds", 0.0),
+                            estimated_cost_usd=getattr(result, "estimated_cost_usd", 0.0),
+                            data_hashes=self.config.public_data_hashes,
+                            artifact_paths=result.artifacts,
+                            execution_output=result.stdout_tail,
+                            evaluator_version=getattr(result, "evaluator_version", ""),
+                            environment_hash=getattr(result, "environment_hash", ""),
+                        )
                     self.selector.backpropagate(self.graph, exp_id, improved=promoted)
-                except Exception:  # backprop must never crash the loop
-                    pass
+                    if hasattr(self.selector, "export_observability"):
+                        self.selector.export_observability(self.work_dir)
+                except Exception as exc:
+                    if self._experience_mode():
+                        self._terminate(f"experience_record_failed:{type(exc).__name__}")
+                        self.iterations.append(IterationRecord(
+                            exp_id=exp_id, mode=mode, success=result.success,
+                            cv_score=result.cv_score, promoted=promoted,
+                            note=self.terminal_reason, provider=proposal.provider,
+                            model=proposal.model,
+                        ))
+                        self._emit(ev.ITER_END, exp_id=exp_id, mode=mode,
+                                   success=False, cv_score=result.cv_score,
+                                   promoted=promoted, terminal_reason=self.terminal_reason)
+                        break
             last_failed = not result.success
             if not result.success:
                 # Persist the full, noise-stripped error so failures are debuggable
@@ -472,21 +596,42 @@ class EvolutionLoop:
                     and self.graph.detect_global_stagnation(min_delta=self.config.min_delta)
                     and iteration >= 2):
                 break
+        if (
+            not self.terminal_reason
+            and self.selector is not None
+            and hasattr(self.selector, "budget")
+            and self.selector.budget.exceeded_reason()
+        ):
+            self._terminate(self.selector.budget.exceeded_reason())
         summary = self.summary()
+        if self.selector is not None and hasattr(self.selector, "export_observability"):
+            try:
+                self.selector.export_observability(self.work_dir)
+            except Exception as exc:
+                if self._experience_mode():
+                    self._terminate(f"experience_export_failed:{type(exc).__name__}")
+                    summary = self.summary()
         self._emit(
             ev.RUN_END, task=self.context.task_name,
             best_exp_id=summary.get("best_exp_id"),
             best_cv_score=summary.get("best_cv_score"),
             n_iterations=summary.get("n_iterations"),
             n_promotions=summary.get("n_promotions"),
+            terminal_reason=summary.get("terminal_reason", ""),
         )
         return summary
 
     def _integrate(self, proposal: VariationProposal, result: RunResult,
-                   *, tree_parent: Optional[str] = None) -> tuple[bool, Optional[float]]:
+                   *, tree_parent: Optional[str] = None,
+                   parent_exp_ids: Optional[list[str]] = None) -> tuple[bool, Optional[float]]:
         # tree_parent = the node we expanded FROM (MCGS topology). Falls back to the
         # global best so non-selector callers keep the original linear ancestry.
-        parent_for_tree = tree_parent if tree_parent is not None else self.best_exp_id
+        resolved_parents = list(dict.fromkeys(
+            item for item in (parent_exp_ids or []) if item and item != proposal.exp_id
+        ))
+        parent_for_tree = tree_parent if tree_parent is not None else (resolved_parents[0] if resolved_parents else self.best_exp_id)
+        if parent_for_tree and parent_for_tree not in resolved_parents:
+            resolved_parents.insert(0, parent_for_tree)
         node = ExperimentNode(
             exp_id=proposal.exp_id, parent_id=parent_for_tree, branch_type=proposal.code_generation_mode,
             task_name=self.context.task_name, hypothesis=proposal.hypothesis,
@@ -495,10 +640,19 @@ class EvolutionLoop:
             cv_score=result.cv_score, metric_name="cv_score", metric_direction=self.context.metric_direction,
             run_success=result.success,
             created_at=datetime.now().isoformat(timespec="seconds"),
+            reference_parent_ids=resolved_parents,
         )
         self.graph.add_node(node)
         if parent_for_tree and parent_for_tree in self.graph.nodes:
             self.graph.add_edge(parent_for_tree, proposal.exp_id, proposal.code_generation_mode)
+        for reference_parent in resolved_parents[1:]:
+            if reference_parent in self.graph.nodes:
+                self.graph.add_reference_edge(
+                    reference_parent,
+                    proposal.exp_id,
+                    reason="selected crossover parent",
+                    reference_type="crossover_parent",
+                )
         decision = self.graph.decide_promotion(
             proposal.exp_id, parent_exp_id=self.best_exp_id, metric="cv_score",
             direction=self.context.metric_direction, min_delta=self.config.min_delta,
@@ -591,6 +745,12 @@ class EvolutionLoop:
             "promotion_history": self.graph.promotion_history,
             "n_iterations": len(self.iterations),
             "n_promotions": sum(1 for it in self.iterations if it.promoted),
+            "terminal_reason": self.terminal_reason,
+            "budget": (
+                self.selector.budget.to_dict()
+                if self.selector is not None and hasattr(self.selector, "budget")
+                else None
+            ),
         }
 
 

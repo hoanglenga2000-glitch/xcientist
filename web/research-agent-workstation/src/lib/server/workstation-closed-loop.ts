@@ -303,10 +303,6 @@ function tryParseJsonObjectFromCommandOutput(output: string): Record<string, unk
   }
 }
 
-function relativeFromRoot(absolutePath: string) {
-  return path.relative(resolveWorkspacePath("."), absolutePath).replaceAll("\\", "/");
-}
-
 async function fileHash(relativePath: string) {
   const target = resolveWorkspacePath(relativePath);
   const hash = createHash("sha256");
@@ -683,7 +679,7 @@ async function preflight(runId: string, runRoot: string) {
     const parsedConfigured = parsedKaggle?.configured === true;
     kaggle = {
       ...kaggle,
-      ...(parsedKaggle ?? {}),
+      ...parsedKaggle,
       configured: parsedConfigured || kaggleEnvConfigured,
       status: parsedConfigured || kaggleEnvConfigured ? "warning" : "blocked",
       warning: parsedConfigured || kaggleEnvConfigured ? "Kaggle smoke failed during preflight, but credential installation exists and submission gate will still enforce approval." : null,
@@ -1865,7 +1861,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     gateId: hpcGateId,
     template: gpuTemplate,
     resourceRequest: {
-      ...(options.resourceRequest ?? {}),
+      ...options.resourceRequest,
       gpu_count: "available",
       mode: gpuTemplate === "playground_s6e6_pytorch_mlp" ? "full_data_training"
         : gpuTemplate === "playground_s6e6_boosting_ensemble" ? "boosting_ensemble"

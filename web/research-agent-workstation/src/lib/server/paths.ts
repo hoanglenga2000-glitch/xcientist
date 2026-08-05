@@ -2,7 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 
 export const workspaceRoot = path.resolve(process.env.WORKSTATION_ROOT ?? path.resolve(process.cwd(), "..", ".."));
-export const runtimeRoot = path.join(workspaceRoot, "workspace", "runtime");
+export const workstationDataRoot = path.resolve(process.env.WORKSTATION_DATA_DIR ?? workspaceRoot);
+export const runtimeRoot = path.join(workstationDataRoot, "workspace", "runtime");
 
 export function normalizeTaskId(taskId: string) {
   return taskId === "house-prices" ? "house_prices" : taskId;
@@ -10,11 +11,25 @@ export function normalizeTaskId(taskId: string) {
 
 export function toRelativePath(targetPath: string | null | undefined) {
   if (!targetPath) return null;
-  return path.isAbsolute(targetPath) ? path.relative(workspaceRoot, targetPath) : targetPath;
+  const absolute = path.isAbsolute(targetPath) ? path.resolve(targetPath) : resolveWorkspacePath(targetPath);
+  assertWorkspacePath(absolute);
+  return path.relative(workspaceRoot, absolute);
 }
 
 export function resolveWorkspacePath(relativePath: string) {
-  return path.join(workspaceRoot, relativePath);
+  const target = path.resolve(workspaceRoot, relativePath);
+  assertWorkspacePath(target);
+  return target;
+}
+
+export function assertWorkspacePath(targetPath: string) {
+  const root = path.resolve(workspaceRoot);
+  const target = path.resolve(targetPath);
+  const rootPrefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (target !== root && !target.startsWith(rootPrefix)) {
+    throw new Error(`Path escapes WORKSTATION_ROOT: ${targetPath}`);
+  }
+  return target;
 }
 
 export function stamp() {

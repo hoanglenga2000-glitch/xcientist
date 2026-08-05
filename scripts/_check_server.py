@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import os, sys
-os.environ['GPU_SSH_PASSWORD'] = '31PFmLLb1'
+if "GPU_SSH_PASSWORD" not in os.environ: raise RuntimeError("GPU_SSH_PASSWORD is required")
 from hpc_connect import hpc_exec
 
 cmds = [

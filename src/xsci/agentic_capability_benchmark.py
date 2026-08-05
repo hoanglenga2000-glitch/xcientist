@@ -999,9 +999,34 @@ def _cleanup_fixture_worktrees(workspace: Path, child_temp_root: Path) -> list[s
     else:
         errors.append("could not enumerate child worktrees: " + _output_summary(listed.stdout, 400))
     _git_command(workspace, "worktree", "prune", timeout=30)
-    shutil.rmtree(child_temp_root, ignore_errors=True)
+
+    # On Windows, taskkill can report success a fraction of a second before all
+    # descendants release their current-directory handles. A single rmtree
+    # with ignored errors can then silently leave an empty worktree skeleton
+    # behind. Retry for a short, bounded window and make read-only entries
+    # writable before retrying the failed operation.
+    cleanup_deadline = time.monotonic() + 1.5
+    cleanup_error = ""
+
+    def retry_writable(function: Any, raw_path: str, _exc_info: Any) -> None:
+        try:
+            os.chmod(raw_path, 0o700)
+        except OSError:
+            pass
+        function(raw_path)
+
+    while child_temp_root.exists():
+        try:
+            shutil.rmtree(child_temp_root, onerror=retry_writable)
+            cleanup_error = ""
+        except OSError as exc:
+            cleanup_error = f"{type(exc).__name__}: {exc}"
+        if not child_temp_root.exists() or time.monotonic() >= cleanup_deadline:
+            break
+        time.sleep(0.05)
     if child_temp_root.exists():
-        errors.append("child temporary worktree directory remained after cleanup")
+        detail = f" ({cleanup_error})" if cleanup_error else ""
+        errors.append("child temporary worktree directory remained after cleanup" + detail)
     return errors
 
 

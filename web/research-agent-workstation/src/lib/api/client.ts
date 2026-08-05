@@ -1,4 +1,17 @@
-import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistEngineeringLoopResponse, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
+import type { ClaudeAgentSessionResponse, DeepSeekSmokeResponse, EvolutionConfigsResponse, EvolutionCycleRequest, EvolutionCycleResponse, EvolutionGraphResponse, EvolutionMemoryResponse, EvolutionPlanRequest, EvolutionPlanResponse, EvolutionStateResponse, EvolutionStepResponse, GpuGatewayResponse, LiteratureSearchResponse, LocalGpuTelemetryResponse, PaperEvidenceBundleResponse, RunLocalExperimentResponse, ScientistActionQueueSummary, ScientistAutopilotStatusSummary, ScientistAutopilotSummary, ScientistCausalDiagnosisSummary, ScientistContextPacketSummary, ScientistContinuationResumeSummary, ScientistContinuationStatusSummary, ScientistEngineeringLoopResponse, ScientistExecutionContractSummary, ScientistExperimentBlueprintSummary, ScientistHypothesisReviewSummary, ScientistInnovationBacklogSummary, ScientistLoopLessonsSummary, ScientistLoopSummary, ScientistMemoryConsolidationSummary, ScientistNextActionSummary, ScientistPatchActionQueueSummary, ScientistPatchWorkOrderSummary, ScientistReadinessReportSummary, ScientistRecoverySummary, ScientistRepairPlanSummary, ScientistSelfAuditSummary, ScientistSelfUpgradeLoopSummary, ScientistSituationModelSummary, ScientistStepTraceSummary, ScientistStrategyOptimizerSummary, ScientistStreamSummary, ScientistTerminalTurnResponse, ScientistTerminalTurnSummary, ScientistTurnPlanSummary, ScientistTurnsSummary, ScientistUpgradePlanSummary, ScientistWorkplanSummary, WorkstationActionRequest, WorkstationActionResponse, WorkstationSummary } from "@/lib/api/types";
+import type { EvolutionExperienceResponse, LiteratureImportResponse, RefinementPlan, ScientificReportGenerationStatus, ScientificReportPackage } from "@/lib/api/types";
+import { pollScientificReport, type ScientificReportPollOptions } from "@/lib/api/report-polling";
+
+export type MultiAgentRunStartResponse = {
+  ok: boolean;
+  task_id: string;
+  run_id: string;
+  status: string;
+  snapshot_url: string;
+  events_url: string;
+  current_run_url: string;
+  irreversible_actions?: string;
+};
 
 async function readJson<T>(response: Response): Promise<T> {
   const payload = (await response.json()) as T & { error?: string; ok?: boolean };
@@ -8,8 +21,43 @@ async function readJson<T>(response: Response): Promise<T> {
   return payload;
 }
 
-export async function getWorkstationSummary() {
-  return readJson<WorkstationSummary>(await fetch("/api/workstation-summary"));
+export async function getWorkstationSummary(detail?: string, force = false) {
+  const publicPresentation = typeof window !== "undefined"
+    && new URL(window.location.href).searchParams.get("presentation") === "public";
+  const endpoint = publicPresentation
+    ? "/api/public-demo-summary"
+    : detail
+      ? `/api/workstation-summary/detail/${encodeURIComponent(detail)}${force ? "?fresh=1" : ""}`
+      : "/api/workstation-summary";
+  return readJson<WorkstationSummary>(await fetch(endpoint, { cache: "no-store" }));
+}
+
+export async function createMultiAgentRun(objective: string) {
+  return readJson<MultiAgentRunStartResponse>(
+    await fetch("/api/multi-agent/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ objective })
+    })
+  );
+}
+
+export async function getMultiAgentRun(runId: string) {
+  return readJson<Record<string, unknown>>(
+    await fetch(`/api/multi-agent/runs/${encodeURIComponent(runId)}`)
+  );
+}
+
+export async function getMultiAgentEvents(runId: string, afterSeq = 0) {
+  return readJson<{ ok: boolean; run_id: string; after_seq: number; last_seq: number; events: Array<Record<string, unknown>> }>(
+    await fetch(`/api/multi-agent/runs/${encodeURIComponent(runId)}/events?after_seq=${Math.max(0, afterSeq)}`)
+  );
+}
+
+export async function controlMultiAgentRun(runId: string, action: "pause" | "resume" | "cancel") {
+  return readJson<Record<string, unknown>>(
+    await fetch(`/api/multi-agent/runs/${encodeURIComponent(runId)}/${action}`, { method: "POST" })
+  );
 }
 
 export async function getScientistAutopilot() {
@@ -340,6 +388,17 @@ export async function listEvolutionConfigs() {
   return readJson<EvolutionConfigsResponse>(await fetch("/api/evolution/configs"));
 }
 
+export async function getEvolutionExperience(taskId: string, runId?: string | null) {
+  const query = evolutionQuery(taskId, runId ? { run_id: runId } : {});
+  return readJson<EvolutionExperienceResponse>(
+    await fetch(`/api/evolution/experience?${query}`, { cache: "no-store" })
+  );
+}
+
+export async function getLocalGpuTelemetry() {
+  return readJson<LocalGpuTelemetryResponse>(await fetch("/api/local-gpu/telemetry", { cache: "no-store" }));
+}
+
 /**
  * Drive the full evolution closed loop. Without `approve:true` the server returns
  * the plan and stops (no training). Real training only launches on approval and is
@@ -527,7 +586,7 @@ export async function generateReportDraft(taskId: string, payload: { language?: 
   );
 }
 
-export async function searchLiterature(payload: { task_id: string; query: string; max_results?: number; include_arxiv?: boolean }) {
+export async function searchLiterature(payload: { task_id: string; query: string; max_results?: number; include_arxiv?: boolean; include_openalex?: boolean; include_crossref?: boolean; include_internal?: boolean }) {
   return readJson<LiteratureSearchResponse>(
     await fetch("/api/literature/search", {
       method: "POST",
@@ -535,6 +594,16 @@ export async function searchLiterature(payload: { task_id: string; query: string
       body: JSON.stringify(payload)
     })
   );
+}
+
+export async function importLiterature(taskId: string, file: File, metadata: { title?: string; authors?: string; doi?: string; year?: string; source_url?: string } = {}) {
+  const form = new FormData();
+  form.append("task_id", taskId);
+  form.append("file", file);
+  Object.entries(metadata).forEach(([key, value]) => {
+    if (value?.trim()) form.append(key, value.trim());
+  });
+  return readJson<LiteratureImportResponse>(await fetch("/api/literature/import", { method: "POST", body: form }));
 }
 
 export async function getWorkflow(taskId: string) {
@@ -573,6 +642,70 @@ export async function insertReportFigure(reportId: string, figurePath: string, c
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ figure_path: figurePath, caption })
+    })
+  );
+}
+
+export async function getScientificReport(
+  taskId: string,
+  runId: string,
+  publicPresentation = false,
+  options: ScientificReportPollOptions = {},
+) {
+  const query = `?${new URLSearchParams({ task_id: taskId, run_id: runId }).toString()}`;
+  const endpoint = publicPresentation
+    ? `/api/public-scientific-report${query}`
+    : `/api/tasks/${encodeURIComponent(taskId)}/scientific-report?run_id=${encodeURIComponent(runId)}`;
+  if (publicPresentation) {
+    return readJson<{ ok: true; task_id: string; report: ScientificReportPackage }>(
+      await fetch(endpoint, { cache: "no-store", signal: options.signal })
+    );
+  }
+  return pollScientificReport<ScientificReportPackage>(
+    (signal) => fetch(endpoint, { cache: "no-store", signal }),
+    { taskId, runId },
+    options,
+  );
+}
+
+export async function generateScientificReport(taskId: string, runId: string) {
+  return readJson<{ ok: boolean; task_id: string; report: ScientificReportPackage }>(
+    await fetch(`/api/tasks/${encodeURIComponent(taskId)}/scientific-report`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: runId })
+    })
+  );
+}
+
+export async function getScientificReportGeneration(taskId: string, runId: string) {
+  return readJson<{ ok: boolean; task_id: string; run_id: string; generation: ScientificReportGenerationStatus | null }>(
+    await fetch(`/api/tasks/${encodeURIComponent(taskId)}/scientific-report?run_id=${encodeURIComponent(runId)}&status_only=1`, { cache: "no-store" })
+  );
+}
+
+export async function getLatestRefinement(taskId: string, parentRunId: string) {
+  return readJson<{ ok: boolean; task_id: string; refinement: RefinementPlan | null }>(
+    await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refinement?parent_run_id=${encodeURIComponent(parentRunId)}`, { cache: "no-store" })
+  );
+}
+
+export async function parseRefinement(taskId: string, parentRunId: string, prompt: string) {
+  return readJson<{ ok: boolean; task_id: string; refinement: RefinementPlan }>(
+    await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refinement`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "parse", parent_run_id: parentRunId, prompt })
+    })
+  );
+}
+
+export async function decideRefinement(taskId: string, refinementId: string, decision: "approve" | "reject") {
+  return readJson<{ ok: boolean; task_id: string; refinement: RefinementPlan; status: string }>(
+    await fetch(`/api/tasks/${encodeURIComponent(taskId)}/refinement`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: decision, refinement_id: refinementId })
     })
   );
 }

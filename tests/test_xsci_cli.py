@@ -6,6 +6,7 @@ import json
 import os
 import stat
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -155,3 +156,45 @@ def test_dashboard_dispatches_manager(monkeypatch):
     rc = main(["dashboard", "status", "--port", "8090"])
     assert rc == 0
     assert calls == [("status", 8090, 45.0, False, False)]
+
+
+def test_open_dashboard_restarts_and_dispatches_private_bootstrap(tmp_path, monkeypatch, capsys):
+    from xsci import dashboard
+
+    token = "private-one-time-bootstrap-token-for-browser-test"
+    target = tmp_path / "dashboard.bootstrap.once"
+    calls = []
+    opened = []
+
+    def fake_run(command, *, port, timeout, build, force):
+        calls.append((command, port, timeout, build, force))
+        target.write_text(
+            f"http://127.0.0.1:{port}/?page=assistant#bootstrap={token}",
+            encoding="utf-8",
+        )
+        return 0
+
+    monkeypatch.setattr(dashboard, "run_dashboard", fake_run)
+    monkeypatch.setattr(dashboard, "bootstrap_url_path", lambda _port: target)
+    monkeypatch.setattr(dashboard.webbrowser, "open", lambda url, **_kwargs: opened.append(url) or True)
+
+    rc = dashboard.open_dashboard(port=18088, timeout=5.0)
+    output = capsys.readouterr().out
+
+    assert rc == 0
+    assert calls == [("restart", 18088, 5.0, False, True)]
+    assert opened == [f"http://127.0.0.1:18088/?page=assistant#bootstrap={token}"]
+    assert not target.exists()
+    assert token not in output
+    assert '"bootstrap_token_exposed": false' in output
+
+
+def test_windows_cli_installer_uses_repo_bound_launcher():
+    root = Path(__file__).resolve().parents[1]
+    installer = (root / "scripts" / "install_autokaggle_cli.ps1").read_text(encoding="utf-8")
+    launcher = (root / "scripts" / "evomind_cli_launcher.ps1").read_text(encoding="utf-8")
+
+    assert 'evomind-launch.ps1' in installer
+    assert 'evomind-launcher.json' in installer
+    assert 'python -X utf8 -m xsci.kaggle %*' not in installer
+    assert 'run --project $repoRoot --directory $repoRoot' in launcher

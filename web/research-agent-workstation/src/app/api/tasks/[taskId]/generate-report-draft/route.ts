@@ -211,9 +211,10 @@ function buildMarkdown({
   ].join("\n");
 }
 
-export async function POST(request: Request, { params }: { params: { taskId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const body = await request.json().catch(() => ({}));
   const language = String(body.language ?? "zh-CN");
   const latest = await latestExperimentPath(taskId);
@@ -221,7 +222,7 @@ export async function POST(request: Request, { params }: { params: { taskId: str
     latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "validation_gate.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
     latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "data_quality.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
     latest ? readJsonFile(resolveWorkspacePath(path.join(latest, "experiment_log.json"))) as Promise<Record<string, unknown> | null> : Promise.resolve(null),
-    prisma.experimentRun.findFirst({ where: { taskId }, orderBy: { createdAt: "desc" } }).then((run) => run ? { ...run, best_metrics: run.metricsJson ? JSON.parse(run.metricsJson) as Record<string, unknown> : null } : null),
+    prisma.experimentRun.findFirst({ where: { taskId }, orderBy: { createdAt: "desc" } }).then((run: any) => run ? { ...run, best_metrics: run.metricsJson ? JSON.parse(run.metricsJson) as Record<string, unknown> : null } : null),
     readJsonFile(resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "figures", "figures_manifest.json"))) as Promise<{ figures?: Array<{ name: string; path: string }> } | null>
   ]);
   const figures = figuresManifest?.figures ?? [];

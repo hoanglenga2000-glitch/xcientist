@@ -3,8 +3,11 @@
 
 One command unifies both tracks:
 
-    # local (fast, needs sklearn/lightgbm locally)
+    # local (fast, CPU-oriented)
     python scripts/run_evolution.py --task-config configs/evolution/nomad2018.json --runner local
+
+    # local GPU (generated tabular candidates may use XGBoost/CatBoost CUDA)
+    python scripts/run_evolution.py --task-config configs/evolution/credit_card_fraud_detection.json --runner local_gpu
 
     # GPU (real training on the A40, data already on the box)
     python scripts/run_evolution.py --task-config configs/evolution/nomad2018.json --runner gpu
@@ -28,7 +31,10 @@ for candidate in (SRC, ROOT):
 
 try:
     from dotenv import load_dotenv
-    load_dotenv(dotenv_path=str(ROOT / ".env"), override=True)  # .env is authoritative for the engine
+    # Explicit process environment is authoritative for verified/DPAPI launches;
+    # .env only fills missing local-development values and never downgrades a
+    # run pinned to openai/gpt-5.6-sol.
+    load_dotenv(dotenv_path=str(ROOT / ".env"), override=False)
 except Exception:
     pass
 
@@ -52,6 +58,7 @@ def _load_context(config_path: Path) -> tuple[TaskContext, dict]:
         n_train=int(data.get("n_train", 0)),
         n_test=int(data.get("n_test", 0)),
         extra_notes=data.get("extra_notes", ""),
+        compute_backend=data.get("compute_backend", "cpu"),
     )
     return ctx, data
 
@@ -72,7 +79,7 @@ def _strategies_for(ctx: TaskContext, data: dict) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description="Run the evolution engine on one task.")
     ap.add_argument("--task-config", required=True, help="JSON task context file")
-    ap.add_argument("--runner", choices=["local", "gpu"], default="local")
+    ap.add_argument("--runner", choices=["local", "local_gpu", "gpu"], default="local")
     ap.add_argument("--iterations", type=int, default=5)
     ap.add_argument("--data-dir", default="", help="local data dir (local runner) or remote data dirname (gpu)")
     ap.add_argument("--remote-data-dirname", default="", help="task dir under mlebench_raw_data (gpu runner)")
@@ -83,6 +90,8 @@ def main() -> int:
 
     config_path = Path(args.task_config)
     ctx, data = _load_context(config_path)
+    if args.runner == "local_gpu":
+        ctx.compute_backend = "local_gpu"
     strategies = _strategies_for(ctx, data)
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -137,4 +146,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

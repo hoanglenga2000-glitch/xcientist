@@ -16,7 +16,7 @@ def ssh_hpc(command, timeout=60):
     # Wait for password prompt or connection
     idx = child.expect(['password:', 'Password:', pexpect.EOF, pexpect.TIMEOUT], timeout=30)
     if idx in [0, 1]:
-        child.sendline('31PFmLLb1')
+        child.sendline(os.environ["GPU_SSH_PASSWORD"])
 
     # Read all output
     try:

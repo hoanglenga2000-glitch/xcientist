@@ -1,14 +1,14 @@
 # Kaggle DPAPI 安全配置就绪报告
 
-- 生成时间：`2026-07-06T09:18:40`
+- 生成时间：`2026-07-29T10:52:57`
 - 总体状态：`passed`
-- Kaggle 官方 token：`configured_cli_fallback`
-- Kaggle Python package：`1.6.17`
-- Kaggle CLI：`C:\Users\景浩伟\.xsci\bin\kaggle.CMD`
+- Kaggle 官方 token：`configured_dpapi`
+- Kaggle Python package：`2.2.2`
+- Kaggle CLI：`D:\tools\hermes\hermes-agent\venv\Scripts\kaggle.EXE`
 
 ## 结论
 
-Kaggle CLI fallback verification passed: 0 competitions accessible via `kaggle competitions list`. DPAPI secret manager output was not parseable (likely encoding), but the Kaggle CLI is functional. Official submission still requires Human Gate.
+Kaggle 工具链和 DPAPI 凭据路径均已就绪，可进入官方 API smoke；官方提交仍需要 Human Gate。
 
 ## 安全边界
 

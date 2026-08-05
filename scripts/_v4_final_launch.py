@@ -1,3 +1,4 @@
+import os
 """Final clean launch — no stdout reading from nohup."""
 import socket, struct, paramiko, time
 
@@ -11,7 +12,7 @@ sock.recv(10)
 
 ssh = paramiko.SSHClient()
 ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password='wM5T1Qfz5l',
+ssh.connect(hostname='100.85.169.63', port=1235, username='aimslab-TTA2', password=os.environ["GPU_SSH_PASSWORD"],
             sock=sock, timeout=15, banner_timeout=15, auth_timeout=15,
             allow_agent=False, look_for_keys=False)
 

@@ -11,6 +11,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DOC = ROOT / "docs" / "最终上线交付状态-20260612.md"
 SCREENS = ROOT / "web" / "research-agent-workstation" / "src" / "components" / "workstation" / "Screens.tsx"
+REPORT_STUDIO = ROOT / "web" / "research-agent-workstation" / "src" / "components" / "workstation" / "screens" / "ReportStudioScreen.tsx"
 OVERVIEW_BOARD = ROOT / "web" / "research-agent-workstation" / "src" / "components" / "workstation" / "OverviewBoardEnhanced.tsx"
 JSON_SNAPSHOT = ROOT / "docs" / "final_delivery_status_20260612.json"
 
@@ -303,13 +304,15 @@ def main() -> None:
         fail("final delivery document says Kaggle is ready while backend reports Not Configured", {"kaggle": connector_status.get("kaggle")})
 
     source = SCREENS.read_text(encoding="utf-8")
+    if REPORT_STUDIO.exists():
+        source += "\n" + REPORT_STUDIO.read_text(encoding="utf-8")
     if OVERVIEW_BOARD.exists():
         source += "\n" + OVERVIEW_BOARD.read_text(encoding="utf-8")
     required_actions = [
-        "report_regenerate_full_draft",
-        "report_export_markdown",
-        "report_export_audit_json",
-        "report_export_draft_pdf",
+        "report_generate_scientific",
+        "report_download_final_bundle",
+        "report_analyze_refinement",
+        "report_approve_refinement",
         "open_code_file_",
         "ask_code_agent",
         "review_code_diff",

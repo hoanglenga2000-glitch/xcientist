@@ -1,0 +1,59 @@
+task:
+  name: credit_card_fraud_detection
+  competition: kartik2112/fraud-detection
+  type: binary_classification
+  target: is_fraud
+  metric: average_precision
+  id_column: "Unnamed: 0"
+  prediction_column: is_fraud
+data:
+  task_dir: tasks/credit_card_fraud_detection
+  train: tasks/credit_card_fraud_detection/evolution_data/train.csv
+  test: tasks/credit_card_fraud_detection/evolution_data/test.csv
+  sample_submission: tasks/credit_card_fraud_detection/evolution_data/sample_submission.csv
+  overview: tasks/credit_card_fraud_detection/overview.txt
+  data_source: tasks/credit_card_fraud_detection/DATA_SOURCE.md
+agent_templates: configs/agent_templates.yaml
+workflow:
+  - task_understanding
+  - data_quality_check
+  - leakage_audit
+  - temporal_feature_engineering
+  - local_resource_gate
+  - human_training_gate
+  - model_validation
+  - independent_holdout_review
+  - report_and_review
+thresholds:
+  require_submission_schema_valid: true
+  require_no_missing_predictions: true
+  require_train_test_features_match: true
+  expected_submission_rows: 555719
+  expected_submission_columns:
+    - "Unnamed: 0"
+    - is_fraud
+scaffold:
+  time_budget_minutes: 90
+  validation_strategy: chronological validation plus independent fraudTest holdout review
+  first_stage_models:
+    - lightgbm
+    - xgboost_cuda
+    - catboost_gpu
+  risk_points:
+    - Severe class imbalance requires PR-AUC as the primary metric.
+    - Random splits can leak future transaction behavior; use chronological validation.
+    - Direct identifiers and personal-address fields can create identity memorization.
+    - Dense one-hot encoding can exceed 16 GB system memory.
+    - Local RTX 4060 training must be sequential and pass the resource and Human Gates.
+    - Public leaderboard submission is disabled.
+feature_engineering:
+  preset: credit_card_fraud_temporal
+  drop_columns:
+    - "Unnamed: 0"
+    - cc_num
+    - trans_num
+    - first
+    - last
+    - street
+  time_column: trans_date_trans_time
+  target_transform: null

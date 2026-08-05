@@ -92,9 +92,10 @@ function lineChartSvg(title: string, subtitle: string, points: number[]) {
   );
 }
 
-export async function POST(_request: Request, { params }: { params: { taskId: string } }) {
+export async function POST(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const dir = resolveWorkspacePath(path.join("workspace", "tasks", taskId, "reports", "figures"));
   await fs.mkdir(dir, { recursive: true });
 

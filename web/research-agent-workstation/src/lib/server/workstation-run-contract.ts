@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
 import { createReadStream, promises as fs } from "node:fs";
-import path from "node:path";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
 import { encodeJson } from "@/lib/server/json";
@@ -504,13 +503,13 @@ export async function generateTeacherEvidenceBundle(taskIdInput: string) {
     "- 执行主体：AI 科研工作站多 Agent 编排，不是 Codex 旁路直接训练。",
     "",
     "## 工作站 Run",
-    ...runs.map((run) => `- ${run.id}: ${run.status}; output=${run.outputDir ?? "pending"}; validation=${run.validationStatus ?? "pending"}`),
+    ...runs.map((run: any) => `- ${run.id}: ${run.status}; output=${run.outputDir ?? "pending"}; validation=${run.validationStatus ?? "pending"}`),
     "",
     "## Gate 状态",
-    ...gates.map((gate) => `- ${gate.gateType}: ${gate.decision}; reviewer=${gate.reviewer ?? "pending"}`),
+    ...gates.map((gate: any) => `- ${gate.gateType}: ${gate.decision}; reviewer=${gate.reviewer ?? "pending"}`),
     "",
     "## 证据链",
-    ...evidence.slice(0, 12).map((item) => `- ${item.label}: ${item.artifactPath ?? "pending"}; claim=${item.claimBinding ?? "pending"}`),
+    ...evidence.slice(0, 12).map((item: any) => `- ${item.label}: ${item.artifactPath ?? "pending"}; claim=${item.claimBinding ?? "pending"}`),
     "",
     "## 安全边界",
     "- Kaggle 官方提交默认阻断，必须通过 submission_approval。",
@@ -584,7 +583,7 @@ export function validateGpuJobManifest(manifest: Record<string, unknown>): {
   }
 
   const timeout = Number(manifest.timeout_seconds);
-  if (timeout > 0 && timeout > 43200) {
+  if (timeout > 43200) {
     warnings.push(`timeout_seconds ${timeout} exceeds 12-hour maximum; consider splitting the job.`);
   }
 

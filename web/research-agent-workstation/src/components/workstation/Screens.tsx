@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -36,7 +36,6 @@ import {
   Settings,
   ShieldAlert,
   ShieldCheck,
-  Sparkles,
   Sun,
   TerminalSquare,
   Upload,
@@ -2757,7 +2756,7 @@ function renderMarkdownPreview(markdown: string) {
       nodes.push(<p key={index} className="pl-4 text-sm leading-7 text-slate-700">{line}</p>);
       continue;
     }
-    if (/^```/.test(line)) {
+    if (line.startsWith('```')) {
       nodes.push(<pre key={index} className="rounded-md bg-slate-950 px-3 py-2 font-mono text-[11px] text-slate-100">{line}</pre>);
       continue;
     }
@@ -3108,14 +3107,16 @@ export function ReportStudio(props: ScreenProps) {
 export function LiteratureKnowledge(props: ScreenProps) {
   const currentTask = normalizeReportTaskId(props.selectedTask);
   const taskMeta = currentTaskRecord(props.summary, currentTask);
-  const [query, setQuery] = useState(`${taskMeta?.name ?? currentTask} ${taskMeta?.task_type ?? ""} ${taskMeta?.metric ?? ""} Kaggle validation ensemble`);
+  const runWorkstationAction = props.runWorkstationAction;
+  const defaultSearchQuery = `${taskMeta?.name ?? currentTask} ${taskMeta?.task_type ?? ""} ${taskMeta?.metric ?? ""} Kaggle validation ensemble`;
+  const [query, setQuery] = useState(defaultSearchQuery);
   const [rag, setRag] = useState<import("@/lib/api/types").LiteratureSearchResponse | null>(null);
   const [ragStatus, setRagStatus] = useState("等待检索");
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const [activeFilter, setActiveFilter] = useState<"all" | "local" | "arxiv" | "seed" | "risk" | "accepted">("all");
 
-  async function runSearch(nextQuery = query, reason = "manual") {
+  const runSearch = useCallback(async (nextQuery: string, reason = "manual") => {
     const trimmed = nextQuery.trim() || `${currentTask} Kaggle modeling validation ensemble`;
     setIsSearching(true);
     setRagStatus("正在检索本地知识库与 arXiv...");
@@ -3129,7 +3130,7 @@ export function LiteratureKnowledge(props: ScreenProps) {
       setRag(payload);
       setSelectedPaperId(payload.papers[0]?.id ?? null);
       setRagStatus(`检索完成：${payload.metrics.paper_count} 篇文献，${payload.metrics.chunk_count} 个 chunk，context 已写入 ${payload.context_path}`);
-      void props.runWorkstationAction?.("literature_search", {
+      void runWorkstationAction?.("literature_search", {
         task_id: currentTask,
         query: trimmed,
         reason,
@@ -3142,11 +3143,12 @@ export function LiteratureKnowledge(props: ScreenProps) {
     } finally {
       setIsSearching(false);
     }
-  }
+  }, [currentTask, runWorkstationAction]);
 
   useEffect(() => {
-    void runSearch(query, "initial_load");
-  }, [currentTask]);
+    setQuery(defaultSearchQuery);
+    void runSearch(defaultSearchQuery, "initial_load");
+  }, [defaultSearchQuery, runSearch]);
 
   const papers = rag?.papers ?? [];
   const filteredPapers = papers.filter((paper) => {

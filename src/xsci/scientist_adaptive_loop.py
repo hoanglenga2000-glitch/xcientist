@@ -225,7 +225,7 @@ def run_adaptive_scientist_tool_loop(
     max_rounds: int = 4,
     max_tool_calls: int = 6,
     client: Any | None = None,
-    dispatch: Callable[[str, Any, Path], dict[str, Any]] | None = None,
+    dispatch: Callable[..., dict[str, Any]] | None = None,
     observer: Callable[[dict[str, Any]], None] | None = None,
     persist: bool = True,
 ) -> dict[str, Any]:
@@ -379,7 +379,8 @@ def run_adaptive_scientist_tool_loop(
                 record["blocked_reason"] = "tool_budget_exhausted"
             else:
                 try:
-                    result = dispatcher(name, session, root_path)
+                    dispatch_kwargs = {"query": goal} if name == "literature_search" else {}
+                    result = dispatcher(name, session, root_path, **dispatch_kwargs)
                 except Exception as exc:
                     result = {"ok": False, "tool": name, "message": f"{type(exc).__name__}: {exc}"}
                 if not isinstance(result, dict):

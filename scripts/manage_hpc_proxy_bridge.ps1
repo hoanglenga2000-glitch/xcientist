@@ -3,13 +3,16 @@ param(
   [string]$Command = "status",
   [string]$ProxyUser = "",
   [string]$ProxyPassword = "",
-  [int]$ListenPort = 7890
+  [int]$ListenPort = 7890,
+  [ValidateSet("upstream", "direct")]
+  [string]$RouteMode = "upstream"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $StateDir = Join-Path $env:APPDATA "ResearchAgentWorkstation"
 $CredentialPath = Join-Path $StateDir "hpc_socks_credential.xml"
+$MetadataPath = Join-Path $StateDir "hpc_ssh_metadata.json"
 $PidPath = Join-Path $StateDir "hpc_socks_bridge.pid"
 $OutLog = Join-Path $StateDir "hpc_socks_bridge.out.log"
 $ErrLog = Join-Path $StateDir "hpc_socks_bridge.err.log"
@@ -39,11 +42,35 @@ function Import-HpcCredential {
   Import-Clixml -Path $CredentialPath
 }
 
+function Get-CurrentHpcTarget {
+  if (-not (Test-Path -LiteralPath $MetadataPath -PathType Leaf)) {
+    throw "HPC SSH metadata is not installed."
+  }
+  $metadata = Get-Content -LiteralPath $MetadataPath -Raw | ConvertFrom-Json
+  $hostName = [string]$metadata.host
+  $targetPort = [int]$metadata.port
+  if ([string]::IsNullOrWhiteSpace($hostName) -or $targetPort -lt 1 -or $targetPort -gt 65535) {
+    throw "HPC SSH metadata does not contain a valid current target."
+  }
+  [pscustomobject]@{ host = $hostName; port = $targetPort }
+}
+
 function Test-PortListening([int]$Port) {
-  $conn = Get-NetTCPConnection -LocalAddress 127.0.0.1 -LocalPort $Port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
-  if ($conn) {
-    $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
-    return [pscustomobject]@{ listening = $true; pid = $conn.OwningProcess; process = $proc.ProcessName }
+  $listeners = [Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
+  $listener = $listeners | Where-Object {
+    $_.Port -eq $Port -and [Net.IPAddress]::IsLoopback($_.Address)
+  } | Select-Object -First 1
+  if ($listener) {
+    $ownerPid = $null
+    if (Test-Path $PidPath) {
+      $rawPid = (Get-Content -LiteralPath $PidPath -Raw -ErrorAction SilentlyContinue).Trim()
+      $parsedPid = 0
+      if ([int]::TryParse($rawPid, [ref]$parsedPid)) {
+        $ownerPid = $parsedPid
+      }
+    }
+    $proc = if ($ownerPid) { Get-Process -Id $ownerPid -ErrorAction SilentlyContinue } else { $null }
+    return [pscustomobject]@{ listening = $true; pid = $ownerPid; process = $proc.ProcessName }
   }
   [pscustomobject]@{ listening = $false; pid = $null; process = $null }
 }
@@ -87,29 +114,44 @@ if ($Command -eq "start") {
     Write-Output (@{ status = "already_running"; listen_port = $ListenPort; pid = $current.pid; process = $current.process } | ConvertTo-Json -Depth 4)
     exit 0
   }
-  $credential = Import-HpcCredential
-  $envBlock = [System.Environment]::GetEnvironmentVariables()
-  $envBlock["HPC_SOCKS_USER"] = $credential.UserName
-  $envBlock["HPC_SOCKS_PASSWORD"] = $credential.GetNetworkCredential().Password
+  $credential = if ($RouteMode -eq "upstream") { Import-HpcCredential } else { $null }
+  $target = if ($RouteMode -eq "direct") { Get-CurrentHpcTarget } else { $null }
   $python = Get-PythonExe
-  $psi = [System.Diagnostics.ProcessStartInfo]::new()
-  $psi.FileName = $python
-  $psi.Arguments = "`"$BridgeScript`" --listen-port $ListenPort"
-  $psi.WorkingDirectory = $Root
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
-  $psi.RedirectStandardOutput = $true
-  $psi.RedirectStandardError = $true
-  foreach ($key in $envBlock.Keys) {
-    $psi.Environment[$key] = [string]$envBlock[$key]
+  $oldProxyUser = [Environment]::GetEnvironmentVariable("HPC_SOCKS_USER", "Process")
+  $oldProxyPassword = [Environment]::GetEnvironmentVariable("HPC_SOCKS_PASSWORD", "Process")
+  try {
+    if ($RouteMode -eq "upstream") {
+      $env:HPC_SOCKS_USER = $credential.UserName
+      $env:HPC_SOCKS_PASSWORD = $credential.GetNetworkCredential().Password
+    } else {
+      Remove-Item Env:\HPC_SOCKS_USER -ErrorAction SilentlyContinue
+      Remove-Item Env:\HPC_SOCKS_PASSWORD -ErrorAction SilentlyContinue
+    }
+    Set-Content -LiteralPath $OutLog -Value "" -Encoding UTF8
+    Set-Content -LiteralPath $ErrLog -Value "" -Encoding UTF8
+    $bridgeArguments = @(
+      "`"$BridgeScript`"",
+      "--listen-port", [string]$ListenPort
+    )
+    if ($RouteMode -eq "direct") {
+      $bridgeArguments += @("--disable-upstream", "--direct-destination", "$($target.host):$($target.port)")
+    }
+    $process = Start-Process `
+      -FilePath $python `
+      -ArgumentList $bridgeArguments `
+      -WorkingDirectory $Root `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $OutLog `
+      -RedirectStandardError $ErrLog `
+      -PassThru
+  } finally {
+    if ($null -eq $oldProxyUser) { Remove-Item Env:\HPC_SOCKS_USER -ErrorAction SilentlyContinue } else { $env:HPC_SOCKS_USER = $oldProxyUser }
+    if ($null -eq $oldProxyPassword) { Remove-Item Env:\HPC_SOCKS_PASSWORD -ErrorAction SilentlyContinue } else { $env:HPC_SOCKS_PASSWORD = $oldProxyPassword }
   }
-  $process = [System.Diagnostics.Process]::Start($psi)
   Set-Content -Path $PidPath -Value $process.Id -Encoding ASCII
   Start-Sleep -Milliseconds 900
-  $out = $process.StandardOutput.ReadLine()
-  if ($out) { Add-Content -Path $OutLog -Value $out -Encoding UTF8 }
   $status = Test-PortListening $ListenPort
-  Write-Output (@{ status = $(if ($status.listening) { "started" } else { "failed" }); listen_port = $ListenPort; pid = $process.Id; process = $status.process; log = $OutLog } | ConvertTo-Json -Depth 4)
+  Write-Output (@{ status = $(if ($status.listening) { "started" } else { "failed" }); listen_port = $ListenPort; route_mode = $RouteMode; pid = $process.Id; process = $status.process; log = $OutLog } | ConvertTo-Json -Depth 4)
   exit $(if ($status.listening) { 0 } else { 1 })
 }
 
@@ -118,10 +160,12 @@ if ($Command -eq "test") {
   if (-not $status.listening) {
     throw "HPC SOCKS bridge is not listening on 127.0.0.1:$ListenPort."
   }
+  $target = Get-CurrentHpcTarget
   $python = Get-PythonExe
-  $test = & $python (Join-Path $Root "scripts\verify_hpc_socks_gateway.py") --proxy-host 127.0.0.1 --proxy-port $ListenPort --dest-host 100.85.169.63 --dest-port 1235
+  $test = & $python (Join-Path $Root "scripts\verify_hpc_socks_gateway.py") --proxy-host 127.0.0.1 --proxy-port $ListenPort --dest-host $target.host --dest-port $target.port
+  $testExitCode = $LASTEXITCODE
   Write-Output $test
-  exit 0
+  exit $testExitCode
 }
 
 $status = Test-PortListening $ListenPort

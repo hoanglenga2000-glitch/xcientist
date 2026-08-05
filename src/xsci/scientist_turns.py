@@ -77,6 +77,7 @@ def record_scientist_turn(root: Path | str, payload: dict[str, Any]) -> dict[str
         "next_actions": _safe_json(payload.get("next_actions") or []),
         "artifacts": _safe_json(payload.get("artifacts") or []),
         "parity_lifecycle": _safe_json(payload.get("parity_lifecycle") or {}),
+        "llm_execution": _safe_json(payload.get("llm_execution") or {}),
         "answer_preview": _safe_text(payload.get("answer_preview"), limit=900),
         "no_training_started": bool(payload.get("no_training_started", True)),
         "official_submit": "blocked_until_explicit_human_approval",

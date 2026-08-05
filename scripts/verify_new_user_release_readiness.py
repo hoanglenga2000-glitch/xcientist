@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 import time
 from pathlib import Path
-from urllib.error import URLError
+from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,6 +40,9 @@ REQUIRED_FILES = [
     "scripts/manage_kaggle_secret.ps1",
     "scripts/manage_hpc_ssh_secret.ps1",
     "scripts/verify_no_plaintext_secrets.py",
+    "scripts/verify_evomind_assistant_quality.py",
+    "scripts/run_evomind_novice_quality_gate.ps1",
+    "configs/evaluation/assistant_novice_v1.json",
     "scripts/run_new_user_release_acceptance.ps1",
     "scripts/verify_workstation_launch_readiness.py",
     "web/research-agent-workstation/package.json",
@@ -48,13 +52,13 @@ REQUIRED_FILES = [
 
 DOC_REQUIREMENTS = {
     "README.md": [
-        "http://127.0.0.1:8088/?page=control",
+        "http://127.0.0.1:8088/?page=assistant",
         "evomind ready",
         "evomind official",
         "Human Gate",
     ],
     "docs/NEW_USER_ONBOARDING_GUIDE.md": [
-        "http://127.0.0.1:8088/?page=control",
+        "http://127.0.0.1:8088/?page=assistant",
         "Windows DPAPI",
         "Training and official Kaggle submission",
         "evomind setup",
@@ -115,10 +119,16 @@ CHINESE_DOCS = {
 
 def run(cmd: list[str], *, cwd: Path = ROOT, timeout: int = 60) -> dict:
     started = time.time()
+    env = os.environ.copy()
+    source_root = str(ROOT / "src")
+    env["PYTHONPATH"] = os.pathsep.join(
+        part for part in (source_root, env.get("PYTHONPATH", "")) if part
+    )
     try:
         proc = subprocess.run(
             cmd,
             cwd=str(cwd),
+            env=env,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -154,6 +164,17 @@ def http_json(path: str, timeout: int = 8) -> dict:
                 text = res.read().decode("utf-8", errors="replace")
                 data = json.loads(text)
                 return {"ok": 200 <= res.status < 300, "status": res.status, "url": url, "keys": sorted(data)[:30]}
+        except HTTPError as exc:
+            try:
+                payload = json.loads(exc.read().decode("utf-8", errors="replace"))
+            except (OSError, json.JSONDecodeError):
+                payload = {}
+            return {
+                "ok": False,
+                "status": exc.code,
+                "url": url,
+                "code": payload.get("code") if isinstance(payload, dict) else None,
+            }
         except (URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
             last_error = clean_report_text(str(exc))
             if attempt < 2:
@@ -210,7 +231,7 @@ def check_cli() -> list[dict]:
     help_text = help_result["stdout_tail"] + help_result["stderr_tail"]
     checks.append({
         "id": "cli:python_module_help",
-        "ok": help_result["ok"] and "EvoMind" in help_text and "http://127.0.0.1:8088/?page=control" in help_text,
+        "ok": help_result["ok"] and "EvoMind" in help_text and "http://127.0.0.1:8088/?page=assistant" in help_text,
         "result": help_result,
     })
     ready_result = run([sys.executable, "-X", "utf8", "-m", "xsci.kaggle", "ready"], timeout=30)
@@ -243,11 +264,20 @@ def check_python_compile() -> list[dict]:
 
 
 def check_frontend_runtime(*, require_live_server: bool) -> list[dict]:
-    checks = [
-        {"id": "http:workstation_summary", **http_json("/api/workstation-summary")},
-        {"id": "http:tasks", **http_json("/api/tasks")},
-        {"id": "http:settings", **http_json("/api/settings")},
-    ]
+    health = http_json("/api/healthz")
+    checks = [{"id": "http:healthz", **health}]
+    for name, path in (
+        ("workstation_summary", "/api/workstation-summary"),
+        ("tasks", "/api/tasks"),
+        ("settings", "/api/settings"),
+    ):
+        probe = http_json(path)
+        checks.append({
+            "id": f"http:anonymous_{name}_rejected",
+            **probe,
+            "ok": probe.get("status") == 401 and probe.get("code") == "session_required",
+            "expected": "401/session_required",
+        })
     if require_live_server:
         return checks
     normalized: list[dict] = []
@@ -270,24 +300,69 @@ def check_frontend_runtime(*, require_live_server: bool) -> list[dict]:
 
 
 def check_existing_launch_gate() -> list[dict]:
-    path = WORKSPACE / "workstation_launch_readiness_20260630.json"
-    if not path.exists():
-        return [{"id": "launch:existing_gate_report", "ok": False, "missing": str(path)}]
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        return [{"id": "launch:existing_gate_report", "ok": False, "error": str(exc)}]
-    critical = data.get("critical_failures") or []
-    state = data.get("launch_state")
-    blockers = data.get("blockers") or []
-    release_ok = data.get("status") == "passed" and not critical
+    lifecycle = run([
+        sys.executable,
+        "-X",
+        "utf8",
+        "scripts/manage_workstation_dashboard.py",
+        "status",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8088",
+    ], timeout=30)
+    secrets = run([
+        sys.executable,
+        "-X",
+        "utf8",
+        "scripts/verify_no_plaintext_secrets.py",
+    ], timeout=90)
+    lifecycle_text = lifecycle["stdout_tail"] + lifecycle["stderr_tail"]
+    release_ok = bool(
+        lifecycle["ok"]
+        and secrets["ok"]
+        and '"status": "running"' in lifecycle_text
+        and '"dashboard_identity_verified": true' in lifecycle_text
+        and '"runtime_identity_verified": true' in lifecycle_text
+        and '"source_build_stale": false' in lifecycle_text
+    )
     return [{
         "id": "launch:existing_gate_report",
         "ok": release_ok,
-        "launch_state": state,
-        "blockers": blockers,
-        "critical_failures": critical,
-        "release_boundary": "GPU/cache blockers are optional training blockers for new-user UI release.",
+        "launch_state": "live_managed_local_ready" if release_ok else "not_ready",
+        "blockers": [],
+        "critical_failures": [] if release_ok else [
+            name for name, result in (("lifecycle", lifecycle), ("plaintext_secret_scan", secrets))
+            if not result["ok"]
+        ],
+        "lifecycle": lifecycle,
+        "plaintext_secret_scan": secrets,
+        "release_boundary": "GPU/cache blockers remain separate from the managed local UI and Agent quality gates.",
+    }]
+
+
+def check_assistant_quality_gate() -> list[dict]:
+    report = WORKSPACE / "evaluation" / "assistant_novice_quality_gpt56_current.json"
+    result = run(
+        [
+            sys.executable,
+            "-X",
+            "utf8",
+            "scripts/verify_evomind_assistant_quality.py",
+            "--report",
+            str(report),
+            "--max-age-hours",
+            "24",
+            "--max-p95-seconds",
+            "90",
+        ],
+        timeout=45,
+    )
+    return [{
+        "id": "assistant:novice_quality_gate",
+        "ok": result["ok"],
+        "report": str(report.relative_to(ROOT)),
+        "result": result,
     }]
 
 
@@ -300,6 +375,7 @@ def build_report(*, require_live_server: bool = False) -> dict:
         check_cli(),
         check_frontend_runtime(require_live_server=require_live_server),
         check_existing_launch_gate(),
+        check_assistant_quality_gate(),
     ]:
         checks.extend(group)
     failed = [item for item in checks if not item.get("ok")]
@@ -313,7 +389,7 @@ def build_report(*, require_live_server: bool = False) -> dict:
         "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "status": "passed" if not failed else "failed",
         "release_state": release_state,
-        "default_gateway": "http://127.0.0.1:8088/?page=control",
+        "default_gateway": "http://127.0.0.1:8088/?page=assistant",
         "require_live_server": require_live_server,
         "failed_checks": [item["id"] for item in failed],
         "optional_training_blockers": optional_training_blockers,

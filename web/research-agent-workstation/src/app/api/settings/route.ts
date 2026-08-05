@@ -36,7 +36,7 @@ function redactSettingsMap(settings: Record<string, unknown>) {
 export async function GET() {
   await ensureWorkstationSeeded();
   const settings = await prisma.setting.findMany({ orderBy: { key: "asc" } });
-  const rawSettings = Object.fromEntries(settings.map((item) => [item.key, decodeJson(item.valueJson) ?? {}]));
+  const rawSettings = Object.fromEntries(settings.map((item: { key: string; valueJson: string | null }) => [item.key, decodeJson(item.valueJson) ?? {}]));
   return NextResponse.json({
     ok: true,
     settings: redactSettingsMap(rawSettings)

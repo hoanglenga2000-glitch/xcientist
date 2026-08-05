@@ -6,6 +6,7 @@ import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import * as api from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import type {
+  EvolutionExperienceResponse,
   EvolutionGraphResponse,
   EvolutionMemoryResponse,
   EvolutionStateResponse,
@@ -34,6 +35,7 @@ type Binding = {
   state: EvolutionStateResponse | null;
   graph: EvolutionGraphResponse | null;
   memory: EvolutionMemoryResponse | null;
+  experience: EvolutionExperienceResponse | null;
   lastStep: EvolutionStepResponse | null;
   loading: boolean;
   busy: "" | "plan" | "step";
@@ -46,12 +48,13 @@ type Binding = {
 
 export function useEvolutionBinding(
   taskId: string,
-  opts: { withGraph?: boolean; withMemory?: boolean; refreshSummary?: () => Promise<unknown> } = {}
+  opts: { withGraph?: boolean; withMemory?: boolean; withExperience?: boolean; refreshSummary?: () => Promise<unknown> } = {}
 ): Binding {
-  const { withGraph = false, withMemory = false, refreshSummary } = opts;
+  const { withGraph = false, withMemory = false, withExperience = false, refreshSummary } = opts;
   const [state, setState] = useState<EvolutionStateResponse | null>(null);
   const [graph, setGraph] = useState<EvolutionGraphResponse | null>(null);
   const [memory, setMemory] = useState<EvolutionMemoryResponse | null>(null);
+  const [experience, setExperience] = useState<EvolutionExperienceResponse | null>(null);
   const [lastStep, setLastStep] = useState<EvolutionStepResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState<"" | "plan" | "step">("");
@@ -63,20 +66,22 @@ export function useEvolutionBinding(
     setLoading(true);
     setError("");
     try {
-      const [s, g, m] = await Promise.all([
+      const [s, g, m, x] = await Promise.all([
         api.getEvolutionState(taskId),
         withGraph ? api.getEvolutionGraph(taskId) : Promise.resolve(null),
-        withMemory ? api.getEvolutionMemory(taskId) : Promise.resolve(null)
+        withMemory ? api.getEvolutionMemory(taskId) : Promise.resolve(null),
+        withExperience ? api.getEvolutionExperience(taskId) : Promise.resolve(null)
       ]);
       setState(s);
       if (withGraph) setGraph(g);
       if (withMemory) setMemory(m);
+      if (withExperience) setExperience(x);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load evolution state");
     } finally {
       setLoading(false);
     }
-  }, [taskId, withGraph, withMemory]);
+  }, [taskId, withGraph, withMemory, withExperience]);
 
   useEffect(() => {
     void reload();
@@ -123,7 +128,7 @@ export function useEvolutionBinding(
     }
   }, [taskId, reload, refreshSummary]);
 
-  return { state, graph, memory, lastStep, loading, busy, error, message, reload, plan, step };
+  return { state, graph, memory, experience, lastStep, loading, busy, error, message, reload, plan, step };
 }
 
 function EvoBanner({ error, message }: { error: string; message: string }) {
@@ -131,10 +136,10 @@ function EvoBanner({ error, message }: { error: string; message: string }) {
   return (
     <div className="space-y-1.5">
       {error && (
-        <p className={cn("rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-[11px] font-bold text-red-700", mono)}>{error}</p>
+        <p className={cn("rounded-md border border-danger/45 bg-danger-light px-3 py-1.5 text-[11px] font-bold text-danger-text", mono)}>{error}</p>
       )}
       {message && (
-        <p className={cn("rounded-md border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-bold text-emerald-700", mono)}>{message}</p>
+        <p className={cn("rounded-md border border-success/45 bg-success-light px-3 py-1.5 text-[11px] font-bold text-success-text", mono)}>{message}</p>
       )}
     </div>
   );
@@ -142,15 +147,15 @@ function EvoBanner({ error, message }: { error: string; message: string }) {
 
 function EvoChip({ label, value, tone = "slate" }: { label: string; value: string; tone?: StatusTone }) {
   const ring =
-    tone === "green" ? "border-emerald-200 bg-emerald-50/60"
-    : tone === "amber" ? "border-amber-200 bg-amber-50/60"
-    : tone === "red" ? "border-red-200 bg-red-50/60"
-    : tone === "blue" ? "border-blue-200 bg-blue-50/60"
-    : "border-slate-200 bg-white";
+    tone === "green" ? "border-success/45 bg-success-light/60"
+    : tone === "amber" ? "border-warning/45 bg-warning-light/60"
+    : tone === "red" ? "border-danger/45 bg-danger-light/60"
+    : tone === "blue" ? "border-accent-muted bg-accent-light/60"
+    : "border-edge bg-surface-raised";
   return (
     <div className={cn("rounded-md border px-3 py-2", ring)}>
-      <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={cn(mono, "mt-1 truncate text-slate-900")} title={value}>{value}</p>
+      <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">{label}</p>
+      <p className={cn(mono, "mt-1 truncate text-ink")} title={value}>{value}</p>
     </div>
   );
 }
@@ -175,7 +180,7 @@ function EvoControls({ binding, taskId }: { binding: Binding; taskId: string }) 
 }
 
 function EvoEmpty({ text }: { text: string }) {
-  return <p className="rounded-md border border-dashed border-slate-300 px-3 py-6 text-center text-[12px] font-semibold text-slate-500">{text}</p>;
+  return <p className="rounded-md border border-dashed border-edge-strong px-3 py-6 text-center text-[12px] font-semibold text-ink-muted">{text}</p>;
 }
 
 function SubmitGuardBadge({ allowed }: { allowed?: boolean }) {
@@ -188,11 +193,11 @@ function SubmitGuardBadge({ allowed }: { allowed?: boolean }) {
 
 function SectionCard({ title, desc, action, children }: { title: string; desc: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-md border border-slate-200/95 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
+    <section className="rounded-md border border-edge/95 bg-surface-raised shadow-[0_1px_2px_rgba(15,23,42,0.035)]">
       <header className="flex flex-wrap items-start justify-between gap-2 px-3.5 pt-3.5">
         <div>
-          <h3 className="text-sm font-black tracking-normal text-slate-950">{title}</h3>
-          <p className="mt-1 text-xs leading-4 text-slate-500">{desc}</p>
+          <h3 className="text-sm font-black tracking-normal text-ink">{title}</h3>
+          <p className="mt-1 text-xs leading-4 text-ink-muted">{desc}</p>
         </div>
         {action}
       </header>
@@ -221,19 +226,19 @@ export function EvolutionOverviewPanel({ taskId, refreshSummary }: { taskId: str
         <EvoChip label="Memory hits" value={String(s?.memory_hits ?? 0)} tone={s?.memory_hits ? "blue" : "slate"} />
       </div>
       <div className="mt-2 grid gap-2 md:grid-cols-[1fr_1fr]">
-        <div className="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Next decision</p>
-          <p className={cn(mono, "mt-1 text-slate-900")}>{decision}</p>
-          <p className="mt-1 text-[11px] font-semibold text-slate-500">
+        <div className="rounded-md border border-edge bg-surface-sunken/60 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">Next decision</p>
+          <p className={cn(mono, "mt-1 text-ink")}>{decision}</p>
+          <p className="mt-1 text-[11px] font-semibold text-ink-muted">
             Best branch: <span className={mono}>{best?.exp_id ?? "—"}</span>
             {best?.promotion_reason ? ` · ${best.promotion_reason}` : ""}
           </p>
         </div>
-        <div className="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Active branches (leaf frontier)</p>
+        <div className="rounded-md border border-edge bg-surface-sunken/60 px-3 py-2">
+          <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">Active branches (leaf frontier)</p>
           <div className="mt-1 flex flex-wrap gap-1.5">
             {(s?.active_branches ?? []).length === 0
-              ? <span className="text-[11px] font-semibold text-slate-500">尚无分支，先执行一次 dry-run。</span>
+              ? <span className="text-[11px] font-semibold text-ink-muted">尚无分支，先执行一次 dry-run。</span>
               : (s?.active_branches ?? []).slice(0, 8).map((br) => (
                   <StatusBadge key={br.exp_id} tone={br.promoted ? "green" : "slate"}>
                     {br.exp_id} · {fmtScore(br.cv_score)}
@@ -248,7 +253,7 @@ export function EvolutionOverviewPanel({ taskId, refreshSummary }: { taskId: str
         {s?.search_graph_summary?.global_stagnation && <StatusBadge tone="amber">Global stagnation → 触发跨分支/融合</StatusBadge>}
         {(s?.risk_flags ?? []).slice(0, 6).map((f) => <StatusBadge key={f} tone="amber">{f}</StatusBadge>)}
       </div>
-      {s?.claim_boundary && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{s.claim_boundary}</p>}
+      {s?.claim_boundary && <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">{s.claim_boundary}</p>}
     </SectionCard>
   );
 }
@@ -272,25 +277,25 @@ export function EvolutionControlPanel({ taskId, refreshSummary }: { taskId: stri
         <EvoChip label="Nodes" value={String(s?.search_graph_summary?.node_count ?? 0)} tone="slate" />
       </div>
       {step && (
-        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/70 p-3">
+        <div className="mt-2 rounded-md border border-edge bg-surface-sunken/70 p-3">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge tone={step.dry_run ? "slate" : "amber"}>{step.dry_run ? "dry_run" : "real"}</StatusBadge>
             <StatusBadge tone="blue">decision: {step.decision}</StatusBadge>
             <StatusBadge tone={(step.gate_status ?? "").includes("block") ? "red" : "slate"}>gate: {step.gate_status}</StatusBadge>
             {step.exp_id && <StatusBadge tone="green">{step.exp_id}</StatusBadge>}
           </div>
-          {step.reason && <p className="mt-1.5 text-[11px] leading-relaxed text-slate-600">{step.reason}</p>}
-          {step.next_action && <p className="mt-1 text-[11px] font-semibold text-blue-700">Next: {step.next_action}</p>}
+          {step.reason && <p className="mt-1.5 text-[11px] leading-relaxed text-ink-secondary">{step.reason}</p>}
+          {step.next_action && <p className="mt-1 text-[11px] font-semibold text-accent-dark">Next: {step.next_action}</p>}
           {(step.artifacts ?? []).length > 0 && (
             <ul className="mt-1.5 space-y-0.5">
               {step.artifacts?.map((p) => (
-                <li key={p} className={cn(mono, "truncate text-[11px] text-emerald-700")} title={p}>› {p}</li>
+                <li key={p} className={cn(mono, "truncate text-[11px] text-success-text")} title={p}>› {p}</li>
               ))}
             </ul>
           )}
         </div>
       )}
-      <div className="mt-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">
+      <div className="mt-2 rounded-md border border-warning/25 bg-warning-light px-3 py-1.5 text-[11px] font-bold text-warning-text">
         安全边界：所有训练与提交必须通过工作站 Gate。进化引擎只做计划/分支/调度/证据写入,不直接展开训练,不自动提交 Kaggle。
       </div>
     </SectionCard>
@@ -358,44 +363,44 @@ export function EvolutionSearchGraphPanel({ taskId }: { taskId: string }) {
       {placed.length === 0 ? (
         <EvoEmpty text="No evolution nodes yet — nothing fabricated. Plan + dry-run step to populate the real graph." />
       ) : (
-        <div className="thin-scrollbar relative mt-2 overflow-x-auto rounded-md border border-slate-200 bg-white">
+        <div className="thin-scrollbar relative mt-2 overflow-x-auto rounded-md border border-edge bg-surface-raised">
           <div className="relative" style={{ width, height }}>
             <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
               <defs>
-                <marker id="evoArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#475569" /></marker>
-                <marker id="evoArrowRef" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="#7c3aed" /></marker>
+                <marker id="evoArrow" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="rgb(var(--color-ink-muted))" /></marker>
+                <marker id="evoArrowRef" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 Z" fill="rgb(var(--color-info))" /></marker>
               </defs>
               {edges.map((e) => {
                 const a = byId[e.source]; const c = byId[e.target];
-                return <path key={`${e.source}-${e.target}`} d={`M${a.x + 150} ${a.y + 26} C ${a.x + 175} ${a.y + 26}, ${c.x - 15} ${c.y + 26}, ${c.x} ${c.y + 26}`} stroke="#475569" strokeWidth="1.5" fill="none" markerEnd="url(#evoArrow)" />;
+                return <path key={`${e.source}-${e.target}`} d={`M${a.x + 150} ${a.y + 26} C ${a.x + 175} ${a.y + 26}, ${c.x - 15} ${c.y + 26}, ${c.x} ${c.y + 26}`} stroke="rgb(var(--color-ink-muted))" strokeWidth="1.5" fill="none" markerEnd="url(#evoArrow)" />;
               })}
               {refEdges.map((e) => {
                 const a = byId[e.source]; const c = byId[e.target];
-                return <path key={`ref-${e.source}-${e.target}`} d={`M${a.x + 150} ${a.y + 40} C ${a.x + 175} ${a.y + 60}, ${c.x - 15} ${c.y + 60}, ${c.x} ${c.y + 40}`} stroke="#7c3aed" strokeDasharray="5 4" strokeWidth="1.5" fill="none" markerEnd="url(#evoArrowRef)" />;
+                return <path key={`ref-${e.source}-${e.target}`} d={`M${a.x + 150} ${a.y + 40} C ${a.x + 175} ${a.y + 60}, ${c.x - 15} ${c.y + 60}, ${c.x} ${c.y + 40}`} stroke="rgb(var(--color-info))" strokeDasharray="5 4" strokeWidth="1.5" fill="none" markerEnd="url(#evoArrowRef)" />;
               })}
             </svg>
             {placed.map((p) => {
               const n = g!.nodes.find((x) => x.exp_id === p.id)!;
               const tone = nodeTone(n, g?.best_exp_id);
-              const border = tone === "green" ? "border-emerald-400 bg-emerald-50/90" : tone === "blue" ? "border-blue-300 bg-blue-50/90" : tone === "amber" ? "border-amber-300 bg-amber-50/90" : tone === "red" ? "border-red-300 bg-red-50/90" : "border-slate-300 bg-white";
+              const border = tone === "green" ? "border-success bg-success-light/90" : tone === "blue" ? "border-accent-muted bg-accent-light/90" : tone === "amber" ? "border-warning/55 bg-warning-light/90" : tone === "red" ? "border-danger/55 bg-danger-light/90" : "border-edge-strong bg-surface-raised";
               return (
                 <div key={p.id} className={cn("absolute w-[150px] rounded-md border p-2 shadow-[0_6px_18px_-18px_rgba(15,23,42,0.4)]", border)} style={{ left: p.x, top: p.y }}>
                   <div className="flex items-center justify-between gap-1">
-                    <span className="truncate text-[12px] font-black text-slate-950" title={p.id}>{p.id}</span>
+                    <span className="truncate text-[12px] font-black text-ink" title={p.id}>{p.id}</span>
                     <StatusBadge tone={tone}>{n.exp_id === g?.best_exp_id ? "best" : n.branch_type || "Base"}</StatusBadge>
                   </div>
-                  <div className={cn(mono, "mt-1 text-[10px] text-slate-600")}>CV {fmtScore(n.cv_score)}</div>
-                  {n.promoted && <div className="text-[10px] font-bold text-emerald-700">promoted</div>}
-                  {(n.risk_flags ?? []).slice(0, 1).map((f) => <div key={f} className="truncate text-[10px] font-bold text-amber-700" title={f}>{f}</div>)}
+                  <div className={cn(mono, "mt-1 text-[10px] text-ink-secondary")}>CV {fmtScore(n.cv_score)}</div>
+                  {n.promoted && <div className="text-[10px] font-bold text-success-text">promoted</div>}
+                  {(n.risk_flags ?? []).slice(0, 1).map((f) => <div key={f} className="truncate text-[10px] font-bold text-warning-text" title={f}>{f}</div>)}
                 </div>
               );
             })}
           </div>
         </div>
       )}
-      <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-[11px] font-bold text-slate-600">
-        <span className="inline-flex items-center gap-1"><span className="w-8 border-t-2 border-slate-600" />parent→child</span>
-        <span className="inline-flex items-center gap-1"><span className="w-8 border-t-2 border-dashed border-violet-500" />cross/aggregation ref</span>
+      <div className="mt-2 flex flex-wrap items-center gap-3 rounded-md border border-edge bg-surface-sunken px-3 py-2 text-[11px] font-bold text-ink-secondary">
+        <span className="inline-flex items-center gap-1"><span className="w-8 border-t-2 border-edge-strong" />parent→child</span>
+        <span className="inline-flex items-center gap-1"><span className="w-8 border-t-2 border-dashed border-info" />cross/aggregation ref</span>
         <StatusBadge tone="green">best</StatusBadge>
         <StatusBadge tone="blue">Stepwise</StatusBadge>
         <StatusBadge tone="amber">Diff</StatusBadge>
@@ -409,11 +414,14 @@ export function EvolutionSearchGraphPanel({ taskId }: { taskId: string }) {
 
 // Agent Runtime: evolution step trace, decision, gate, artifacts + fault tolerance.
 export function EvolutionRuntimePanel({ taskId, refreshSummary }: { taskId: string; refreshSummary?: () => Promise<unknown> }) {
-  const b = useEvolutionBinding(taskId, { refreshSummary });
+  const b = useEvolutionBinding(taskId, { withExperience: true, refreshSummary });
   const s = b.state;
   const step = b.lastStep;
+  const experience = b.experience;
+  const latestCard = experience?.cards.at(-1);
+  const latestRetrieval = experience?.retrievals.at(-1);
   const traceRows: Array<[string, StatusTone, string]> = [
-    ["select (MCGS UCT)", "green", s?.latest_decision ?? "expand_selected_node"],
+    [`select (${experience?.search_mode ?? "legacy_uct"})`, "green", latestCard ? `${latestCard.operator} · ${latestCard.node_id}` : s?.latest_decision ?? "expand_selected_node"],
     ["propose (LLM Base/Stepwise/Diff)", "blue", step?.code_generation_mode ? `${step.code_generation_mode}/${step.expansion_type ?? "primary"}` : "planned"],
     ["run (workstation orchestrator)", (step && !step.dry_run) ? "amber" : "slate", (step && !step.dry_run) ? "blocked → workstation" : "dry_run · not trained"],
     ["gate (promotion)", (s?.gate_status ?? "").includes("block") ? "red" : "slate", s?.gate_status ?? "no_gate_yet"],
@@ -422,44 +430,49 @@ export function EvolutionRuntimePanel({ taskId, refreshSummary }: { taskId: stri
   return (
     <SectionCard
       title="Evolution Step Trace · 进化引擎运行轨迹"
-      desc="select → propose → run → gate → backpropagate。LLM 双后端 (Opus 主 / DeepSeek 兜底),故障自动切换;失败提议转 Diff 重试,不崩任务。"
+      desc="select → propose → run → gate → backpropagate。Experience 模式展示真实 operator、检索卡、缓存记录和硬预算；未知遥测保持 unknown。"
       action={<EvoControls binding={b} taskId={taskId} />}
     >
       <EvoBanner error={b.error} message={b.message} />
       <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_300px]">
-        <div className="overflow-hidden rounded-md border border-slate-200">
+        <div className="overflow-hidden rounded-md border border-edge">
           <table className="w-full text-left text-[11px]">
             <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-[10px] uppercase tracking-wide text-slate-500">
+              <tr className="border-b border-edge bg-surface-sunken text-[10px] uppercase tracking-wide text-ink-muted">
                 <th className="px-3 py-1.5 font-black">进化阶段</th><th className="px-3 py-1.5 font-black">状态</th><th className="px-3 py-1.5 font-black">详情</th>
               </tr>
             </thead>
             <tbody>
               {traceRows.map(([stage, tone, detail]) => (
-                <tr key={stage} className="border-b border-slate-100 last:border-0">
-                  <td className="px-3 py-1.5 font-bold text-slate-700">{stage}</td>
+                <tr key={stage} className="border-b border-edge-light last:border-0">
+                  <td className="px-3 py-1.5 font-bold text-ink-secondary">{stage}</td>
                   <td className="px-3 py-1.5"><StatusBadge tone={tone}>{tone === "red" ? "blocked" : tone === "green" ? "ok" : tone === "amber" ? "gated" : "pending"}</StatusBadge></td>
-                  <td className={cn(mono, "px-3 py-1.5 text-slate-600")}>{detail}</td>
+                  <td className={cn(mono, "px-3 py-1.5 text-ink-secondary")}>{detail}</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
         <div className="space-y-2">
-          <div className="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">LLM / Cache</p>
-            <p className="mt-1 text-[11px] font-semibold text-slate-600">Backend: Opus 4.8 主 + DeepSeek 兜底</p>
-            <p className="text-[11px] font-semibold text-slate-600">Fault tolerance: auto-failover · Diff retry on failure</p>
+          <div className="rounded-md border border-edge bg-surface-sunken/60 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">LLM / Cache</p>
+            <p className="mt-1 text-[11px] font-semibold text-ink-secondary">Retrieval: {latestRetrieval ? `${latestRetrieval.card_ids.length} cards / ${latestRetrieval.estimated_tokens} est. tokens` : "not recorded"}</p>
+            <p className="text-[11px] font-semibold text-ink-secondary">Cache: {experience ? `${experience.cache.hits} hit · ${experience.cache.misses} miss · ${experience.cache.unknown} unknown` : "not recorded"}</p>
           </div>
-          <div className="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2">
-            <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Recovery</p>
-            <p className="mt-1 text-[11px] font-semibold text-slate-600">失败报错清洗后落盘 run_error.txt,喂回 Diff prompt。</p>
+          <div className="rounded-md border border-edge bg-surface-sunken/60 px-3 py-2">
+            <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">Budget / Recovery</p>
+            <p className="mt-1 text-[11px] font-semibold text-ink-secondary">
+              {experience?.budget
+                ? `${experience.budget.nodes}/${experience.budget.max_nodes} nodes · ${experience.budget.total_tokens}/${experience.budget.max_total_tokens} tokens · ${experience.budget.wall_seconds.toFixed(1)}s`
+                : "Budget ledger not recorded"}
+            </p>
+            <p className="text-[11px] font-semibold text-ink-secondary">失败结果以 Debug operator / error signature 进入经验板。</p>
           </div>
         </div>
       </div>
       {(step?.artifacts ?? []).length > 0 && (
         <ul className="mt-2 space-y-0.5">
-          {step?.artifacts?.map((p) => <li key={p} className={cn(mono, "truncate text-[11px] text-emerald-700")} title={p}>› {p}</li>)}
+          {step?.artifacts?.map((p) => <li key={p} className={cn(mono, "truncate text-[11px] text-success-text")} title={p}>› {p}</li>)}
         </ul>
       )}
     </SectionCard>
@@ -468,62 +481,75 @@ export function EvolutionRuntimePanel({ taskId, refreshSummary }: { taskId: stri
 
 // Evidence: artifacts the evolution engine actually wrote to workspace.
 export function EvolutionEvidencePanel({ taskId }: { taskId: string }) {
-  const b = useEvolutionBinding(taskId, { withMemory: true });
+  const b = useEvolutionBinding(taskId, { withMemory: true, withExperience: true });
   const s = b.state;
-  const artifacts = s?.last_artifacts ?? [];
+  const artifacts = [...new Set([...(s?.last_artifacts ?? []), ...(b.experience?.artifacts ?? [])])];
   const mem = b.memory;
   return (
     <SectionCard
       title="Evolution Evidence · 进化引擎证据台账"
-      desc={`进化引擎写出的审计产物,均落地在 workspace/evolution/${taskId || "<task>"}/。跨任务记忆库为共享真实存储,复用不分叉。`}
+      desc={`控制面审计产物落在 workspace/evolution/${taskId || "<task>"}/；真实 research_os Run 的经验板、选择轨迹与预算账本从绑定的 experiments/evolution Run 安全投影。`}
       action={<EvoControls binding={b} taskId={taskId} />}
     >
       <EvoBanner error={b.error} message={b.message} />
       <div className="mt-2 grid gap-2 lg:grid-cols-[1fr_320px]">
         <div>
-          <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Written artifacts</p>
+          <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-ink-muted">Written artifacts</p>
           {artifacts.length === 0 ? (
             <EvoEmpty text="尚无进化产物。执行 dry-run step 会写 search_graph / validation_contract / claim_audit。" />
           ) : (
             <ul className="space-y-1">
               {artifacts.map((p) => (
-                <li key={p} className="flex items-center justify-between gap-2 rounded border border-slate-200 bg-white px-2 py-1">
-                  <span className={cn(mono, "truncate text-[11px] text-emerald-700")} title={p}>› {p.split(/[\\/]/).pop()}</span>
-                  <span className={cn(mono, "shrink-0 text-[10px] text-slate-400")} title={p}>{p.split(/[\\/]/).slice(0, -1).join("/")}</span>
+                <li key={p} className="flex items-center justify-between gap-2 rounded border border-edge bg-surface-raised px-2 py-1">
+                  <span className={cn(mono, "truncate text-[11px] text-success-text")} title={p}>› {p.split(/[\\/]/).pop()}</span>
+                  <span className={cn(mono, "shrink-0 text-[10px] text-ink-muted")} title={p}>{p.split(/[\\/]/).slice(0, -1).join("/")}</span>
                 </li>
               ))}
             </ul>
           )}
         </div>
         <div>
-          <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Retrospective memory ({mem?.record_count ?? 0})</p>
+          <p className="mb-1 text-[10px] font-black uppercase tracking-wide text-ink-muted">Retrospective memory ({mem?.record_count ?? 0})</p>
           {(mem?.memory?.length ?? 0) === 0 ? (
             <EvoEmpty text="No retrospective memory records for this task type yet." />
           ) : (
             <div className="max-h-[240px] space-y-1.5 overflow-y-auto pr-1">
               {mem?.memory.slice(0, 10).map((r) => (
-                <div key={r.memory_id} className="rounded border border-slate-200 bg-white px-2 py-1.5">
+                <div key={r.memory_id} className="rounded border border-edge bg-surface-raised px-2 py-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className={cn(mono, "truncate text-[11px] text-slate-800")}>{r.method || r.memory_id}</span>
-                    <span className={cn(mono, "text-[10px] text-slate-500")}>Δ {r.metric_delta == null ? "—" : r.metric_delta.toFixed(4)}</span>
+                    <span className={cn(mono, "truncate text-[11px] text-ink")}>{r.method || r.memory_id}</span>
+                    <span className={cn(mono, "text-[10px] text-ink-muted")}>Δ {r.metric_delta == null ? "—" : r.metric_delta.toFixed(4)}</span>
                   </div>
-                  {r.reusable_strategy && <p className="mt-0.5 text-[10px] leading-4 text-emerald-700">✓ {r.reusable_strategy}</p>}
-                  {r.failure_pattern && <p className="mt-0.5 text-[10px] leading-4 text-amber-700">✗ {r.failure_pattern}</p>}
+                  {r.reusable_strategy && <p className="mt-0.5 text-[10px] leading-4 text-success-text">✓ {r.reusable_strategy}</p>}
+                  {r.failure_pattern && <p className="mt-0.5 text-[10px] leading-4 text-warning-text">✗ {r.failure_pattern}</p>}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
-      {mem?.memory_store && <p className={cn(mono, "mt-2 truncate text-[11px] text-slate-400")} title={mem.memory_store}>store: {mem.memory_store}</p>}
+      {mem?.memory_store && <p className={cn(mono, "mt-2 truncate text-[11px] text-ink-muted")} title={mem.memory_store}>store: {mem.memory_store}</p>}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <StatusBadge tone={b.experience?.candidate_freeze.present ? "green" : "slate"}>
+          candidate freeze: {b.experience?.candidate_freeze.status ?? "not present"}
+        </StatusBadge>
+        <StatusBadge tone={b.experience?.paired_ab.present ? "blue" : "slate"}>
+          paired A/B: {b.experience?.paired_ab.status ?? "not present"}
+        </StatusBadge>
+        {b.experience?.paired_ab.present && (
+          <span className="text-[10px] font-semibold text-ink-muted">
+            本地 MLE grader · median Δ {b.experience.paired_ab.median_paired_delta ?? "—"} · 95% CI [{b.experience.paired_ab.ci_low ?? "—"}, {b.experience.paired_ab.ci_high ?? "—"}]
+          </span>
+        )}
+      </div>
     </SectionCard>
   );
 }
 
 function GateLine({ label, status, tone }: { label: string; status: string; tone: StatusTone }) {
   return (
-    <div className="flex items-center justify-between gap-2 border-b border-slate-100 py-1.5 text-[11px] last:border-0">
-      <span className="font-bold text-slate-700">{label}</span>
+    <div className="flex items-center justify-between gap-2 border-b border-edge-light py-1.5 text-[11px] last:border-0">
+      <span className="font-bold text-ink-secondary">{label}</span>
       <StatusBadge tone={tone}>{status}</StatusBadge>
     </div>
   );
@@ -531,7 +557,7 @@ function GateLine({ label, status, tone }: { label: string; status: string; tone
 
 // Gates: rank_promotion_gate, score_promotion_gate, claim_audit — all API-driven.
 export function EvolutionGatesPanel({ taskId }: { taskId: string }) {
-  const b = useEvolutionBinding(taskId, { withGraph: true });
+  const b = useEvolutionBinding(taskId, { withGraph: true, withExperience: true });
   const s = b.state;
   const g = b.graph;
   const best = s?.best_so_far;
@@ -545,25 +571,26 @@ export function EvolutionGatesPanel({ taskId }: { taskId: string }) {
     >
       <EvoBanner error={b.error} message={b.message} />
       <div className="mt-2 grid gap-3 md:grid-cols-3">
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="mb-1 text-xs font-black text-slate-800">Score Promotion Gate</p>
+        <div className="rounded-md border border-edge bg-surface-raised p-3">
+          <p className="mb-1 text-xs font-black text-ink">Score Promotion Gate</p>
           <GateLine label="Has scored best-so-far" status={hasBest ? "yes" : "no run"} tone={hasBest ? "green" : "slate"} />
           <GateLine label={`Best ${best?.metric ?? "CV"} (proxy)`} status={fmtScore(best?.cv_score)} tone={hasBest ? "green" : "slate"} />
           <GateLine label="run_success precondition" status="enforced" tone="green" />
           <GateLine label="Regression guard vs best" status={stagnation ? "stagnation" : "active"} tone={stagnation ? "amber" : "green"} />
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="mb-1 text-xs font-black text-slate-800">Rank Promotion Gate</p>
+        <div className="rounded-md border border-edge bg-surface-raised p-3">
+          <p className="mb-1 text-xs font-black text-ink">Rank Promotion Gate</p>
           <GateLine label="Official Kaggle response" status="missing" tone="amber" />
           <GateLine label="Official rank / percentile" status="proxy_only" tone="slate" />
           <GateLine label="Medal claim" status="blocked" tone="red" />
           <GateLine label="Official submit" status={s?.official_submit_allowed ? "ON" : "disabled"} tone={s?.official_submit_allowed ? "amber" : "slate"} />
         </div>
-        <div className="rounded-md border border-slate-200 bg-white p-3">
-          <p className="mb-1 text-xs font-black text-slate-800">Claim Audit</p>
+        <div className="rounded-md border border-edge bg-surface-raised p-3">
+          <p className="mb-1 text-xs font-black text-ink">Claim Audit</p>
           <GateLine label="Claim boundary enforced" status="yes" tone="green" />
           <GateLine label="CV = local proxy only" status="declared" tone="green" />
-          <GateLine label="Unsupported claims" status="0" tone="green" />
+          <GateLine label="Candidate freeze" status={b.experience?.candidate_freeze.status ?? "not present"} tone={b.experience?.candidate_freeze.present ? "green" : "slate"} />
+          <GateLine label="Paired A/B (local MLE)" status={b.experience?.paired_ab.status ?? "not present"} tone={b.experience?.paired_ab.present ? "blue" : "slate"} />
           <GateLine label="Risk flags" status={String((s?.risk_flags ?? []).length)} tone={(s?.risk_flags ?? []).length ? "amber" : "green"} />
         </div>
       </div>
@@ -571,7 +598,7 @@ export function EvolutionGatesPanel({ taskId }: { taskId: string }) {
         {(s?.risk_flags ?? []).map((f) => <StatusBadge key={f} tone="amber">{f}</StatusBadge>)}
         {(g?.stagnation_branches ?? []).map((br) => <StatusBadge key={br} tone="amber">stagnation: {br}</StatusBadge>)}
       </div>
-      {s?.claim_boundary && <p className="mt-2 text-[11px] leading-relaxed text-slate-400">{s.claim_boundary}</p>}
+      {s?.claim_boundary && <p className="mt-2 text-[11px] leading-relaxed text-ink-muted">{s.claim_boundary}</p>}
     </SectionCard>
   );
 }
@@ -596,17 +623,17 @@ export function EvolutionReportPanel({ taskId }: { taskId: string }) {
         <EvoChip label="Nodes explored" value={String(g?.node_count ?? s?.search_graph_summary?.node_count ?? 0)} tone="slate" />
         <EvoChip label="Official result" value="proxy_only" tone="amber" />
       </div>
-      <div className="mt-2 rounded-md border border-slate-200 bg-slate-50/60 p-3">
-        <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Citable artifacts</p>
+      <div className="mt-2 rounded-md border border-edge bg-surface-sunken/60 p-3">
+        <p className="text-[10px] font-black uppercase tracking-wide text-ink-muted">Citable artifacts</p>
         {artifacts.length === 0 ? (
           <EvoEmpty text="尚无可引用的进化产物。先在 Evolution 页执行 plan / dry-run step。" />
         ) : (
           <ul className="mt-1 space-y-0.5">
-            {artifacts.map((p) => <li key={p} className={cn(mono, "truncate text-[11px] text-emerald-700")} title={p}>› {p}</li>)}
+            {artifacts.map((p) => <li key={p} className={cn(mono, "truncate text-[11px] text-success-text")} title={p}>› {p}</li>)}
           </ul>
         )}
       </div>
-      <div className="mt-2 rounded-md border border-amber-100 bg-amber-50 px-3 py-1.5 text-[11px] font-bold text-amber-700">
+      <div className="mt-2 rounded-md border border-warning/25 bg-warning-light px-3 py-1.5 text-[11px] font-bold text-warning-text">
         Claim boundary：CV 为本地 proxy。无 Kaggle response artifact 时,rank/medal 保持空/blocked/proxy_only,报告不得声称官方成绩。
       </div>
     </SectionCard>

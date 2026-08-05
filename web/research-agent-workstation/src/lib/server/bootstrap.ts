@@ -32,42 +32,52 @@ const baselineTasks = [
   }
 ];
 
-export async function ensureWorkstationSeeded() {
-  const taskCount = await prisma.task.count();
+let seedPromise: Promise<void> | null = null;
+let seedCompleted = false;
+
+async function configureSqliteRuntime() {
+  const busyTimeoutMs = Math.min(60_000, Math.max(1_000, Number(process.env.WORKSTATION_SQLITE_BUSY_TIMEOUT_MS ?? 5_000)));
+  await prisma.$queryRawUnsafe(`PRAGMA busy_timeout = ${busyTimeoutMs}`);
+  if (process.env.WORKSTATION_SQLITE_WAL !== "0") {
+    await prisma.$queryRawUnsafe("PRAGMA journal_mode = WAL");
+    await prisma.$queryRawUnsafe("PRAGMA synchronous = NORMAL");
+  }
+}
+
+async function seedWorkstationOnce() {
+  await configureSqliteRuntime();
   const summary = await readJsonFile(summaryPath);
 
   for (const task of baselineTasks) {
-    await prisma.task.upsert({
-      where: { id: task.id },
-      update: taskCount === 0 ? task : {},
-      create: task
-    });
+    const existing = await prisma.task.findUnique({ where: { id: task.id }, select: { id: true } });
+    if (!existing) await prisma.task.create({ data: task });
   }
 
   const connectorStatus = summary?.connector_status ?? {};
   for (const [provider, value] of Object.entries(connectorStatus)) {
     if (provider === "env_keys" || typeof value !== "object" || value === null) continue;
     const item = value as { name?: string; state?: string; configured?: boolean; notes?: string };
-    await prisma.connectorStatus.upsert({
-      where: { provider },
-      update: {
-        name: item.name ?? provider,
-        state: item.state ?? "Unknown",
-        configured: Boolean(item.configured),
-        detail: item.notes ?? null
-      },
-      create: {
-        provider,
-        name: item.name ?? provider,
-        state: item.state ?? "Unknown",
-        configured: Boolean(item.configured),
-        detail: item.notes ?? null
-      }
-    });
+    const next = {
+      name: item.name ?? provider,
+      state: item.state ?? "Unknown",
+      configured: Boolean(item.configured),
+      detail: item.notes ?? null
+    };
+    const existing = await prisma.connectorStatus.findUnique({ where: { provider } });
+    if (!existing) {
+      await prisma.connectorStatus.create({ data: { provider, ...next } });
+    } else if (
+      existing.name !== next.name
+      || existing.state !== next.state
+      || existing.configured !== next.configured
+      || existing.detail !== next.detail
+    ) {
+      await prisma.connectorStatus.update({ where: { provider }, data: next });
+    }
   }
 
   const defaultSettings = [
-    ["general", { workspace_name: "AI Data Scientist Lab", default_language: "zh-CN", theme: "light", default_mission: "house_prices" }],
+    ["general", { workspace_name: "AI Data Scientist Lab", default_language: "zh-CN", theme: "dark", default_mission: "house_prices" }],
     ["language", { ui_language: "zh-CN", report_language: "zh-CN", agent_output_language: "zh-CN" }],
     ["database", { provider: "sqlite", path: "web/research-agent-workstation/prisma/workstation.db", migration_status: "synced" }],
     ["code_agent", { provider: "claude_agent_sdk", default_agent: "claude_code", model: "sonnet", max_turns: 2, timeout_seconds: 120, workspace_scope: "read_only_context_plus_gated_patch", api_key_status: "not_configured", export_context_path: "workspace/tasks/{task_id}/code_agent_context", import_patch_path: "workspace/tasks/{task_id}/code/patches", enable_patch_review_gate: true }],
@@ -84,7 +94,7 @@ export async function ensureWorkstationSeeded() {
     const existingValue = decodeJson<Record<string, unknown>>(existing?.valueJson);
     const mergedValue = {
       ...(value as Record<string, unknown>),
-      ...(existingValue ?? {})
+      ...existingValue
     };
     if (key === "code_agent" && (mergedValue.provider === "local_template" || !mergedValue.provider)) {
       mergedValue.provider = "claude_agent_sdk";
@@ -96,11 +106,11 @@ export async function ensureWorkstationSeeded() {
       mergedValue.status = "not_configured";
     }
     const valueJson = encodeJson(mergedValue) ?? "{}";
-    await prisma.setting.upsert({
-      where: { key },
-      update: existing ? { valueJson } : taskCount === 0 ? { valueJson } : {},
-      create: { key, valueJson }
-    });
+    if (!existing) {
+      await prisma.setting.create({ data: { key, valueJson } });
+    } else if (existing.valueJson !== valueJson) {
+      await prisma.setting.update({ where: { key }, data: { valueJson } });
+    }
   }
 
   for (const run of summary?.runs ?? []) {
@@ -111,10 +121,10 @@ export async function ensureWorkstationSeeded() {
       if (existingByOutput) continue;
     }
     const id = `${taskId}_${String(run.output_dir ?? "seed").replace(/[^a-zA-Z0-9]+/g, "_")}`;
-    await prisma.experimentRun.upsert({
-      where: { id },
-      update: {},
-      create: {
+    const existingRun = await prisma.experimentRun.findUnique({ where: { id }, select: { id: true } });
+    if (!existingRun) {
+      await prisma.experimentRun.create({
+        data: {
         id,
         taskId,
         outputDir: run.output_dir ?? null,
@@ -124,15 +134,17 @@ export async function ensureWorkstationSeeded() {
         validationStatus: run.validation_gate?.status ?? null,
         startedAt: null,
         finishedAt: new Date()
-      }
-    });
+        }
+      });
+    }
 
     if (run.validation_gate) {
-      await prisma.gate.upsert({
-        where: { id: `${id}_validation_gate` },
-        update: {},
-        create: {
-          id: `${id}_validation_gate`,
+      const gateId = `${id}_validation_gate`;
+      const existingGate = await prisma.gate.findUnique({ where: { id: gateId }, select: { id: true } });
+      if (!existingGate) {
+        await prisma.gate.create({
+          data: {
+          id: gateId,
           taskId,
           runId: id,
           gateType: "validation_gate",
@@ -140,8 +152,32 @@ export async function ensureWorkstationSeeded() {
           reviewer: "Local Validator",
           evidenceJson: encodeJson(run.validation_gate),
           decidedAt: new Date()
-        }
-      });
+          }
+        });
+      }
     }
   }
+}
+
+/**
+ * Initialize immutable workstation defaults once per server process.
+ *
+ * Route handlers may call this defensively, but after the first successful
+ * initialization they perform no file reads and no database writes.  The seed
+ * implementation itself is value-aware so separate Next.js route bundles also
+ * avoid UPDATE statements when the stored values already match.
+ */
+export async function ensureWorkstationSeeded() {
+  if (seedCompleted) return;
+  if (!seedPromise) {
+    seedPromise = seedWorkstationOnce()
+      .then(() => {
+        seedCompleted = true;
+      })
+      .catch((error) => {
+        seedPromise = null;
+        throw error;
+      });
+  }
+  await seedPromise;
 }

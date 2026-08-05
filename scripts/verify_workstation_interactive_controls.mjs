@@ -16,6 +16,7 @@ const writeReport = process.argv.includes("--write-report");
 const port = Number(process.env.WORKSTATION_CONTROL_AUDIT_CDP_PORT ?? "9224");
 
 const pageTargets = [
+  "assistant",
   "overview",
   "control",
   "tasks",
@@ -27,6 +28,7 @@ const pageTargets = [
   "code",
   "runtime",
   "experiments",
+  "evolution",
   "report",
   "gates",
   "settings"

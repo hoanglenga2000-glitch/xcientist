@@ -1,0 +1,6206 @@
+{
+  "schema": "evomind.ruff_baseline.v1",
+  "generated_at": "2026-07-28T13:10:50.908127+00:00",
+  "policy": "Known diagnostics may decrease; new path/code/message counts fail acceptance.",
+  "diagnostic_count": 1921,
+  "entries": [
+    {
+      "path": "scripts/_check_server.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_server.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/_check_server.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_server.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v2_status.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v2_status.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v2_status.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_check_v3_status.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v3_status.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v3_status.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/_check_v3_status.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_check_v3_status.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_deploy_v4.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_deploy_v4.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/_deploy_v4.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_deploy_v4.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_dl_s3e18.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_dl_s3e18.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_download_v3_results.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_download_v3_results.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/_download_v3_results.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_download_v3_results.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_fix_nested_zips.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_fix_nested_zips.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_fix_nested_zips.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_grade_v2.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 7
+    },
+    {
+      "path": "scripts/_grade_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_grade_v3.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/_grade_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prep_step2.py",
+      "code": "F401",
+      "message": "`numpy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prep_step2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prepare_new_from_zips.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prepare_new_from_zips.py",
+      "code": "F401",
+      "message": "`numpy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prepare_new_from_zips.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_prepare_new_from_zips.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_quick_check.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_quick_check.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_quick_check.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/_quick_check.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_read_log.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_read_log_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log_v2.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log_v2.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/_read_log_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_ssh_hpc.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_ssh_hpc.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/_ssh_hpc.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_clean_launch.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_clean_launch.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_clean_launch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_data_check.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_data_check.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_data_check.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_final_launch.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_final_launch.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_final_launch.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_final_launch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_gpu_check.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_gpu_check.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_gpu_check.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_launch.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_launch.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/_v4_launch.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_launch.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_launch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_quick.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_quick.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_quick.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_relaunch.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_relaunch.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/_v4_relaunch.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/_v4_relaunch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 3
+    },
+    {
+      "path": "scripts/_v4_status.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_status.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/_v4_status.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/accept_kaggle_rules.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 2
+    },
+    {
+      "path": "scripts/accept_kaggle_rules.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 5
+    },
+    {
+      "path": "scripts/accept_kaggle_rules.py",
+      "code": "F841",
+      "message": "Local variable `r` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "F401",
+      "message": "`tempfile` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 5
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "F841",
+      "message": "Local variable `r` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/accept_kaggle_rules_all75.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/aggregate_may2022_multiseed_candidate.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/aggregate_may2022_multiseed_candidate.py",
+      "code": "F401",
+      "message": "`typing.Mapping` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/aliyun_hpc_bridge.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/aliyun_hpc_bridge.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/aliyun_hpc_bridge.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/aliyun_hpc_bridge.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_kaggle_10_task_readiness.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_kaggle_10_task_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_spooky_deberta_partial.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/audit_top30_branch_batch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/auto_detect_competition.py",
+      "code": "F401",
+      "message": "`typing.Sequence` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/backfill_digit_recognizer_workstation_evidence.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/backfill_official_rank_gates.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/backfill_partial_task_governance.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/backfill_s6e6_recovery_governance.py",
+      "code": "F841",
+      "message": "Local variable `branch_type` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/backfill_s6e6_recovery_governance.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/batch_download_kaggle.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_download_kaggle.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_download_kaggle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F401",
+      "message": "`collections.defaultdict` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F401",
+      "message": "`hpc_connect_v2.connect` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F401",
+      "message": "`queue` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F401",
+      "message": "`traceback` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "F841",
+      "message": "Local variable `e` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_gpu_train_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/batch_test_kaggle.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/batch_test_kaggle.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_test_kaggle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/batch_trainer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_trainer.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/batch_trainer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_kaggle_experiment_inventory.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 15
+    },
+    {
+      "path": "scripts/build_kaggle_experiment_inventory.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_mlebench_candidate_gates.py",
+      "code": "F841",
+      "message": "Local variable `pizza_text` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_mlebench_candidate_gates.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_mlebench_style_leaderboard_report.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_reproducible_submission_package.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_evidence_backfill_plan.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_next_run_queue.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_online_smoke_summary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_pdf_reports.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_pdf_reports.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_pdf_reports.py",
+      "code": "F841",
+      "message": "Local variable `ui_bw_pdf_path` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_pdf_reports.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/build_workstation_training_progress_report.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_gpu_results.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_gpu_results.py",
+      "code": "F401",
+      "message": "`socket` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_gpu_results.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 5
+    },
+    {
+      "path": "scripts/check_gpu_results.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_targets.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_targets.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v3_status.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v3_status.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_v3_status.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_v3_status.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v4.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v4.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/check_v4.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 8
+    },
+    {
+      "path": "scripts/check_v4.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v4b.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/check_v4b.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/check_v4b.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/collect_job89941_taxi_cpu_candidate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_kaggle4_next_evolution_orders.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_kaggle_10_next_search_orders.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_kaggle_10_next_search_orders.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_kaggle_10_workstation_supervision_contracts.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_kaggle_10_workstation_supervision_contracts.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/create_kaggle_10_workstation_supervision_contracts.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/create_top30_next_evolution_orders.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/debug_pred.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/debug_pred.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/debug_pred.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/debug_pred.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/debug_pred.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/dec2021_trainer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/dec2021_trainer.py",
+      "code": "E721",
+      "message": "Use `is` and `is not` for type comparisons, or `isinstance()` for isinstance checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/dec2021_trainer.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/dec2021_trainer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`numpy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`pandas` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "F401",
+      "message": "`warnings` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deepseek_search_loop.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F401",
+      "message": "`socket` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F401",
+      "message": "`struct` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 8
+    },
+    {
+      "path": "scripts/deploy_dual_gpu_final.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_job89941_taxi_cpu_candidate.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_job89941_taxi_cpu_candidate.py",
+      "code": "F401",
+      "message": "`stat` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_job89941_taxi_cpu_candidate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_job89941_taxi_cpu_confirmation.py",
+      "code": "F401",
+      "message": "`pathlib.PurePosixPath` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_optuna_dual_gpu.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_optuna_dual_gpu.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_optuna_dual_gpu.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_optuna_dual_gpu.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_v4.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_v4.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/deploy_v4.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 9
+    },
+    {
+      "path": "scripts/deploy_v4.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/deploy_v4.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/diag_bike_oof.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/diag_bike_oof.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/diag_bike_oof.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/diagnose_taxi_cpu_airport_expert.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/diagnose_taxi_cpu_distance_band_expert.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/diagnose_taxi_cpu_shorthaul_expert.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/download_and_grade.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/download_and_grade.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade_v3.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade_v3.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/download_and_grade_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 10
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 18
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train_df[target]:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "F401",
+      "message": "`hashlib` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "F401",
+      "message": "`pathlib.Path` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "F401",
+      "message": "`re` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/ds_loop_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/evaluate_jigsaw_oof_stacking.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/evolution_engine_cli.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/evolution_run_cli.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/evolution_run_cli.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/execute_top30_workstation_orders.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 9
+    },
+    {
+      "path": "scripts/execute_top30_workstation_orders.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/execute_top30_workstation_orders.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/export_code_agent_context.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/export_mlevolve_alignment_matrix.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/export_teacher_report.py",
+      "code": "F401",
+      "message": "`textwrap` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/export_teacher_report.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/final_submit.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/final_submit.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/final_submit.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/final_submit.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 6
+    },
+    {
+      "path": "scripts/final_submit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/fix_bike_submission.py",
+      "code": "F401",
+      "message": "`datetime.datetime` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission.py",
+      "code": "F401",
+      "message": "`sklearn.linear_model.Ridge` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission.py",
+      "code": "F841",
+      "message": "Local variable `test_blend` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "F401",
+      "message": "`sklearn.impute.SimpleImputer` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/fix_bike_submission_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v3.py",
+      "code": "F401",
+      "message": "`sklearn.impute.SimpleImputer` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v3.py",
+      "code": "F401",
+      "message": "`sklearn.linear_model.RidgeCV` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v3.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_bike_submission_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_v3_formats.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/fix_v3_formats.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 6
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "F401",
+      "message": "`yaml` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "F841",
+      "message": "Local variable `e` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/full_optimize_and_submit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gen_dashboard.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gen_dashboard.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/gen_dashboard.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gen_wave2_configs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_ai_research_workstation_plan_docx.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_evomind_onboarding_docx.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_jigsaw_gpt56_audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_mlebench_wave_plan.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_paper_figures.py",
+      "code": "F841",
+      "message": "Local variable `allowed` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_paper_figures.py",
+      "code": "F841",
+      "message": "Local variable `not_allowed` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_paper_figures.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_missing_configs.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_missing_configs.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_missing_configs.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_missing_configs.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_missing_configs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_variants.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_variants.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_plan_b_variants.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/generate_workstation_brief_docx.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_full_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_full_v3.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/get_full_v3.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/get_full_v3.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_full_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "F401",
+      "message": "`glob` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/get_v3_results.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 5
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "E721",
+      "message": "Use `is` and `is not` for type comparisons, or `isinstance()` for isinstance checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "F401",
+      "message": "`hashlib` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.GroupKFold` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "F841",
+      "message": "Local variable `id_col` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_batch_trainer_v1.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_cluster_train.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_cluster_train.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_cluster_train_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_cluster_train_v2.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_cluster_train_v2.py",
+      "code": "F401",
+      "message": "`catboost.Pool` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_cluster_train_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_all_56.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_all_56.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_download_all_56.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_hub.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_hub.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_hub.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_hub.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_small.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_small.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_small.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_v2.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_download_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_dual_monitor.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_dual_monitor.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_extract_all.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_extract_all.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_extract_all.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/gpu_extract_all.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_fix_all_data.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_fix_all_data.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/gpu_fix_all_data.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_fix_all_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_hub_batch2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_hub_batch2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_hub_download.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_hub_download.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_monitor.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_monitor.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "F401",
+      "message": "`urllib.request` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_optuna_sweep.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_scan_data.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_scan_data.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_spaceship_sweep.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_spaceship_sweep.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_spaceship_sweep.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_spaceship_sweep.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "F401",
+      "message": "`catboost.Pool` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.roc_auc_score` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "F841",
+      "message": "Local variable `n_classes` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_competition.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 8
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "F401",
+      "message": "`catboost.Pool` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "F841",
+      "message": "Local variable `fold_score` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "F841",
+      "message": "Local variable `task_id` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "F841",
+      "message": "Local variable `test_ids` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 11
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.TimeSeriesSplit` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v3_enhanced.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3_enhanced.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/gpu_train_v3_enhanced.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 12
+    },
+    {
+      "path": "scripts/gpu_train_v3_enhanced.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3_enhanced.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 12
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v3_fixed.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 8
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 13
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "F401",
+      "message": "`glob` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "F401",
+      "message": "`xgboost.XGBClassifier` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "F401",
+      "message": "`xgboost.XGBRegressor` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_train_v4_targeted.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/gpu_verify_data.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_verify_data.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 7
+    },
+    {
+      "path": "scripts/gpu_verify_data.py",
+      "code": "F401",
+      "message": "`glob` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/gpu_verify_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/grade_all_results.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/grade_all_results.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 10
+    },
+    {
+      "path": "scripts/grade_all_results.py",
+      "code": "F841",
+      "message": "Local variable `m` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/hc.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/hc.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 6
+    },
+    {
+      "path": "scripts/hc.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 3
+    },
+    {
+      "path": "scripts/hc.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/hc.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_check_resources.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_check_resources.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_check_resources.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 9
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 6
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "E741",
+      "message": "Ambiguous variable name: `l`",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "F841",
+      "message": "Local variable `escaped` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_connect_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_socks_bridge.py",
+      "code": "F401",
+      "message": "`threading` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/hpc_socks_proxy.py",
+      "code": "F841",
+      "message": "Local variable `stdin` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/import_agent_patch.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/kaggle_accept_rules.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/kaggle_accept_rules.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/kaggle_accept_rules.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/kaggle_accept_rules.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/kaggle_accept_rules.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/launch_proper_trainer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/launch_proper_trainer.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/launch_proper_trainer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/medal_grade.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/medal_grade.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench75_cdiscount_file_by_file_download.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench75_refresh_latest_state.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "F401",
+      "message": "`shutil` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_fix_runner.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 5
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 21
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 17
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "F401",
+      "message": "`gc` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "F841",
+      "message": "Local variable `fold_preds_all` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "F841",
+      "message": "Local variable `r` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_6_runner.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F401",
+      "message": "`dataclasses.field` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F401",
+      "message": "`datetime.timedelta` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F401",
+      "message": "`typing.Callable` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "F841",
+      "message": "Local variable `exec_cmd` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_autonomous_orchestrator.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 5
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 8
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `df['CryoSleep']:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "F401",
+      "message": "`sklearn.calibration.CalibratedClassifierCV` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "F841",
+      "message": "Local variable `best_score` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 8
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `df['CryoSleep']:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "F401",
+      "message": "`sklearn.calibration.CalibratedClassifierCV` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "F841",
+      "message": "Local variable `metric` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "F841",
+      "message": "Local variable `n_train` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_catboost_trainer_v3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.compose.make_column_selector` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.accuracy_score` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.f1_score` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.mean_absolute_error` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.mean_squared_error` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.metrics.mean_squared_log_error` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F401",
+      "message": "`uuid.uuid4` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 5
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "F841",
+      "message": "Local variable `y_val` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_closed_loop_pipeline.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_proper_trainer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_proper_trainer.py",
+      "code": "E721",
+      "message": "Use `is` and `is not` for type comparisons, or `isinstance()` for isinstance checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_proper_trainer.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_proper_trainer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 3
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 4
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "F401",
+      "message": "`gc` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/mlebench_server_runner.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 4
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `y:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.KFold` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.StratifiedKFold` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "F841",
+      "message": "Local variable `sub` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "F841",
+      "message": "Local variable `test` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_fast_optimize.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train[target]:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "F811",
+      "message": "Redefinition of unused `HistGradientBoostingClassifier` from line 13: `HistGradientBoostingClassifier` redefined here",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "F841",
+      "message": "Local variable `y_val` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_hparam_sweep.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 4
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "F401",
+      "message": "`csv` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "F841",
+      "message": "Local variable `cfg` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "F841",
+      "message": "Local variable `e` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "F841",
+      "message": "Local variable `y_val` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/mlevolve_local_loop.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/onboard_kaggle_competition.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_mle_bench_10.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_mle_bench_10.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_mle_bench_10.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_mle_bench_10.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_mle_bench_10.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_remaining_kaggle6_data.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/onboard_remaining_kaggle6_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train['Transported']:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "F841",
+      "message": "Local variable `e` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_spaceship_ensemble.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 3
+    },
+    {
+      "path": "scripts/optimize_titanic.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 4
+    },
+    {
+      "path": "scripts/optimize_titanic.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v2.py",
+      "code": "F401",
+      "message": "`re` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v2.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v5.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/optimize_titanic_v5.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v5.py",
+      "code": "F401",
+      "message": "`re` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/optimize_titanic_v5.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/preflight_kaggle_submission_gateway.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/preflight_kaggle_submission_gateway.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_house_prices_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "F401",
+      "message": "`io` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "F401",
+      "message": "`numpy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "F401",
+      "message": "`subprocess` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/prepare_new_competitions.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/prepare_telco_churn_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/prepare_titanic_data.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/probe_job89941_taxi_cpu_progress.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/probe_kaggle_10_competitions.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/queue_spooky_idle_slot_before_leaf.py",
+      "code": "F841",
+      "message": "Local variable `execution` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "F401",
+      "message": "`socket` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/quick_check.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/record_kaggle_submission_score.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "F841",
+      "message": "Local variable `best_cv` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "F841",
+      "message": "Local variable `best_seed` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "F841",
+      "message": "Local variable `result_path` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/reformat_and_grade.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/refresh_human_gate_approval_request.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/refresh_human_gate_approval_request.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/release_db_migrate.py",
+      "code": "E731",
+      "message": "Do not assign a `lambda` expression, use a `def`",
+      "count": 1
+    },
+    {
+      "path": "scripts/release_db_migrate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/release_finalize.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_30_experiment_showcase.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_30_experiment_showcase.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_30_experiment_showcase.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_30_experiment_showcase.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_30_experiment_showcase.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_batch_mcgs.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_batch_mcgs.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_batch_mcgs.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_batch_mcgs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_evolution.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 4
+    },
+    {
+      "path": "scripts/run_full_acceptance.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_full_benchmark.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_full_benchmark.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_full_benchmark.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 3
+    },
+    {
+      "path": "scripts/run_full_benchmark.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_full_benchmark.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_gpu_training_batch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_ensemble.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_ensemble.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 10
+    },
+    {
+      "path": "scripts/run_hpc_ensemble.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_ensemble.py",
+      "code": "F841",
+      "message": "Local variable `out_txt` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_ensemble.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_exp001_logistic_cv.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_exp002_extratrees_cv.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_exp003_lightgbm_cv.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_exp004_xgboost_cv.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_exp006_catboost_cv.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "F401",
+      "message": "`datetime.datetime` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "F401",
+      "message": "`paramiko` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "F401",
+      "message": "`socket` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_fulldata.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_boosting_ensemble.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 13
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_boosting_ensemble.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_ensemble.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 11
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_ensemble.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_pytorch.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_pytorch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_single_model.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 12
+    },
+    {
+      "path": "scripts/run_hpc_kaggle_single_model.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_hpc_ssh_command.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 16
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "F401",
+      "message": "`dataclasses.asdict` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "F401",
+      "message": "`sklearn.linear_model.LinearRegression` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "F841",
+      "message": "Local variable `ROOT_LOCAL` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "F841",
+      "message": "Local variable `pred` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_local_sklearn_ensemble.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_new_kaggle_digit_three_layer_round.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_new_kaggle_digit_three_layer_round.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_new_kaggle_digit_three_layer_round.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 20
+    },
+    {
+      "path": "scripts/run_new_kaggle_digit_three_layer_round.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_new_kaggle_spaceship_three_layer_round.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_new_kaggle_spaceship_three_layer_round.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 8
+    },
+    {
+      "path": "scripts/run_new_kaggle_spaceship_three_layer_round.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 31
+    },
+    {
+      "path": "scripts/run_new_kaggle_spaceship_three_layer_round.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_new_kaggle_spaceship_three_layer_round.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_production_smoke_audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_real_resource_smoke.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_robust_evolution.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_round3_targeted_branches.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.train_test_split` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_round3_targeted_branches.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_round4_workstation_branches.py",
+      "code": "F401",
+      "message": "`sklearn.ensemble.ExtraTreesRegressor` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_round4_workstation_branches.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "E741",
+      "message": "Ambiguous variable name: `l`",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/run_self_evolving_loop.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_smoke_tests.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_spaceship_enhanced_ensemble.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_spaceship_enhanced_ensemble.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "F401",
+      "message": "`hpc_connect_v2.INSTANCES` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "F401",
+      "message": "`hpc_connect_v2.exec_async` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "F401",
+      "message": "`time` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_three_tasks.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_ensemble.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/run_workstation_ensemble.py",
+      "code": "E713",
+      "message": "Test for membership should be `not in`",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "F401",
+      "message": "`research_agent_workstation.server.strategy.mlevolve_search.CodingMode` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "F401",
+      "message": "`research_agent_workstation.server.strategy.mlevolve_search.ExpansionType` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "F841",
+      "message": "Local variable `tag` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "F401",
+      "message": "`hpc_connect.JOBS` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "F401",
+      "message": "`uuid` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/run_workstation_mcgs_gpu.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/run_workstation_orchestrator.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_download.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_download.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_download.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/s7_download.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 8
+    },
+    {
+      "path": "scripts/s7_download.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/s7_submit.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_submit.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_submit.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/s7_submit.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 7
+    },
+    {
+      "path": "scripts/s7_submit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/s7_v4_launch.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_v4_launch.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/s7_v4_launch.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 7
+    },
+    {
+      "path": "scripts/s7_v4_launch.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/s7_v4_launch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_check.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_check.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/ssh_check.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_full.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_full.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/ssh_full.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "E722",
+      "message": "Do not use bare `except`",
+      "count": 3
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "F401",
+      "message": "`socket` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "F401",
+      "message": "`subprocess` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_hpc_expect.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 3
+    },
+    {
+      "path": "scripts/ssh_proxy_helper.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_s7.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/ssh_s7.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/ssh_s7.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/stage_cactus_multiseed_candidate.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/stage_cactus_multiseed_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 9
+    },
+    {
+      "path": "scripts/stage_ranzcr_crossrun_candidate.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/stage_ranzcr_crossrun_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 13
+    },
+    {
+      "path": "scripts/stage_siim_hpc_candidate.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/stage_siim_hpc_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 24
+    },
+    {
+      "path": "scripts/stage_siim_hpc_candidate.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/submit_hpc_kaggle_submission.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/summarize_kaggle4_self_evolution.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/summarize_kaggle4_self_evolution.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/summarize_s6e6_workstation_recovery_round.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/summarize_three_layer_evolution.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/summarize_three_layer_round3.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/task2_relaunch_ps5e2.py",
+      "code": "F401",
+      "message": "`hpc_connect_v2.exec_async` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/task2_relaunch_ps5e2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 7
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 9
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "F401",
+      "message": "`base64` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "F401",
+      "message": "`subprocess` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/test_all_servers.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_digit_recognizer_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_digit_recognizer_v2.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/train_digit_recognizer_v2.py",
+      "code": "F401",
+      "message": "`tensorflow` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_digit_recognizer_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 4
+    },
+    {
+      "path": "scripts/train_ps4e3_multilabel.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_ps4e3_multilabel.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_ps4e3_multilabel.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train[target]:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "F401",
+      "message": "`csv` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v2.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_bagged.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_bagged.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_bagged.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_refined.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_refined.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_refined.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_spaceship_v3_refined.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 7
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 8
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `False`; use `not df['CryoSleep']:` for false checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `df['CryoSleep']:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train[target]:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "scripts/train_v3_deepseek.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/update_kaggle10_progress_with_kaggle4.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_house_enhanced.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_house_enhanced.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/v3_house_enhanced.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_house_enhanced.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_house_enhanced.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_submit_all.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_submit_all.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_submit_all.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/v3_submit_all.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 6
+    },
+    {
+      "path": "scripts/v3_submit_all.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_summary.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_summary.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 3
+    },
+    {
+      "path": "scripts/v3_summary.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/v3_summary.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_blend.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_blend.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 5
+    },
+    {
+      "path": "scripts/v3_titanic_blend.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_blend.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_blend.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_enhanced.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_enhanced.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/v3_titanic_enhanced.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_enhanced.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_enhanced.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_seeds.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_seeds.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 6
+    },
+    {
+      "path": "scripts/v3_titanic_seeds.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_seeds.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_seeds.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 3
+    },
+    {
+      "path": "scripts/v3_titanic_sweep.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 2
+    },
+    {
+      "path": "scripts/v3_titanic_sweep.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 5
+    },
+    {
+      "path": "scripts/v3_titanic_sweep.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_sweep.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/v3_titanic_sweep.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_leaf_linear_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_leaf_linear_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_leaf_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_leaf_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_nomad_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_nomad_recovery_remote.py",
+      "code": "F401",
+      "message": "`itertools` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_nomad_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_pizza_full_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/validate_pizza_full_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_pizza_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/validate_pizza_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_russian_normalization_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_russian_normalization_remote.py",
+      "code": "F841",
+      "message": "Local variable `stamp` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_russian_normalization_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_russian_transliteration_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/validate_russian_transliteration_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/validate_spooky_recovery_remote.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 3
+    },
+    {
+      "path": "scripts/validate_spooky_recovery_remote.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_academic_os_page_deeplinks.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_chrome_acceptance_record.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_code_agent_patch_lifecycle.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/verify_code_agent_patch_lifecycle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_dashboard.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_dashboard_manager.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_deepseek_cache_policy.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_deepseek_cache_probe_api.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_docker_service_naming.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_external_resource_gateways.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_external_resource_gateways.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_external_resources_manifest.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_figma_design_gate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_final_delivery_status.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_final_two_resource_blockers.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_gpu_job_templates.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_hpc_socks_gateway.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_hpc_web_terminal_probe.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_hpc_windows_proxy_prereqs.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle4_self_evolution.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle4_timeout_control.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_completion_state.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_completion_state.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/verify_kaggle_10_completion_state.py",
+      "code": "F401",
+      "message": "`hashlib` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_completion_state.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_self_evolution_package.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_self_evolution_package.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/verify_kaggle_10_self_evolution_package.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_self_evolution_package.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_10_self_evolution_package.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_dpapi_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_new_competition_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_research_governance.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_kaggle_research_governance.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_launch_go_no_go.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_launch_resource_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_launchfix_functional_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_leaf_multibackbone_oof_run.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_local_startup_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_new_task_training_flow.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_release_bundle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_report_figure_workflow.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_research_integrity.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_research_sources.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_resource_activation_runbook.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_runtime_completeness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_s6e6_strategy_gate.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_s6e6_strategy_gate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_scientific_ui_polish.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_score_promotion_gate_house_prices.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_score_promotion_gate_house_prices.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_training_optimization_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_ui_layout_quality.py",
+      "code": "F841",
+      "message": "Local variable `page` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_ui_layout_quality.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_ui_localization_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_verified_workstation_launch_audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_action_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_browser_render_smoke.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_launch_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_learning_loop_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_runtime_navigation.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_server_health.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_task_api_matrix.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_ui_action_contract.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/verify_workstation_ui_component_wiring.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_cactus_cpu_sidecar.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/watch_cactus_human_gate_completion.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 7
+    },
+    {
+      "path": "scripts/watch_cactus_human_gate_completion.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 5
+    },
+    {
+      "path": "scripts/watch_collect_job89941_taxi_cpu_candidate.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 2
+    },
+    {
+      "path": "scripts/watch_human_gate_approval_index.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_human_gate_approval_index.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/watch_human_gate_approval_index.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_human_gate_approval_index.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_job89941_taxi_cpu_candidate.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_job89941_taxi_cpu_confirmation_chain.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_may2022_multiseed_completion.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 5
+    },
+    {
+      "path": "scripts/watch_may2022_multiseed_completion.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 4
+    },
+    {
+      "path": "scripts/watch_may2022_multiseed_completion.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "scripts/watch_ranzcr_human_gate_completion.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 19
+    },
+    {
+      "path": "scripts/watch_ranzcr_human_gate_completion.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 24
+    },
+    {
+      "path": "scripts/watch_siim_final_candidate_completion.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_siim_human_gate_completion.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "scripts/watch_siim_human_gate_completion.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 19
+    },
+    {
+      "path": "scripts/watch_siim_human_gate_completion.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 24
+    },
+    {
+      "path": "scripts/watch_siim_human_gate_completion.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "scripts/write_workstation_summary.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/dashboard.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/porto_seguro_safe_driver_prediction_pipeline.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/porto_seguro_safe_driver_prediction_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.linear_model.LogisticRegression` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/porto_seguro_safe_driver_prediction_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.KFold` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/porto_seguro_safe_driver_prediction_pipeline.py",
+      "code": "F841",
+      "message": "Local variable `config` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/claude_code_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/code_agent_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/codex_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/gpu_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/kaggle_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/adapters/python_runner_adapter.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/contracts.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/contracts.py",
+      "code": "F401",
+      "message": "`pathlib.Path` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/contracts.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/harness.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/research_harness/harness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/services/agent_orchestrator.py",
+      "code": "F401",
+      "message": "`research_agent_workstation.server.training.RetryPolicy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/services/agent_orchestrator.py",
+      "code": "F841",
+      "message": "Local variable `config` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/services/agent_orchestrator.py",
+      "code": "F841",
+      "message": "Local variable `scaffold` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/services/agent_orchestrator.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/services/task_service.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "E712",
+      "message": "Avoid equality comparisons to `True`; use `train[target]:` for truth checks",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F401",
+      "message": "`csv` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F401",
+      "message": "`math` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F401",
+      "message": "`random` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F401",
+      "message": "`typing.Callable` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/harness_optimizer.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`..research_harness.contracts.RiskLevel` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.mlevolve_search.CodingMode` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.mlevolve_search.ExpansionType` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.mlevolve_search.SearchNode` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.mlevolve_search.SearchPhase` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.retrospective_memory.GlobalExperience` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`.retrospective_memory.KnowledgeBase` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "F841",
+      "message": "Local variable `pattern_hints` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_harness_bridge.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/mlevolve_search.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/retrospective_memory.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/strategy/strategy_registry.py",
+      "code": "F401",
+      "message": "`pathlib.Path` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/server/training/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F401",
+      "message": "`math` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.linear_model.Ridge` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.KFold` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F401",
+      "message": "`sklearn.model_selection.train_test_split` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F841",
+      "message": "Local variable `config` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/store_sales_time_series_forecasting_pipeline.py",
+      "code": "F841",
+      "message": "Local variable `y_val_fold` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/tabular_pipeline.py",
+      "code": "F841",
+      "message": "Local variable `task_type` is assigned to but never used",
+      "count": 1
+    },
+    {
+      "path": "src/research_agent_workstation/tabular_pipeline.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/__init__.py",
+      "code": "F401",
+      "message": "`.mlevolve_controller.DEFAULT_OFFICIAL_SUBMIT_BUDGET` imported but unused; consider removing, adding to `__all__`, or using a redundant alias",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/__init__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/mcgs_selector.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/memory_vector_index.py",
+      "code": "F401",
+      "message": "`numpy` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/memory_vector_index.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/mlevolve_controller.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/strategy_selector.py",
+      "code": "F401",
+      "message": "`typing.Optional` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/research_os/variation_generator.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 3
+    },
+    {
+      "path": "src/research_os/variation_generator.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/__main__.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/__main__.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 3
+    },
+    {
+      "path": "src/xsci/auto_repair.py",
+      "code": "E701",
+      "message": "Multiple statements on one line (colon)",
+      "count": 10
+    },
+    {
+      "path": "src/xsci/auto_repair.py",
+      "code": "E713",
+      "message": "Test for membership should be `not in`",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/auto_repair.py",
+      "code": "E741",
+      "message": "Ambiguous variable name: `l`",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/auto_repair.py",
+      "code": "F401",
+      "message": "`pathlib.Path` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/auto_repair.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/dashboard.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/engine.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 2
+    },
+    {
+      "path": "src/xsci/evolution_tracker.py",
+      "code": "F401",
+      "message": "`collections.defaultdict` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/evolution_tracker.py",
+      "code": "F401",
+      "message": "`dataclasses.field` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/evolution_tracker.py",
+      "code": "F401",
+      "message": "`typing.Any` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_actions.py",
+      "code": "F401",
+      "message": "`dataclasses.field` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_actions.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_competitions.py",
+      "code": "E401",
+      "message": "Multiple imports on one line",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_competitions.py",
+      "code": "F401",
+      "message": "`os` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_competitions.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/kaggle_session.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/project.py",
+      "code": "F541",
+      "message": "f-string without any placeholders",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/recovery_guard.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/recovery_guard.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/scientist_execution_gate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/scientist_gate_decision.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/scientist_state.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "src/xsci/watch.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_agent_report.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    },
+    {
+      "path": "tests/test_agent_report.py",
+      "code": "F401",
+      "message": "`pathlib.Path` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_agent_report.py",
+      "code": "F401",
+      "message": "`research_os.evolution_loop.RunResult` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_agent_tools.py",
+      "code": "F401",
+      "message": "`pytest` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_aggregate_may2022_multiseed_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "tests/test_aggregate_taxi_cpu_multiseed_candidate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_audit_human_gate_readiness.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_collect_job89941_taxi_cpu_candidate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_deploy_job89941_taxi_cpu_candidate.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_diagnose_taxi_cpu_candidate.py",
+      "code": "F401",
+      "message": "`json` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_evaluate_jigsaw_oof_stacking.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_generate_jigsaw_gpt56_audit.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_kaggle_stream.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_launchfix_lifecycle.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_modality_generality.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_precompute_taxi_route_stats.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_run_mlebench_gpt56_adaptive_loop.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_seal_superseded_may2022_queues.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_secure_mlebench_gpt56_adaptive_launcher.py",
+      "code": "I001",
+      "message": "Import block is un-sorted or un-formatted",
+      "count": 1
+    },
+    {
+      "path": "tests/test_stage_cactus_multiseed_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 2
+    },
+    {
+      "path": "tests/test_stage_ranzcr_crossrun_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 8
+    },
+    {
+      "path": "tests/test_stage_siim_hpc_candidate.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 7
+    },
+    {
+      "path": "tests/test_submission_checker.py",
+      "code": "E402",
+      "message": "Module level import not at top of file",
+      "count": 1
+    },
+    {
+      "path": "tests/test_xsci_cli.py",
+      "code": "F401",
+      "message": "`sys` imported but unused",
+      "count": 1
+    },
+    {
+      "path": "tests/test_xsci_results.py",
+      "code": "E702",
+      "message": "Multiple statements on one line (semicolon)",
+      "count": 1
+    }
+  ]
+}

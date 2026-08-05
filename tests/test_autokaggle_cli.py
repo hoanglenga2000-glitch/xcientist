@@ -1,6 +1,7 @@
 """Smoke tests for the installable EvoMind research terminal."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import types
@@ -17,6 +18,13 @@ from xsci.kaggle_session import SessionState
 @pytest.fixture()
 def isolated_autokaggle(tmp_path, monkeypatch):
     home = tmp_path / "home_xsci"
+    workspace = home / "workspace"
+    # Pin the test workspace explicitly.  Some release harnesses override
+    # TMP/TEMP; if that temporary root happens to live below a real EvoMind
+    # checkout, active_root() must not walk up and select the real project.
+    (workspace / ".xsci" / "tasks").mkdir(parents=True)
+    (workspace / "src" / "xsci").mkdir(parents=True)
+    (workspace / "experiments").mkdir(parents=True)
     monkeypatch.setattr(xcfg, "GLOBAL_DIR", home)
     monkeypatch.setattr(xcfg, "GLOBAL_CONFIG", home / "config.toml")
     monkeypatch.setattr(xcfg, "SECRETS_FILE", home / "secrets.toml")
@@ -24,6 +32,7 @@ def isolated_autokaggle(tmp_path, monkeypatch):
     monkeypatch.setattr(ak, "GLOBAL_DIR", home)
     for env in list(xcfg._ENV_MAP):
         monkeypatch.delenv(env, raising=False)
+    monkeypatch.setenv("EVOMIND_WORKSTATION_ROOT", str(workspace.resolve()))
     outside = tmp_path / "outside"
     outside.mkdir()
     monkeypatch.chdir(outside)
@@ -37,7 +46,7 @@ def test_autokaggle_help_mentions_product_shell(isolated_autokaggle, capsys):
     assert "EvoMind" in out
     assert "evomind official" in out
     assert "autokaggle" in out
-    assert "http://127.0.0.1:8088/?page=control" in out
+    assert "http://127.0.0.1:8088/?page=assistant" in out
 
 
 def test_next_action_aliases_are_cli_commands_not_task_names(isolated_autokaggle, monkeypatch):
@@ -136,7 +145,7 @@ def test_console_welcome_shows_default_panel_url(isolated_autokaggle, capsys):
     ak._print_welcome(state, xcfg.load_config(root))
     out = capsys.readouterr().out
     assert "Panel" in out
-    assert "http://127.0.0.1:8088/?page=control" in out
+    assert "http://127.0.0.1:8088/?page=assistant" in out
     assert "evomind dashboard start" in out
 
 
@@ -173,6 +182,21 @@ def test_add_url_registers_global_task(isolated_autokaggle, capsys):
     assert rc == 0
     assert "registered task: spaceship-titanic" in out
     assert task.exists()
+
+
+def test_cli_task_use_persists_selection_for_frontend(isolated_autokaggle, capsys):
+    root = xcfg.active_root()
+    ak._register_task("https://www.kaggle.com/competitions/spaceship-titanic", root)
+
+    rc = ak.main(["task", "use", "spaceship-titanic"])
+
+    out = capsys.readouterr().out
+    reloaded = SessionState.from_root(root)
+    persisted = json.loads((root / ".xsci" / "session.json").read_text(encoding="utf-8"))
+    assert rc == 0
+    assert "selected task: spaceship-titanic" in out
+    assert reloaded.selected_task == "spaceship-titanic"
+    assert persisted["last_action"] == "task_use"
 
 
 def test_register_existing_url_returns_clean_slug(isolated_autokaggle):
@@ -212,7 +236,9 @@ def test_greeting_in_console_replies_without_running_agent(monkeypatch, isolated
     assert not should_exit
     assert not calls
     assert "EvoMind" in out
-    assert ("对话终端" in out or "研究" in out or "任务" in out)
+    assert "正在理解问题" in out
+    assert "AI Scientist Turn" not in out
+    assert "tools_executed" not in out
 
 
 def test_run_intent_without_llm_guides_setup(isolated_autokaggle, capsys):
@@ -256,6 +282,113 @@ def test_model_status_query_is_deterministic_not_generic_chat(isolated_autokaggl
     assert "sk-" not in out
 
 
+def test_compound_titanic_execution_is_not_preempted_by_model_status(
+    isolated_autokaggle, monkeypatch
+):
+    from xsci.terminal_agent import TerminalAgent
+
+    request = (
+        "请用本地已有的 Titanic 数据完成一个小型二分类模型开发任务：自动检查数据、提出并比较方案、"
+        "在 HPC 上训练、独立审核、生成候选 submission 和研究报告；不要使用本地 GPU，也不要提交 Kaggle。"
+    )
+    root = xcfg.active_root()
+    calls = []
+
+    def _fake_titanic(active_root, session, parsed_intent):
+        calls.append((active_root, parsed_intent))
+        session.selected_task = "titanic"
+        return 0
+
+    def _tripwire(*args, **kwargs):
+        raise AssertionError("compound execution must not use model-status or legacy paths")
+
+    monkeypatch.setattr(ak, "_run_titanic_multi_agent_request", _fake_titanic)
+    monkeypatch.setattr(TerminalAgent, "handle", _tripwire)
+    monkeypatch.setattr(TerminalAgent, "handle_scientist_turn", _tripwire)
+    monkeypatch.setattr(ak, "_run_agent", _tripwire)
+
+    rc, selected, should_exit = ak._handle_console_command(request, root, "house-prices")
+
+    assert rc == 0
+    assert selected == "titanic"
+    assert should_exit is False
+    assert len(calls) == 1
+    assert calls[0][0] == root
+    assert calls[0][1].kind == ak.EXECUTION
+    assert calls[0][1].request.dataset == "titanic"
+
+
+def test_evomind_ask_compound_titanic_request_uses_supervisor(
+    isolated_autokaggle, monkeypatch
+):
+    from xsci.terminal_agent import TerminalAgent
+
+    request = (
+        "请用本地已有的 Titanic 数据完成一个小型二分类模型开发任务：自动检查数据、提出并比较方案、"
+        "在 HPC 上训练、独立审核、生成候选 submission 和研究报告；不要使用本地 GPU，也不要提交 Kaggle。"
+    )
+    calls = []
+
+    def _fake_titanic(active_root, session, parsed_intent):
+        calls.append((active_root, parsed_intent))
+        session.selected_task = "titanic"
+        return 0
+
+    def _tripwire(*args, **kwargs):
+        raise AssertionError("evomind ask must not use Scientist or legacy execution")
+
+    monkeypatch.setattr(ak, "_run_titanic_multi_agent_request", _fake_titanic)
+    monkeypatch.setattr(TerminalAgent, "handle", _tripwire)
+    monkeypatch.setattr(TerminalAgent, "handle_scientist_turn", _tripwire)
+    monkeypatch.setattr(ak, "_run_agent", _tripwire)
+
+    rc = ak.main(["ask", request])
+
+    assert rc == 0
+    assert len(calls) == 1
+    assert calls[0][1].kind == ak.EXECUTION
+    assert calls[0][1].request.dataset == "titanic"
+
+
+def test_evomind_ask_llm_finetune_request_uses_dedicated_supervisor(
+    isolated_autokaggle, monkeypatch
+):
+    from xsci.terminal_agent import TerminalAgent
+
+    request = (
+        "请用本地 EvoMind 文档，让一个成熟的 7B 中文大模型更懂我们的科研工作流；自动准备数据，"
+        "在远程 A40 上完成训练和评测，并生成可下载的适配器、模型卡和报告。"
+        "不要使用本地 GPU，也不要发布模型。"
+    )
+    calls = []
+
+    def _fake_llm(active_root, session, parsed_intent):
+        calls.append((active_root, parsed_intent))
+        session.selected_task = "evomind-qwen7b-finetune"
+        return 0
+
+    def _tripwire(*args, **kwargs):
+        raise AssertionError("LLM fine-tuning must not use Scientist, Titanic, or legacy execution")
+
+    monkeypatch.setattr(ak, "_run_llm_finetune_request", _fake_llm)
+    monkeypatch.setattr(ak, "_run_titanic_multi_agent_request", _tripwire)
+    monkeypatch.setattr(TerminalAgent, "handle", _tripwire)
+    monkeypatch.setattr(TerminalAgent, "handle_scientist_turn", _tripwire)
+    monkeypatch.setattr(ak, "_run_agent", _tripwire)
+
+    rc = ak.main(["ask", request])
+
+    assert rc == 0
+    assert len(calls) == 1
+    assert calls[0][0] == isolated_autokaggle / "workspace"
+    assert calls[0][1].kind == ak.EXECUTION
+    assert calls[0][1].request.task_type == "llm_finetune"
+    assert calls[0][1].request.base_model == "Qwen/Qwen2.5-7B-Instruct"
+    assert calls[0][1].request.compute_policy.remote_gpu_required is True
+    assert calls[0][1].request.compute_policy.local_gpu_allowed is False
+    assert calls[0][1].request.submission_policy.model_publication == "forbidden"
+
+
 def test_official_passthrough_restores_argv(monkeypatch):
     calls = []
     fake_pkg = types.ModuleType("kaggle")
@@ -288,12 +421,228 @@ def test_hard_now_overrides_planning_verb():
     assert ki.classify("现在就按这个规划开跑").kind == ki.EXECUTION
 
 
+def test_top_level_open_dispatches_authenticated_dashboard(isolated_autokaggle, monkeypatch):
+    calls = []
+    monkeypatch.setattr("xsci.dashboard.open_dashboard", lambda: calls.append("open") or 0)
+
+    assert ak.main(["open"]) == 0
+    assert calls == ["open"]
+
+
 def test_command_and_query_intents():
     assert ki.classify("task add https://kaggle.com/c/x").kind == ki.TASK_ADD
     assert ki.classify("official competitions list").kind == ki.OFFICIAL
     assert ki.classify("status").kind == ki.STATUS
     assert ki.classify("你能做什么").kind == ki.CAPABILITY
     assert ki.classify("这个数据长什么样").kind == ki.CHAT
+
+
+def test_literature_query_with_negated_training_routes_to_real_search():
+    query = "为 house-prices 检索并核验 CatBoost 和 LightGBM 论文，不启动训练"
+    intent = ki.classify(query)
+
+    assert intent.kind == ki.TOOL_QUERY
+    assert intent.payload == "literature_search"
+    assert intent.args == [query]
+
+
+def test_reviewed_literature_followup_stays_in_context_aware_chat():
+    query = (
+        "结合当前 SIIM 报告和刚检索的文献，解释为什么必须按患者和重复内容组做交叉验证。"
+        "请给出可核验依据，并说明如果按单张图片随机切分会有什么偏差。"
+    )
+
+    intent = ki.classify(query)
+
+    assert intent.kind == ki.CHAT
+
+
+def test_siim_metric_explanation_stays_in_context_aware_chat():
+    intent = ki.classify("当前 SIIM 报告中的 ROC-AUC 和 PR-AUC 为什么要同时看？")
+
+    assert intent.kind == ki.CHAT
+
+
+def test_siim_existing_run_metric_listing_is_read_only_chat():
+    query = "请基于当前唯一 SIIM Run，用三条要点列出 grouped OOF 的 ROC-AUC、PR-AUC、Brier，并注明不是 Kaggle 官方成绩。"
+
+    assert ki.classify(query).kind == ki.CHAT
+    assert ki.classify("请训练一个新模型并给出 ROC-AUC").kind == ki.EXECUTION
+
+
+def test_literature_query_normalization_extracts_methods_and_domain():
+    from xsci.terminal_tools import normalize_literature_query
+
+    query = "为 house-prices 检索并核验 CatBoost 和 LightGBM 房价预测论文，给出一条证据充分的下一步研究建议，不启动训练。"
+    normalized = normalize_literature_query(query, task_id="house-prices")
+
+    assert normalized == "CatBoost LightGBM house price prediction"
+    assert "给出" not in normalized
+    assert "训练" not in normalized
+    assert "论文" not in normalized
+
+
+def test_literature_answer_uses_real_citations_without_generic_hypotheses():
+    from xsci.terminal_tools import build_literature_answer
+
+    answer = build_literature_answer({
+        "papers": [
+            {
+                "title": "An Application of XGBoost, LightGBM, CatBoost Algorithms on House Price Appraisal System",
+                "year": "2020",
+                "source": "crossref",
+                "doi": "10.52344/hfr.2020.4.0.33",
+                "url": "https://doi.org/10.52344/hfr.2020.4.0.33",
+                "methods": ["LightGBM", "CatBoost"],
+            },
+            {
+                "title": "Imported paper",
+                "year": "2026",
+                "source": "imported",
+                "provenance": {"checksum": "a" * 64},
+            },
+        ],
+        "search_queries": ["CatBoost house price prediction", "LightGBM house price prediction"],
+        "integrity": {"external_verified": 1, "imported": 1, "fabricated": 0},
+        "relevance": {"raw_external": 12, "accepted_external": 1, "filtered_external": 11},
+        "source_errors": [],
+    })
+
+    assert "10.52344/hfr.2020.4.0.33" in answer
+    assert "SHA-256" in answer
+    assert "Reviewer / Gate" in answer
+    assert "未启动" in answer
+    assert "H1 " not in answer
+
+
+def test_scientist_turn_passes_complete_goal_to_literature_search(
+    isolated_autokaggle, monkeypatch
+):
+    from xsci.terminal_agent import TerminalAgent
+    from xsci.terminal_tools import TerminalTools
+
+    root = xcfg.active_root()
+    session = SessionState.from_root(root)
+    session.selected_task = "house-prices"
+    query = "为 house-prices 检索并核验 CatBoost 和 LightGBM 论文，不启动训练"
+    captured_queries = []
+    original_dispatch = TerminalTools.dispatch.__func__
+
+    def dispatch_with_literature_probe(cls, name, active_session, active_root, **kwargs):
+        if name == "literature_search":
+            captured_queries.append(kwargs.get("query"))
+            from xsci.terminal_tools import build_literature_answer
+            literature_result = {
+                "ok": True,
+                "tool": name,
+                "paper_count": 1,
+                "papers": [{
+                    "title": "CatBoost and LightGBM for House Price Appraisal",
+                    "year": "2020",
+                    "source": "crossref",
+                    "doi": "10.52344/hfr.2020.4.0.33",
+                    "methods": ["CatBoost", "LightGBM"],
+                }],
+                "integrity": {"external_verified": 1, "imported": 0, "fabricated": 0},
+                "relevance": {"raw_external": 5, "accepted_external": 1, "filtered_external": 4},
+                "message": "verified external literature",
+                "context_path": "workspace/tasks/house_prices/rag/context_test.md",
+                "manifest_path": "workspace/tasks/house_prices/rag/context_test.json",
+                "receipt_path": ".xsci/literature_search_test.json",
+            }
+            literature_result["answer_markdown"] = build_literature_answer(literature_result)
+            return literature_result
+        return original_dispatch(cls, name, active_session, active_root, **kwargs)
+
+    monkeypatch.setattr(
+        TerminalTools,
+        "dispatch",
+        classmethod(dispatch_with_literature_probe),
+    )
+
+    result = TerminalAgent(colour=False).handle_scientist_turn(
+        query,
+        session,
+        root,
+        max_tools=3,
+    )
+    payload = json.loads(
+        (root / ".xsci" / "scientist_terminal_turn.json").read_text(encoding="utf-8")
+    )
+
+    assert result.rc == 0
+    assert captured_queries == [query]
+    assert any(item.get("tool") == "literature_search" for item in payload["executed_tools"])
+    assert any(item.get("tool") == "literature_evidence_synthesis" for item in payload["executed_tools"])
+    assert not any(item.get("tool") in {"scientist_repair_plan", "system_status"} for item in payload["executed_tools"])
+    assert payload["blocking_gates"] == []
+    assert payload["read_only_completed"] is True
+    assert "10.52344/hfr.2020.4.0.33" in payload["answer_markdown"]
+    assert "10.52344/hfr.2020.4.0.33" in result.summary
+    assert "[tool:" not in result.summary
+    assert payload["reasoning_synthesis"]["hypotheses"] == []
+    assert payload["no_training_started"] is True
+
+
+def test_adaptive_scientist_loop_passes_goal_to_literature_search(isolated_autokaggle):
+    from xsci.scientist_adaptive_loop import run_adaptive_scientist_tool_loop
+
+    class LiteratureClient:
+        def __init__(self):
+            self.turn = 0
+
+        def is_available(self):
+            return True
+
+        def send(self, *args, **kwargs):
+            self.turn += 1
+            if self.turn == 1:
+                return types.SimpleNamespace(
+                    provider="test",
+                    model="test-model",
+                    input_tokens=1,
+                    output_tokens=1,
+                    text="Search the requested literature.",
+                    raw_content="tool call",
+                    wants_tool=True,
+                    tool_calls=[types.SimpleNamespace(name="literature_search", id="literature-1")],
+                    stop_reason="tool_use",
+                )
+            return types.SimpleNamespace(
+                provider="test",
+                model="test-model",
+                input_tokens=1,
+                output_tokens=1,
+                text="The literature evidence is available.",
+                raw_content="complete",
+                wants_tool=False,
+                tool_calls=[],
+                stop_reason="end_turn",
+            )
+
+    root = xcfg.active_root()
+    session = SessionState.from_root(root)
+    session.selected_task = "house-prices"
+    query = "检索 CatBoost 和 LightGBM 房价预测论文，不启动训练"
+    captured_queries = []
+
+    def dispatch(name, active_session, active_root, **kwargs):
+        captured_queries.append(kwargs.get("query"))
+        return {"ok": True, "tool": name, "paper_count": 2, "message": "verified"}
+
+    result = run_adaptive_scientist_tool_loop(
+        session,
+        root,
+        goal=query,
+        turn_plan={"tool_sequence": ["literature_search"], "requirement_ledger": {"requirements": []}},
+        client=LiteratureClient(),
+        dispatch=dispatch,
+        persist=False,
+    )
+
+    assert result["executed_tools"] == ["literature_search"]
+    assert captured_queries == [query]
+    assert result["no_training_started"] is True
 
 
 def test_planning_in_console_plans_without_running_agent(monkeypatch, isolated_autokaggle, capsys):
@@ -614,6 +963,60 @@ def test_active_root_from_home_uses_global_workspace_not_home(tmp_path, monkeypa
     assert root == global_home / "workspace"
     assert root != home
     assert (root / ".xsci" / "tasks").is_dir()
+
+
+def _make_evomind_source_root(path: Path) -> Path:
+    (path / ".xsci").mkdir(parents=True)
+    (path / "src" / "xsci").mkdir(parents=True)
+    return path
+
+
+def test_active_root_prefers_explicit_evomind_root(tmp_path, monkeypatch):
+    global_home = tmp_path / "user" / ".xsci"
+    global_home.mkdir(parents=True)
+    current = tmp_path / "current"
+    (current / ".xsci").mkdir(parents=True)
+    explicit = _make_evomind_source_root(tmp_path / "explicit")
+    monkeypatch.setattr(xcfg, "GLOBAL_DIR", global_home)
+    monkeypatch.setenv("EVOMIND_WORKSTATION_ROOT", str(explicit))
+
+    assert xcfg.active_root(current) == explicit.resolve()
+
+
+def test_active_root_prefers_current_project_before_pointer(tmp_path, monkeypatch):
+    global_home = tmp_path / "user" / ".xsci"
+    global_home.mkdir(parents=True)
+    current = tmp_path / "current"
+    (current / ".xsci").mkdir(parents=True)
+    pointed = _make_evomind_source_root(tmp_path / "pointed")
+    (global_home / "workstation-root.txt").write_text(str(pointed), encoding="utf-8")
+    monkeypatch.setattr(xcfg, "GLOBAL_DIR", global_home)
+    monkeypatch.delenv("EVOMIND_WORKSTATION_ROOT", raising=False)
+
+    assert xcfg.active_root(current) == current.resolve()
+
+
+def test_active_root_uses_valid_persisted_workstation_pointer(tmp_path, monkeypatch):
+    global_home = tmp_path / "user" / ".xsci"
+    global_home.mkdir(parents=True)
+    pointed = _make_evomind_source_root(tmp_path / "pointed")
+    (global_home / "workstation-root.txt").write_text(str(pointed), encoding="utf-8")
+    monkeypatch.setattr(xcfg, "GLOBAL_DIR", global_home)
+    monkeypatch.delenv("EVOMIND_WORKSTATION_ROOT", raising=False)
+
+    assert xcfg.active_root(tmp_path / "outside") == pointed.resolve()
+
+
+def test_active_root_rejects_invalid_persisted_workstation_pointer(tmp_path, monkeypatch):
+    global_home = tmp_path / "user" / ".xsci"
+    global_home.mkdir(parents=True)
+    invalid = tmp_path / "copied-without-source"
+    (invalid / ".xsci").mkdir(parents=True)
+    (global_home / "workstation-root.txt").write_text(str(invalid), encoding="utf-8")
+    monkeypatch.setattr(xcfg, "GLOBAL_DIR", global_home)
+    monkeypatch.delenv("EVOMIND_WORKSTATION_ROOT", raising=False)
+
+    assert xcfg.active_root(tmp_path / "outside") == global_home / "workspace"
 
 
 # ── EvoMind Terminal Agent upgrade tests ─────────────────────────────────
@@ -1751,6 +2154,132 @@ def test_scientist_context_packet_compacts_state_without_training(isolated_autok
     assert "sk-TEST-SHOULD-NOT-LEAK" not in serialized
 
 
+def _write_literature_fixture(root: Path, task_id: str, *, title: str, reviewer_status: str = "passed") -> dict[str, str]:
+    rag = root / "workspace" / "tasks" / task_id / "rag"
+    rag.mkdir(parents=True, exist_ok=True)
+    imported = root / "workspace" / "tasks" / task_id / "literature" / "imports" / "paper.md"
+    imported.parent.mkdir(parents=True, exist_ok=True)
+    imported.write_text(f"# {title}\n\nEvidence for the selected task.\n", encoding="utf-8")
+    source_checksum = hashlib.sha256(imported.read_bytes()).hexdigest()
+    context_md = rag / "context_fixture.md"
+    context_md.write_text(f"# Literature Context\n\n{title}\n", encoding="utf-8")
+    manifest = {
+        "task_id": task_id,
+        "query": f"real query for {task_id}",
+        "context_path": f"workspace/tasks/{task_id}/rag/context_fixture.md",
+        "source_counts": {"arxiv": 1, "imported": 1},
+        "integrity": {"external_verified": 1, "imported": 1, "fabricated": 0},
+        "papers": [{
+            "id": f"paper-{task_id}",
+            "title": title,
+            "source": "imported",
+            "year": "2026",
+            "doi": "10.1234/evomind.fixture",
+            "url": "https://doi.org/10.1234/evomind.fixture",
+            "artifact_path": f"workspace/tasks/{task_id}/literature/imports/paper.md",
+            "provenance": {"verified": True, "checksum": source_checksum},
+        }],
+    }
+    manifest_path = rag / "context_fixture.json"
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    manifest_checksum = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    agent_context = {
+        "schema": "evomind.multi_agent.literature_context.v1",
+        "context_id": f"literature-context-{task_id}",
+        "task_id": task_id,
+        "source_manifest": {
+            "path": f"workspace/tasks/{task_id}/rag/context_fixture.json",
+            "sha256": manifest_checksum,
+        },
+    }
+    agent_context_path = rag / "agent_contexts" / f"literature_context_{task_id}.json"
+    agent_context_path.parent.mkdir(parents=True, exist_ok=True)
+    agent_context_path.write_text(json.dumps(agent_context), encoding="utf-8")
+    agents = root / "workspace" / "tasks" / task_id / "agents"
+    agents.mkdir(parents=True, exist_ok=True)
+    (agents / "handoffs.jsonl").write_text(json.dumps({
+        "schema": "evomind.multi_agent.handoff.v1",
+        "handoff_id": f"handoff-{task_id}",
+        "task_id": task_id,
+        "recipient": "research_agent",
+        "status": "queued",
+    }) + "\n", encoding="utf-8")
+    binding = {
+        "schema": "evomind.literature.claim_binding.v1",
+        "binding_id": f"binding-{task_id}",
+        "task_id": task_id,
+        "claim": "This report claim is bound to one selected paper.",
+        "paper": {"id": f"paper-{task_id}", "title": title},
+    }
+    binding_path = rag / "claim_bindings" / f"claim_binding_{task_id}.json"
+    binding_path.parent.mkdir(parents=True, exist_ok=True)
+    binding_path.write_text(json.dumps(binding), encoding="utf-8")
+    audit = {
+        "schema": "evomind.independent_reviewer.citation_audit.v1",
+        "audit_id": f"audit-{task_id}",
+        "task_id": task_id,
+        "status": reviewer_status,
+        "blockers": [] if reviewer_status == "passed" else ["claim_not_supported"],
+        "open_requirements": [] if reviewer_status == "passed" else ["provide_claim_specific_supporting_passage"],
+    }
+    audit_path = rag / "citation_audits" / f"citation_audit_{task_id}.json"
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_path.write_text(json.dumps(audit), encoding="utf-8")
+    return {"manifest_checksum": manifest_checksum, "source_checksum": source_checksum}
+
+
+def test_scientist_context_packet_injects_selected_task_literature_evidence(isolated_autokaggle):
+    from xsci.terminal_tools import TerminalTools
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "selected-task"
+    expected = _write_literature_fixture(root, "selected-task", title="Selected task paper")
+    _write_literature_fixture(root, "other-task", title="Cross-task paper", reviewer_status="blocked")
+
+    result = TerminalTools.dispatch("scientist_context_packet", state, root)
+    literature = result["literature_context"]
+    serialized = json.dumps(literature, ensure_ascii=False)
+    markdown = (root / ".xsci" / "scientist_context_packet.md").read_text(encoding="utf-8")
+
+    assert literature["present"] is True
+    assert literature["task_id"] == "selected-task"
+    assert literature["manifest_task_verified"] is True
+    assert literature["manifest_sha256"] == expected["manifest_checksum"]
+    assert literature["context_present"] is True
+    assert literature["source_counts"] == {"arxiv": 1, "imported": 1}
+    assert literature["papers"][0]["doi"] == "10.1234/evomind.fixture"
+    assert literature["papers"][0]["url"] == "https://doi.org/10.1234/evomind.fixture"
+    assert literature["papers"][0]["checksum"] == expected["source_checksum"]
+    assert literature["papers"][0]["checksum_verified"] is True
+    assert literature["agent_context"]["manifest_sha256_matches"] is True
+    assert literature["handoffs"][0]["recipient"] == "research_agent"
+    assert literature["claim_binding"]["binding_id"] == "binding-selected-task"
+    assert literature["reviewer_status"] == "passed"
+    assert "Selected task paper" in serialized
+    assert "Cross-task paper" not in serialized
+    assert "## Literature Context" in markdown
+    assert "10.1234/evomind.fixture" in markdown
+    assert result["response_contract"]["must_not_use_cross_task_literature"] is True
+
+
+def test_scientist_context_packet_reports_missing_literature_without_cross_task_fallback(isolated_autokaggle):
+    from xsci.terminal_tools import TerminalTools
+
+    root = xcfg.active_root()
+    state = SessionState.from_root(root)
+    state.selected_task = "missing-task"
+    _write_literature_fixture(root, "other-task", title="Wrong task paper")
+
+    result = TerminalTools.dispatch("scientist_context_packet", state, root)
+    literature = result["literature_context"]
+
+    assert literature["present"] is False
+    assert literature["task_id"] == "missing-task"
+    assert literature["error"] == "literature_manifest_missing"
+    assert literature["papers"] == []
+
+
 def test_scientist_self_audit_writes_capability_backlog_without_training(isolated_autokaggle):
     from xsci.terminal_tools import TerminalTools
 
@@ -1997,7 +2526,8 @@ def test_scientist_self_audit_rejects_artifact_only_parity_claims(isolated_autok
     import xsci.terminal_tools as tt
     from xsci.terminal_tools import TerminalTools
 
-    root = xcfg.active_root()
+    root = (isolated_autokaggle / "workspace").resolve()
+    assert xcfg.active_root() == root
     xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
     ak._register_task("https://www.kaggle.com/competitions/spaceship-titanic", root)
     xsci = root / ".xsci"
@@ -3539,54 +4069,32 @@ def test_conversation_reply_records_turn_plan_for_generic_scientist_question(iso
     assert str(artifact) in latest["artifacts"]
 
 
-def test_generic_chat_runs_observable_scientist_turn_without_training(isolated_autokaggle, monkeypatch, capsys):
+def test_generic_chat_stays_direct_without_scientist_artifacts(isolated_autokaggle, monkeypatch, capsys):
     from xsci import agent as xagent
-    from xsci.scientist_trace import load_recent_scientist_step_events
-    from xsci.scientist_turns import load_recent_scientist_parity_loops, load_recent_scientist_turns
 
     def _tripwire(*args, **kwargs):
         raise AssertionError("training must not start from a generic scientist turn")
 
     monkeypatch.setattr(xagent, "run_agent", _tripwire)
     root = xcfg.active_root()
-    xcfg.write_secret("anthropic_api_key", "sk-TEST-SHOULD-NOT-LEAK")
     ak._register_task("https://www.kaggle.com/competitions/spaceship-titanic", root)
 
     rc, selected, should_exit = ak._handle_console_command(
-        "请给我一个稳妥的研究判断",
+        "请用一句话说明交叉验证是什么",
         root,
         "spaceship-titanic",
     )
     out = capsys.readouterr().out
-    turns = load_recent_scientist_turns(root)
-    parity_loops = load_recent_scientist_parity_loops(root)
-    steps = load_recent_scientist_step_events(root, limit=80)
-    terminal_payload = json.loads((root / ".xsci" / "scientist_terminal_turn.json").read_text(encoding="utf-8"))
-    serialized = json.dumps(turns + steps, ensure_ascii=False)
 
     assert rc == 0
     assert selected == "spaceship-titanic"
     assert not should_exit
-    assert "AI Scientist Turn" in out
-    assert "tools_executed" in out
-    assert "no_training_started: True" in out
-    assert (root / ".xsci" / "scientist_turn_plan.json").exists()
-    assert (root / ".xsci" / "scientist_terminal_turn.json").exists()
-    assert (root / ".xsci" / "scientist_parity_loop.jsonl").exists()
-    assert (root / ".xsci" / "scientist_latest_parity_loop.json").exists()
-    assert turns[-1]["route"] == "scientist_terminal_turn"
-    assert turns[-1]["no_training_started"] is True
-    assert turns[-1]["parity_lifecycle"]["schema"] == "evomind.ai_scientist.parity_lifecycle.v1"
-    assert terminal_payload["parity_lifecycle"]["phase_status"]["observe"] == "passed"
-    assert terminal_payload["parity_lifecycle"]["phase_status"]["plan"] == "passed"
-    assert {item["phase"] for item in terminal_payload["parity_lifecycle"]["phases"]} == {
-        "observe", "plan", "act", "reflect", "improve"
-    }
-    assert parity_loops[-1]["phase_status"]["observe"] == "passed"
-    assert parity_loops[-1]["official_submit"] == "blocked_until_explicit_human_approval"
-    assert any(step.get("phase") == "terminal_turn_complete" for step in steps)
-    assert "sk-TEST-SHOULD-NOT-LEAK" not in serialized
-    assert "sk-TEST-SHOULD-NOT-LEAK" not in json.dumps([terminal_payload, parity_loops], ensure_ascii=False)
+    assert "EvoMind" in out
+    assert "AI Scientist Turn" not in out
+    assert "tools_executed" not in out
+    assert not (root / ".xsci" / "scientist_turn_plan.json").exists()
+    assert not (root / ".xsci" / "scientist_terminal_turn.json").exists()
+    assert not (root / ".xsci" / "scientist_parity_loop.jsonl").exists()
 
 
 def test_ask_command_runs_one_scientist_turn_without_training(isolated_autokaggle, monkeypatch, capsys):

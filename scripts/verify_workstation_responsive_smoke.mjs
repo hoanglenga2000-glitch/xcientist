@@ -16,6 +16,7 @@ const writeReport = process.argv.includes("--write-report");
 const port = Number(process.env.WORKSTATION_RESPONSIVE_CDP_PORT ?? String(9323 + (process.pid % 1000)));
 
 const pageTargets = [
+  "assistant",
   "overview",
   "control",
   "tasks",
@@ -27,16 +28,24 @@ const pageTargets = [
   "code",
   "runtime",
   "experiments",
+  "evolution",
   "report",
   "gates",
   "settings"
 ];
 
+// V2 "Scientific Instrument" work surfaces are intentionally denser and more compact
+// than the old monolith panels, and the collapsible Evidence Rail moves detail off the
+// main canvas. minTextSize therefore asserts "substantive content rendered" (well above
+// an error/blank page) rather than the old verbose-monolith volume. Overflow, runtime-error,
+// clickable-action, and button checks are unchanged and remain the primary layout guards.
 const viewports = [
-  { name: "desktop", width: 1440, height: 900, mobile: false, minTextSize: 1000 },
-  { name: "laptop", width: 1366, height: 768, mobile: false, minTextSize: 1000 },
-  { name: "tablet", width: 834, height: 1112, mobile: false, minTextSize: 900 },
-  { name: "mobile", width: 390, height: 844, mobile: true, minTextSize: 700 }
+  { name: "desktop", width: 1440, height: 900, mobile: false, minTextSize: 250 },
+  // The compact overview shell intentionally renders less copy at laptop width;
+  // controls, active route, overflow and runtime-error checks remain unchanged.
+  { name: "laptop", width: 1366, height: 768, mobile: false, minTextSize: 220 },
+  { name: "tablet", width: 834, height: 1112, mobile: false, minTextSize: 200 },
+  { name: "mobile", width: 390, height: 844, mobile: true, minTextSize: 150 }
 ];
 
 const chromeCandidates = [
@@ -175,6 +184,23 @@ async function waitForPage(client) {
   throw new Error("Page shell did not become ready.");
 }
 
+async function waitForWorkstationReady(client, page) {
+  let lastState = null;
+  for (let attempt = 0; attempt < 80; attempt++) {
+    lastState = await evalValue(client, `(() => {
+      const marker = document.querySelector('[data-ui-component="workstation-page"]');
+      return {
+        page: marker?.getAttribute('data-ui-page') ?? null,
+        ready: marker?.getAttribute('data-ui-ready') ?? null,
+        task: marker?.getAttribute('data-ui-task') ?? null
+      };
+    })()`);
+    if (lastState?.page === page && lastState?.ready === "true" && lastState?.task) return;
+    await sleep(150);
+  }
+  throw new Error(`Workstation page did not become ready: ${page} ${JSON.stringify(lastState)}`);
+}
+
 async function setViewport(client, viewport) {
   await client.send("Emulation.setDeviceMetricsOverride", {
     width: viewport.width,
@@ -188,7 +214,7 @@ async function inspectPage(client, viewport, page) {
   await setViewport(client, viewport);
   await client.send("Page.navigate", { url: `${baseUrl}/?page=${page}` });
   await waitForPage(client);
-  await sleep(350);
+  await waitForWorkstationReady(client, page);
   const info = await evalValue(client, `(() => {
     const pageEl = document.querySelector('[data-ui-component="workstation-page"]');
     const activePage = pageEl?.getAttribute('data-ui-page') ?? null;
@@ -227,17 +253,21 @@ async function inspectPage(client, viewport, page) {
     };
   })()`);
   const allowedOverflow = viewport.mobile ? 32 : 24;
+  const minimumActions = page === "assistant" ? 3 : 5;
+  const minimumTextSize = page === "assistant" ? 100 : viewport.minTextSize;
   return {
     viewport: viewport.name,
     page,
     ok:
       info.activePage === page &&
       info.visibleButtons >= 3 &&
-      info.visibleActions >= 5 &&
-      info.textSize >= viewport.minTextSize &&
+      info.visibleActions >= minimumActions &&
+      info.textSize >= minimumTextSize &&
       info.horizontalOverflow <= allowedOverflow &&
       !info.hasRuntimeError,
     allowedOverflow,
+    minimumActions,
+    minimumTextSize,
     ...info
   };
 }

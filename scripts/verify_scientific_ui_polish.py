@@ -7,9 +7,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 WORKSTATION = ROOT / "web" / "research-agent-workstation" / "src"
 APP_SHELL = WORKSTATION / "components" / "workstation" / "AppShell.tsx"
-COMMON = WORKSTATION / "components" / "workstation" / "Common.tsx"
 SIDEBAR = WORKSTATION / "components" / "workstation" / "Sidebar.tsx"
-SCREENS = WORKSTATION / "components" / "workstation" / "Screens.tsx"
+NAV = WORKSTATION / "components" / "workstation" / "navigation.ts"
+LAYOUT_DIR = WORKSTATION / "components" / "workstation" / "layout"
+PRIMITIVES_DIR = WORKSTATION / "components" / "workstation" / "primitives"
+SCREENS_DIR = WORKSTATION / "components" / "workstation" / "screens"
 AI_CONTROL = WORKSTATION / "components" / "workstation" / "AiControlConsole.tsx"
 CSS = WORKSTATION / "app" / "globals.css"
 PAGE = WORKSTATION / "app" / "page.tsx"
@@ -33,152 +35,185 @@ def require_terms(source: str, terms: list[str], message: str) -> None:
     require(not missing, message, {"missing": missing})
 
 
+def read(path: Path) -> str:
+    return path.read_text(encoding="utf-8")
+
+
 def main() -> None:
-    files = [APP_SHELL, COMMON, SIDEBAR, SCREENS, AI_CONTROL, CSS, PAGE]
-    missing_files = [str(path.relative_to(ROOT)) for path in files if not path.exists()]
+    screens = sorted(SCREENS_DIR.glob("*.tsx"))
+    primitives = sorted(PRIMITIVES_DIR.glob("*.tsx"))
+    layout = sorted(LAYOUT_DIR.glob("*.tsx"))
+
+    missing_files = []
+    for path in [APP_SHELL, SIDEBAR, NAV, AI_CONTROL, CSS, PAGE]:
+        if not path.exists():
+            missing_files.append(str(path.relative_to(ROOT)))
     require(not missing_files, "scientific UI source files are missing", {"missing_files": missing_files})
+    require(len(screens) >= 14, "expected at least 14 migrated V2 screens", {"screen_count": len(screens)})
+    require(len(primitives) >= 3, "expected V2 primitive library", {"primitive_count": len(primitives)})
 
-    app_shell = APP_SHELL.read_text(encoding="utf-8")
-    common = COMMON.read_text(encoding="utf-8")
-    sidebar = SIDEBAR.read_text(encoding="utf-8")
-    screens = SCREENS.read_text(encoding="utf-8")
-    ai_control = AI_CONTROL.read_text(encoding="utf-8")
-    css = CSS.read_text(encoding="utf-8")
-    page = PAGE.read_text(encoding="utf-8")
-    combined = "\n".join([app_shell, common, sidebar, screens, ai_control, css, page])
+    app_shell = read(APP_SHELL)
+    sidebar = read(SIDEBAR)
+    nav = read(NAV)
+    ai_control = read(AI_CONTROL)
+    css = read(CSS)
+    page = read(PAGE)
+    screens_src = "\n".join(read(p) for p in screens)
+    primitives_src = "\n".join(read(p) for p in primitives)
+    layout_src = "\n".join(read(p) for p in layout)
+    combined = "\n".join([app_shell, sidebar, nav, ai_control, css, page, screens_src, primitives_src, layout_src])
 
+    # AppShell: polished EvoMind shell, deep link page map, evidence rail, click audit.
     require_terms(
         app_shell,
         [
-            "EvoMind Gateway",
-            "EvoMind 工作站",
-            "Research Overview",
-            "Experiment Ledger",
-            "Code Agent IDE",
-            "GPU / HPC",
-            "Evidence Ledger",
-            "Integrity Gates",
-            "Literature / RAG",
-            "Workflow Graph",
-            "Settings",
-            "Design System",
-            "max-w-[1672px]",
+            "EvoMind",
             "workstation-chrome",
-            "Topbar",
+            "max-w-[var(--content-max-width)]",
+            "onClickCapture={handleUiClick}",
+            "data-ui-page",
+            "uiActionRoutes",
+            "uiActionRoutePatterns",
+            "RunContextBar",
+            "EvidenceRail",
         ],
-        "AppShell must provide a polished EvoMind research-workstation shell and page map",
+        "AppShell must provide the polished EvoMind shell, click audit delegate, and Evidence Rail",
     )
 
+    # Sidebar: brand, accessible mobile nav, grouped IA, gate status.
     require_terms(
         sidebar,
         [
             "EvoMind",
-            "XCIENTIST RESEARCH AGENT",
             "toggle_mobile_navigation",
             "setMobileOpen(false)",
-            "lg:overflow-y-auto",
-            "bg-[linear-gradient",
-            "科研",
-            "开发",
-            "基础设施",
-            "治理",
-            "资源与连接",
-            "人工 Gate",
+            "navSections",
         ],
-        "Sidebar must preserve brand identity, accessible mobile navigation, grouped pages, and resource/gate status",
+        "Sidebar must preserve brand identity, accessible mobile navigation, and grouped IA",
     )
 
+    # Navigation: the 6 IA groups and the 15 leaf pages.
+    require_terms(
+        nav,
+        [
+            "command_center",
+            "research_loop",
+            "workbench",
+            "infrastructure",
+            "governance",
+            "overview",
+            "tasks",
+            "evidence",
+            "experiments",
+            "gpu",
+            "literature",
+            "report",
+            "gates",
+            "settings",
+        ],
+        "Navigation must expose the 6 IA groups and all leaf pages",
+    )
+
+    # Page: URL deep links, EvoMind default routing, action logging, locale updates.
     require_terms(
         page,
         [
             "parsePageId",
             "pageFromLocation",
             "changeActivePage",
-            "searchParams.set(\"page\", page)",
+            'searchParams.set("page", page)',
             "hashchange",
-            "AiControlConsole",
-            "EvolutionConsole",
             "runWorkstationAction",
             "language_select",
             "create_task",
+            "screens/",
         ],
-        "Workbench page must support URL deep links, EvoMind default routing, action logging, and locale updates",
+        "Workbench page must support URL deep links, action logging, locale updates, and V2 screens",
     )
+    require('from "@/components/workstation/Screens"' not in page, "page.tsx must not import the old Screens monolith")
 
+    # CSS: scientific visual tokens and focus states.
     require_terms(
         css,
         [
-            ".thin-scrollbar",
-            ".report-page",
-            ".metric-num",
-            ".accent-bar",
             ".workstation-chrome",
             "[data-ui-action]:focus-visible",
-            ".dense-surface",
+            ".thin-scrollbar",
         ],
         "scientific visual tokens and focus states are missing",
     )
 
+    # Primitives: the V2 design system building blocks.
     require_terms(
-        common,
+        primitives_src,
         [
-            "ResearchBrief",
-            "grid min-w-0 grid-cols-1",
-            "md:grid-flow-row",
-            "xl:grid-cols-5",
-            "MetricCurve",
-            "ArtifactList",
-            "ReproducibilityRecord",
+            "PageHeader",
+            "MetricTile",
+            "Panel",
+            "EmptyState",
+            "CopyablePath",
+            "StatusBadgeV2",
+            "GateBadge",
+            "ClaimBoundary",
         ],
-        "shared scientific widgets must remain mobile-safe and evidence-oriented",
-    )
-    research_brief = common.split("export function ResearchBrief", 1)[1].split("function BriefExtra", 1)[0]
-    require("overflow-x-auto" not in research_brief, "ResearchBrief must not rely on mobile horizontal scrolling")
-
-    require_terms(
-        screens,
-        [
-            "LiveRunEvidencePanel",
-            "实时运行证据 / Live Run Evidence",
-            "无 Kaggle response 时不显示排名或奖牌",
-            "TerminalKaggleAgentPanel",
-            "DataKagglePipeline",
-            "GpuHpcConsole",
-            "EvidenceLedger",
-            "ReportStudio",
-            "LiteratureKnowledge",
-            "AgentRuntime",
-            "IntegrityGates",
-            "Experiments",
-            "ResearchTasks",
-            "WorkflowGraph",
-            "SettingsCenter",
-            "DesignSystem",
-            "No - waiting for Submission Gate",
-            "DPAPI ready",
-            "HPC / GPU",
-            "claim_audit.json",
-            "暂无官方 response artifact",
-            "Code Agent",
-            "GPU Agent",
-            "Submission Gate",
-        ],
-        "scientific workstation surfaces must expose live evidence, terminal agent, data, GPU, evidence, report, literature, runtime, gates, tasks, and settings",
+        "V2 primitives must provide the scientific design-system building blocks",
     )
 
+    # Screens: every page surfaces claim boundaries, status tones, and human gates.
+    require_terms(
+        screens_src,
+        [
+            "runWorkstationAction",
+            "data-ui-action",
+            "StatusBadgeV2",
+            "MetricTile",
+            "PageHeader",
+            "blocked_start_training",
+            "blocked_final_evidence_approval",
+            "blocked_allow_official_submit",
+            "blocked_kaggle_submit",
+            "blocked_submit_gpu_job",
+            "blocked_send_to_hpc",
+            "approve_integrity_gate",
+            "export_evidence_csv",
+            "report_generate_scientific",
+            "report_download_final_bundle",
+            "report_analyze_refinement",
+            "tasks_create_workstation_run",
+            "literature_search",
+            "rag_export_context_markdown",
+            "settings_language_zh_cn",
+            "experiments_export_ledger",
+        ],
+        "V2 screens must expose status tones, action contracts, exports, and human-gate boundaries",
+    )
+
+    # Human-gate integrity: every blocked_* gate must be present with a lock affordance.
+    blocked_gates = [term for term in [
+        "blocked_start_training",
+        "blocked_final_evidence_approval",
+        "blocked_allow_official_submit",
+        "blocked_kaggle_submit",
+        "blocked_submit_gpu_job",
+        "blocked_send_to_hpc",
+    ] if term in screens_src]
+    require(len(blocked_gates) == 6, "all 6 irreversible human-gate boundaries must be present in V2 screens", {"found": blocked_gates})
+
+    # No fabricated ranks/medals: screens must reference unknown/never-fabricate boundaries.
+    require(
+        "Unknown" in screens_src or "未知" in screens_src,
+        "screens must surface an explicit Unknown/unverified state",
+    )
+
+    # AI Control Console: research-agent gateway behaviour.
     require_terms(
         ai_control,
         [
             "Scientist Autopilot",
             "Scientist Action Queue",
             "Scientist Workplan",
-            "Scientist Repair Plan",
             "Scientist Execution Contract",
-            "Scientist Step Trace",
             "Command Input",
-            "Quick Actions",
-            "Page Shortcuts",
-            "Message History",
             "Code Agents never bypass the workstation",
             "Official Kaggle submission requires human approval",
         ],
@@ -189,8 +224,8 @@ def main() -> None:
     forbidden_hits = [term for term in forbidden_brand_terms if term in combined]
     require(not forbidden_hits, "UI must use EvoMind branding instead of the old Kaggle-agent product name", {"forbidden_hits": forbidden_hits})
 
-    replacement_count = combined.count("\ufffd")
-    private_use_count = sum(1 for char in combined if "\ue000" <= char <= "\uf8ff")
+    replacement_count = combined.count("�")
+    private_use_count = sum(1 for char in combined if 0xE000 <= ord(char) <= 0xF8FF)
     require(replacement_count == 0, "UI source must not contain replacement characters", {"replacement_count": replacement_count})
     require(private_use_count == 0, "UI source must not contain private-use mojibake characters", {"private_use_count": private_use_count})
 
@@ -201,13 +236,16 @@ def main() -> None:
             "accessible_mobile_sidebar",
             "url_deeplinks",
             "scientific_visual_tokens",
-            "mobile_safe_research_brief",
-            "live_run_evidence_surface",
-            "terminal_agent_panel",
-            "data_gpu_evidence_report_literature_runtime_pages",
+            "v2_screens_present",
+            "v2_primitives_present",
+            "evidence_rail_surface",
+            "click_audit_delegate",
+            "human_gate_boundaries",
+            "no_fake_rank_boundaries",
             "ai_scientist_control_gateway",
-            "human_gate_and_no_fake_rank_boundaries",
         ],
+        "screen_count": len(screens),
+        "blocked_gate_count": len(blocked_gates),
     }, ensure_ascii=False, indent=2))
 
 

@@ -21,6 +21,60 @@ class MemoryRecord:
     failure_pattern: str
     linked_exp_ids: list[str]
 
+    @classmethod
+    def from_dict(cls, payload: dict[str, Any]) -> "MemoryRecord":
+        """Load the current schema plus the one-record pre-schema format.
+
+        Early EvoMind builds wrote ``{memory_id, task, what_worked,
+        reusable_strategy}``.  That record remains valid historical evidence,
+        but ``MemoryRecord(**payload)`` made the entire shared store unreadable
+        after the typed schema was introduced.  Normalize only that exact
+        legacy shape; malformed or unknown fields still fail closed.
+        """
+
+        if not isinstance(payload, dict):
+            raise ValueError("retrospective memory record must be an object")
+        normalized = dict(payload)
+        legacy_task = normalized.pop("task", None)
+        current_fields = {
+            "memory_id", "task_type", "dataset_profile", "method",
+            "what_worked", "what_failed", "metric_delta",
+            "reusable_strategy", "failure_pattern", "linked_exp_ids",
+        }
+        unknown = sorted(set(normalized) - current_fields)
+        if unknown:
+            raise ValueError(f"retrospective memory record has unknown fields: {', '.join(unknown)}")
+
+        if "task_type" not in normalized:
+            legacy_keys = {"memory_id", "what_worked", "reusable_strategy"}
+            if not legacy_keys.issubset(normalized) or not isinstance(legacy_task, str) or not legacy_task.strip():
+                raise ValueError("retrospective memory record does not match a supported schema")
+            normalized.update({
+                "task_type": "unknown",
+                "dataset_profile": {
+                    "task_name": legacy_task.strip(),
+                    "source": "legacy_retrospective_memory_v0",
+                    "evidence_level": "provisional",
+                },
+                "method": "legacy_memory",
+                "what_failed": "",
+                "metric_delta": None,
+                "failure_pattern": "",
+                "linked_exp_ids": [],
+            })
+        elif legacy_task is not None:
+            if not isinstance(legacy_task, str) or not legacy_task.strip():
+                raise ValueError("retrospective memory legacy task alias is invalid")
+            profile = normalized.get("dataset_profile")
+            if not isinstance(profile, dict):
+                raise ValueError("retrospective memory dataset_profile must be an object")
+            normalized["dataset_profile"] = {"legacy_task": legacy_task.strip(), **profile}
+
+        try:
+            return cls(**normalized)
+        except TypeError as error:
+            raise ValueError("retrospective memory record does not match the current schema") from error
+
 
 class RetrospectiveMemoryStore:
     def __init__(self, path: str | Path) -> None:
@@ -30,8 +84,13 @@ class RetrospectiveMemoryStore:
         if not self.path.exists():
             return []
         payload = json.loads(self.path.read_text(encoding="utf-8"))
-        records = payload if isinstance(payload, list) else payload.get("records", [])
-        return [MemoryRecord(**record) for record in records]
+        if isinstance(payload, list):
+            records = payload
+        elif isinstance(payload, dict) and isinstance(payload.get("records"), list):
+            records = payload["records"]
+        else:
+            raise ValueError("retrospective memory store must be a list or a records object")
+        return [MemoryRecord.from_dict(record) for record in records]
 
     def _save(self, records: list[MemoryRecord]) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)

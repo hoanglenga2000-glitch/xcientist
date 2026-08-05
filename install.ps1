@@ -1,260 +1,349 @@
-# AI Research Workstation one-command installer.
-# Usage:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File install.ps1
-#
-# This script installs local dependencies, CLI wrappers, optional DPAPI secrets,
-# and runs a lightweight release check. It does not start training and does not
-# print secret values.
+# Local-first Research Workstation installer. All Python packages stay inside
+# the installation .venv; credentials stay in Windows DPAPI and are never
+# written to .env or logs.
 param(
+  [string]$PythonExecutable = "",
   [string]$DeepSeekApiKey = "",
   [string]$KaggleApiToken = "",
+  [string]$DataDir = "",
+  [string]$LogsDir = "",
+  [string]$BackupsDir = "",
+  [string]$ProfilesDir = "",
+  [string]$SecretsDir = "",
+  [int]$Port = 8088,
+  [switch]$OfflineOnly,
   [switch]$SkipBuild,
   [switch]$SkipNpmInstall,
   [switch]$SkipSecretPrompt,
-  [switch]$SkipVerify
+  [switch]$SkipGatewayStart,
+  [switch]$SkipMutableReconciliation,
+  [switch]$SkipVerify,
+  [switch]$InstallUserShims
 )
 
 $ErrorActionPreference = "Stop"
 try {
   [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
   $OutputEncoding = [System.Text.UTF8Encoding]::new($false)
-} catch {
-  # Best effort for legacy Windows PowerShell.
-}
-$Root = Split-Path -Parent $PSCommandPath
+} catch {}
+
+$Root = [IO.Path]::GetFullPath((Split-Path -Parent $PSCommandPath))
 $Web = Join-Path $Root "web\research-agent-workstation"
-$ShimDir = if ($env:XSCI_SHIM_DIR) {
-  $env:XSCI_SHIM_DIR
-} else {
-  Join-Path $env:USERPROFILE ".xsci\bin"
+$Standalone = Join-Path $Root "app\server.js"
+$BundleMode = Test-Path -LiteralPath $Standalone -PathType Leaf
+$LocalAppDataBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) }
+$AppDataBase = if ($env:APPDATA) { $env:APPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData) }
+$ManagedLocalRoot = Join-Path $LocalAppDataBase "EvoMind"
+$DataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "data" } else { Join-Path $Root "user-data" } } else { [IO.Path]::GetFullPath($DataDir) }
+$LogsDir = if ([string]::IsNullOrWhiteSpace($LogsDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "logs" } else { Join-Path $DataDir "logs" } } else { [IO.Path]::GetFullPath($LogsDir) }
+$BackupsDir = if ([string]::IsNullOrWhiteSpace($BackupsDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "backups" } else { Join-Path $DataDir "backups" } } else { [IO.Path]::GetFullPath($BackupsDir) }
+$ProfilesDir = if ([string]::IsNullOrWhiteSpace($ProfilesDir)) { Join-Path $AppDataBase "EvoMind\profiles" } else { [IO.Path]::GetFullPath($ProfilesDir) }
+$SecretsDir = if ([string]::IsNullOrWhiteSpace($SecretsDir)) { Join-Path $AppDataBase "EvoMind\secrets" } else { [IO.Path]::GetFullPath($SecretsDir) }
+$StatePath = Join-Path $DataDir "install-state.json"
+$Transaction = $null
+if ($BundleMode) {
+  $transactionPath = Join-Path $ManagedLocalRoot "app\transaction.active.json"
+  $markerPath = Join-Path $ManagedLocalRoot ".install-marker.json"
+  if (-not (Test-Path -LiteralPath $transactionPath -PathType Leaf) -or -not (Test-Path -LiteralPath $markerPath -PathType Leaf)) {
+    throw "SIGNED_BOOTSTRAP_REQUIRED: install the Windows bundle through @evomind-ai/cli; direct/offline bundle execution is disabled."
+  }
+  $Transaction = Get-Content -LiteralPath $transactionPath -Raw | ConvertFrom-Json
+  $installMarker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
+  $canonicalRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
+  $canonicalDestination = [IO.Path]::GetFullPath([string]$Transaction.destination).TrimEnd('\')
+  if ($Transaction.schema -ne "evomind.release_transaction.v1" -or $Transaction.phase -ne "version_staged" -or
+      $canonicalRoot -ne $canonicalDestination -or $Transaction.install_id -ne $installMarker.install_id -or
+      [IO.Path]::GetFullPath($DataDir) -ne [IO.Path]::GetFullPath([string]$installMarker.paths.data) -or
+      [IO.Path]::GetFullPath($LogsDir) -ne [IO.Path]::GetFullPath([string]$installMarker.paths.logs) -or
+      [IO.Path]::GetFullPath($BackupsDir) -ne [IO.Path]::GetFullPath([string]$installMarker.paths.backups)) {
+    throw "SIGNED_BOOTSTRAP_REQUIRED: active release transaction identity or canonical data layout mismatch."
+  }
 }
+$FinalVenv = if ($BundleMode) { Join-Path $DataDir ("runtime\python-env\" + [string]$Transaction.target_bundle_sha256) } else { Join-Path $Root ".venv" }
+if ($BundleMode) {
+  $transactionId = [string]$env:EVOMIND_RELEASE_TRANSACTION_ID
+  if ($transactionId -notmatch '^[0-9a-fA-F-]{36}$' -or $transactionId -ne [string]$Transaction.transaction_id) {
+    throw "SIGNED_BOOTSTRAP_REQUIRED: Python environment transaction identity mismatch."
+  }
+  $Venv = Join-Path $DataDir ("runtime\python-env\.stage-" + [string]$Transaction.target_bundle_sha256 + "-" + $transactionId)
+  if (Test-Path -LiteralPath $Venv) { throw "Transaction-scoped Python staging environment already exists." }
+} else {
+  $Venv = $FinalVenv
+}
+$VenvPython = Join-Path $Venv "Scripts\python.exe"
+$PublishedVenvPython = Join-Path $FinalVenv "Scripts\python.exe"
+$WheelDir = Join-Path $Root "runtime\wheels"
 $env:PIP_DISABLE_PIP_VERSION_CHECK = "1"
+$env:PYTHONUTF8 = "1"
+$env:PYTHONIOENCODING = "utf-8"
+$env:PYTHONPYCACHEPREFIX = Join-Path $DataDir "tmp\pycache"
+$env:WORKSTATION_PORT = [string]$Port
+$env:WORKSTATION_HOST = "127.0.0.1"
+$env:OPENAI_BASE_URL = "http://127.0.0.1:65068/v1"
+$env:WORKSTATION_LOCAL_FALLBACK = "1"
 
 function Write-Step([string]$Text) {
   Write-Host ""
   Write-Host ">>> $Text" -ForegroundColor Cyan
 }
 
-function Require-Command([string]$Name, [string]$InstallHint) {
-  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-  if (-not $cmd) {
-    Write-Host "  [FAIL] $Name not found. $InstallHint" -ForegroundColor Red
-    exit 1
+function Get-BootstrapPython {
+  $candidates = @()
+  if ($PythonExecutable) { $candidates += $PythonExecutable }
+  if ($env:WORKSTATION_PYTHON) { $candidates += $env:WORKSTATION_PYTHON }
+  $candidates += @(
+    (Join-Path $Root "runtime\python\python.exe"),
+    (Join-Path $Root "runtime\python.exe"),
+    $VenvPython,
+    "python.exe",
+    "python",
+    "py.exe"
+  )
+  foreach ($candidate in $candidates) {
+    if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) { return (Resolve-Path -LiteralPath $candidate).Path }
+    $resolved = Get-Command $candidate -ErrorAction SilentlyContinue
+    if ($resolved -and $resolved.Source) { return $resolved.Source }
   }
-  return $cmd
+  throw "Python 3.10+ was not found (WORKSTATION_PYTHON, bundled runtime, .venv, PATH)."
+}
+
+function Invoke-Checked([string]$Executable, [string[]]$Arguments, [string]$Label) {
+  & $Executable @Arguments
+  if ($LASTEXITCODE -ne 0) { throw "$Label failed with exit code $LASTEXITCODE" }
+}
+
+function Write-JsonAtomic([string]$Path, [object]$Value) {
+  $parent = Split-Path -Parent $Path
+  New-Item -ItemType Directory -Force -Path $parent | Out-Null
+  $temp = "$Path.$PID.tmp"
+  [IO.File]::WriteAllText($temp, (($Value | ConvertTo-Json -Depth 8) + "`n"), [Text.UTF8Encoding]::new($false))
+  Move-Item -LiteralPath $temp -Destination $Path -Force
+}
+
+function Set-ManagedEnvValues([string]$Path, [System.Collections.IDictionary]$Values) {
+  $existing = if (Test-Path -LiteralPath $Path) { @(Get-Content -LiteralPath $Path) } else { @() }
+  $managed = @{}
+  foreach ($key in $Values.Keys) { $managed[[string]$key] = $true }
+  $preserved = @($existing | Where-Object {
+    $line = [string]$_
+    if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
+      return -not $managed.ContainsKey($Matches[1])
+    }
+    return $true
+  })
+  while ($preserved.Count -gt 0 -and [string]::IsNullOrWhiteSpace([string]$preserved[-1])) {
+    $preserved = if ($preserved.Count -eq 1) { @() } else { @($preserved[0..($preserved.Count - 2)]) }
+  }
+  $lines = @($preserved)
+  if ($lines.Count -gt 0) { $lines += "" }
+  $lines += "# Managed by install.ps1; secrets are stored outside this file."
+  foreach ($key in $Values.Keys) { $lines += "${key}=$($Values[$key])" }
+  $temporary = "$Path.$PID.tmp"
+  [IO.File]::WriteAllLines($temporary, $lines, [Text.UTF8Encoding]::new($false))
+  Move-Item -LiteralPath $temporary -Destination $Path -Force
 }
 
 Write-Host ""
-Write-Host "================================================================" -ForegroundColor Cyan
-Write-Host "  AI Research Workstation - One-Command Installer" -ForegroundColor Cyan
-Write-Host "  EvoMind / XCIENTIST Research Agent" -ForegroundColor Cyan
-Write-Host "================================================================" -ForegroundColor Cyan
+Write-Host "===============================================================" -ForegroundColor Cyan
+Write-Host "  Research Workstation - Local-First Idempotent Installer" -ForegroundColor Cyan
+Write-Host "===============================================================" -ForegroundColor Cyan
 
-Write-Step "Checking prerequisites"
-$python = Get-Command python -ErrorAction SilentlyContinue
-if (-not $python) {
-  $python = Get-Command python3 -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force -Path $DataDir | Out-Null
+foreach ($relative in @("workspace", "prisma", "tmp")) {
+  New-Item -ItemType Directory -Force -Path (Join-Path $DataDir $relative) | Out-Null
 }
-if (-not $python) {
-  Write-Host "  [FAIL] Python not found. Install Python 3.10+ from https://python.org" -ForegroundColor Red
-  exit 1
+foreach ($directory in @($LogsDir, $BackupsDir, $ProfilesDir, $SecretsDir)) {
+  New-Item -ItemType Directory -Force -Path $directory | Out-Null
 }
-Write-Host "  [OK] $(& $python.Source --version) ($($python.Source))" -ForegroundColor Green
 
-$node = Require-Command "node" "Install Node.js 18+ from https://nodejs.org"
-Write-Host "  [OK] Node $(& $node.Source --version)" -ForegroundColor Green
+Write-Step "1/7 Discovering Python and creating an isolated environment"
+$bootstrapPython = Get-BootstrapPython
+$bootstrapVersion = & $bootstrapPython --version 2>&1
+if ($LASTEXITCODE -ne 0) { throw "Bootstrap Python failed to execute." }
+if (-not (Test-Path -LiteralPath $VenvPython)) {
+  if ((Split-Path -Leaf $bootstrapPython).ToLowerInvariant() -eq "py.exe") {
+    Invoke-Checked $bootstrapPython @("-3", "-m", "venv", $Venv) "venv creation"
+  } else {
+    Invoke-Checked $bootstrapPython @("-m", "venv", $Venv) "venv creation"
+  }
+}
+if (-not (Test-Path -LiteralPath $VenvPython)) { throw "Isolated .venv Python was not created." }
+$env:WORKSTATION_PYTHON = $VenvPython
+Write-Host "  [OK] $bootstrapVersion -> $VenvPython" -ForegroundColor Green
 
-$git = Get-Command git -ErrorAction SilentlyContinue
-if ($git) {
-  Write-Host "  [OK] $(& $git.Source --version)" -ForegroundColor Green
+Write-Step "2/7 Installing Python dependencies"
+$wheelFiles = if (Test-Path -LiteralPath $WheelDir) { @(Get-ChildItem -LiteralPath $WheelDir -Filter *.whl -File) } else { @() }
+if ($wheelFiles.Count -gt 0) {
+  $requirements = Join-Path $Root "requirements.txt"
+  if (Test-Path -LiteralPath $requirements) {
+    Invoke-Checked $VenvPython @("-m", "pip", "install", "--no-index", "--find-links", $WheelDir, "-r", $requirements) "offline dependency installation"
+  }
+  $projectWheel = $wheelFiles | Where-Object { $_.Name -match '^(xcientist|research[_-]workstation)-' } | Select-Object -First 1
+  if ($projectWheel) {
+    Invoke-Checked $VenvPython @("-m", "pip", "install", "--no-index", "--find-links", $WheelDir, $projectWheel.FullName) "offline project installation"
+  } elseif (Test-Path -LiteralPath (Join-Path $Root "pyproject.toml")) {
+    Invoke-Checked $VenvPython @("-m", "pip", "install", "-e", $Root, "--no-deps", "--no-build-isolation") "local project installation"
+  }
+  $installMode = "offline_wheels"
 } else {
-  Write-Host "  [WARN] Git not found. Clone/update features may be limited." -ForegroundColor Yellow
+  if ($OfflineOnly) { throw "OfflineOnly was requested, but runtime\wheels contains no wheel set." }
+  if (-not (Test-Path -LiteralPath (Join-Path $Root "pyproject.toml"))) { throw "pyproject.toml is missing and no offline wheel is available." }
+  Invoke-Checked $VenvPython @("-m", "pip", "install", "-e", $Root, "--no-build-isolation") "online project installation"
+  $installMode = "online_fallback"
 }
+Invoke-Checked $VenvPython @("-c", "import xsci, research_os; print('python runtime ready')") "Python import smoke"
 
-Write-Step "Step 1/5: Python dependencies"
-& $python.Source -m pip install -e $Root --quiet
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  [WARN] editable install failed; trying requirements fallback" -ForegroundColor Yellow
-  & $python.Source -m pip install -r (Join-Path $Root "requirements.txt") --quiet
-  & $python.Source -m pip install -e $Root --no-deps --quiet
-}
-
-& $python.Source -c "import xsci; print('xsci import ok')" | Out-Null
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  [FAIL] xsci import failed." -ForegroundColor Red
-  exit 1
-}
-Write-Host "  [OK] xsci Python package" -ForegroundColor Green
-
-$compileTargets = @(
-  (Join-Path $Root "src\xsci\kaggle.py"),
-  (Join-Path $Root "src\xsci\config.py"),
-  (Join-Path $Root "src\xsci\kaggle_session.py")
-)
-& $python.Source -m py_compile @compileTargets
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  [FAIL] core Python modules failed to compile." -ForegroundColor Red
-  exit 1
-}
-Write-Host "  [OK] core Python modules compile" -ForegroundColor Green
-
-if (-not $SkipNpmInstall) {
-  Write-Step "Step 2/5: Frontend dependencies"
-  if (Test-Path (Join-Path $Web "node_modules")) {
-    Write-Host "  [OK] node_modules exists; skipping npm install" -ForegroundColor Green
-  } else {
+Write-Step "3/7 Preparing frontend runtime"
+if ($BundleMode) {
+  $node = Join-Path $Root "runtime\node\node.exe"
+  if (-not (Test-Path -LiteralPath $node)) {
+    $nodeCommand = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $nodeCommand) { throw "Standalone bundle requires runtime\node\node.exe or Node.js on PATH." }
+  }
+  Write-Host "  [OK] standalone application detected" -ForegroundColor Green
+} elseif (Test-Path -LiteralPath $Web) {
+  $node = Get-Command node -ErrorAction Stop
+  $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+  if (-not $npm) { $npm = Get-Command npm -ErrorAction Stop }
+  if (-not $SkipNpmInstall) {
     Push-Location $Web
-    try {
-      npm install
-      if ($LASTEXITCODE -ne 0) {
-        throw "npm install failed with exit code $LASTEXITCODE"
-      }
-      Write-Host "  [OK] npm install" -ForegroundColor Green
-    } finally {
-      Pop-Location
-    }
+    try { Invoke-Checked $npm.Source @("ci", "--no-audit", "--no-fund") "npm ci" } finally { Pop-Location }
   }
-
-  Write-Step "Initialize local workstation database"
-  $webEnvPath = Join-Path $Web ".env"
-  if (-not (Test-Path $webEnvPath)) {
-    Copy-Item (Join-Path $Web ".env.example") $webEnvPath
-    Write-Host "  [OK] created web .env from .env.example" -ForegroundColor Green
-  }
-  $databaseUrl = $env:DATABASE_URL
-  if (-not $databaseUrl) {
-    $databaseUrlLine = Get-Content -LiteralPath $webEnvPath |
-      Where-Object { $_ -match '^\s*DATABASE_URL\s*=' } |
-      Select-Object -First 1
-    if ($databaseUrlLine) {
-      $databaseUrl = (($databaseUrlLine -split '=', 2)[1]).Trim().Trim('"').Trim("'")
-    }
-  }
-  if (-not $databaseUrl) {
-    throw "DATABASE_URL is missing from web .env"
-  }
-  if ($databaseUrl -eq "file:./prisma/workstation.db") {
-    $databaseUrl = "file:./workstation.db"
-    Write-Host "  [INFO] normalized legacy SQLite path" -ForegroundColor Yellow
-  }
-  if (-not $databaseUrl.StartsWith("file:", [System.StringComparison]::OrdinalIgnoreCase)) {
-    Write-Host "  [INFO] external database configured; automatic schema push skipped" -ForegroundColor Yellow
-  } else {
-    $env:DATABASE_URL = $databaseUrl
-    $previousRustLog = $env:RUST_LOG
-    if (-not $previousRustLog) {
-      $env:RUST_LOG = "info"
-    }
-    Push-Location $Web
-    try {
-      npm run db:push -- --skip-generate
-      if ($LASTEXITCODE -ne 0) {
-        throw "npm run db:push failed with exit code $LASTEXITCODE"
-      }
-      Write-Host "  [OK] local SQLite schema is ready" -ForegroundColor Green
-    } finally {
-      Pop-Location
-      if ($previousRustLog) {
-        $env:RUST_LOG = $previousRustLog
-      } else {
-        Remove-Item Env:RUST_LOG -ErrorAction SilentlyContinue
-      }
-    }
-  }
-}
-
-if (-not $SkipBuild) {
-  Write-Step "Step 3/5: Build frontend"
   Push-Location $Web
-  try {
-    npm run build
-    if ($LASTEXITCODE -ne 0) {
-      throw "npm run build failed with exit code $LASTEXITCODE"
-    }
-    Write-Host "  [OK] npm run build" -ForegroundColor Green
-  } finally {
-    Pop-Location
+  try { Invoke-Checked $npm.Source @("run", "db:generate") "Prisma client generation" } finally { Pop-Location }
+  if (-not $SkipBuild) {
+    Push-Location $Web
+    try {
+      Invoke-Checked $npm.Source @("run", "build") "production build"
+    } finally { Pop-Location }
   }
+} else {
+  throw "Neither standalone app/server.js nor source web application was found."
 }
 
-Write-Step "Step 4/5: Install CLI commands"
-& (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "  [FAIL] CLI wrapper installation failed." -ForegroundColor Red
-  exit 1
+Write-Step "4/7 Applying additive database migrations with backup"
+$database = if ($BundleMode) { Join-Path $DataDir "prisma\workstation.db" } else { Join-Path $Web "prisma\workstation.db" }
+$migrationRoot = if ($BundleMode) { Join-Path $Root "app\prisma\migrations" } else { Join-Path $Web "prisma\migrations" }
+$env:DATABASE_URL = "file:$($database.Replace('\','/'))"
+Invoke-Checked $VenvPython @((Join-Path $Root "scripts\release_db_migrate.py"), "--database", $database, "--migrations", $migrationRoot, "--backup-dir", (Join-Path $BackupsDir "database")) "database migration"
+if (-not $SkipMutableReconciliation) {
+  Invoke-Checked $VenvPython @((Join-Path $Root "scripts\reconcile_action_log_mirror.py"), "--database", $database, "--runtime-root", (Join-Path $DataDir "workspace\runtime")) "action audit mirror reconciliation"
 }
 
-# Git Bash compatible wrappers. CMD wrappers are created by install_autokaggle_cli.ps1.
-New-Item -ItemType Directory -Force -Path $ShimDir | Out-Null
-@"
-#!/usr/bin/env bash
-export PYTHONUTF8=1
-export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle "`$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "evomind") -Force
-@"
-#!/usr/bin/env bash
-export PYTHONUTF8=1
-export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle official "`$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "kaggle-official") -Force
-@"
-#!/usr/bin/env bash
-export PYTHONUTF8=1
-export PYTHONIOENCODING=utf-8
-exec python -X utf8 -m xsci.kaggle "`$@"
-"@ | Set-Content -Encoding ASCII (Join-Path $ShimDir "autokaggle") -Force
-Remove-Item -LiteralPath (Join-Path $ShimDir "kaggle") -Force -ErrorAction SilentlyContinue
-
-$env:Path = "$ShimDir;$env:Path"
-Write-Host "  [OK] CLI wrappers installed in %USERPROFILE%\.xsci\bin" -ForegroundColor Green
+Write-Step "5/7 Configuring loopback gateway and deterministic fallback"
+$rootEnv = if ($BundleMode) { Join-Path $DataDir "config\runtime.env" } else { Join-Path $Root ".env" }
+$env:WORKSTATION_ROOT = if ($BundleMode) { $DataDir } else { $Root }
+$env:WORKSTATION_DATA_DIR = $DataDir
+$env:WORKSTATION_LOGS_DIR = $LogsDir
+$env:WORKSTATION_BACKUPS_DIR = $BackupsDir
+$env:EVOMIND_PROFILES_DIR = $ProfilesDir
+$env:EVOMIND_SECRETS_DIR = $SecretsDir
+Set-ManagedEnvValues $rootEnv ([ordered]@{
+  OPENAI_BASE_URL = "http://127.0.0.1:65068/v1"
+  WORKSTATION_LOCAL_FALLBACK = "1"
+  WORKSTATION_HOST = "127.0.0.1"
+  WORKSTATION_PORT = [string]$Port
+  WORKSTATION_ROOT = $env:WORKSTATION_ROOT.Replace('\','/')
+  WORKSTATION_DATA_DIR = $DataDir.Replace('\','/')
+  WORKSTATION_LOGS_DIR = $LogsDir.Replace('\','/')
+  WORKSTATION_BACKUPS_DIR = $BackupsDir.Replace('\','/')
+  EVOMIND_PROFILES_DIR = $ProfilesDir.Replace('\','/')
+  EVOMIND_SECRETS_DIR = $SecretsDir.Replace('\','/')
+  WORKSTATION_PYTHON = $PublishedVenvPython.Replace('\','/')
+  DATABASE_URL = "file:$($database.Replace('\','/'))"
+})
+if ($SkipGatewayStart) {
+  $gatewayCommand = "skipped_transactional_install"
+  Write-Host "  [OK] gateway lifecycle deferred until committed start" -ForegroundColor Green
+} else {
+  $gatewayCommand = "start"
+  $gatewayOutput = & $VenvPython (Join-Path $Root "scripts\manage_local_gateway.py") $gatewayCommand --output (Join-Path $DataDir "gateway-status.json") 2>&1
+  if ($LASTEXITCODE -ne 0) { throw "Local gateway discovery failed unexpectedly: $($gatewayOutput -join ' ')" }
+  Write-Host "  [OK] gateway discovery complete ($gatewayCommand); degraded deterministic fallback is accepted" -ForegroundColor Green
+}
 
 if (-not $SkipSecretPrompt) {
-  Write-Step "Step 5/5: Optional configuration"
-  if (-not (Test-Path (Join-Path $Root ".env"))) {
-    Copy-Item (Join-Path $Root ".env.example") (Join-Path $Root ".env") -ErrorAction SilentlyContinue
-    Write-Host "  [OK] Created .env from .env.example" -ForegroundColor Green
-  } else {
-    Write-Host "  [OK] .env already exists" -ForegroundColor Green
-  }
-
   if ($DeepSeekApiKey) {
     & (Join-Path $Root "scripts\manage_deepseek_secret.ps1") install-key -ApiKey $DeepSeekApiKey | Out-Null
-    Write-Host "  [OK] DeepSeek key saved with Windows DPAPI" -ForegroundColor Green
-  } else {
-    Write-Host "  [INFO] DeepSeek key not provided. Configure later with:" -ForegroundColor Yellow
-    Write-Host "         powershell -File scripts\manage_deepseek_secret.ps1 install-key -ApiKey sk-xxx"
   }
-
   if ($KaggleApiToken) {
     & (Join-Path $Root "scripts\manage_kaggle_secret.ps1") install-token -ApiToken $KaggleApiToken | Out-Null
-    Write-Host "  [OK] Kaggle token saved with Windows DPAPI" -ForegroundColor Green
-  } else {
-    Write-Host "  [INFO] Kaggle token not provided. It is only required for downloads/submissions." -ForegroundColor Yellow
   }
 }
 
-if (-not $SkipVerify) {
-  Write-Step "Release readiness smoke"
-  & $python.Source (Join-Path $Root "scripts\verify_new_user_release_readiness.py") --write-report
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "  [WARN] New-user release smoke reported issues. See reports/NEW_USER_RELEASE_READINESS.md" -ForegroundColor Yellow
+Write-Step "6/7 Registering managed release state"
+$releaseManifest = Join-Path $Root "release-manifest.json"
+if ((Test-Path -LiteralPath $releaseManifest) -and -not $BundleMode) {
+  Invoke-Checked $VenvPython @(
+    (Join-Path $Root "scripts\workstation_lifecycle.py"), "init",
+    "--root", $Root, "--package", $Root,
+    "--data-root", $DataDir, "--backups-root", $BackupsDir
+  ) "release registration"
+  $layout = "standalone_release"
+} elseif ($BundleMode) {
+  # The npm bootstrapper owns current.json and the fsynced transaction journal.
+  # Keep the content-addressed version directory immutable after extraction.
+  $layout = "standalone_release"
+} else {
+  $layout = "source_tree"
+}
+$state = [ordered]@{
+  format_version = 1
+  status = "installed"
+  layout = $layout
+  root = $Root
+  data_dir = $DataDir
+  logs_dir = $LogsDir
+  backups_dir = $BackupsDir
+  profiles_dir = $ProfilesDir
+  secrets_dir = $SecretsDir
+  python = $PublishedVenvPython
+  python_install_mode = $installMode
+  database = $database
+  host = "127.0.0.1"
+  port = $Port
+  gateway_base_url = "http://127.0.0.1:65068/v1"
+  local_fallback = $true
+  installed_at = (Get-Date).ToString("s")
+}
+Write-JsonAtomic $StatePath $state
+
+if ($InstallUserShims -and (Test-Path -LiteralPath (Join-Path $Root "scripts\install_autokaggle_cli.ps1"))) {
+  & (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
+  if ($LASTEXITCODE -ne 0) { throw "CLI shim installation failed." }
+}
+
+Write-Step "7/7 Verifying installation"
+Invoke-Checked $VenvPython @("-m", "py_compile", (Join-Path $Root "scripts\manage_workstation_dashboard.py"), (Join-Path $Root "scripts\manage_local_gateway.py"), (Join-Path $Root "scripts\release_db_migrate.py")) "lifecycle compile smoke"
+if (-not $SkipVerify -and -not $BundleMode -and (Test-Path -LiteralPath (Join-Path $Root "scripts\verify_new_user_release_readiness.py"))) {
+  & $VenvPython (Join-Path $Root "scripts\verify_new_user_release_readiness.py") --write-report
+  if ($LASTEXITCODE -ne 0) { Write-Host "  [WARN] optional resource gates remain; the local core installation is intact" -ForegroundColor Yellow }
+}
+
+if ($BundleMode) {
+  if (Test-Path -LiteralPath $FinalVenv) { throw "Immutable Python environment destination already exists before publish." }
+  Move-Item -LiteralPath $Venv -Destination $FinalVenv
+  if (-not (Test-Path -LiteralPath $PublishedVenvPython -PathType Leaf)) {
+    throw "Published Python environment is incomplete."
   }
 }
 
 Write-Host ""
-Write-Host "================================================================" -ForegroundColor Green
-Write-Host "  Installation complete" -ForegroundColor Green
-Write-Host "================================================================" -ForegroundColor Green
-Write-Host "Next steps:"
-Write-Host "  1. Start the workstation:"
-Write-Host "     powershell -File scripts\start_verified_workstation.ps1 restart"
-Write-Host "  2. Open:"
-Write-Host "     http://127.0.0.1:8088/?page=control"
-Write-Host "  3. Check terminal agent:"
-Write-Host "     evomind ready"
-Write-Host "     evomind"
-Write-Host ""
-Write-Host "Training, GPU jobs, and official Kaggle submission remain gate-controlled."
-Write-Host "Full guide: docs\EvoMind_New_User_Final_Setup_Guide_20260707.md"
-Write-Host "================================================================" -ForegroundColor Green
+Write-Host "Installation complete." -ForegroundColor Green
+Write-Host "Start:  powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1"
+Write-Host "Status: powershell -NoProfile -ExecutionPolicy Bypass -File .\status.ps1"
+Write-Host "Open:   http://127.0.0.1:$Port/?page=assistant"
+Write-Host "Data:   $DataDir"
+Write-Output ([ordered]@{
+  ok = $true
+  status = "installed"
+  version = $(if (Test-Path -LiteralPath $releaseManifest) { (Get-Content -LiteralPath $releaseManifest -Raw | ConvertFrom-Json).version } else { "source" })
+  data_dir = $DataDir
+  logs_dir = $LogsDir
+  backups_dir = $BackupsDir
+  profiles_dir = $ProfilesDir
+  secrets_dir = $SecretsDir
+  database = $database
+  database_backup_policy = "additive_prebackup"
+} | ConvertTo-Json -Depth 5 -Compress)

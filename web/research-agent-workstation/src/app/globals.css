@@ -3,21 +3,133 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: dark;
+  --color-canvas: 2 7 6;
+  --color-frame: 3 11 10;
+  --color-frame-light: 7 22 20;
+  --color-frame-lighter: 11 34 31;
+  --color-frame-border: 40 76 71;
+  --color-surface: 7 16 15;
+  --color-surface-raised: 11 23 22;
+  --color-surface-sunken: 5 13 12;
+  --color-surface-overlay: 9 22 20;
+  --color-paper: 250 250 248;
+  --color-ink: 242 247 246;
+  --color-ink-secondary: 188 202 199;
+  --color-ink-muted: 142 165 160;
+  --color-ink-faint: 93 119 114;
+  --color-edge: 26 52 49;
+  --color-edge-light: 18 39 36;
+  --color-edge-strong: 48 86 80;
+  --color-accent: 102 209 195;
+  --color-accent-light: 17 54 50;
+  --color-accent-dark: 133 228 216;
+  --color-accent-muted: 59 139 130;
+  --color-accent-foreground: 3 17 15;
+  --color-info: 125 179 209;
+  --color-info-light: 16 42 51;
+  --color-info-text: 157 204 229;
+  --color-success: 88 201 139;
+  --color-success-light: 13 42 30;
+  --color-success-text: 121 216 163;
+  --color-warning: 230 173 103;
+  --color-warning-light: 45 33 18;
+  --color-warning-text: 240 191 128;
+  --color-danger: 232 121 121;
+  --color-danger-light: 49 23 25;
+  --color-danger-text: 240 143 143;
+  --ambient-opacity: 0.34;
+  --ambient-overlay: rgba(1, 5, 4, 0.54);
+
+  /* Legacy CSS aliases; component code should prefer semantic Tailwind names. */
+  --navy: rgb(var(--color-frame));
+  --ink: rgb(var(--color-ink));
+  --panel: rgb(var(--color-surface-raised));
+  --surface: rgb(var(--color-surface));
+  --background: rgb(var(--color-canvas));
+  --border: rgb(var(--color-edge));
+  --text: rgb(var(--color-ink));
+  --body: rgb(var(--color-ink-secondary));
+  --muted: rgb(var(--color-ink-muted));
+  --blue: rgb(var(--color-accent));
+  --cyan: rgb(var(--color-accent));
+  --green: rgb(var(--color-success));
+  --amber: rgb(var(--color-warning));
+  --red: rgb(var(--color-danger));
+
+  /* ── Layout shell contract (single source of truth) ── */
+  --sidebar-expanded-width: 224px;
+  --sidebar-collapsed-width: 56px;
+  --sidebar-current-width: var(--sidebar-expanded-width);
+  --topbar-height: 56px;
+  --content-max-width: 1672px;
+}
+
+html[data-theme="light"] {
   color-scheme: light;
-  --navy: #061326;
-  --ink: #0b1220;
-  --panel: #fbfdff;
-  --surface: #ffffff;
-  --background: #f6f8fb;
-  --border: #d9e2ef;
-  --text: #0f172a;
-  --body: #334155;
-  --muted: #64748b;
-  --blue: #2457d6;
-  --cyan: #0e7490;
-  --green: #047857;
-  --amber: #b45309;
-  --red: #b91c1c;
+  --color-canvas: 240 244 243;
+  --color-frame: 7 23 22;
+  --color-frame-light: 12 37 34;
+  --color-frame-lighter: 20 57 52;
+  --color-frame-border: 76 116 109;
+  --color-surface: 246 249 248;
+  --color-surface-raised: 255 255 255;
+  --color-surface-sunken: 234 241 239;
+  --color-surface-overlay: 251 253 252;
+  --color-paper: 255 255 253;
+  --color-ink: 12 25 23;
+  --color-ink-secondary: 51 75 71;
+  --color-ink-muted: 91 116 111;
+  --color-ink-faint: 143 163 159;
+  --color-edge: 205 220 216;
+  --color-edge-light: 225 235 232;
+  --color-edge-strong: 167 192 186;
+  --color-accent: 20 123 112;
+  --color-accent-light: 213 241 236;
+  --color-accent-dark: 9 82 75;
+  --color-accent-muted: 102 180 170;
+  --color-accent-foreground: 247 255 253;
+  --color-info: 48 113 150;
+  --color-info-light: 228 241 248;
+  --color-info-text: 35 88 118;
+  --color-success: 31 128 82;
+  --color-success-light: 226 246 235;
+  --color-success-text: 22 100 63;
+  --color-warning: 170 101 24;
+  --color-warning-light: 252 240 218;
+  --color-warning-text: 133 74 14;
+  --color-danger: 184 63 68;
+  --color-danger-light: 251 230 231;
+  --color-danger-text: 145 43 48;
+  --ambient-opacity: 0.08;
+  --ambient-overlay: rgba(238, 245, 243, 0.76);
+}
+
+/* When the user collapses the sidebar, flip the current width at the shell root. */
+.workstation-shell[data-sidebar="collapsed"] {
+  --sidebar-current-width: var(--sidebar-collapsed-width);
+}
+
+/* Desktop (≥1024px): the shell becomes a 2-track grid. Sidebar occupies a real
+   track; the content column is minmax(0,1fr) so it can shrink without overflow. */
+@media (min-width: 1024px) {
+  .workstation-shell {
+    display: grid;
+    grid-template-columns: var(--sidebar-current-width) minmax(0, 1fr);
+  }
+  .workstation-shell[data-sidebar-ready="true"] {
+    transition: grid-template-columns 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .workstation-shell > .shell-sidebar {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    width: var(--sidebar-current-width);
+    overflow: hidden;
+  }
+  .workstation-shell > .shell-main {
+    min-width: 0;
+  }
 }
 
 * {
@@ -32,19 +144,41 @@ body {
 }
 
 body {
+  position: relative;
+  isolation: isolate;
   background-color: var(--background);
-  background-image:
-    linear-gradient(180deg, rgba(226, 232, 240, 0.72) 0%, rgba(246, 248, 251, 0) 210px),
-    linear-gradient(rgba(15, 23, 42, 0.018) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(15, 23, 42, 0.018) 1px, transparent 1px);
-  background-size: 100% 240px, 30px 30px, 30px 30px;
-  background-attachment: fixed, fixed, fixed, fixed;
+}
+
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+body::before {
+  z-index: -2;
+  background-image: image-set(
+    url("/brand/evomind-deep-sea-desktop.avif") type("image/avif"),
+    url("/brand/evomind-deep-sea-desktop.webp") type("image/webp")
+  );
+  background-position: 42% 62%;
+  background-repeat: no-repeat;
+  background-size: cover;
+  opacity: var(--ambient-opacity);
+}
+
+body::after {
+  z-index: -1;
+  background: var(--ambient-overlay);
 }
 
 body {
   margin: 0;
   font-family:
-    Inter,
+    "Noto Sans SC",
+    "Segoe UI Variable",
     "Segoe UI",
     "Microsoft YaHei UI",
     "Microsoft YaHei",
@@ -55,8 +189,23 @@ body {
 }
 
 ::selection {
-  background: rgba(37, 99, 235, 0.16);
-  color: #0f172a;
+  background: rgb(var(--color-accent) / 0.28);
+  color: rgb(var(--color-ink));
+}
+
+@media (max-width: 767px) {
+  body::before,
+  body::after {
+    position: absolute;
+    min-height: 100dvh;
+  }
+  body::before {
+    background-image: image-set(
+      url("/brand/evomind-deep-sea-mobile.avif") type("image/avif"),
+      url("/brand/evomind-deep-sea-mobile.webp") type("image/webp")
+    );
+    background-position: 34% 54%;
+  }
 }
 
 button,
@@ -66,9 +215,96 @@ textarea {
   font: inherit;
 }
 
+/* ── Mobile navigation drawer (<1024px) ── */
+.shell-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(1, 6, 5, 0.76);
+  animation: fade-in 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.shell-drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 61;
+  width: min(320px, 85vw);
+  max-width: 320px;
+  transform: translateX(0);
+  animation: drawer-slide-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+@keyframes drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+body[data-nav-lock="true"],
+body[data-evidence-lock="true"] {
+  overflow: hidden;
+}
+
+@media (max-width: 1023px) {
+  .workstation-shell.workstation-chrome button,
+  .workstation-shell.workstation-chrome a[href],
+  .workstation-shell.workstation-chrome [role="button"],
+  .workstation-shell.workstation-chrome input,
+  .workstation-shell.workstation-chrome select,
+  .workstation-shell.workstation-chrome textarea {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .shell-drawer button,
+  .mobile-evidence-drawer button {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workstation-shell,
+  .shell-drawer,
+  .shell-drawer-backdrop,
+  .mobile-evidence-drawer {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ── Focusable tooltip for collapsed icon rail & icon buttons ── */
+.ui-tooltip {
+  position: relative;
+}
+.ui-tooltip .ui-tooltip-text {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  z-index: 80;
+  white-space: nowrap;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--color-edge));
+  background: rgb(var(--color-surface-raised));
+  color: rgb(var(--color-ink));
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 9px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.52);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms cubic-bezier(0.4, 0, 0.2, 1), transform 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.ui-tooltip:hover .ui-tooltip-text,
+.ui-tooltip:focus-visible .ui-tooltip-text,
+.ui-tooltip:focus-within .ui-tooltip-text {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
 .thin-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 transparent;
+  scrollbar-color: rgb(var(--color-edge-strong)) transparent;
 }
 
 .thin-scrollbar::-webkit-scrollbar {
@@ -77,13 +313,13 @@ textarea {
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: rgb(var(--color-edge-strong));
   border-radius: 999px;
 }
 
 .dark-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgba(96, 165, 250, 0.38) transparent;
+  scrollbar-color: rgb(var(--color-accent) / 0.38) transparent;
 }
 
 .dark-scrollbar::-webkit-scrollbar {
@@ -96,13 +332,12 @@ textarea {
 }
 
 .dark-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(96, 165, 250, 0.38);
+  background: rgb(var(--color-accent) / 0.38);
   border-radius: 999px;
 }
 
 .workflow-bg {
-  background-image: radial-gradient(#dbe3ef 1px, transparent 1px);
-  background-size: 22px 22px;
+  background: rgb(var(--color-surface-sunken));
 }
 
 .code-font {
@@ -120,9 +355,11 @@ textarea {
 }
 
 .report-page {
+  background: rgb(var(--color-paper));
+  color: #17211f;
   box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.06),
-    0 18px 46px -28px rgba(15, 23, 42, 0.36);
+    0 1px 2px rgba(0, 0, 0, 0.18),
+    0 22px 58px -28px rgba(0, 0, 0, 0.74);
 }
 
 .report-document p,
@@ -168,9 +405,7 @@ textarea {
 
 /* Slightly elevated cards for the active work surface, kept subtle. */
 .surface-raised {
-  box-shadow:
-    0 1px 2px rgba(15, 23, 42, 0.05),
-    0 8px 24px -16px rgba(15, 23, 42, 0.18);
+  box-shadow: 0 14px 36px -28px rgba(0, 0, 0, 0.82);
 }
 
 /* Thin status accent stripe for cards that represent a pipeline state. */
@@ -195,6 +430,15 @@ textarea {
 
 .workstation-chrome main {
   container-type: inline-size;
+}
+
+/* Long monospace tokens (run ids, paths, JSON) must wrap instead of overflowing the
+   content column on narrow viewports. Tables/logs/code keep their own local scroll. */
+.workstation-chrome main .font-mono,
+.workstation-chrome main code,
+.workstation-chrome main pre {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .workstation-chrome table {
@@ -226,7 +470,7 @@ textarea {
 .workstation-chrome [data-ui-component="card"]:focus-visible,
 .workstation-chrome [data-ui-component="dense-table-row"]:focus-visible,
 .workstation-chrome [data-ui-action]:focus-visible {
-  outline: 2px solid rgba(37, 99, 235, 0.42);
+  outline: 2px solid rgb(var(--color-accent) / 0.72);
   outline-offset: 2px;
 }
 
@@ -235,27 +479,23 @@ textarea {
 }
 
 .workstation-chrome .dense-surface {
-  border: 1px solid rgba(203, 213, 225, 0.92);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.035);
+  border: 1px solid rgb(var(--color-edge) / 0.94);
+  background: rgb(var(--color-surface-raised) / 0.96);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 .command-surface {
-  background:
-    linear-gradient(135deg, rgba(8, 17, 32, 0.98), rgba(15, 32, 52, 0.98) 46%, rgba(10, 55, 67, 0.96));
-  box-shadow:
-    0 1px 1px rgba(15, 23, 42, 0.08),
-    0 22px 56px -36px rgba(3, 7, 18, 0.72);
+  border: 1px solid rgb(var(--color-edge-strong) / 0.84);
+  background: rgb(var(--color-frame-light) / 0.96);
+  box-shadow: 0 22px 56px -36px rgba(0, 0, 0, 0.86);
 }
 
 .panel-glass {
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow:
-    0 1px 1px rgba(15, 23, 42, 0.04),
-    0 14px 38px -28px rgba(15, 23, 42, 0.36);
-  backdrop-filter: blur(16px);
+  border: 1px solid rgb(var(--color-edge));
+  background: rgb(var(--color-surface-raised) / 0.96);
+  box-shadow: 0 14px 38px -30px rgba(0, 0, 0, 0.72);
 }
 
 .workstation-divider {
-  background: linear-gradient(90deg, rgba(14, 116, 144, 0), rgba(14, 116, 144, 0.4), rgba(36, 87, 214, 0.24), rgba(4, 120, 87, 0));
+  background: rgb(var(--color-edge));
 }

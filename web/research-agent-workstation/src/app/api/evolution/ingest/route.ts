@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { ingestEvolutionResult } from "@/lib/server/evolution";
+import { ingestEvolutionResult, ingestEvolutionSummary } from "@/lib/server/evolution";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +12,9 @@ export async function POST(request: Request) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
   const taskId = typeof body.task_id === "string" ? body.task_id : "";
   try {
-    const payload = await ingestEvolutionResult({ ...body, official_submit_allowed: false });
+    const payload = typeof body.exp_dir === "string" && body.exp_dir
+      ? await ingestEvolutionSummary({ ...body, official_submit_allowed: false })
+      : await ingestEvolutionResult({ ...body, official_submit_allowed: false });
     return NextResponse.json({ ok: true, ...payload });
   } catch (error) {
     const message = error instanceof Error ? error.message : "evolution ingest failed";

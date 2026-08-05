@@ -36,7 +36,7 @@ def connect_gpu():
         hostname='100.85.169.63',
         port=1235,
         username='aimslab-panliu3',
-        password='lInVYkYbgF',
+        password='<redacted-password>',
         sock=sock,
         timeout=20,
         banner_timeout=30,

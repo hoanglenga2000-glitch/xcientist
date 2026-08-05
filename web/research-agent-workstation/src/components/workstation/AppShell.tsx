@@ -1,25 +1,23 @@
-﻿"use client";
+"use client";
 
+import { useCallback, useEffect, useLayoutEffect, useState, type MouseEvent } from "react";
 import {
   Bell,
-  Bot,
   ChevronDown,
-  Code2,
-  Database,
+  ChevronRight,
   FileText,
-  Search,
-  Server,
-  ShieldCheck,
-  Timer
+  Search
 } from "lucide-react";
-import type { MouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import type { UiComponentClickMetadata } from "@/lib/api/types";
+import type { UiComponentClickMetadata, WorkstationSummary } from "@/lib/api/types";
 import { Sidebar } from "./Sidebar";
-import type { PageId } from "./navigation";
+import { RunContextBar, EvidenceRail, MobileEvidenceDrawer } from "./layout/RunContextBar";
+import { navSections, type PageId } from "./navigation";
 
 type Locale = "zh-CN" | "en-US";
+const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 const pageIds = [
+  "assistant",
   "overview",
   "control",
   "experiments",
@@ -41,6 +39,46 @@ function copy(locale: Locale | undefined, en: string, zh: string) {
   return locale === "zh-CN" ? zh : en;
 }
 
+/* ── Page titles with zh/en ── */
+const pageTitles: Record<PageId, { zh: string; en: string; subZh: string; subEn: string }> = {
+  assistant: { zh: "智能助手", en: "Assistant", subZh: "自然语言对话、研究规划与受控执行入口", subEn: "Natural-language chat, research planning, and controlled execution" },
+  overview: { zh: "科研总览", en: "Research Overview", subZh: "科研工作站运行态势与闭环总控", subEn: "Research workstation operating status and mission control" },
+  control: { zh: "EvoMind 工作站", en: "EvoMind Gateway", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
+  experiments: { zh: "实验中心", en: "Experiment Ledger", subZh: "实验台账、分支与分数门禁", subEn: "Experiment ledger, branches, and score gates" },
+  evolution: { zh: "自进化引擎", en: "Evolution Engine", subZh: "搜索图、检索记忆与分支扩展规划", subEn: "Search graph, retrospective memory, and branch expansion planning" },
+  data: { zh: "数据 / Kaggle", en: "Data / Kaggle", subZh: "数据审计、提交结构与排行榜证据", subEn: "Data audit, submission schema, and leaderboard evidence" },
+  report: { zh: "报告工作室", en: "Report Studio", subZh: "AI 生成报告、证据链与风险审计", subEn: "AI-generated reports with evidence and risk audit" },
+  code: { zh: "代码 Agent IDE", en: "Code Agent IDE", subZh: "可审计代码生成、Diff、终端与门禁", subEn: "Auditable code generation, diff, terminal, and gates" },
+  gpu: { zh: "GPU / HPC", en: "GPU / HPC", subZh: "远程算力、作业 manifest 与产物回传", subEn: "Remote compute, job manifests, and artifact pullback" },
+  evidence: { zh: "证据台账", en: "Evidence Ledger", subZh: "统一归档 artifact、日志、指标、报告和审计证据", subEn: "Artifacts, logs, metrics, reports, and audit evidence" },
+  gates: { zh: "完整性门禁", en: "Integrity Gates", subZh: "代码、算力、提交与报告门禁", subEn: "Code, compute, submission, and report gates" },
+  literature: { zh: "文献 / RAG", en: "Literature / RAG", subZh: "文献检索、RAG 资料库与研究上下文", subEn: "Literature retrieval, RAG, and research context" },
+  tasks: { zh: "任务队列", en: "Task Queue", subZh: "任务配置、上下文与运行入口", subEn: "Task specs, context, and run entry points" },
+  runtime: { zh: "Agent 运行时", en: "Agent Runtime", subZh: "模型、缓存、成本与调度状态", subEn: "Models, cache, cost, and scheduler status" },
+  workflow: { zh: "流程编排", en: "Workflow Graph", subZh: "多 Agent 工作流、回退与证据交接", subEn: "Multi-agent workflow, fallback, and evidence handoff" },
+  settings: { zh: "系统设置", en: "Settings", subZh: "账号、语言、主题、凭据与资源偏好", subEn: "Account, language, theme, credentials, and resources" },
+  design: { zh: "设计系统", en: "Design System", subZh: "Research OS 视觉 token、组件规则与页面基线", subEn: "Visual tokens, components, and page baselines" }
+};
+
+/* ── Breadcrumb: Section > Page ── */
+function Breadcrumb({ activePage, locale }: { activePage: PageId; locale: Locale }) {
+  const title = pageTitles[activePage] ?? pageTitles.overview;
+  const section = navSections.find((s) => s.ids.includes(activePage as never));
+  const sectionLabel = section ? (locale === "zh-CN" ? section.labelZh : section.label) : null;
+  return (
+    <div className="flex items-center gap-1 text-2xs font-medium text-ink-muted">
+      {sectionLabel && (
+        <>
+          <span>{sectionLabel}</span>
+          <ChevronRight className="h-3 w-3" />
+        </>
+      )}
+      <span className="text-ink-secondary">{copy(locale, title.en, title.zh)}</span>
+    </div>
+  );
+}
+
+/* ── Click audit infrastructure (preserved from original) ── */
 const interactiveSelector = [
   "button",
   "a",
@@ -281,7 +319,7 @@ const uiActionRoutePatterns: Array<{ prefix: string; route: { page?: PageId; act
   { prefix: "tasks_prev_page", route: { page: "tasks", action: "task_select", metadata: { source: "task_queue", intent: "prev_page" } } },
   { prefix: "tasks_next_page", route: { page: "tasks", action: "task_select", metadata: { source: "task_queue", intent: "next_page" } } },
   { prefix: "tasks_create_workstation_run", route: { page: "tasks", action: "create_workstation_run", metadata: { source: "task_queue" } } },
-  { prefix: "tasks_dispatch_agents", route: { page: "workflow", action: "workflow_dry_run", metadata: { source: "task_queue", intent: "dispatch_agents_preview" } } },
+  { prefix: "tasks_dispatch_agents", route: { page: "runtime", action: "dispatch_task_agents", metadata: { source: "task_queue", intent: "dispatch_local_multi_agent" } } },
   { prefix: "tasks_contract_", route: { page: "tasks", action: "open_validation_review", metadata: { source: "task_queue", intent: "contract_detail" } } },
   { prefix: "tasks_resource_", route: { page: "settings", action: "test_all_connectors", metadata: { source: "task_queue", intent: "resource_detail" } } },
   { prefix: "tasks_route_validation_agent", route: { page: "runtime", action: "runtime_agent_select", metadata: { source: "task_queue", intent: "route_validation_agent" } } }
@@ -298,38 +336,75 @@ function resolveUiActionRoute(actionId: string | undefined) {
   return uiActionRoutes[actionId] ?? uiActionRoutePatterns.find((item) => actionId.startsWith(item.prefix))?.route;
 }
 
-const pageTitles: Record<PageId, { zh: string; en: string; subZh: string; subEn: string }> = {
-  overview: { zh: "科研总览", en: "Research Overview", subZh: "科研工作站运行态势与闭环总控", subEn: "Research workstation operating status and mission control" },
-  control: { zh: "EvoMind 工作站", en: "EvoMind Gateway", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
-  experiments: { zh: "实验中心", en: "Experiment Ledger", subZh: "实验台账、分支与分数门禁", subEn: "Experiment ledger, branches, and score gates" },
-  evolution: { zh: "自进化引擎", en: "Evolution Engine", subZh: "搜索图、检索记忆与分支扩展规划", subEn: "Search graph, retrospective memory, and branch expansion planning" },
-  data: { zh: "数据 / Kaggle", en: "Data / Kaggle", subZh: "数据审计、提交结构与排行榜证据", subEn: "Data audit, submission schema, and leaderboard evidence" },
-  report: { zh: "报告工作室", en: "Report Studio", subZh: "AI 生成报告、证据链与风险审计", subEn: "AI-generated reports with evidence and risk audit" },
-  code: { zh: "代码 Agent IDE", en: "Code Agent IDE", subZh: "可审计代码生成、Diff、终端与门禁", subEn: "Auditable code generation, diff, terminal, and gates" },
-  gpu: { zh: "GPU / HPC", en: "GPU / HPC", subZh: "远程算力、作业 manifest 与产物回传", subEn: "Remote compute, job manifests, and artifact pullback" },
-  evidence: { zh: "证据台账", en: "Evidence Ledger", subZh: "统一归档 artifact、日志、指标、报告和审计证据", subEn: "Artifacts, logs, metrics, reports, and audit evidence" },
-  gates: { zh: "完整性 Gate", en: "Integrity Gates", subZh: "代码、算力、提交与报告门禁", subEn: "Code, compute, submission, and report gates" },
-  literature: { zh: "文献 / RAG", en: "Literature / RAG", subZh: "文献检索、RAG 资料库与研究上下文", subEn: "Literature retrieval, RAG, and research context" },
-  tasks: { zh: "任务队列", en: "Task Queue", subZh: "任务配置、上下文与运行入口", subEn: "Task specs, context, and run entry points" },
-  runtime: { zh: "Agent 运行时", en: "Agent Runtime", subZh: "模型、缓存、成本与调度状态", subEn: "Models, cache, cost, and scheduler status" },
-  workflow: { zh: "流程编排", en: "Workflow Graph", subZh: "多 Agent 工作流、回退与证据交接", subEn: "Multi-agent workflow, fallback, and evidence handoff" },
-  settings: { zh: "系统设置", en: "Settings", subZh: "账号、语言、主题、凭据与资源偏好", subEn: "Account, language, theme, credentials, and resources" },
-  design: { zh: "设计系统", en: "Design System", subZh: "Research OS 视觉 token、组件规则与页面基线", subEn: "Visual tokens, components, and page baselines" }
-};
-
+/* ── Main AppShell ── */
 export function AppShell({
   activePage,
   onPageChange,
   onAction,
   locale = "zh-CN",
+  summary,
+  selectedTask,
+  ready = false,
   children
 }: {
   activePage: PageId;
   onPageChange: (page: PageId) => void;
   onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
   locale?: Locale;
+  summary?: WorkstationSummary | null;
+  selectedTask?: string;
+  ready?: boolean;
   children: React.ReactNode;
 }) {
+  const assistantMode = activePage === "assistant";
+  const [userDemoMode, setUserDemoMode] = useState(false);
+  const [evidenceRailOpen, setEvidenceRailOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarPreferenceReady, setSidebarPreferenceReady] = useState(false);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(false);
+
+  // Keep SSR and the first client render identical, then apply the persisted width
+  // in a layout effect before paint. Transitions remain disabled until the next frame.
+  useIsomorphicLayoutEffect(() => {
+    try {
+      if (window.localStorage.getItem("evomind_sidebar_collapsed") === "1") setSidebarCollapsed(true);
+    } catch { /* ignore */ }
+    const frame = window.requestAnimationFrame(() => setSidebarPreferenceReady(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    const query = window.matchMedia("(min-width: 1024px)");
+    const syncViewport = () => setIsDesktopViewport(query.matches);
+    syncViewport();
+    query.addEventListener("change", syncViewport);
+    return () => query.removeEventListener("change", syncViewport);
+  }, []);
+
+  useEffect(() => {
+    const syncDemoMode = () => {
+      const params = new URL(window.location.href).searchParams;
+      setUserDemoMode(params.get("demo") === "user" || params.get("view") === "user");
+    };
+    syncDemoMode();
+    window.addEventListener("popstate", syncDemoMode);
+    return () => window.removeEventListener("popstate", syncDemoMode);
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((value) => {
+      const next = !value;
+      try { window.localStorage.setItem("evomind_sidebar_collapsed", next ? "1" : "0"); } catch { /* ignore */ }
+      return next;
+    });
+  }
+
+  const closeEvidenceOverlay = useCallback(() => setEvidenceRailOpen(false), []);
+  const navigateFromEvidence = useCallback((page: string) => {
+    setEvidenceRailOpen(false);
+    onPageChange(page as PageId);
+  }, [onPageChange]);
+
   function handleUiClick(event: MouseEvent<HTMLDivElement>) {
     if (!onAction) return;
     const target = event.target instanceof Element ? event.target.closest(interactiveSelector) : null;
@@ -374,120 +449,164 @@ export function AppShell({
     void onAction("ui_component_click", metadata).catch(() => undefined);
   }
 
+  if (userDemoMode) {
+    return (
+      <div className="min-h-screen bg-surface/82 px-3 py-4 text-ink sm:px-6 sm:py-6" data-demo-user="true">
+        <main
+          className="thin-scrollbar mx-auto min-h-[calc(100dvh-2rem)] w-full max-w-[1500px] overflow-y-auto"
+          data-ui-component="workstation-page"
+          data-ui-page={activePage}
+          data-ui-ready={ready ? "true" : "false"}
+          data-ui-task={selectedTask ?? ""}
+          aria-busy={!assistantMode && !ready}
+          onClickCapture={handleUiClick}
+        >
+          {children}
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="workstation-chrome min-h-screen overflow-x-hidden bg-[#f6f8fb] text-slate-950">
-      <Sidebar activePage={activePage} onPageChange={onPageChange} onAction={onAction} locale={locale} />
-      <div className="min-w-0 lg:pl-[224px]">
-        <Topbar activePage={activePage} onPageChange={onPageChange} onAction={onAction} locale={locale} />
-        <main className="min-h-screen min-w-0 px-2 pb-5 pt-2 sm:px-3 lg:h-screen lg:overflow-hidden lg:px-3 lg:pb-0 lg:pt-[72px]">
+    <div
+      className="workstation-shell workstation-chrome min-h-screen bg-transparent text-ink"
+      data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
+      data-sidebar-ready={sidebarPreferenceReady ? "true" : "false"}
+    >
+      <Sidebar
+        activePage={activePage}
+        onPageChange={onPageChange}
+        onAction={onAction}
+        locale={locale}
+        summary={summary}
+        desktopCollapsed={sidebarCollapsed}
+        onToggleDesktop={toggleSidebar}
+      />
+      <div className="shell-main min-w-0">
+        <Topbar
+          activePage={activePage}
+          onAction={onAction}
+          locale={locale}
+          onOpenEvidenceRail={() => setEvidenceRailOpen(true)}
+        />
+        <main className={cn(
+          "min-w-0",
+          assistantMode
+            ? "h-[calc(100dvh-var(--topbar-height)-68px)] min-h-0 overflow-hidden bg-surface/92 lg:h-[calc(100dvh-var(--topbar-height))]"
+            : "min-h-screen bg-surface/82 px-2 pb-5 pt-2 sm:px-3 lg:h-[calc(100dvh-var(--topbar-height))] lg:overflow-hidden lg:px-3 lg:pb-0"
+        )}>
+          {/* RunContextBar at top of content */}
+          {!assistantMode && <div className="mb-3">
+            <RunContextBar
+              summary={summary}
+              locale={locale}
+              selectedTask={selectedTask}
+              onExpand={() => setEvidenceRailOpen(true)}
+              compact={false}
+            />
+          </div>}
           <div
-            className="thin-scrollbar mx-auto w-full max-w-[1672px] lg:h-[calc(100vh-76px)] lg:overflow-y-auto lg:pr-1"
+            className={cn(
+              "thin-scrollbar mx-auto w-full",
+              assistantMode
+                ? "h-full min-h-0 max-w-none overflow-hidden"
+                : "max-w-[var(--content-max-width)] lg:h-[calc(100dvh-var(--topbar-height)-64px)] lg:overflow-y-auto lg:pr-1"
+            )}
             data-ui-component="workstation-page"
             data-ui-page={activePage}
+            data-ui-ready={ready ? "true" : "false"}
+            data-ui-task={selectedTask ?? ""}
+            aria-busy={!assistantMode && !ready}
             onClickCapture={handleUiClick}
           >
             {children}
           </div>
         </main>
       </div>
+
+      {evidenceRailOpen && isDesktopViewport && (
+        <EvidenceRail
+          summary={summary}
+          locale={locale}
+          selectedTask={selectedTask}
+          onClose={closeEvidenceOverlay}
+          onNavigate={navigateFromEvidence}
+        />
+      )}
+
+      {evidenceRailOpen && !isDesktopViewport && (
+        <MobileEvidenceDrawer
+          summary={summary}
+          locale={locale}
+          selectedTask={selectedTask}
+          onClose={closeEvidenceOverlay}
+          onNavigate={navigateFromEvidence}
+        />
+      )}
     </div>
   );
 }
 
+/* ── Topbar: simplified per V2 spec ── */
 function Topbar({
   activePage,
-  onPageChange,
   onAction,
-  locale
+  locale,
+  onOpenEvidenceRail
 }: {
   activePage: PageId;
-  onPageChange: (page: PageId) => void;
   onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
   locale?: Locale;
+  onOpenEvidenceRail: () => void;
 }) {
-  const shortcuts = [
-    { id: "control", icon: Bot, label: copy(locale, "EvoMind", "EvoMind") },
-    { id: "code", icon: Code2, label: copy(locale, "Code", "代码") },
-    { id: "report", icon: FileText, label: copy(locale, "Report", "报告") },
-    { id: "runtime", icon: Timer, label: "Agent" },
-    { id: "gpu", icon: Server, label: "GPU" },
-    { id: "gates", icon: ShieldCheck, label: "Gate" },
-    { id: "evidence", icon: Database, label: copy(locale, "Evidence", "证据") }
-  ] as const;
-  const title = pageTitles[activePage] ?? pageTitles.overview;
-
   return (
-    <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/96 px-3 py-2 shadow-[0_1px_0_rgba(15,23,42,0.04)] backdrop-blur lg:fixed lg:left-[224px] lg:right-0 lg:h-[64px] lg:px-3 lg:py-0">
-      <div className="mx-auto flex h-full max-w-[1672px] flex-wrap items-center gap-2 xl:flex-nowrap">
-        <button
-          className="hidden min-w-[292px] shrink-0 text-left lg:block"
-          data-ui-action="open_current_workspace"
-          data-ui-skip-action="true"
-          onClick={() => {
-            onPageChange(activePage);
-            void onAction?.("quick_open_workspace", { page: activePage });
-          }}
-        >
-          <span className="block truncate text-[20px] font-black leading-6 text-slate-950">
-            {copy(locale, title.en, title.zh)}
-          </span>
-          <span className="block truncate text-[11px] font-semibold leading-4 text-slate-500">
-            {copy(locale, title.subEn, title.subZh)}
-          </span>
-        </button>
+    <header className="sticky top-0 z-topbar h-[var(--topbar-height)] border-b border-edge bg-surface-raised/95 px-3 shadow-hairline">
+      <div className="mx-auto flex h-full max-w-[var(--content-max-width)] items-center gap-2">
+        {/* Breadcrumb only — the page H1 lives once in the PageHeader below */}
+        <div className="min-w-0 shrink-0">
+          <Breadcrumb activePage={activePage} locale={locale ?? "zh-CN"} />
+        </div>
 
-        <label className="relative min-w-[230px] flex-1 xl:max-w-[430px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        {/* Search / Command Palette entry */}
+        <label className="relative hidden min-w-[160px] flex-1 sm:block xl:max-w-[380px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
           <input
-            className="h-9 w-full rounded-md border border-slate-200 bg-slate-50 pl-10 pr-16 text-sm text-slate-700 outline-none transition focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="h-8 w-full rounded-md border border-edge bg-surface-sunken pl-10 pr-14 text-sm text-ink outline-none transition-colors duration-150 focus:border-accent focus:bg-surface-raised focus:ring-2 focus:ring-accent/20"
             data-ui-action="global_search_input"
-            placeholder={copy(locale, "Search runs, artifacts, datasets, agents...", "搜索 run、artifact、数据集、Agent...")}
+            aria-label={copy(locale, "Search runs, artifacts", "搜索 run、artifact")}
+            placeholder={copy(locale, "Search runs, artifacts…", "搜索 run、artifact…")}
             onKeyDown={(event) => {
               if (event.key === "Enter") void onAction?.("search_command", { query: event.currentTarget.value });
             }}
           />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-bold text-slate-500">
-            Ctrl K
-          </span>
+          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-edge bg-surface-raised px-1.5 py-0.5 text-2xs font-semibold text-ink-muted">
+            ⌘K
+          </kbd>
         </label>
 
-        <div className="flex w-full gap-1 overflow-x-auto pb-1 sm:w-auto sm:pb-0 xl:flex-1 xl:justify-end">
-          {shortcuts.map((item) => {
-            const Icon = item.icon;
-            const active = activePage === item.id;
-            return (
-              <button
-                key={item.id}
-                className={cn(
-                  "flex h-8 shrink-0 items-center gap-1.5 rounded-md border px-2 text-xs font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
-                  active ? "border-blue-200 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                )}
-                data-ui-action={`topbar_open_${item.id}`}
-                data-ui-skip-action="true"
-                onClick={() => {
-                  onPageChange(item.id as PageId);
-                  void onAction?.("quick_open_workspace", { page: item.id });
-                }}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="ml-auto hidden items-center gap-2 sm:flex">
-          <button className="relative flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 text-slate-700 hover:bg-slate-50" aria-label="Notifications" data-ui-action="open_notifications">
-            <Bell className="h-4 w-4" />
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-[10px] font-black text-white">3</span>
+        {/* Right side: evidence rail + notifications + user */}
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            type="button"
+            className="hidden h-8 items-center gap-1.5 rounded-md border border-edge px-2.5 text-xs font-medium text-ink-secondary hover:bg-surface-sunken sm:flex"
+            data-ui-action="open_evidence_rail"
+            data-ui-skip-action="true"
+            onClick={onOpenEvidenceRail}
+            aria-label={copy(locale, "Open evidence rail", "打开证据轨")}
+          >
+            <FileText className="h-3.5 w-3.5" />
+            {copy(locale, "Evidence", "证据")}
           </button>
-          <button className="flex items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-slate-50" data-ui-action="open_user_menu">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-black text-white">RA</span>
+          <button type="button" className="relative flex h-8 w-8 items-center justify-center rounded-md border border-edge text-ink-secondary hover:bg-surface-sunken" aria-label={copy(locale, "Notifications", "通知")} data-ui-action="open_notifications">
+            <Bell className="h-4 w-4" />
+          </button>
+          <button type="button" className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-surface-sunken" data-ui-action="open_user_menu" aria-label={copy(locale, "User menu", "用户菜单")}>
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-fg">RA</span>
             <span className="hidden sm:block">
-              <span className="block text-sm font-black text-slate-950">{copy(locale, "Research Admin", "科研管理员")}</span>
-              <span className="block text-xs text-slate-500">{copy(locale, "Owner", "负责人")}</span>
+              <span className="block text-xs font-semibold text-ink">{copy(locale, "Research Admin", "科研管理员")}</span>
+              <span className="block text-2xs text-ink-muted">{copy(locale, "Owner", "负责人")}</span>
             </span>
-            <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" />
+            <ChevronDown className="hidden h-3.5 w-3.5 text-ink-muted sm:block" />
           </button>
         </div>
       </div>

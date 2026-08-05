@@ -1,0 +1,32 @@
+{
+  "schema": "evomind.user_delivery_manifest.v1",
+  "run_id": "evomind_run_20260728T174608181Z_2c1820",
+  "task_id": "credit-card-fraud-detection",
+  "source_artifact_count": 24,
+  "reviewer_status": "passed",
+  "claim_audit_status": "passed",
+  "public_leaderboard_submission": "not_performed",
+  "renderer": "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "files": [
+    {
+      "name": "evomind-credit-card-fraud-report.html",
+      "bytes": 10061,
+      "sha256": "07F6C8E6313344DF9C101C4B6026AC1F8452336B02D0884CA5A4E4074E7B508D"
+    },
+    {
+      "name": "evomind-credit-card-fraud-report.pdf",
+      "bytes": 223283,
+      "sha256": "768F62EF3EFD87C82FDE01EFCD59C63AEAFBC929872C86F8C21FB561B17A85E9"
+    },
+    {
+      "name": "evomind-credit-card-fraud-results.csv",
+      "bytes": 745,
+      "sha256": "E7A4B5E97DDEA5CFC37CE4B84D60BA2F92E08BA7DF97045C217345DE6333B08D"
+    },
+    {
+      "name": "evomind-credit-card-fraud-evidence.zip",
+      "bytes": 5607,
+      "sha256": "70FF93F180E6E501775C0DA896D802B8128B22B4E5B873F8727B002928CC4B54"
+    }
+  ]
+}

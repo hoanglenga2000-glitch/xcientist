@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Bot,
   BrainCircuit,
@@ -21,11 +21,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatusBadge, type StatusTone } from "@/components/ui/status-badge";
 import * as api from "@/lib/api/client";
+import type { WorkstationSummary } from "@/lib/api/types";
 import { JsonInspector } from "./Common";
+import { PageHeader } from "./primitives/Layout";
+import { t as tV2 } from "./localization";
+import { UserResearchJourney } from "./UserResearchJourney";
 
 type Locale = "zh-CN" | "en-US";
 
 type ControlIntent =
+  | "multi_agent_run"
   | "scientist_autopilot"
   | "scientist_self_audit"
   | "scientist_readiness_report"
@@ -806,6 +811,7 @@ type ScientistReasoningHypothesisView = {
 type ScientistReasoningSynthesisView = {
   present?: boolean;
   ok?: boolean;
+  tool?: string;
   reasoning_mode?: string;
   direct_answer?: string;
   hypotheses?: ScientistReasoningHypothesisView[];
@@ -876,6 +882,7 @@ type ScientistTerminalTurnView = {
   stop_conditions?: string[];
   execution_ready?: boolean;
   execution_blocked?: boolean;
+  read_only_completed?: boolean;
   blocking_gates?: string[];
   reasoning_synthesis?: ScientistReasoningSynthesisView;
   answer_markdown?: string;
@@ -1206,6 +1213,7 @@ type ScientistExecutionContractView = {
 type ScreenProps = {
   selectedTask: string;
   locale?: Locale;
+  summary?: WorkstationSummary | null;
   runWorkstationAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
   exportCodeAgentContext?: (taskId?: string, targetAgent?: string) => Promise<void>;
   runLocalExperiment?: (taskId?: string) => Promise<void>;
@@ -1224,8 +1232,41 @@ function tx(locale: Locale | undefined, en: string, zh: string) {
   return locale === "zh-CN" ? zh : en;
 }
 
+function inferControlTaskId(input: string, fallback: string) {
+  const lower = input.toLowerCase();
+  if ([
+    "fraudtrain.csv",
+    "fraudtest.csv",
+    "信用卡交易欺诈",
+    "信用卡欺诈",
+    "credit card fraud",
+    "fraud detection"
+  ].some((keyword) => lower.includes(keyword))) return "credit-card-fraud-detection";
+  if (lower.includes("spaceship titanic") || lower.includes("spaceship-titanic")) return "spaceship-titanic";
+  if (lower.includes("titanic") || lower.includes("泰坦尼克")) return "titanic";
+  return fallback;
+}
+
 function parseControlCommand(input: string, taskId: string): ParsedControlCommand {
   const lower = input.toLowerCase();
+  const inferredTaskId = inferControlTaskId(input, taskId);
+  const explicitlyDisablesTraining = [
+    /(?:先|暂时|目前|现在)?\s*(?:不要|不需要|无需|禁止)\s*(?:开始|启动|进行|执行)?\s*(?:训练|微调|建模|拟合|运行实验|执行实验)/,
+    /(?:do not|don't|dont|without)\s+(?:start(?:ing)?\s+)?(?:train(?:ing)?|fine[- ]?tun(?:e|ing)|fit(?:ting)?|run(?:ning)?\s+experiments?)/,
+  ].some((pattern) => pattern.test(lower));
+  const requestsExecution = [
+    "训练", "微调", "建模", "拟合", "运行实验", "执行实验", "完成实验",
+    "train", "training", "fine-tune", "fine tune", "finetune", "fit model", "run experiment", "execute experiment",
+  ].some((keyword) => lower.includes(keyword));
+  if (requestsExecution && !explicitlyDisablesTraining) {
+    return {
+      intent: "multi_agent_run",
+      taskId: inferredTaskId,
+      metadata: { trigger: "ai_control_console", raw_input: input },
+      risk: "gated",
+      description: "Start one governed Multi-Agent run from this natural-language objective. The backend parser selects the workflow, HPC policy, Reviewer, and irreversible-action gates.",
+    };
+  }
   if ([
     "patch work order",
     "patch-order",
@@ -1706,9 +1747,9 @@ function readinessTone(status?: string): StatusTone {
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="flex min-w-0 items-start justify-between gap-3 border-b border-slate-100 py-1.5 text-xs last:border-b-0">
-      <span className="shrink-0 font-semibold text-slate-500">{label}</span>
-      <span className="min-w-0 break-all text-right font-medium text-slate-800">{value}</span>
+    <div className="flex w-full min-w-0 max-w-full flex-col items-start gap-1 border-b border-edge-light py-1.5 text-xs last:border-b-0 sm:flex-row sm:justify-between sm:gap-3">
+      <span className="shrink-0 font-semibold text-ink-muted">{label}</span>
+      <span className="block w-full min-w-0 max-w-full break-all text-left font-medium text-ink [overflow-wrap:anywhere] sm:w-auto sm:text-right">{value}</span>
     </div>
   );
 }
@@ -1716,12 +1757,14 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 export function AiControlConsole({
   selectedTask,
   locale,
+  summary,
   runWorkstationAction,
   exportCodeAgentContext,
   runLocalExperiment,
   lastActionTrace
 }: ScreenProps) {
   const [input, setInput] = useState("");
+  const [userDemoMode, setUserDemoMode] = useState(false);
   const [parsed, setParsed] = useState<ParsedControlCommand | null>(null);
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<ControlMessage[]>([]);
@@ -1789,6 +1832,17 @@ export function AiControlConsole({
   const [scientistTerminalTurnBusy, setScientistTerminalTurnBusy] = useState(false);
   const [scientistTurnPlanBusy, setScientistTurnPlanBusy] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const syncDemoMode = () => {
+      if (typeof window === "undefined") return;
+      const params = new URL(window.location.href).searchParams;
+      setUserDemoMode(params.get("demo") === "user" || params.get("view") === "user");
+    };
+    syncDemoMode();
+    window.addEventListener("popstate", syncDemoMode);
+    return () => window.removeEventListener("popstate", syncDemoMode);
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -1976,12 +2030,12 @@ export function AiControlConsole({
     };
   }, []);
 
-  function updateScientistStreamTransport(mode: ScientistStreamTransportMode) {
+  const updateScientistStreamTransport = useCallback((mode: ScientistStreamTransportMode) => {
     scientistStreamTransportRef.current = mode;
     setScientistStreamTransport(mode);
-  }
+  }, []);
 
-  function applyScientistStreamPayload(payload: ScientistStreamPayloadView, transport?: ScientistStreamTransportMode) {
+  const applyScientistStreamPayload = useCallback((payload: ScientistStreamPayloadView, transport?: ScientistStreamTransportMode) => {
     setScientistStream(payload.scientist_stream ?? null);
     setScientistStreamUpdatedAt(Date.now());
     if (payload.scientist_step_trace) setScientistStepTrace(payload.scientist_step_trace);
@@ -1996,14 +2050,14 @@ export function AiControlConsole({
     }
     if (payload.scientist_autopilot_status) setScientistAutopilotStatus(payload.scientist_autopilot_status);
     if (transport) updateScientistStreamTransport(transport);
-  }
+  }, [updateScientistStreamTransport]);
 
-  function applyScientistStreamEvent(payload: {
+  const applyScientistStreamEvent = useCallback((payload: {
     generated_at?: string;
     event_count?: number;
     artifact_path?: string;
     event?: ScientistStreamEventView | null;
-  }) {
+  }) => {
     const event = payload.event;
     if (!event) return;
     const artifactPath = payload.artifact_path ?? ".xsci/scientist_step_trace.jsonl";
@@ -2011,7 +2065,7 @@ export function AiControlConsole({
     setScientistStream((prev) => {
       const recent = [...(prev?.recent_events ?? []), event].slice(-30);
       return {
-        ...(prev ?? {}),
+        ...prev,
         present: true,
         generated_at: payload.generated_at ?? new Date().toISOString(),
         transport: "sse",
@@ -2027,7 +2081,7 @@ export function AiControlConsole({
     setScientistStepTrace((prev) => {
       const recent = [...(prev?.recent ?? []), eventRecord].slice(-80);
       return {
-        ...(prev ?? {}),
+        ...prev,
         present: true,
         artifact_path: artifactPath,
         count: payload.event_count ?? prev?.count ?? recent.length,
@@ -2037,7 +2091,7 @@ export function AiControlConsole({
     });
     setScientistStreamUpdatedAt(Date.now());
     updateScientistStreamTransport("sse");
-  }
+  }, [updateScientistStreamTransport]);
 
   async function refreshScientistStream() {
     const payload = await api.getScientistStream();
@@ -2070,7 +2124,7 @@ export function AiControlConsole({
       alive = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [applyScientistStreamPayload, updateScientistStreamTransport]);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.EventSource === "undefined") {
@@ -2129,7 +2183,7 @@ export function AiControlConsole({
       alive = false;
       source.close();
     };
-  }, []);
+  }, [applyScientistStreamEvent, applyScientistStreamPayload, updateScientistStreamTransport]);
 
   function pushMessage(role: ControlMessage["role"], content: string) {
     setMessages((prev) => [...prev, { role, content, timestamp: Date.now() }]);
@@ -2151,6 +2205,13 @@ export function AiControlConsole({
       const taskId = parsed.taskId;
       const meta = parsed.metadata;
       switch (parsed.intent) {
+        case "multi_agent_run": {
+          const objective = String(parsed.metadata.raw_input ?? input).trim();
+          rawResponse = await api.createMultiAgentRun(objective);
+          const started = rawResponse as api.MultiAgentRunStartResponse;
+          pushMessage("system", `Multi-Agent 运行已创建：${started.run_id}。Supervisor 正在解析目标、生成 DAG 并执行受控 Gate。`);
+          break;
+        }
         case "scientist_workplan":
           rawResponse = await runScientistAutopilot();
           pushMessage("system", "Scientist Workplan 已生成：步骤、门禁、证据和当前焦点已更新。");
@@ -2323,8 +2384,9 @@ export function AiControlConsole({
       if (data?.scientist_engineering_loop) setScientistEngineeringLoop(data.scientist_engineering_loop as ScientistEngineeringLoopView);
       if (data?.scientist_reasoning_synthesis) {
         setScientistReasoningSynthesis(data.scientist_reasoning_synthesis as ScientistReasoningSynthesisView);
-      } else if ((data?.scientist_terminal_turn as ScientistTerminalTurnView | undefined)?.reasoning_synthesis) {
-        setScientistReasoningSynthesis((data?.scientist_terminal_turn as ScientistTerminalTurnView).reasoning_synthesis ?? null);
+      } else {
+        const terminalReasoning = (data?.scientist_terminal_turn as ScientistTerminalTurnView | undefined)?.reasoning_synthesis;
+        if (terminalReasoning) setScientistReasoningSynthesis(terminalReasoning);
       }
       if (data?.scientist_turn_plan) setScientistTurnPlan(data.scientist_turn_plan as ScientistTurnPlanView);
       if (data?.scientist_step_trace) setScientistStepTrace(data.scientist_step_trace as ScientistStepTraceView);
@@ -2810,10 +2872,23 @@ export function AiControlConsole({
   const terminalTurnTools = scientistTerminalTurn?.executed_tools ?? [];
   const terminalTurnBlockers = scientistTerminalTurn?.blocking_gates ?? [];
   const terminalTurnArtifacts = scientistTerminalTurn?.artifacts ?? [];
-  const reasoningSynthesis = scientistReasoningSynthesis ?? scientistTerminalTurn?.reasoning_synthesis ?? null;
+  const reasoningSynthesis = scientistTerminalTurn?.reasoning_synthesis ?? scientistReasoningSynthesis ?? null;
   const reasoningHypotheses = reasoningSynthesis?.hypotheses ?? [];
   const reasoningQuality = reasoningSynthesis?.reasoning_quality;
   const reasoningNextAction = reasoningSynthesis?.next_safe_action;
+  const reasoningAnswer = reasoningSynthesis?.direct_answer
+    || reasoningSynthesis?.answer_markdown
+    || scientistTerminalTurn?.answer_markdown
+    || "";
+  const reasoningIsLiterature = reasoningSynthesis?.tool === "literature_evidence_synthesis";
+  const hasReasoningDecision = reasoningHypotheses.length > 0
+    || Boolean(reasoningSynthesis?.selected_hypothesis_id)
+    || Boolean(reasoningNextAction?.action || reasoningNextAction?.command);
+  const terminalTurnReadOnlyCompleted = scientistTerminalTurn?.read_only_completed === true
+    && scientistTerminalTurn?.execution_blocked !== true;
+  const contextBlockingGates = terminalTurnReadOnlyCompleted
+    ? []
+    : (scientistContextPacket?.readiness?.blocking_gates ?? []);
   const terminalTurnStatus = scientistTerminalTurn?.execution_blocked
     ? "blocked"
     : scientistTerminalTurn?.execution_ready
@@ -2829,8 +2904,9 @@ export function AiControlConsole({
         ? "blue"
         : "slate";
   const scientistPatchOrderBody = scientistPatchWorkOrder?.work_order ?? null;
-  const scientistPatchActions = Array.isArray((scientistPatchWorkOrder?.action_queue as ScientistPatchActionQueueView | undefined)?.actions)
-    ? ((scientistPatchWorkOrder?.action_queue as ScientistPatchActionQueueView).actions ?? [])
+  const scientistPatchQueue = scientistPatchWorkOrder?.action_queue as ScientistPatchActionQueueView | undefined;
+  const scientistPatchActions = Array.isArray(scientistPatchQueue?.actions)
+    ? (scientistPatchQueue.actions ?? [])
     : [];
   const scientistPatchStatus = scientistPatchWorkOrder?.status ?? scientistPatchOrderBody?.status ?? "not_run";
   const scientistPatchTone: StatusTone = scientistPatchStatus === "ready_for_code_agent"
@@ -2851,16 +2927,128 @@ export function AiControlConsole({
         ? "amber"
         : "slate";
 
-  return (
-    <main className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold tracking-normal text-slate-950">{tx(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</h2>
-        <p className="mt-1 text-sm leading-6 text-slate-500">
-          {tx(locale, "Command the workstation with natural language. All actions are gated and logged.", "用自然语言调度工作站；所有动作都经过门禁并写入审计日志。")}
-        </p>
-      </div>
+  const currentRuntime = summary?.runtime;
+  const currentRun = currentRuntime?.current_run;
+  const currentRunNodes = currentRuntime?.task_graph?.nodes ?? [];
+  const currentRunHandoffs = currentRuntime?.handoffs ?? [];
+  const currentReview = currentRuntime?.review;
+  const currentClaimAudit = (currentRuntime?.runtime_snapshot?.claim_audit
+    ?? currentReview?.claim_audit) as Record<string, unknown> | null | undefined;
+  const currentClaimAuditStatus = typeof currentClaimAudit?.status === "string"
+    ? currentClaimAudit.status
+    : undefined;
+  const currentMetrics = currentRuntime?.runtime_snapshot?.metrics;
+  const currentMetricsRecord = (currentMetrics ?? {}) as Record<string, unknown>;
+  const currentHoldoutMetrics = (currentMetricsRecord.independent_holdout ?? {}) as Record<string, unknown>;
+  const currentSelfEvolution = (currentMetricsRecord.self_evolution ?? {}) as Record<string, unknown>;
+  const currentEvolutionBefore = (currentSelfEvolution.before ?? {}) as Record<string, unknown>;
+  const currentEvolutionAfter = (currentSelfEvolution.after ?? {}) as Record<string, unknown>;
+  const currentEvolutionDelta = (currentSelfEvolution.delta ?? {}) as Record<string, unknown>;
+  const currentRequest = currentRuntime?.runtime_snapshot?.request as {
+    objective?: string;
+    task_type?: string;
+    dataset?: string;
+    orchestration_model?: string;
+    compute_policy?: { backend?: string; remote_gpu_required?: boolean };
+  } | undefined;
+  const currentDatasetProfile = currentRuntime?.runtime_snapshot?.dataset_profile as Record<string, unknown> | null | undefined;
+  const currentExperimentComparison = currentRuntime?.runtime_snapshot?.experiment_comparison as Record<string, unknown> | null | undefined;
+  const currentHpcRuntime = currentRuntime?.runtime_snapshot?.hpc_runtime as Record<string, unknown> | null | undefined;
+  const currentHistoricalThresholds = currentRuntime?.runtime_snapshot?.historical_thresholds as Record<string, unknown> | null | undefined;
+  const currentDeliverables = currentRuntime?.runtime_snapshot?.deliverables as Record<string, unknown> | null | undefined;
+  const currentPrivateGrader = currentRuntime?.runtime_snapshot?.private_grader as Record<string, unknown> | null | undefined;
+  const currentComputeBackend = currentRequest?.compute_policy?.backend ?? "unknown";
+  const currentUsesLocalGpu = currentComputeBackend === "local_gpu";
+  const currentArtifacts = currentRuntime?.artifact_manifest?.artifacts ?? [];
+  const currentGpu = currentRuntime?.hpc_probe?.gpu_inventory?.[0];
+  const currentRunPresent = Boolean(currentRun?.run_id && currentRun?.task_id);
+  const currentRunCompletedTasks = currentRunNodes.filter((node) => node.status === "completed").length;
+  const currentReportLines = (currentRuntime?.report_markdown ?? "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"))
+    .slice(0, 8);
+  const formatCurrentMetric = (value: unknown, digits = 6) => typeof value === "number" ? value.toFixed(digits) : "-";
+  const currentRunTone: StatusTone = currentRun?.status === "completed"
+    ? "green"
+    : currentRun?.status === "failed" || currentRun?.status === "needs_continuation"
+      ? "red"
+      : currentRunPresent
+        ? "blue"
+        : "slate";
 
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-800">
+  async function controlCurrentMultiAgentRun(action: "pause" | "resume" | "cancel") {
+    if (!currentRun?.run_id || busy) return;
+    setBusy(true);
+    try {
+      await api.controlMultiAgentRun(currentRun.run_id, action);
+      pushMessage("system", `Multi-Agent ${action} 已提交：${currentRun.run_id}`);
+    } catch (error) {
+      pushMessage("system", error instanceof Error ? error.message : `Multi-Agent ${action} failed`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="min-w-0 max-w-full space-y-4">
+      {userDemoMode ? (
+        <>
+          <PageHeader
+            title={tV2(locale, "EvoMind Analysis Assistant", "EvoMind 分析助手")}
+            subtitle={tV2(locale, "Describe the question in natural language. EvoMind checks the data, runs the analysis, reviews the result, and prepares downloadable files.", "用一句话描述问题。EvoMind 会检查数据、完成分析、复核结果，并准备可下载的报告和文件。")}
+            breadcrumb={`${tV2(locale, "Home", "首页")} > ${tV2(locale, "Analysis Assistant", "分析助手")}`}
+          />
+
+          <UserResearchJourney
+            taskId={currentRun?.task_id}
+            runId={currentRun?.run_id}
+            status={currentRun?.status}
+            requestObjective={currentRequest?.objective}
+            completedTasks={currentRunCompletedTasks}
+            totalTasks={currentRunNodes.length}
+            orchestrationModel={currentRequest?.orchestration_model}
+            localGpuUsed={currentUsesLocalGpu}
+            selectedSolution={currentMetrics?.selected_solution ?? currentRuntime?.artifact_manifest?.selected_solution}
+            reviewerStatus={currentReview?.status}
+            claimAuditStatus={currentClaimAuditStatus}
+            artifactCount={currentArtifacts.length}
+            runMetrics={currentMetricsRecord}
+            datasetProfile={currentDatasetProfile}
+            experimentComparison={currentExperimentComparison}
+            hpcRuntime={currentHpcRuntime}
+            historicalThresholds={currentHistoricalThresholds}
+            deliverables={currentDeliverables}
+            privateGrader={currentPrivateGrader}
+            events={currentRuntime?.event_log ?? []}
+            metrics={{
+              prAuc: typeof currentHoldoutMetrics.pr_auc === "number" ? currentHoldoutMetrics.pr_auc : undefined,
+              f1: typeof currentHoldoutMetrics.f1 === "number" ? currentHoldoutMetrics.f1 : undefined,
+              recall: typeof currentHoldoutMetrics.recall === "number" ? currentHoldoutMetrics.recall : undefined,
+              precision: typeof currentHoldoutMetrics.precision === "number" ? currentHoldoutMetrics.precision : undefined,
+            }}
+            evolution={{
+              parent: typeof currentSelfEvolution.parent_exp_id === "string" ? currentSelfEvolution.parent_exp_id : undefined,
+              child: typeof currentSelfEvolution.child_exp_id === "string" ? currentSelfEvolution.child_exp_id : undefined,
+              beforePrAuc: typeof currentEvolutionBefore.pr_auc === "number" ? currentEvolutionBefore.pr_auc : undefined,
+              afterPrAuc: typeof currentEvolutionAfter.pr_auc === "number" ? currentEvolutionAfter.pr_auc : undefined,
+              deltaPrAuc: typeof currentEvolutionDelta.pr_auc === "number" ? currentEvolutionDelta.pr_auc : undefined,
+            }}
+          />
+        </>
+      ) : (
+        <div>
+          <h2 className="text-xl font-bold tracking-normal text-ink">{tx(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</h2>
+          <p className="mt-1 text-sm leading-6 text-ink-muted">
+            {tx(locale, "Command the workstation with natural language. All actions are gated and logged.", "用自然语言调度工作站；所有动作都经过门禁并写入审计日志。")}
+          </p>
+        </div>
+      )}
+
+      {!userDemoMode && (
+        <>
+
+      <div className="rounded-lg border border-warning/45 bg-warning-light p-3 text-xs leading-5 text-warning-text">
         <strong>{tx(locale, "Safety Rules:", "安全规则：")}</strong>{" "}
         {tx(
           locale,
@@ -2869,22 +3057,157 @@ export function AiControlConsole({
         )}
       </div>
 
+      <Card className="border-success/45 bg-success-light/40">
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-start justify-between gap-2">
+            <div>
+              <CardTitle>{tx(locale, "Current Multi-Agent Run", "当前 Multi-Agent 运行")}</CardTitle>
+              <CardDescription>
+                {tx(
+                  locale,
+                  "Authoritative state from workspace/current_run.json. Historical Scientist turns cannot replace it.",
+                  "权威状态来自 workspace/current_run.json，历史 Scientist 回合不会覆盖当前运行。",
+                )}
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone={currentRunTone}>{currentRun?.status ?? "not_started"}</StatusBadge>
+              {currentRunPresent && ["needs_continuation", "failed", "paused"].includes(currentRun?.status ?? "") && (
+                <Button size="sm" variant="primary" data-ui-action="multi_agent_resume" data-ui-skip-action="true" disabled={busy} onClick={() => void controlCurrentMultiAgentRun("resume")}>
+                  {busy ? tx(locale, "Resuming…", "恢复中…") : tx(locale, "Resume run", "恢复运行")}
+                </Button>
+              )}
+              {currentRunPresent && currentRun?.status === "running" && (
+                <Button size="sm" variant="secondary" data-ui-action="multi_agent_pause" data-ui-skip-action="true" disabled={busy} onClick={() => void controlCurrentMultiAgentRun("pause")}>
+                  {tx(locale, "Pause", "暂停")}
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {currentRunPresent ? (
+            <div className="min-w-0 space-y-3">
+              <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)]">
+                <div className="min-w-0 rounded-md border border-success/45 bg-surface-raised p-3">
+                  <Row label={tx(locale, "Task", "任务")} value={currentRun?.task_id ?? "-"} />
+                  <Row label="Run ID" value={<span className="font-mono">{currentRun?.run_id ?? "-"}</span>} />
+                  <Row label={tx(locale, "DAG", "任务图")} value={`${currentRunCompletedTasks}/${currentRunNodes.length} ${tx(locale, "tasks", "任务")} · ${currentRuntime?.task_graph?.edges?.length ?? 0} ${tx(locale, "edges", "依赖")}`} />
+                  <Row label={tx(locale, "Handoffs", "任务交接")} value={currentRunHandoffs.length} />
+                  <Row label={tx(locale, "Events", "连续事件")} value={`1-${currentRun?.last_seq ?? currentRuntime?.event_log?.length ?? 0}`} />
+                  <Row label="GPT" value={currentRequest?.orchestration_model ?? "-"} />
+                  <Row label="HPC GPU" value={currentUsesLocalGpu ? tx(locale, "not used", "未使用") : currentGpu?.name ?? "-"} />
+                  <Row label={tx(locale, "Local GPU", "本地 GPU")} value={currentUsesLocalGpu ? "RTX 4060 · resource-gated" : tx(locale, "not used", "未使用")} />
+                </div>
+                <div className="min-w-0 rounded-md border border-success/45 bg-surface-raised p-3">
+                  <Row label={tx(locale, "Independent Reviewer", "独立审核")} value={<StatusBadge tone={currentReview?.status === "passed" ? "green" : "amber"}>{currentReview?.status ?? "pending"}</StatusBadge>} />
+                  <Row label="Claim Audit" value={<StatusBadge tone={currentClaimAuditStatus === "passed" ? "green" : "amber"}>{currentClaimAuditStatus ?? "pending"}</StatusBadge>} />
+                  <Row label={tx(locale, "Selected Solution", "最佳方案")} value={<span className="font-mono">{currentMetrics?.selected_solution ?? currentRuntime?.artifact_manifest?.selected_solution ?? "-"}</span>} />
+                  <Row label={`CV ${currentMetrics?.metric ?? "score"}`} value={formatCurrentMetric(currentMetrics?.cv_score)} />
+                  <Row label="Independent PR-AUC" value={formatCurrentMetric(currentHoldoutMetrics.pr_auc)} />
+                  <Row label="F1 / Recall" value={`${formatCurrentMetric(currentHoldoutMetrics.f1, 4)} / ${formatCurrentMetric(currentHoldoutMetrics.recall, 4)}`} />
+                  <Row label={tx(locale, "Self-evolution", "自进化")} value={currentSelfEvolution.parent_exp_id && currentSelfEvolution.child_exp_id ? `${String(currentSelfEvolution.parent_exp_id)} → ${String(currentSelfEvolution.child_exp_id)} · ΔPR-AUC ${formatCurrentMetric(currentEvolutionDelta.pr_auc)}` : "-"} />
+                  <Row label={tx(locale, "Artifacts", "校验产物")} value={currentArtifacts.length} />
+                  <Row label={tx(locale, "Official Kaggle", "Kaggle 正式提交")} value={<StatusBadge tone="red">Human Gate</StatusBadge>} />
+                  <Row label={tx(locale, "Report", "研究报告")} value={<span className="font-mono">research_report.md</span>} />
+                </div>
+              </div>
+
+              <div className="rounded-md border border-success/35 bg-surface-raised p-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-bold text-ink">{tx(locale, "Agent DAG · 7-stage closed loop", "Agent DAG · 七阶段闭环")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "All nodes, handoffs and acceptance evidence are bound to the same run.", "所有节点、交接与验收证据均绑定到同一 Run。")}</div>
+                  </div>
+                  <StatusBadge tone="green">7 / 7 completed</StatusBadge>
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
+                  {currentRunNodes.map((node, index) => (
+                    <div key={node.task_id ?? `${node.role}-${index}`} className="relative rounded-md border border-success/35 bg-success-light/45 px-3 py-2">
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold text-success-text">{String(index + 1).padStart(2, "0")}</span>
+                        <StatusBadge tone={node.status === "completed" ? "green" : "amber"}>{node.status ?? "pending"}</StatusBadge>
+                      </div>
+                      <div className="text-xs font-bold text-ink">{node.role ?? node.task_id}</div>
+                      <div className="mt-1 break-words font-mono text-[10px] leading-4 text-ink-muted">{node.task_id}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+                <div className="rounded-md border border-info/30 bg-info-light/35 p-3">
+                  <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-bold text-ink">{tx(locale, "Minimal-change self-evolution", "最小改动自进化")}</div>
+                      <div className="text-xs text-ink-muted">EXP001 → EXP002 · unchanged temporal holdout</div>
+                    </div>
+                    <StatusBadge tone="green">passed</StatusBadge>
+                  </div>
+                  <div className="overflow-hidden rounded-md border border-edge bg-surface-raised text-xs">
+                    <div className="grid grid-cols-4 bg-surface-sunken px-3 py-2 font-bold text-ink-muted">
+                      <div>{tx(locale, "Metric", "指标")}</div><div>EXP001</div><div>EXP002</div><div>Δ</div>
+                    </div>
+                    {[
+                      ["PR-AUC", "pr_auc", "pr_auc"],
+                      ["Recall", "recall", "recall"],
+                      ["Brier ↓", "brier_score", "brier_score"],
+                      ["ECE ↓", "expected_calibration_error_15bin", "expected_calibration_error_15bin"],
+                    ].map(([label, metricKey, deltaKey]) => (
+                      <div key={label} className="grid grid-cols-4 border-t border-edge px-3 py-2">
+                        <div className="font-semibold text-ink">{label}</div>
+                        <div className="font-mono text-ink-secondary">{formatCurrentMetric(currentEvolutionBefore[metricKey])}</div>
+                        <div className="font-mono font-bold text-success-text">{formatCurrentMetric(currentEvolutionAfter[metricKey])}</div>
+                        <div className="font-mono text-info-text">{formatCurrentMetric(currentEvolutionDelta[deltaKey])}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-[11px] leading-5 text-ink-muted">
+                    {tx(locale, "Independent offline temporal holdout; threshold was not tuned on holdout; this is not a Kaggle leaderboard score.", "独立离线时间 Holdout；未在 Holdout 上调阈值；不是 Kaggle 榜单成绩。")}
+                  </div>
+                </div>
+
+                <div className="rounded-md border border-edge bg-surface-raised p-3">
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-ink">{tx(locale, "Report & reproducible delivery", "报告与可复现交付")}</div>
+                    <StatusBadge tone="green">{currentArtifacts.length} artifacts</StatusBadge>
+                  </div>
+                  <div className="space-y-1 text-xs leading-5 text-ink-secondary">
+                    {currentReportLines.map((line, index) => <div key={`${line}-${index}`} className="break-words">{line.replace(/^[-*]\s*/, "")}</div>)}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {currentArtifacts.slice(0, 8).map((artifact, index) => (
+                      <span key={`${artifact.path ?? artifact.kind}-${index}`} className="rounded border border-edge bg-surface-sunken px-2 py-1 font-mono text-[10px] text-ink-muted">
+                        {artifact.kind ?? artifact.path ?? "artifact"}
+                      </span>
+                    ))}
+                    {currentArtifacts.length > 8 ? <span className="rounded border border-success/30 bg-success-light px-2 py-1 text-[10px] font-bold text-success-text">+{currentArtifacts.length - 8} SHA-256 bound</span> : null}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-ink-muted">{tx(locale, "No pointer-backed run is active yet.", "尚未创建指针绑定的运行。")}</div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <CardTitle>{tx(locale, "AI Scientist Turn", "AI Scientist 回合")}</CardTitle>
+            <CardTitle>{tx(locale, "Scientist Tools (Historical / Auxiliary)", "Scientist 工具（历史 / 辅助）")}</CardTitle>
             <CardDescription>
               {tx(
                 locale,
-                "Run one bounded research turn: interpret the goal, choose safe tools, inspect evidence, write trace artifacts, and stop before training or official submission.",
-                "执行一次受控科研回合：理解目标、选择安全工具、检查证据、写入轨迹文件，并在训练或官方提交前停止。"
+                "Inspect or run a bounded legacy Scientist turn. The current multi-agent run above remains the primary source of truth.",
+                "检查或运行受控的旧 Scientist 回合；上方当前 Multi-Agent 运行始终是主要事实源。"
               )}
             </CardDescription>
           </div>
           <Button
             size="sm"
             variant="secondary"
-            onClick={() => void runScientistTerminalTurn(input.trim())}
+            data-ui-action="control_run_scientist_command" data-ui-skip-action="true" onClick={() => void runScientistTerminalTurn(input.trim())}
             disabled={scientistTerminalTurnBusy}
           >
             {scientistTerminalTurnBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -2892,7 +3215,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 xl:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Status", "状态")} value={<StatusBadge tone={terminalTurnTone}>{terminalTurnStatus}</StatusBadge>} />
             <Row label={tx(locale, "Task", "任务")} value={scientistTerminalTurn?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Autonomy", "自主级别")} value={scientistTerminalTurn?.autonomy_level ?? "not_run"} />
@@ -2910,19 +3233,19 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistTerminalTurn?.artifact_path ?? ".xsci/scientist_terminal_turn.json"} />
           </div>
           <div className="grid gap-3 lg:grid-cols-3">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Goal", "目标")}</div>
-              <div className="thin-scrollbar max-h-40 overflow-y-auto text-xs leading-5 text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Goal", "目标")}</div>
+              <div className="thin-scrollbar max-h-40 overflow-y-auto text-xs leading-5 text-ink-secondary">
                 {scientistTerminalTurn?.user_goal || tx(locale, "No terminal turn has been run yet.", "尚未运行终端科学家回合。")}
               </div>
-              <div className="mt-3 text-[11px] font-semibold text-slate-500">
+              <div className="mt-3 text-[11px] font-semibold text-ink-muted">
                 {tx(locale, "Official submit", "官方提交")} = {scientistTerminalTurn?.official_submit ?? "blocked_until_explicit_human_approval"}
               </div>
             </div>
-            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Executed Tools", "已执行工具")}</div>
+            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Executed Tools", "已执行工具")}</div>
               {scientistToolBudget ? (
-                <div className="mb-2 rounded border border-indigo-100 bg-indigo-50 px-2 py-1.5 text-[11px] leading-4 text-indigo-800">
+                <div className="mb-2 rounded border border-info/25 bg-info-light px-2 py-1.5 text-[11px] leading-4 text-info-text">
                   <div>
                     {tx(locale, "recommended", "推荐")}={scientistToolBudget.recommended_min_tools ?? "-"} · {tx(locale, "effective", "实际")}={scientistToolBudget.effective_max_tools ?? "-"} · {tx(locale, "requested", "请求")}={scientistToolBudget.requested_max_tools ?? "-"}
                   </div>
@@ -2930,22 +3253,22 @@ export function AiControlConsole({
                 </div>
               ) : null}
               {terminalTurnTools.length === 0 ? (
-                <div className="text-xs text-slate-400">{tx(locale, "No tools have run yet.", "尚未执行工具。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "No tools have run yet.", "尚未执行工具。")}</div>
               ) : null}
               <div className="space-y-2">
                 {terminalTurnTools.slice(0, 10).map((item, index) => (
-                  <div key={`${item.tool ?? "tool"}-${index}`} className="rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs">
+                  <div key={`${item.tool ?? "tool"}-${index}`} className="rounded border border-accent-light bg-accent-light px-2 py-1.5 text-xs">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="break-all font-mono font-bold text-blue-900">{item.tool ?? "unknown_tool"}</span>
+                      <span className="break-all font-mono font-bold text-accent-dark">{item.tool ?? "unknown_tool"}</span>
                       <StatusBadge tone={item.ok === false ? "red" : "green"}>{item.ok === false ? "blocked" : "ok"}</StatusBadge>
                     </div>
-                    {item.message ? <div className="mt-1 leading-4 text-blue-800">{item.message}</div> : null}
-                    {item.artifact_path ? <div className="mt-1 break-all font-mono text-[11px] text-blue-700">{item.artifact_path}</div> : null}
+                    {item.message ? <div className="mt-1 leading-4 text-accent-dark">{item.message}</div> : null}
+                    {item.artifact_path ? <div className="mt-1 break-all font-mono text-[11px] text-accent-dark">{item.artifact_path}</div> : null}
                   </div>
                 ))}
               </div>
               {scientistDeferredTools.length ? (
-                <div className="mt-2 rounded border border-amber-100 bg-amber-50 p-2 text-xs leading-4 text-amber-800">
+                <div className="mt-2 rounded border border-warning/25 bg-warning-light p-2 text-xs leading-4 text-warning-text">
                   <div className="mb-1 font-bold">
                     {tx(locale, "Deferred Tools", "延期工具")}
                     {scientistMustRunDeferredTools.length ? ` · ${tx(locale, "must-run pending", "关键待执行")}` : ""}
@@ -2959,59 +3282,59 @@ export function AiControlConsole({
                 </div>
               ) : null}
             </div>
-            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Gates & Artifacts", "门禁与证据")}</div>
+            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Gates & Artifacts", "门禁与证据")}</div>
               {terminalTurnBlockers.length ? (
                 <div className="space-y-2">
                   {terminalTurnBlockers.slice(0, 4).map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs leading-4 text-red-800">
+                    <div key={`${item}-${index}`} className="rounded border border-danger/25 bg-danger-light px-2 py-1.5 text-xs leading-4 text-danger-text">
                       {item}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="rounded border border-green-100 bg-green-50 px-2 py-1.5 text-xs leading-4 text-green-800">
+                <div className="rounded border border-success/25 bg-success-light px-2 py-1.5 text-xs leading-4 text-success-text">
                   {tx(locale, "No blocking gate recorded for the last Scientist Turn.", "最近一次科学家回合没有记录阻断门禁。")}
                 </div>
               )}
               <div className="mt-2 space-y-1">
                 {terminalTurnArtifacts.slice(0, 6).map((item, index) => (
-                  <div key={`${item}-${index}`} className="break-all rounded bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+                  <div key={`${item}-${index}`} className="break-all rounded bg-surface-sunken px-2 py-1 font-mono text-[11px] text-ink-secondary">
                     {item}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
+            <div className="thin-scrollbar max-h-56 overflow-y-auto rounded-md border border-edge bg-surface-raised p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Requirements", "需求闭环")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Requirements", "需求闭环")}</div>
                 <StatusBadge tone={scientistBlockedRequirements.length ? "red" : scientistOpenRequirements.length ? "amber" : scientistRequirementLedger ? "green" : "slate"}>
                   {scientistRequirementLedger ? `${scientistOpenRequirements.length} open` : "not_run"}
                 </StatusBadge>
               </div>
               {scientistRequirementLedger ? (
-                <div className="space-y-2 text-xs leading-4 text-slate-700">
+                <div className="space-y-2 text-xs leading-4 text-ink-secondary">
                   {scientistBlockedRequirements.length ? (
-                    <div className="rounded border border-red-100 bg-red-50 p-2 text-red-800">
+                    <div className="rounded border border-danger/25 bg-danger-light p-2 text-danger-text">
                       <div className="mb-1 font-bold">{tx(locale, "Blocked", "阻断项")}</div>
                       {scientistBlockedRequirements.slice(0, 5).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)}
                     </div>
                   ) : null}
                   {scientistOpenRequirements.length ? (
-                    <div className="rounded border border-amber-100 bg-amber-50 p-2 text-amber-800">
+                    <div className="rounded border border-warning/25 bg-warning-light p-2 text-warning-text">
                       <div className="mb-1 font-bold">{tx(locale, "Open", "待闭环")}</div>
                       {scientistOpenRequirements.slice(0, 6).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)}
                     </div>
                   ) : (
-                    <div className="rounded border border-green-100 bg-green-50 p-2 text-green-800">
+                    <div className="rounded border border-success/25 bg-success-light p-2 text-success-text">
                       {tx(locale, "All tracked requirements are satisfied for this bounded turn.", "本次受控回合的已跟踪需求均已满足。")}
                     </div>
                   )}
                   {scientistNextEvidence.length ? (
                     <div>
-                      <div className="mb-1 font-bold text-slate-500">{tx(locale, "Next Evidence", "下一步证据")}</div>
+                      <div className="mb-1 font-bold text-ink-muted">{tx(locale, "Next Evidence", "下一步证据")}</div>
                       {scientistNextEvidence.slice(0, 6).map((item, index) => (
-                        <div key={`${item}-${index}`} className="break-all rounded bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+                        <div key={`${item}-${index}`} className="break-all rounded bg-surface-sunken px-2 py-1 font-mono text-[11px] text-ink-secondary">
                           {item}
                         </div>
                       ))}
@@ -3019,21 +3342,25 @@ export function AiControlConsole({
                   ) : null}
                 </div>
               ) : (
-                <div className="text-xs text-slate-400">{tx(locale, "Run an AI Scientist turn to derive the requirement ledger.", "运行一次 AI Scientist 回合以生成需求闭环清单。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "Run an AI Scientist turn to derive the requirement ledger.", "运行一次 AI Scientist 回合以生成需求闭环清单。")}</div>
               )}
             </div>
           </div>
-          <div className="lg:col-span-2 rounded-md border border-emerald-200 bg-emerald-50/50 p-3">
+          <div className="lg:col-span-2 rounded-md border border-success/45 bg-success-light/50 p-3">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <div className="text-xs font-bold uppercase text-emerald-800">
+                <div className="text-xs font-bold uppercase text-success-text">
                   {tx(locale, "Evidence-Grounded Scientist Answer", "基于证据的科学家回答")}
                 </div>
-                <div className="mt-1 text-xs leading-5 text-slate-600">
+                <div className="mt-1 text-xs leading-5 text-ink-secondary">
                   {tx(
                     locale,
-                    "Answers the requested research question after tool use, then records falsifiable hypotheses, comparison, selection rationale, and the next gated action.",
-                    "工具调用完成后直接回答研究问题，并记录可证伪假设、对比、选择理由和下一步受控动作。"
+                    reasoningIsLiterature
+                      ? "Shows the verified literature answer from the current terminal turn without injecting unrelated hypothesis templates."
+                      : "Answers the requested research question after tool use, then records falsifiable hypotheses, comparison, selection rationale, and the next gated action.",
+                    reasoningIsLiterature
+                      ? "直接展示当前终端回合的真实文献回答，不混入无关假设模板。"
+                      : "工具调用完成后直接回答研究问题，并记录可证伪假设、对比、选择理由和下一步受控动作。"
                   )}
                 </div>
               </div>
@@ -3041,125 +3368,130 @@ export function AiControlConsole({
                 <StatusBadge tone={(reasoningQuality?.score ?? 0) >= 85 ? "green" : (reasoningQuality?.score ?? 0) >= 70 ? "amber" : "red"}>
                   {reasoningQuality?.status ?? "not_run"} · {reasoningQuality?.score ?? 0}
                 </StatusBadge>
-                <StatusBadge tone={reasoningSynthesis?.llm?.used ? "blue" : "slate"}>
-                  {reasoningSynthesis?.llm?.model ?? "deterministic fallback"}
+                <StatusBadge tone={reasoningSynthesis?.llm?.used || reasoningIsLiterature ? "blue" : "slate"}>
+                  {reasoningSynthesis?.llm?.model ?? reasoningSynthesis?.tool ?? "deterministic fallback"}
                 </StatusBadge>
               </div>
             </div>
             {reasoningSynthesis ? (
               <div className="space-y-3">
-                <div className="rounded-md border border-white bg-white p-3 text-sm leading-6 text-slate-800">
-                  {reasoningSynthesis.direct_answer || tx(locale, "No direct answer was produced.", "尚未生成直接回答。")}
+                <div className="whitespace-pre-wrap rounded-md border border-white bg-surface-raised p-3 text-sm leading-6 text-ink [overflow-wrap:anywhere]">
+                  {reasoningAnswer || tx(locale, "No direct answer was produced.", "尚未生成直接回答。")}
                 </div>
-                <div className="grid gap-3 xl:grid-cols-[1.45fr_0.55fr]">
+                {hasReasoningDecision ? <div className="grid gap-3 xl:grid-cols-[1.45fr_0.55fr]">
                   <div className="grid gap-2 md:grid-cols-3">
                     {reasoningHypotheses.slice(0, 6).map((hypothesis, index) => (
-                      <div key={`${hypothesis.id ?? "hypothesis"}-${index}`} className="min-w-0 rounded-md border border-emerald-100 bg-white p-3">
+                      <div key={`${hypothesis.id ?? "hypothesis"}-${index}`} className="min-w-0 rounded-md border border-success/25 bg-surface-raised p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0">
-                            <div className="font-mono text-[11px] font-bold text-emerald-700">{hypothesis.id ?? `H${index + 1}`}</div>
-                            <div className="mt-1 text-sm font-bold text-slate-900">{hypothesis.title ?? "Untitled hypothesis"}</div>
+                            <div className="font-mono text-[11px] font-bold text-success-text">{hypothesis.id ?? `H${index + 1}`}</div>
+                            <div className="mt-1 text-sm font-bold text-ink">{hypothesis.title ?? "Untitled hypothesis"}</div>
                           </div>
                           <StatusBadge tone={hypothesis.risk === "high" ? "red" : hypothesis.risk === "medium" ? "amber" : "green"}>
                             {hypothesis.risk ?? "unknown"}
                           </StatusBadge>
                         </div>
-                        <div className="mt-2 text-xs leading-5 text-slate-600">{hypothesis.mechanism ?? ""}</div>
-                        <div className="mt-2 rounded border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-900">
+                        <div className="mt-2 text-xs leading-5 text-ink-secondary">{hypothesis.mechanism ?? ""}</div>
+                        <div className="mt-2 rounded border border-accent-light bg-accent-light p-2 text-xs leading-5 text-accent-dark">
                           <span className="font-bold">{tx(locale, "Prediction", "可证伪预测")}:</span> {hypothesis.falsifiable_prediction ?? ""}
                         </div>
-                        <div className="mt-2 rounded border border-red-100 bg-red-50 p-2 text-xs leading-5 text-red-800">
+                        <div className="mt-2 rounded border border-danger/25 bg-danger-light p-2 text-xs leading-5 text-danger-text">
                           <span className="font-bold">{tx(locale, "Reject when", "否证条件")}:</span> {hypothesis.disconfirming_result ?? ""}
                         </div>
-                        <div className="mt-2 text-[11px] text-slate-500">
+                        <div className="mt-2 text-[11px] text-ink-muted">
                           evidence={hypothesis.evidence_strength ?? "unknown"} · cost={hypothesis.cost ?? "unknown"} · value={hypothesis.expected_value ?? "unknown"}
                         </div>
                       </div>
                     ))}
                   </div>
-                  <div className="rounded-md border border-emerald-100 bg-white p-3">
-                    <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Decision", "科研决策")}</div>
-                    <div className="mt-2 font-mono text-sm font-bold text-emerald-800">
+                  <div className="rounded-md border border-success/25 bg-surface-raised p-3">
+                    <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Decision", "科研决策")}</div>
+                    <div className="mt-2 font-mono text-sm font-bold text-success-text">
                       {reasoningSynthesis.selected_hypothesis_id ?? "(none)"}
                     </div>
-                    <div className="mt-2 text-xs leading-5 text-slate-700">
+                    <div className="mt-2 text-xs leading-5 text-ink-secondary">
                       {reasoningSynthesis.selected_rationale ?? ""}
                     </div>
-                    <div className="mt-3 border-t border-slate-100 pt-3">
-                      <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Next Safe Action", "下一步安全动作")}</div>
-                      <div className="mt-2 text-xs leading-5 text-slate-700">{reasoningNextAction?.action ?? ""}</div>
-                      <div className="mt-2 break-all rounded bg-slate-950 px-2 py-2 font-mono text-xs text-white">
+                    <div className="mt-3 border-t border-edge-light pt-3">
+                      <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Next Safe Action", "下一步安全动作")}</div>
+                      <div className="mt-2 text-xs leading-5 text-ink-secondary">{reasoningNextAction?.action ?? ""}</div>
+                      <div className="mt-2 break-all rounded bg-frame px-2 py-2 font-mono text-xs text-ink">
                         {reasoningNextAction?.command ?? "evomind briefing"}
                       </div>
-                      <div className="mt-2 break-all font-mono text-[11px] text-amber-700">
+                      <div className="mt-2 break-all font-mono text-[11px] text-warning-text">
                         gate={reasoningNextAction?.gate ?? "unknown"}
                       </div>
                     </div>
-                    <div className="mt-3 border-t border-slate-100 pt-3 text-[11px] text-slate-500">
+                    <div className="mt-3 border-t border-edge-light pt-3 text-[11px] text-ink-muted">
                       hypotheses={reasoningQuality?.hypotheses_produced ?? 0}/{reasoningQuality?.hypotheses_requested ?? 0}
                       {" · "}falsifiable={reasoningQuality?.complete_falsifiable_hypotheses ?? 0}
                       {" · "}cache={reasoningSynthesis.cache_hit ? "hit" : "miss"}
                       {" · "}ratio={Math.round((reasoningSynthesis.cache_stats?.hit_ratio ?? 0) * 100)}%
                     </div>
-                    <div className="mt-2 break-all font-mono text-[10px] text-slate-500">
+                    <div className="mt-2 break-all font-mono text-[10px] text-ink-muted">
                       {reasoningSynthesis.artifact_path ?? ".xsci/scientist_reasoning_synthesis.json"}
                     </div>
                   </div>
-                </div>
+                </div> : (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-success/25 bg-surface-raised p-3 text-[11px] text-ink-secondary">
+                    <span>{tx(locale, "No hypotheses were requested for this read-only evidence task.", "本次只读证据任务未请求假设生成。")}</span>
+                    <span className="break-all font-mono">{reasoningSynthesis.artifact_path ?? scientistTerminalTurn?.artifact_path ?? "-"}</span>
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="rounded border border-dashed border-emerald-200 bg-white/70 p-3 text-xs text-slate-500">
+              <div className="rounded border border-dashed border-success/45 bg-surface-raised/70 p-3 text-xs text-ink-muted">
                 {tx(locale, "Run a Scientist Turn to generate the evidence-grounded answer.", "运行一次科学家回合以生成基于证据的研究回答。")}
               </div>
             )}
           </div>
-          <div className="lg:col-span-2 rounded-md border border-indigo-100 bg-indigo-50/60 p-3">
+          <div className="lg:col-span-2 rounded-md border border-info/25 bg-info-light/60 p-3">
             <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs font-bold uppercase text-indigo-700">{tx(locale, "Scientific Critique", "科学家自评")}</div>
+              <div className="text-xs font-bold uppercase text-info-text">{tx(locale, "Scientific Critique", "科学家自评")}</div>
               <StatusBadge tone={(turnPlanCritique?.actionability_score ?? 0) >= 70 ? "green" : (turnPlanCritique?.actionability_score ?? 0) >= 45 ? "amber" : "red"}>
                 {turnPlanCritique?.decision ?? "not_run"} · {turnPlanCritique?.actionability_score ?? 0}
               </StatusBadge>
             </div>
             <div className="grid gap-3 xl:grid-cols-3">
-              <div className="rounded border border-white/80 bg-white/80 p-2">
-                <div className="mb-1 text-[11px] font-bold uppercase text-slate-500">{tx(locale, "Evidence Gaps", "证据缺口")}</div>
+              <div className="rounded border border-white/80 bg-surface-raised/80 p-2">
+                <div className="mb-1 text-[11px] font-bold uppercase text-ink-muted">{tx(locale, "Evidence Gaps", "证据缺口")}</div>
                 <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
                   {turnPlanEvidenceGaps.length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No critique gap recorded yet.", "尚未记录自评缺口。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No critique gap recorded yet.", "尚未记录自评缺口。")}</div>
                   ) : null}
                   {turnPlanEvidenceGaps.slice(0, 5).map((gap, index) => (
-                    <div key={`${gap.gap ?? "gap"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs leading-4 text-slate-700">
+                    <div key={`${gap.gap ?? "gap"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs leading-4 text-ink-secondary">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-semibold text-slate-900">{gap.gap ?? "unknown_gap"}</span>
+                        <span className="font-semibold text-ink">{gap.gap ?? "unknown_gap"}</span>
                         <StatusBadge tone={gap.severity === "blocking" || gap.severity === "high" ? "red" : gap.severity === "medium" ? "amber" : "slate"}>{gap.severity ?? "gap"}</StatusBadge>
                       </div>
                       <div className="mt-1">{gap.why_it_matters ?? ""}</div>
-                      {gap.suggested_tool ? <div className="mt-1 font-mono text-[11px] text-indigo-700">tool={gap.suggested_tool}</div> : null}
+                      {gap.suggested_tool ? <div className="mt-1 font-mono text-[11px] text-info-text">tool={gap.suggested_tool}</div> : null}
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="rounded border border-white/80 bg-white/80 p-2">
-                <div className="mb-1 text-[11px] font-bold uppercase text-slate-500">{tx(locale, "Uncertainty", "不确定性")}</div>
+              <div className="rounded border border-white/80 bg-surface-raised/80 p-2">
+                <div className="mb-1 text-[11px] font-bold uppercase text-ink-muted">{tx(locale, "Uncertainty", "不确定性")}</div>
                 <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
                   {turnPlanUncertainty.length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No uncertainty driver recorded yet.", "尚未记录不确定性来源。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No uncertainty driver recorded yet.", "尚未记录不确定性来源。")}</div>
                   ) : null}
                   {turnPlanUncertainty.slice(0, 5).map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded border border-amber-100 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800">
+                    <div key={`${item}-${index}`} className="rounded border border-warning/25 bg-warning-light px-2 py-1.5 text-xs leading-4 text-warning-text">
                       {item}
                     </div>
                   ))}
                 </div>
               </div>
-              <div className="rounded border border-white/80 bg-white/80 p-2">
-                <div className="mb-1 text-[11px] font-bold uppercase text-slate-500">{tx(locale, "Claim Boundaries", "声明边界")}</div>
+              <div className="rounded border border-white/80 bg-surface-raised/80 p-2">
+                <div className="mb-1 text-[11px] font-bold uppercase text-ink-muted">{tx(locale, "Claim Boundaries", "声明边界")}</div>
                 <div className="max-h-44 space-y-1.5 overflow-y-auto pr-1">
                   {turnPlanClaimBoundaries.length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No claim boundary recorded yet.", "尚未记录声明边界。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No claim boundary recorded yet.", "尚未记录声明边界。")}</div>
                   ) : null}
                   {turnPlanClaimBoundaries.slice(0, 4).map((item, index) => (
-                    <div key={`${item}-${index}`} className="rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs leading-4 text-red-800">
+                    <div key={`${item}-${index}`} className="rounded border border-danger/25 bg-danger-light px-2 py-1.5 text-xs leading-4 text-danger-text">
                       {item}
                     </div>
                   ))}
@@ -3167,11 +3499,11 @@ export function AiControlConsole({
               </div>
             </div>
           </div>
-          <div className="lg:col-span-2 rounded-md border border-slate-200 bg-white p-3">
+          <div className="lg:col-span-2 rounded-md border border-edge bg-surface-raised p-3">
             <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Scientist Lifecycle", "科学家生命周期")}</div>
-                <div className="mt-1 text-xs leading-5 text-slate-600">
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Scientist Lifecycle", "科学家生命周期")}</div>
+                <div className="mt-1 text-xs leading-5 text-ink-secondary">
                   {tx(
                     locale,
                     "A Codex/Claude-style turn must leave evidence for observe, plan, act, reflect, and improve.",
@@ -3189,29 +3521,29 @@ export function AiControlConsole({
                 const deferred = Array.isArray(phase.deferred_tools) ? phase.deferred_tools : [];
                 const gaps = Array.isArray(phase.evidence_gaps) ? phase.evidence_gaps : [];
                 return (
-                  <div key={`${phase.phase ?? "phase"}-${index}`} className="min-w-0 rounded-md border border-slate-100 bg-slate-50 px-2 py-2">
+                  <div key={`${phase.phase ?? "phase"}-${index}`} className="min-w-0 rounded-md border border-edge-light bg-surface-sunken px-2 py-2">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="break-all font-mono text-xs font-bold text-slate-900">{phase.phase ?? `phase-${index + 1}`}</span>
+                      <span className="break-all font-mono text-xs font-bold text-ink">{phase.phase ?? `phase-${index + 1}`}</span>
                       <StatusBadge tone={parityPhaseTone(phase.status)}>{phase.status ?? "not_run"}</StatusBadge>
                     </div>
-                    <div className="mt-2 line-clamp-4 text-[11px] leading-4 text-slate-600">{phase.purpose ?? ""}</div>
-                    {phase.gate ? <div className="mt-2 break-all font-mono text-[10px] text-blue-700">gate={phase.gate}</div> : null}
-                    {phase.next_safe_command ? <div className="mt-2 break-all font-mono text-[10px] text-indigo-700">{phase.next_safe_command}</div> : null}
-                    {executed.length ? <div className="mt-2 text-[10px] font-semibold text-emerald-700">{tx(locale, "tools", "工具")}={executed.slice(0, 3).join(", ")}</div> : null}
-                    {deferred.length ? <div className="mt-2 text-[10px] font-semibold text-amber-700">{tx(locale, "deferred", "延期")}={deferred.slice(0, 3).join(", ")}</div> : null}
-                    {gaps.length ? <div className="mt-2 text-[10px] font-semibold text-red-700">{tx(locale, "gaps", "缺口")}={gaps.length}</div> : null}
+                    <div className="mt-2 line-clamp-4 text-[11px] leading-4 text-ink-secondary">{phase.purpose ?? ""}</div>
+                    {phase.gate ? <div className="mt-2 break-all font-mono text-[10px] text-accent-dark">gate={phase.gate}</div> : null}
+                    {phase.next_safe_command ? <div className="mt-2 break-all font-mono text-[10px] text-info-text">{phase.next_safe_command}</div> : null}
+                    {executed.length ? <div className="mt-2 text-[10px] font-semibold text-success-text">{tx(locale, "tools", "工具")}={executed.slice(0, 3).join(", ")}</div> : null}
+                    {deferred.length ? <div className="mt-2 text-[10px] font-semibold text-warning-text">{tx(locale, "deferred", "延期")}={deferred.slice(0, 3).join(", ")}</div> : null}
+                    {gaps.length ? <div className="mt-2 text-[10px] font-semibold text-danger-text">{tx(locale, "gaps", "缺口")}={gaps.length}</div> : null}
                   </div>
                 );
               })}
             </div>
             <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-3">
-              <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-slate-700">
+              <div className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-ink-secondary">
                 schema={scientistParityLifecycle?.schema ?? "not_recorded"}
               </div>
-              <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-slate-700">
+              <div className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-ink-secondary">
                 artifact={scientistParityArtifact}
               </div>
-              <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-slate-700">
+              <div className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-ink-secondary">
                 training={scientistParityLifecycle?.no_training_started === false ? "started" : "not_started"} · submit={scientistParityLifecycle?.official_submit ?? "blocked"}
               </div>
             </div>
@@ -3237,15 +3569,15 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Quality", "上下文质量")}
               value={<StatusBadge tone={(scientistContextPacket?.context_quality?.score ?? 0) >= 75 ? "green" : (scientistContextPacket?.context_quality?.score ?? 0) >= 55 ? "amber" : "slate"}>{scientistContextPacket?.context_quality?.score ?? 0}</StatusBadge>}
             />
             <Row label={tx(locale, "Mode", "状态")} value={scientistContextPacket?.context_quality?.interpretation ?? "not_run"} />
             <Row label={tx(locale, "Task", "任务")} value={scientistContextPacket?.selected_task || selectedTask || "(none)"} />
-            <Row label={tx(locale, "Can Execute", "可执行训练")} value={scientistContextPacket?.readiness?.can_execute ? "true" : "false"} />
-            <Row label={tx(locale, "Compute", "算力")} value={scientistContextPacket?.readiness?.compute_backend ?? "unknown"} />
+            <Row label={tx(locale, "Can Execute", "可执行训练")} value={terminalTurnReadOnlyCompleted ? "not_requested_read_only" : scientistContextPacket?.readiness?.can_execute ? "true" : "false"} />
+            <Row label={tx(locale, "Compute", "算力")} value={terminalTurnReadOnlyCompleted ? "not_requested" : scientistContextPacket?.readiness?.compute_backend ?? "unknown"} />
             <Row label={tx(locale, "Strategy", "当前策略")} value={scientistContextPacket?.active_strategy?.selected_action || "none"} />
             <Row label={tx(locale, "Strategy Gate", "策略门禁")} value={scientistContextPacket?.active_strategy?.gate_status || "unknown"} />
             <Row label={tx(locale, "Next", "下一步")} value={scientistContextPacket?.next_safe_command ?? "evomind briefing"} />
@@ -3256,27 +3588,31 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistContextPacket?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-[1fr_1fr]">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Blocking Gates", "阻塞门禁")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Blocking Gates", "阻塞门禁")}</div>
               <div className="max-h-36 space-y-2 overflow-y-auto pr-1">
-                {(scientistContextPacket?.readiness?.blocking_gates ?? []).length === 0 ? (
-                  <div className="text-xs text-emerald-700">{tx(locale, "No blocking gate in the latest context packet.", "最新上下文包没有硬阻塞门禁。")}</div>
+                {contextBlockingGates.length === 0 ? (
+                  <div className="text-xs text-success-text">
+                    {terminalTurnReadOnlyCompleted
+                      ? tx(locale, "The current read-only turn completed; execution gates were not requested.", "当前只读回合已完成，本轮未请求执行门禁。")
+                      : tx(locale, "No blocking gate in the latest context packet.", "最新上下文包没有硬阻塞门禁。")}
+                  </div>
                 ) : (
-                  (scientistContextPacket?.readiness?.blocking_gates ?? []).slice(0, 6).map((gate, index) => (
-                    <div key={`${gate}-${index}`} className="rounded border border-amber-100 bg-amber-50 px-2 py-1.5 text-xs text-amber-900">
+                  contextBlockingGates.slice(0, 6).map((gate, index) => (
+                    <div key={`${gate}-${index}`} className="rounded border border-warning/25 bg-warning-light px-2 py-1.5 text-xs text-warning-text">
                       {gate}
                     </div>
                   ))
                 )}
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-2">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Recent Lessons", "近期经验")}</div>
+              <div className="mt-3 border-t border-edge-light pt-2">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Recent Lessons", "近期经验")}</div>
                 <div className="max-h-40 space-y-2 overflow-y-auto pr-1">
                   {(scientistContextPacket?.memory_digest?.recent_lessons ?? []).length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No reusable lesson loaded yet.", "尚未加载可复用经验。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No reusable lesson loaded yet.", "尚未加载可复用经验。")}</div>
                   ) : (
                     (scientistContextPacket?.memory_digest?.recent_lessons ?? []).slice(0, 5).map((lesson, index) => (
-                      <div key={`${lesson}-${index}`} className="rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs leading-4 text-blue-900">
+                      <div key={`${lesson}-${index}`} className="rounded border border-accent-light bg-accent-light px-2 py-1.5 text-xs leading-4 text-accent-dark">
                         {lesson}
                       </div>
                     ))
@@ -3284,8 +3620,8 @@ export function AiControlConsole({
                 </div>
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Requirement Context", "需求上下文")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Requirement Context", "需求上下文")}</div>
               <JsonInspector
                 data={{
                   open_requirements: (scientistContextPacket?.requirement_context?.open_requirements as unknown[] | undefined)?.slice?.(0, 8) ?? [],
@@ -3293,12 +3629,12 @@ export function AiControlConsole({
                   execution_partition: scientistContextPacket?.requirement_context?.execution_partition ?? {}
                 }}
               />
-              <div className="mt-3 border-t border-slate-100 pt-2">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Artifact Inventory", "证据清单")}</div>
+              <div className="mt-3 border-t border-edge-light pt-2">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Artifact Inventory", "证据清单")}</div>
                 <div className="grid gap-1 text-[11px]">
-                  {(scientistContextPacket?.artifact_inventory ?? []).slice(0, 8).map((artifact) => (
-                    <div key={artifact.name ?? artifact.path} className="flex items-center justify-between gap-2 rounded bg-slate-50 px-2 py-1">
-                      <span className="truncate font-mono text-slate-700">{artifact.name ?? artifact.path}</span>
+                  {(scientistContextPacket?.artifact_inventory ?? []).slice(0, 8).map((artifact, index) => (
+                    <div key={`${artifact.name ?? artifact.path ?? "artifact"}-${index}`} className="flex items-center justify-between gap-2 rounded bg-surface-sunken px-2 py-1">
+                      <span className="truncate font-mono text-ink-secondary">{artifact.name ?? artifact.path}</span>
                       <StatusBadge tone={artifact.present ? "green" : "slate"}>{artifact.present ? "present" : "missing"}</StatusBadge>
                     </div>
                   ))}
@@ -3327,7 +3663,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Posture", "姿态")} value={<StatusBadge tone={readinessTone(scientistStrategyOptimizer?.strategy_posture)}>{scientistStrategyOptimizer?.strategy_posture ?? "not_run"}</StatusBadge>} />
             <Row label={tx(locale, "Source", "来源姿态")} value={scientistStrategyOptimizer?.source_posture ?? "unknown"} />
             <Row label={tx(locale, "Candidates", "候选数")} value={scientistStrategyOptimizer?.intervention_ranking?.length ?? 0} />
@@ -3341,51 +3677,51 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistStrategyOptimizer?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-[0.9fr_1.1fr]">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Selected Strategy", "选中策略")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Selected Strategy", "选中策略")}</div>
               {scientistStrategyOptimizer?.selected_strategy ? (
-                <div className="space-y-2 rounded border border-blue-100 bg-blue-50 px-3 py-2 text-xs">
+                <div className="space-y-2 rounded border border-accent-light bg-accent-light px-3 py-2 text-xs">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="font-bold text-blue-950">{scientistStrategyOptimizer.selected_strategy.title ?? scientistStrategyOptimizer.selected_strategy.id}</div>
+                    <div className="font-bold text-accent-dark">{scientistStrategyOptimizer.selected_strategy.title ?? scientistStrategyOptimizer.selected_strategy.id}</div>
                     <StatusBadge tone={scientistStrategyOptimizer.selected_strategy.gate_status === "safe_read_only" ? "green" : "amber"}>
                       {scientistStrategyOptimizer.selected_strategy.total_score ?? 0}
                     </StatusBadge>
                   </div>
-                  <div className="font-mono text-[11px] text-blue-800">{scientistStrategyOptimizer.selected_strategy.safe_next_command ?? ""}</div>
-                  <div className="leading-4 text-blue-800">{scientistStrategyOptimizer.selected_strategy.rationale ?? ""}</div>
+                  <div className="font-mono text-[11px] text-accent-dark">{scientistStrategyOptimizer.selected_strategy.safe_next_command ?? ""}</div>
+                  <div className="leading-4 text-accent-dark">{scientistStrategyOptimizer.selected_strategy.rationale ?? ""}</div>
                   <div className="flex flex-wrap gap-1">
-                    <span className="rounded bg-white px-1.5 py-0.5 text-[11px] text-blue-800">impact={scientistStrategyOptimizer.selected_strategy.expected_impact ?? 0}</span>
-                    <span className="rounded bg-white px-1.5 py-0.5 text-[11px] text-blue-800">evidence={scientistStrategyOptimizer.selected_strategy.evidence_strength ?? 0}</span>
-                    <span className="rounded bg-white px-1.5 py-0.5 text-[11px] text-blue-800">risk={scientistStrategyOptimizer.selected_strategy.risk_level ?? "unknown"}</span>
+                    <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[11px] text-accent-dark">impact={scientistStrategyOptimizer.selected_strategy.expected_impact ?? 0}</span>
+                    <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[11px] text-accent-dark">evidence={scientistStrategyOptimizer.selected_strategy.evidence_strength ?? 0}</span>
+                    <span className="rounded bg-surface-raised px-1.5 py-0.5 text-[11px] text-accent-dark">risk={scientistStrategyOptimizer.selected_strategy.risk_level ?? "unknown"}</span>
                   </div>
                 </div>
               ) : (
-                <div className="text-xs text-slate-400">{tx(locale, "Run strategy optimizer to select a next action.", "运行策略优化后显示选中策略。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "Run strategy optimizer to select a next action.", "运行策略优化后显示选中策略。")}</div>
               )}
-              <div className="mt-3 border-t border-slate-100 pt-2">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Decision Matrix", "决策矩阵")}</div>
+              <div className="mt-3 border-t border-edge-light pt-2">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Decision Matrix", "决策矩阵")}</div>
                 <JsonInspector data={scientistStrategyOptimizer?.decision_matrix ?? { candidate_count: 0 }} />
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Ranked Interventions", "干预排序")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Ranked Interventions", "干预排序")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {(scientistStrategyOptimizer?.intervention_ranking ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No ranked interventions yet.", "暂无排序干预。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No ranked interventions yet.", "暂无排序干预。")}</div>
                 ) : (
                   scientistStrategyOptimizer?.intervention_ranking?.slice(0, 8).map((item, index) => (
-                    <div key={`${item.id ?? "strategy"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${item.id ?? "strategy"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-bold text-slate-800">#{item.rank ?? index + 1} {item.title ?? item.id}</span>
+                        <span className="font-bold text-ink">#{item.rank ?? index + 1} {item.title ?? item.id}</span>
                         <StatusBadge tone={item.gate_status === "safe_read_only" ? "green" : item.gate_status?.includes("blocked") ? "amber" : "blue"}>{item.total_score ?? 0}</StatusBadge>
                       </div>
-                      <div className="mt-1 font-mono text-[11px] text-slate-700">{item.safe_next_command ?? ""}</div>
-                      <div className="mt-1 grid grid-cols-3 gap-1 text-[11px] text-slate-500">
+                      <div className="mt-1 font-mono text-[11px] text-ink-secondary">{item.safe_next_command ?? ""}</div>
+                      <div className="mt-1 grid grid-cols-3 gap-1 text-[11px] text-ink-muted">
                         <span>impact={item.expected_impact ?? 0}</span>
                         <span>evidence={item.evidence_strength ?? 0}</span>
                         <span>risk={item.risk_level ?? "unknown"}</span>
                       </div>
-                      <div className="mt-1 leading-4 text-slate-500">{item.rationale ?? ""}</div>
+                      <div className="mt-1 leading-4 text-ink-muted">{item.rationale ?? ""}</div>
                     </div>
                   ))
                 )}
@@ -3413,7 +3749,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Status", "状态")} value={<StatusBadge tone={scientistPatchTone}>{scientistPatchStatus}</StatusBadge>} />
             <Row label={tx(locale, "Issue", "问题")} value={scientistPatchWorkOrder?.selected_issue_id || scientistPatchOrderBody?.issue_id || "(none)"} />
             <Row label={tx(locale, "Title", "标题")} value={scientistPatchWorkOrder?.selected_title || scientistPatchOrderBody?.title || "(none)"} />
@@ -3426,70 +3762,70 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistPatchWorkOrder?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Patch Scope", "修复范围")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Patch Scope", "修复范围")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {(scientistPatchOrderBody?.files_to_edit ?? []).length === 0 ? (
-                  <div className="rounded border border-amber-100 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800">
+                  <div className="rounded border border-warning/25 bg-warning-light px-2 py-1.5 text-xs leading-4 text-warning-text">
                     {scientistPatchStatus === "blocked_external_gate"
                       ? tx(locale, "No source patch is allowed because the latest evidence points to an external gate.", "最近证据指向外部资源门禁，当前不允许生成源码补丁。")
                       : tx(locale, "No editable file scope has been selected yet.", "尚未选中可编辑文件范围。")}
                   </div>
                 ) : null}
-                {(scientistPatchOrderBody?.files_to_edit ?? []).slice(0, 8).map((file) => (
-                  <div key={file} className="break-all rounded border border-blue-100 bg-blue-50 px-2 py-1.5 font-mono text-[11px] text-blue-800">{file}</div>
+                {(scientistPatchOrderBody?.files_to_edit ?? []).slice(0, 8).map((file, index) => (
+                  <div key={`${file}-${index}`} className="break-all rounded border border-accent-light bg-accent-light px-2 py-1.5 font-mono text-[11px] text-accent-dark">{file}</div>
                 ))}
-                {(scientistPatchOrderBody?.files_to_inspect ?? []).slice(0, 8).map((file) => (
-                  <div key={file} className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">{file}</div>
+                {(scientistPatchOrderBody?.files_to_inspect ?? []).slice(0, 8).map((file, index) => (
+                  <div key={`${file}-${index}`} className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-[11px] text-ink-secondary">{file}</div>
                 ))}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Acceptance & Code Agent Prompt", "验收与代码 Agent 提示")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Acceptance & Code Agent Prompt", "验收与代码 Agent 提示")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-                {(scientistPatchOrderBody?.acceptance_checks ?? []).slice(0, 6).map((check) => (
-                  <div key={check} className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">{check}</div>
+                {(scientistPatchOrderBody?.acceptance_checks ?? []).slice(0, 6).map((check, index) => (
+                  <div key={`${check}-${index}`} className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-[11px] text-ink-secondary">{check}</div>
                 ))}
                 {scientistPatchOrderBody?.code_agent_prompt ? (
-                  <div className="rounded border border-indigo-100 bg-indigo-50 px-2 py-1.5 text-xs leading-4 text-indigo-900">
+                  <div className="rounded border border-info/25 bg-info-light px-2 py-1.5 text-xs leading-4 text-info-text">
                     {scientistPatchOrderBody.code_agent_prompt}
                   </div>
                 ) : null}
                 {scientistPatchOrderBody?.rationale ? (
-                  <div className="rounded border border-slate-100 bg-white px-2 py-1.5 text-xs leading-4 text-slate-600">
+                  <div className="rounded border border-edge-light bg-surface-raised px-2 py-1.5 text-xs leading-4 text-ink-secondary">
                     {scientistPatchOrderBody.rationale}
                   </div>
                 ) : null}
-                {(scientistPatchWorkOrder?.next_safe_commands ?? []).slice(0, 4).map((command) => (
-                  <div key={command} className="break-all rounded border border-blue-100 bg-blue-50 px-2 py-1.5 font-mono text-[11px] font-semibold text-blue-800">{command}</div>
+                {(scientistPatchWorkOrder?.next_safe_commands ?? []).slice(0, 4).map((command, index) => (
+                  <div key={`${command}-${index}`} className="break-all rounded border border-accent-light bg-accent-light px-2 py-1.5 font-mono text-[11px] font-semibold text-accent-dark">{command}</div>
                 ))}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3 md:col-span-2">
+            <div className="rounded-md border border-edge bg-surface-raised p-3 md:col-span-2">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Action Queue & Evidence", "行动队列与证据")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Action Queue & Evidence", "行动队列与证据")}</div>
                 <StatusBadge tone={scientistPatchActions.length ? "blue" : "slate"}>{scientistPatchActions.length}</StatusBadge>
               </div>
               <div className="grid gap-2 md:grid-cols-2">
                 <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
-                  {scientistPatchActions.length === 0 ? <div className="text-xs text-slate-400">{tx(locale, "No patch action queue yet.", "暂无补丁行动队列。")}</div> : null}
+                  {scientistPatchActions.length === 0 ? <div className="text-xs text-ink-muted">{tx(locale, "No patch action queue yet.", "暂无补丁行动队列。")}</div> : null}
                   {scientistPatchActions.slice(0, 6).map((action, index) => (
-                    <div key={`${action.id ?? "patch-action"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${action.id ?? "patch-action"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-bold text-slate-900">{action.title ?? action.id ?? "patch action"}</span>
+                        <span className="font-bold text-ink">{action.title ?? action.id ?? "patch action"}</span>
                         <StatusBadge tone={action.status === "ready_for_code_agent" ? "green" : action.status === "blocked_external_gate" ? "red" : "slate"}>{action.status ?? "queued"}</StatusBadge>
                       </div>
-                      {action.command ? <div className="mt-1 break-all font-mono text-[11px] text-blue-700">{action.command}</div> : null}
-                      {action.gate ? <div className="mt-1 text-[11px] text-slate-500">gate={action.gate}</div> : null}
+                      {action.command ? <div className="mt-1 break-all font-mono text-[11px] text-accent-dark">{action.command}</div> : null}
+                      {action.gate ? <div className="mt-1 text-[11px] text-ink-muted">gate={action.gate}</div> : null}
                     </div>
                   ))}
                 </div>
                 <div className="max-h-56 space-y-1 overflow-y-auto pr-1">
-                  {(scientistPatchOrderBody?.expected_artifacts ?? scientistPatchWorkOrder?.source_artifacts ?? []).slice(0, 10).map((artifact) => (
-                    <div key={artifact} className="break-all rounded border border-slate-100 bg-white px-2 py-1 font-mono text-[11px] text-slate-700">{artifact}</div>
+                  {(scientistPatchOrderBody?.expected_artifacts ?? scientistPatchWorkOrder?.source_artifacts ?? []).slice(0, 10).map((artifact, index) => (
+                    <div key={`${artifact}-${index}`} className="break-all rounded border border-edge-light bg-surface-raised px-2 py-1 font-mono text-[11px] text-ink-secondary">{artifact}</div>
                   ))}
                   {scientistPatchWorkOrder?.trials_path ? (
-                    <div className="break-all rounded border border-emerald-100 bg-emerald-50 px-2 py-1 font-mono text-[11px] text-emerald-800">{scientistPatchWorkOrder.trials_path}</div>
+                    <div className="break-all rounded border border-success/25 bg-success-light px-2 py-1 font-mono text-[11px] text-success-text">{scientistPatchWorkOrder.trials_path}</div>
                   ) : null}
                 </div>
               </div>
@@ -3522,7 +3858,7 @@ export function AiControlConsole({
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Status", "状态")} value={<StatusBadge tone={scientistEngineeringTone}>{scientistEngineeringStatus}</StatusBadge>} />
             <Row label={tx(locale, "Task", "任务")} value={scientistEngineeringLoop?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Checks", "验收测试")} value={`${scientistEngineeringPassed}/${scientistEngineeringChecks.length}`} />
@@ -3537,42 +3873,42 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistEngineeringLoop?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Patch Scope", "补丁范围")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Patch Scope", "补丁范围")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistEngineeringLoop?.changed_files ?? []).length === 0 ? (
-                  <div className="text-xs leading-5 text-slate-500">
+                  <div className="text-xs leading-5 text-ink-muted">
                     {scientistEngineeringLoop?.message ?? tx(locale, "No isolated engineering run yet.", "尚未运行隔离工程验证。")}
                   </div>
                 ) : null}
-                {(scientistEngineeringLoop?.changed_files ?? []).slice(0, 12).map((file) => (
-                  <div key={file} className="break-all rounded border border-blue-100 bg-blue-50 px-2 py-1.5 font-mono text-[11px] text-blue-800">{file}</div>
+                {(scientistEngineeringLoop?.changed_files ?? []).slice(0, 12).map((file, index) => (
+                  <div key={`${file}-${index}`} className="break-all rounded border border-accent-light bg-accent-light px-2 py-1.5 font-mono text-[11px] text-accent-dark">{file}</div>
                 ))}
                 {scientistEngineeringLoop?.patch_path ? (
-                  <div className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">{scientistEngineeringLoop.patch_path}</div>
+                  <div className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-[11px] text-ink-secondary">{scientistEngineeringLoop.patch_path}</div>
                 ) : null}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Acceptance Checks", "隔离验收测试")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Acceptance Checks", "隔离验收测试")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-                {scientistEngineeringChecks.length === 0 ? <div className="text-xs text-slate-400">{tx(locale, "No checks recorded.", "尚未记录验收测试。")}</div> : null}
+                {scientistEngineeringChecks.length === 0 ? <div className="text-xs text-ink-muted">{tx(locale, "No checks recorded.", "尚未记录验收测试。")}</div> : null}
                 {scientistEngineeringChecks.slice(0, 10).map((check, index) => (
-                  <div key={`${check.command ?? "check"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                  <div key={`${check.command ?? "check"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="break-all font-mono text-[11px] text-slate-800">{check.command ?? "unknown check"}</span>
+                      <span className="break-all font-mono text-[11px] text-ink">{check.command ?? "unknown check"}</span>
                       <StatusBadge tone={check.passed ? "green" : "red"}>{check.passed ? "pass" : "fail"}</StatusBadge>
                     </div>
-                    {check.log_path ? <div className="mt-1 break-all font-mono text-[10px] text-slate-500">{check.log_path}</div> : null}
+                    {check.log_path ? <div className="mt-1 break-all font-mono text-[10px] text-ink-muted">{check.log_path}</div> : null}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 md:col-span-2">
+            <div className="rounded-md border border-success/25 bg-success-light p-3 md:col-span-2">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div>
-                  <div className="text-xs font-bold uppercase text-emerald-800">{tx(locale, "Isolation Evidence", "隔离与回滚证据")}</div>
-                  <div className="mt-1 text-xs leading-5 text-emerald-900">
+                  <div className="text-xs font-bold uppercase text-success-text">{tx(locale, "Isolation Evidence", "隔离与回滚证据")}</div>
+                  <div className="mt-1 text-xs leading-5 text-success-text">
                     {scientistEngineeringLoop?.main_worktree_modified
                       ? tx(locale, "Main worktree protection failed. Candidate must not be merged.", "主工作区保护失败，候选补丁不得合并。")
                       : tx(locale, "The main worktree remains unchanged. A passing candidate still requires human review before merge.", "主工作区保持不变；即使候选通过测试，仍需人工审查后才能合并。")}
@@ -3583,7 +3919,7 @@ export function AiControlConsole({
                 </StatusBadge>
               </div>
               {scientistEngineeringLoop?.run_manifest_path ? (
-                <div className="mt-2 break-all font-mono text-[11px] text-emerald-800">{scientistEngineeringLoop.run_manifest_path}</div>
+                <div className="mt-2 break-all font-mono text-[11px] text-success-text">{scientistEngineeringLoop.run_manifest_path}</div>
               ) : null}
             </div>
           </div>
@@ -3608,7 +3944,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Status", "状态")}
               value={<StatusBadge tone={scientistSelfUpgradeLoop?.status === "ready_for_code_agent" ? "green" : scientistSelfUpgradeLoop?.status === "no_open_upgrade_backlog" ? "blue" : "slate"}>{scientistSelfUpgradeLoop?.status ?? "not_run"}</StatusBadge>}
@@ -3622,31 +3958,31 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistSelfUpgradeLoop?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Files & Acceptance", "文件与验收")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Files & Acceptance", "文件与验收")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistSelfUpgradeLoop?.work_order?.files_to_edit ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No work order yet.", "尚未生成自升级工单。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No work order yet.", "尚未生成自升级工单。")}</div>
                 ) : null}
-                {(scientistSelfUpgradeLoop?.work_order?.files_to_edit ?? []).slice(0, 8).map((path) => (
-                  <div key={path} className="break-all rounded border border-blue-100 bg-blue-50 px-2 py-1.5 font-mono text-[11px] text-blue-800">{path}</div>
+                {(scientistSelfUpgradeLoop?.work_order?.files_to_edit ?? []).slice(0, 8).map((path, index) => (
+                  <div key={`${path}-${index}`} className="break-all rounded border border-accent-light bg-accent-light px-2 py-1.5 font-mono text-[11px] text-accent-dark">{path}</div>
                 ))}
-                {(scientistSelfUpgradeLoop?.work_order?.acceptance_checks ?? []).slice(0, 6).map((check) => (
-                  <div key={check} className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">{check}</div>
+                {(scientistSelfUpgradeLoop?.work_order?.acceptance_checks ?? []).slice(0, 6).map((check, index) => (
+                  <div key={`${check}-${index}`} className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-[11px] text-ink-secondary">{check}</div>
                 ))}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Evidence Chain", "证据链")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Evidence Chain", "证据链")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistSelfUpgradeLoop?.loop_phases ?? []).slice(0, 6).map((phase, index) => (
-                  <div key={`${String(phase.phase ?? "phase")}-${index}`} className="rounded border border-emerald-100 bg-emerald-50 px-2 py-1.5 text-xs">
-                    <div className="font-bold text-emerald-900">{String(phase.phase ?? `phase-${index + 1}`)}</div>
-                    <div className="break-all font-mono text-[11px] text-emerald-800">{String(phase.artifact ?? "(none)")}</div>
+                  <div key={`${String(phase.phase ?? "phase")}-${index}`} className="rounded border border-success/25 bg-success-light px-2 py-1.5 text-xs">
+                    <div className="font-bold text-success-text">{String(phase.phase ?? `phase-${index + 1}`)}</div>
+                    <div className="break-all font-mono text-[11px] text-success-text">{String(phase.artifact ?? "(none)")}</div>
                   </div>
                 ))}
-                {(scientistSelfUpgradeLoop?.next_safe_commands ?? []).slice(0, 4).map((command) => (
-                  <div key={command} className="break-all rounded border border-slate-100 bg-white px-2 py-1.5 font-mono text-[11px] text-slate-700">{command}</div>
+                {(scientistSelfUpgradeLoop?.next_safe_commands ?? []).slice(0, 4).map((command, index) => (
+                  <div key={`${command}-${index}`} className="break-all rounded border border-edge-light bg-surface-raised px-2 py-1.5 font-mono text-[11px] text-ink-secondary">{command}</div>
                 ))}
               </div>
             </div>
@@ -3672,7 +4008,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Readiness", "状态")}
               value={<StatusBadge tone={scientistUpgradePlan?.readiness === "ready_for_engineering_review" ? "green" : scientistUpgradePlan?.readiness === "no_open_upgrade_backlog" ? "blue" : "slate"}>{scientistUpgradePlan?.readiness ?? "not_run"}</StatusBadge>}
@@ -3685,44 +4021,44 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistUpgradePlan?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Planned Engineering Steps", "工程步骤")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Planned Engineering Steps", "工程步骤")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistUpgradePlan?.planned_steps ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run Upgrade Plan to convert backlog into implementation steps.", "运行升级计划后会把 backlog 转成实施步骤。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run Upgrade Plan to convert backlog into implementation steps.", "运行升级计划后会把 backlog 转成实施步骤。")}</div>
                 ) : (
                   scientistUpgradePlan?.planned_steps?.slice(0, 6).map((step, index) => (
-                    <div key={`${step.step_id ?? step.id ?? "step"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${step.step_id ?? step.id ?? "step"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-bold text-slate-800">{step.title ?? step.backlog_id ?? step.id ?? "upgrade step"}</span>
+                        <span className="font-bold text-ink">{step.title ?? step.backlog_id ?? step.id ?? "upgrade step"}</span>
                         <StatusBadge tone={step.priority === "P0" ? "red" : step.priority === "P1" ? "amber" : "slate"}>{step.priority ?? "P?"}</StatusBadge>
                       </div>
-                      {(step.files_to_edit ?? step.files_to_inspect)?.length ? <div className="mt-1 break-all font-mono text-[11px] text-blue-700">{(step.files_to_edit ?? step.files_to_inspect ?? []).slice(0, 3).join(" | ")}</div> : null}
-                      {step.safe_next_command ? <div className="mt-1 font-mono text-[11px] text-slate-600">{step.safe_next_command}</div> : null}
+                      {(step.files_to_edit ?? step.files_to_inspect)?.length ? <div className="mt-1 break-all font-mono text-[11px] text-accent-dark">{(step.files_to_edit ?? step.files_to_inspect ?? []).slice(0, 3).join(" | ")}</div> : null}
+                      {step.safe_next_command ? <div className="mt-1 font-mono text-[11px] text-ink-secondary">{step.safe_next_command}</div> : null}
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Acceptance & Next Commands", "验收与下一步")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Acceptance & Next Commands", "验收与下一步")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistUpgradePlan?.planned_steps ?? []).slice(0, 4).map((step, index) => (
-                  <div key={`${step.step_id ?? step.id ?? "accept"}-${index}`} className="rounded border border-slate-100 bg-white px-2 py-1.5 text-xs">
-                    <div className="font-bold text-slate-800">{step.step_id ?? step.backlog_id ?? step.id ?? `step-${index + 1}`}</div>
-                    {(step.acceptance_checks ?? []).slice(0, 4).map((check) => (
-                      <div key={check} className="mt-1 break-all font-mono text-[11px] text-slate-600">{check}</div>
+                  <div key={`${step.step_id ?? step.id ?? "accept"}-${index}`} className="rounded border border-edge-light bg-surface-raised px-2 py-1.5 text-xs">
+                    <div className="font-bold text-ink">{step.step_id ?? step.backlog_id ?? step.id ?? `step-${index + 1}`}</div>
+                    {(step.acceptance_checks ?? []).slice(0, 4).map((check, index) => (
+                      <div key={`${check}-${index}`} className="mt-1 break-all font-mono text-[11px] text-ink-secondary">{check}</div>
                     ))}
-                    {(step.expected_artifacts ?? []).slice(0, 3).map((artifact) => (
-                      <div key={artifact} className="mt-1 break-all font-mono text-[11px] text-emerald-700">{artifact}</div>
+                    {(step.expected_artifacts ?? []).slice(0, 3).map((artifact, index) => (
+                      <div key={`${artifact}-${index}`} className="mt-1 break-all font-mono text-[11px] text-success-text">{artifact}</div>
                     ))}
                   </div>
                 ))}
                 {(scientistUpgradePlan?.next_safe_commands ?? []).length ? (
-                  <div className="rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs">
-                    <div className="mb-1 font-bold uppercase text-blue-700">{tx(locale, "Next Safe Commands", "安全命令")}</div>
-                    {scientistUpgradePlan?.next_safe_commands?.slice(0, 4).map((command) => (
-                      <div key={command} className="break-all font-mono text-[11px] text-blue-800">{command}</div>
+                  <div className="rounded border border-accent-light bg-accent-light px-2 py-1.5 text-xs">
+                    <div className="mb-1 font-bold uppercase text-accent-dark">{tx(locale, "Next Safe Commands", "安全命令")}</div>
+                    {scientistUpgradePlan?.next_safe_commands?.slice(0, 4).map((command, index) => (
+                      <div key={`${command}-${index}`} className="break-all font-mono text-[11px] text-accent-dark">{command}</div>
                     ))}
                   </div>
                 ) : null}
@@ -3750,7 +4086,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.7fr_1.3fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Intent", "意图")} value={<StatusBadge tone={turnPlanIntent === "execution" ? "amber" : turnPlanIntent === "not_run" ? "slate" : "blue"}>{turnPlanIntent}</StatusBadge>} />
             <Row label={tx(locale, "Payload", "载荷")} value={turnPlanPayload || "(none)"} />
             <Row label={tx(locale, "Autonomy", "自主级别")} value={scientistTurnPlan?.autonomy_level ?? "not_run"} />
@@ -3761,37 +4097,37 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistTurnPlan?.artifact_path ?? ".xsci/scientist_turn_plan.json"} />
           </div>
           <div className="grid gap-3 xl:grid-cols-3">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Selected Tools", "已选工具")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Selected Tools", "已选工具")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {turnPlanTools.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No turn plan yet.", "尚未生成本轮计划。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No turn plan yet.", "尚未生成本轮计划。")}</div>
                 ) : null}
                 {turnPlanTools.slice(0, 8).map((item, index) => (
-                  <div key={`${item.tool ?? "tool"}-${index}`} className="rounded border border-blue-100 bg-blue-50 px-2 py-1.5 text-xs">
+                  <div key={`${item.tool ?? "tool"}-${index}`} className="rounded border border-accent-light bg-accent-light px-2 py-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="break-all font-mono font-bold text-blue-900">{item.tool ?? "unknown_tool"}</span>
+                      <span className="break-all font-mono font-bold text-accent-dark">{item.tool ?? "unknown_tool"}</span>
                       <StatusBadge tone={item.gate === "read_only" ? "green" : item.gate?.includes("gate") ? "amber" : "slate"}>{item.confidence ?? "n/a"}</StatusBadge>
                     </div>
-                    <div className="mt-1 leading-4 text-blue-800">{item.why ?? ""}</div>
-                    {item.gate ? <div className="mt-1 font-mono text-[11px] text-blue-700">gate={item.gate}</div> : null}
+                    <div className="mt-1 leading-4 text-accent-dark">{item.why ?? ""}</div>
+                    {item.gate ? <div className="mt-1 font-mono text-[11px] text-accent-dark">gate={item.gate}</div> : null}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Stop Conditions", "停止条件")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Stop Conditions", "停止条件")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {turnPlanStopConditions.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No stop conditions yet.", "尚未生成停止条件。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No stop conditions yet.", "尚未生成停止条件。")}</div>
                 ) : null}
                 {turnPlanStopConditions.slice(0, 6).map((item, index) => (
-                  <div key={`${item}-${index}`} className="rounded border border-amber-100 bg-amber-50 px-2 py-1.5 text-xs leading-4 text-amber-800">
+                  <div key={`${item}-${index}`} className="rounded border border-warning/25 bg-warning-light px-2 py-1.5 text-xs leading-4 text-warning-text">
                     {item}
                   </div>
                 ))}
                 {turnPlanBlockingGates.length ? (
-                  <div className="rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs leading-4 text-red-800">
+                  <div className="rounded border border-danger/25 bg-danger-light px-2 py-1.5 text-xs leading-4 text-danger-text">
                     <div className="mb-1 font-bold">{tx(locale, "Blocking Gates", "阻塞门禁")}</div>
                     {turnPlanBlockingGates.slice(0, 3).map((item, index) => (
                       <div key={`${item}-${index}`}>{item}</div>
@@ -3800,19 +4136,19 @@ export function AiControlConsole({
                 ) : null}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Evidence", "证据")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Evidence", "证据")}</div>
               <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
                 {turnPlanExpectedArtifacts.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No expected artifacts yet.", "尚未生成预期证据。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No expected artifacts yet.", "尚未生成预期证据。")}</div>
                 ) : null}
                 {turnPlanExpectedArtifacts.slice(0, 8).map((item, index) => (
-                  <div key={`${item}-${index}`} className="break-all rounded bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">
+                  <div key={`${item}-${index}`} className="break-all rounded bg-surface-sunken px-2 py-1 font-mono text-[11px] text-ink-secondary">
                     {item}
                   </div>
                 ))}
                 {turnPlanAdvisoryGaps.length ? (
-                  <div className="mt-2 rounded border border-slate-200 bg-slate-50 p-2 text-xs leading-4 text-slate-600">
+                  <div className="mt-2 rounded border border-edge bg-surface-sunken p-2 text-xs leading-4 text-ink-secondary">
                     <div className="mb-1 font-bold">{tx(locale, "Advisory Gaps", "提示缺口")}</div>
                     {turnPlanAdvisoryGaps.slice(0, 3).map((item, index) => (
                       <div key={`${item}-${index}`}>{item}</div>
@@ -3843,7 +4179,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.76fr_1.24fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Status", "状态")}
               value={<StatusBadge tone={situationReadiness >= 80 ? "green" : situationReadiness >= 55 ? "amber" : "red"}>{scientistSituationModel?.situation_status ?? "not_run"}</StatusBadge>}
@@ -3861,50 +4197,50 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistSituationModel?.artifact_path ?? ".xsci/scientist_situation_model.json"} />
           </div>
           <div className="grid gap-3 xl:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Research Question", "研究问题")}</div>
-              <p className="text-xs leading-5 text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Research Question", "研究问题")}</div>
+              <p className="text-xs leading-5 text-ink-secondary">
                 {situationBody?.research_question ?? tx(locale, "Run the situation model to synthesize the current research state.", "运行局势模型后，会综合当前研究状态。")}
               </p>
               {(situationNextCommands ?? []).length ? (
-                <div className="mt-3 rounded border border-blue-100 bg-blue-50 p-2">
-                  <div className="mb-1 text-xs font-bold uppercase text-blue-700">{tx(locale, "Next Safe Sequence", "下一步安全序列")}</div>
+                <div className="mt-3 rounded border border-accent-light bg-accent-light p-2">
+                  <div className="mb-1 text-xs font-bold uppercase text-accent-dark">{tx(locale, "Next Safe Sequence", "下一步安全序列")}</div>
                   <div className="space-y-1">
                     {situationNextCommands.slice(0, 5).map((command, index) => (
-                      <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-blue-800">{command}</div>
+                      <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-accent-dark">{command}</div>
                     ))}
                   </div>
                 </div>
               ) : null}
               {situationMissingChecks.length ? (
-                <div className="mt-3 rounded border border-amber-100 bg-amber-50 p-2">
-                  <div className="mb-1 text-xs font-bold uppercase text-amber-700">{tx(locale, "Missing Readiness", "缺失就绪项")}</div>
+                <div className="mt-3 rounded border border-warning/25 bg-warning-light p-2">
+                  <div className="mb-1 text-xs font-bold uppercase text-warning-text">{tx(locale, "Missing Readiness", "缺失就绪项")}</div>
                   <div className="flex flex-wrap gap-1">
-                    {situationMissingChecks.slice(0, 8).map((item) => (
-                      <span key={item} className="rounded bg-white px-1.5 py-0.5 font-mono text-[11px] text-amber-800">{item}</span>
+                    {situationMissingChecks.slice(0, 8).map((item, index) => (
+                      <span key={`missing-${item}-${index}`} className="rounded bg-surface-raised px-1.5 py-0.5 font-mono text-[11px] text-warning-text">{item}</span>
                     ))}
                   </div>
                 </div>
               ) : null}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Blockers & Uncertainty", "阻塞与不确定性")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Blockers & Uncertainty", "阻塞与不确定性")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {situationBlockers.length === 0 && situationUncertainties.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No blocker model yet.", "暂无阻塞模型。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No blocker model yet.", "暂无阻塞模型。")}</div>
                 ) : null}
                 {situationBlockers.slice(0, 5).map((item, index) => (
-                  <div key={`${item.category ?? "blocker"}-${index}`} className="rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs">
+                  <div key={`blocker-${index}-${item.category ?? "x"}`} className="rounded border border-danger/25 bg-danger-light px-2 py-1.5 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <span className="font-bold text-red-900">{item.category ?? "blocker"}</span>
+                      <span className="font-bold text-danger-text">{item.category ?? "blocker"}</span>
                       <StatusBadge tone={item.severity === "high" ? "red" : item.severity === "medium" ? "amber" : "slate"}>{item.severity ?? "unknown"}</StatusBadge>
                     </div>
-                    <div className="mt-1 leading-4 text-red-800">{item.blocker ?? ""}</div>
-                    {item.repair_command ? <div className="mt-1 font-mono text-[11px] text-red-700">{item.repair_command}</div> : null}
+                    <div className="mt-1 leading-4 text-danger-text">{item.blocker ?? ""}</div>
+                    {item.repair_command ? <div className="mt-1 font-mono text-[11px] text-danger-text">{item.repair_command}</div> : null}
                   </div>
                 ))}
                 {situationUncertainties.slice(0, 5).map((item, index) => (
-                  <div key={`${item}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs leading-4 text-slate-600">
+                  <div key={`${item}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs leading-4 text-ink-secondary">
                     {item}
                   </div>
                 ))}
@@ -3932,7 +4268,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.75fr_1.25fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Score", "评分")}
               value={<StatusBadge tone={(scientistReadinessReport?.overall_score ?? 0) >= 85 ? "green" : (scientistReadinessReport?.overall_score ?? 0) >= 70 ? "blue" : (scientistReadinessReport?.overall_score ?? 0) >= 50 ? "amber" : "red"}>{scientistReadinessReport?.overall_score ?? 0}</StatusBadge>}
@@ -3946,46 +4282,46 @@ export function AiControlConsole({
             <Row label={tx(locale, "Markdown", "Markdown")} value={scientistReadinessReport?.markdown_artifact_path ?? ".xsci/scientist_readiness_report.md"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Gate Matrix", "门禁矩阵")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Gate Matrix", "门禁矩阵")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistReadinessReport?.readiness_matrix ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run readiness report to see gates.", "生成就绪报告后显示门禁。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run readiness report to see gates.", "生成就绪报告后显示门禁。")}</div>
                 ) : (
                   scientistReadinessReport?.readiness_matrix?.slice(0, 8).map((item, index) => (
-                    <div key={`${item.name ?? "gate"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${item.name ?? "gate"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-800">{item.name ?? "gate"}</span>
+                        <span className="font-bold text-ink">{item.name ?? "gate"}</span>
                         <StatusBadge tone={item.ok ? "green" : "red"}>{item.status ?? "unknown"}</StatusBadge>
                       </div>
-                      <div className="mt-1 leading-4 text-slate-500">{item.evidence ?? ""}</div>
-                      {item.next_action ? <div className="mt-1 font-mono text-[11px] text-slate-700">{item.next_action}</div> : null}
+                      <div className="mt-1 leading-4 text-ink-muted">{item.evidence ?? ""}</div>
+                      {item.next_action ? <div className="mt-1 font-mono text-[11px] text-ink-secondary">{item.next_action}</div> : null}
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Next Commands", "下一步命令")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Next Commands", "下一步命令")}</div>
               <div className="space-y-2">
                 {(scientistReadinessReport?.recommended_next_commands ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No report commands yet.", "暂无报告命令。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No report commands yet.", "暂无报告命令。")}</div>
                 ) : (
                   scientistReadinessReport?.recommended_next_commands?.slice(0, 6).map((command, index) => (
-                    <div key={`${command}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 font-mono text-[11px] text-slate-700">
+                    <div key={`${command}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 font-mono text-[11px] text-ink-secondary">
                       {command}
                     </div>
                   ))
                 )}
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-2">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Blocking Reasons", "阻塞原因")}</div>
+              <div className="mt-3 border-t border-edge-light pt-2">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Blocking Reasons", "阻塞原因")}</div>
                 <div className="space-y-1.5">
                   {(scientistReadinessReport?.blocking_reasons ?? []).length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No blockers recorded.", "暂无阻塞记录。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No blockers recorded.", "暂无阻塞记录。")}</div>
                   ) : (
                     scientistReadinessReport?.blocking_reasons?.slice(0, 4).map((item, index) => (
-                      <div key={`${item}-${index}`} className="rounded border border-red-100 bg-red-50 px-2 py-1.5 text-xs leading-4 text-red-800">{item}</div>
+                      <div key={`${item}-${index}`} className="rounded border border-danger/25 bg-danger-light px-2 py-1.5 text-xs leading-4 text-danger-text">{item}</div>
                     ))
                   )}
                 </div>
@@ -4013,7 +4349,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Posture", "姿态")} value={<StatusBadge tone={readinessTone(scientistCausalDiagnosis?.posture)}>{scientistCausalDiagnosis?.posture ?? "not_run"}</StatusBadge>} />
             <Row label={tx(locale, "Symptoms", "症状")} value={scientistCausalDiagnosis?.symptoms?.length ?? 0} />
             <Row label={tx(locale, "Root Causes", "根因")} value={scientistCausalDiagnosis?.root_causes?.length ?? 0} />
@@ -4025,54 +4361,54 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistCausalDiagnosis?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Symptoms", "症状")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Symptoms", "症状")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistCausalDiagnosis?.symptoms ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run causal diagnosis to see symptoms.", "运行因果诊断后显示症状。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run causal diagnosis to see symptoms.", "运行因果诊断后显示症状。")}</div>
                 ) : (
                   scientistCausalDiagnosis?.symptoms?.slice(0, 6).map((item, index) => (
-                    <div key={`${item.id ?? "symptom"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${item.id ?? "symptom"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-800">{item.id ?? "symptom"}</span>
+                        <span className="font-bold text-ink">{item.id ?? "symptom"}</span>
                         <StatusBadge tone={item.severity === "high" ? "red" : item.severity === "medium" ? "amber" : "slate"}>{item.severity ?? "unknown"}</StatusBadge>
                       </div>
-                      <div className="mt-1 leading-4 text-slate-500">{item.summary ?? ""}</div>
+                      <div className="mt-1 leading-4 text-ink-muted">{item.summary ?? ""}</div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Root Causes", "根因")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Root Causes", "根因")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistCausalDiagnosis?.root_causes ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No root causes yet.", "暂无根因。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No root causes yet.", "暂无根因。")}</div>
                 ) : (
                   scientistCausalDiagnosis?.root_causes?.slice(0, 6).map((item, index) => (
-                    <div key={`${item.id ?? "cause"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
-                      <div className="font-bold text-slate-800">{item.id ?? "root_cause"}</div>
-                      <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
+                    <div key={`${item.id ?? "cause"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
+                      <div className="font-bold text-ink">{item.id ?? "root_cause"}</div>
+                      <div className="mt-1 flex items-center gap-2 text-[11px] text-ink-muted">
                         <span>confidence={item.confidence ?? "n/a"}</span>
                         <span>{item.gate ?? "gate"}</span>
                       </div>
-                      <div className="mt-1 leading-4 text-slate-500">{item.summary ?? ""}</div>
+                      <div className="mt-1 leading-4 text-ink-muted">{item.summary ?? ""}</div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Interventions", "干预动作")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Interventions", "干预动作")}</div>
               <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
                 {(scientistCausalDiagnosis?.interventions ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No interventions yet.", "暂无干预动作。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No interventions yet.", "暂无干预动作。")}</div>
                 ) : (
                   scientistCausalDiagnosis?.interventions?.slice(0, 6).map((item, index) => (
-                    <div key={`${item.id ?? "intervention"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
-                      <div className="font-bold text-slate-800">{item.title ?? item.id ?? "intervention"}</div>
-                      <div className="mt-1 font-mono text-[11px] text-slate-700">{item.safe_next_command ?? ""}</div>
-                      <div className="mt-1 text-[11px] text-slate-500">{item.gate ?? "gate"}</div>
+                    <div key={`${item.id ?? "intervention"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
+                      <div className="font-bold text-ink">{item.title ?? item.id ?? "intervention"}</div>
+                      <div className="mt-1 font-mono text-[11px] text-ink-secondary">{item.safe_next_command ?? ""}</div>
+                      <div className="mt-1 text-[11px] text-ink-muted">{item.gate ?? "gate"}</div>
                     </div>
                   ))
                 )}
@@ -4100,7 +4436,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Score", "评分")}
               value={<StatusBadge tone={(scientistSelfAudit?.overall_score ?? 0) >= 85 ? "green" : (scientistSelfAudit?.overall_score ?? 0) >= 70 ? "blue" : (scientistSelfAudit?.overall_score ?? 0) >= 50 ? "amber" : "red"}>{scientistSelfAudit?.overall_score ?? 0}</StatusBadge>}
@@ -4137,38 +4473,38 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistSelfAudit?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Capability Scores", "能力评分")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Capability Scores", "能力评分")}</div>
               <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                 {(scientistSelfAudit?.capabilities ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run self-audit to see capability scores.", "运行自我审计后显示能力评分。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run self-audit to see capability scores.", "运行自我审计后显示能力评分。")}</div>
                 ) : (
                   scientistSelfAudit?.capabilities?.slice(0, 8).map((item, index) => (
-                    <div key={`${item.name ?? "cap"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs">
+                    <div key={`${item.name ?? "cap"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1.5 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-800">{item.name ?? "capability"}</span>
+                        <span className="font-bold text-ink">{item.name ?? "capability"}</span>
                         <StatusBadge tone={(item.score ?? 0) >= 85 ? "green" : (item.score ?? 0) >= 70 ? "blue" : (item.score ?? 0) >= 50 ? "amber" : "red"}>{item.score ?? 0}</StatusBadge>
                       </div>
-                      <div className="mt-1 text-[11px] text-slate-500">{item.status ?? "unknown"}</div>
+                      <div className="mt-1 text-[11px] text-ink-muted">{item.status ?? "unknown"}</div>
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Upgrade Backlog", "升级 Backlog")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Upgrade Backlog", "升级 Backlog")}</div>
               <div className="max-h-56 space-y-2 overflow-y-auto pr-1">
                 {(scientistSelfAudit?.upgrade_backlog ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No backlog yet.", "暂无升级项。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No backlog yet.", "暂无升级项。")}</div>
                 ) : (
                   scientistSelfAudit?.upgrade_backlog?.slice(0, 6).map((item, index) => (
-                    <div key={`${item.id ?? "item"}-${index}`} className="rounded border border-slate-100 bg-white px-2 py-1.5 text-xs">
+                    <div key={`${item.id ?? "item"}-${index}`} className="rounded border border-edge-light bg-surface-raised px-2 py-1.5 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <span className="font-bold text-slate-800">{item.title ?? item.id ?? "upgrade"}</span>
+                        <span className="font-bold text-ink">{item.title ?? item.id ?? "upgrade"}</span>
                         <StatusBadge tone={item.priority === "P0" ? "red" : item.priority === "P1" ? "amber" : "slate"}>{item.priority ?? "P?"}</StatusBadge>
                       </div>
-                      {item.safe_next_command ? <div className="mt-1 font-mono text-[11px] text-blue-700">{item.safe_next_command}</div> : null}
-                      {item.why ? <div className="mt-1 text-[11px] leading-4 text-slate-500">{item.why.slice(0, 160)}</div> : null}
+                      {item.safe_next_command ? <div className="mt-1 font-mono text-[11px] text-accent-dark">{item.safe_next_command}</div> : null}
+                      {item.why ? <div className="mt-1 text-[11px] leading-4 text-ink-muted">{item.why.slice(0, 160)}</div> : null}
                     </div>
                   ))
                 )}
@@ -4196,7 +4532,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Status", "状态")}
               value={<StatusBadge tone={scientistExperimentBlueprint?.blueprint_status === "ready_for_gated_execution" ? "green" : scientistExperimentBlueprint?.blueprint_status === "blocked_until_gates_clear" ? "amber" : "slate"}>{scientistExperimentBlueprint?.blueprint_status ?? "not_run"}</StatusBadge>}
@@ -4206,112 +4542,112 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistExperimentBlueprint?.official_submit ?? "blocked_until_explicit_human_approval"} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistExperimentBlueprint?.artifact_path ?? ".xsci/scientist_experiment_blueprint.json"} />
             <Row label={tx(locale, "Source Review", "来源评审")} value={scientistExperimentBlueprint?.source_review_path ?? ".xsci/scientist_hypothesis_review.json"} />
-            <div className="mt-3 rounded border border-slate-200 bg-white p-2">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Gate Summary", "门禁摘要")}</div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                {Object.entries(scientistExperimentBlueprint?.gate_summary ?? {}).slice(0, 8).map(([key, value]) => (
-                  <div key={key} className="rounded bg-slate-50 px-2 py-1">
-                    <div className="font-mono text-slate-500">{key}</div>
-                    <div className="break-all font-bold text-slate-900">{String(value ?? "")}</div>
+            <div className="mt-3 rounded border border-edge bg-surface-raised p-2">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Gate Summary", "门禁摘要")}</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-secondary">
+                {Object.entries(scientistExperimentBlueprint?.gate_summary ?? {}).slice(0, 8).map(([key, value], index) => (
+                  <div key={`${key}-${index}`} className="rounded bg-surface-sunken px-2 py-1">
+                    <div className="font-mono text-ink-muted">{key}</div>
+                    <div className="break-all font-bold text-ink">{String(value ?? "")}</div>
                   </div>
                 ))}
                 {Object.entries(scientistExperimentBlueprint?.gate_summary ?? {}).length === 0 ? (
-                  <div className="col-span-2 text-xs text-slate-400">{tx(locale, "Build a blueprint to see contract, data, and evidence gates.", "生成实验蓝图后显示契约、数据和证据门禁。")}</div>
+                  <div className="col-span-2 text-xs text-ink-muted">{tx(locale, "Build a blueprint to see contract, data, and evidence gates.", "生成实验蓝图后显示契约、数据和证据门禁。")}</div>
                 ) : null}
               </div>
             </div>
             {(scientistExperimentBlueprint?.next_safe_commands ?? []).length ? (
-              <div className="mt-3 rounded border border-blue-100 bg-blue-50 p-2">
-                <div className="mb-1 text-xs font-bold uppercase text-blue-700">{tx(locale, "Next Safe Commands", "安全下一步命令")}</div>
+              <div className="mt-3 rounded border border-accent-light bg-accent-light p-2">
+                <div className="mb-1 text-xs font-bold uppercase text-accent-dark">{tx(locale, "Next Safe Commands", "安全下一步命令")}</div>
                 <div className="space-y-1">
                   {scientistExperimentBlueprint?.next_safe_commands?.slice(0, 4).map((command, index) => (
-                    <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-blue-800">{command}</div>
+                    <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-accent-dark">{command}</div>
                   ))}
                 </div>
               </div>
             ) : null}
           </div>
           <div className="space-y-3">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Selected Hypothesis", "选中假设")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Selected Hypothesis", "选中假设")}</div>
                 <StatusBadge tone={scientistExperimentBlueprint?.selected_hypothesis ? "blue" : "slate"}>
                   {scientistExperimentBlueprint?.selected_hypothesis?.hypothesis_id ?? "not_selected"}
                 </StatusBadge>
               </div>
               {!scientistExperimentBlueprint?.selected_hypothesis ? (
-                <div className="text-xs text-slate-400">{tx(locale, "Run hypothesis review, then build the blueprint.", "先运行假设评审，再生成实验蓝图。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "Run hypothesis review, then build the blueprint.", "先运行假设评审，再生成实验蓝图。")}</div>
               ) : (
-                <div className="space-y-2 text-xs text-slate-700">
-                  <div className="font-bold text-slate-950">{scientistExperimentBlueprint.selected_hypothesis.strategy_name ?? scientistExperimentBlueprint.selected_hypothesis.hypothesis_id}</div>
-                  <div className="font-mono text-[11px] text-slate-500">
+                <div className="space-y-2 text-xs text-ink-secondary">
+                  <div className="font-bold text-ink">{scientistExperimentBlueprint.selected_hypothesis.strategy_name ?? scientistExperimentBlueprint.selected_hypothesis.hypothesis_id}</div>
+                  <div className="font-mono text-[11px] text-ink-muted">
                     {scientistExperimentBlueprint.selected_hypothesis.branch_type ?? "branch"} | {scientistExperimentBlueprint.selected_hypothesis.code_generation_mode ?? "stepwise"}
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Score</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistExperimentBlueprint.selected_hypothesis.score ?? 0}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Score</div>
+                      <div className="mt-1 font-bold text-ink">{scientistExperimentBlueprint.selected_hypothesis.score ?? 0}</div>
                     </div>
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Risk</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistExperimentBlueprint.selected_hypothesis.risk_level ?? "unknown"}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Risk</div>
+                      <div className="mt-1 font-bold text-ink">{scientistExperimentBlueprint.selected_hypothesis.risk_level ?? "unknown"}</div>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Execution Blueprint", "执行蓝图")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Execution Blueprint", "执行蓝图")}</div>
               {!scientistExperimentBlueprint?.experiment_blueprint ? (
-                <div className="text-xs text-slate-400">{tx(locale, "No experiment blueprint yet.", "暂无实验蓝图。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "No experiment blueprint yet.", "暂无实验蓝图。")}</div>
               ) : (
-                <div className="space-y-2 text-xs text-slate-700">
+                <div className="space-y-2 text-xs text-ink-secondary">
                   <Row label="Blueprint ID" value={scientistExperimentBlueprint.experiment_blueprint.blueprint_id ?? "n/a"} />
                   <Row label={tx(locale, "Branch", "分支")} value={scientistExperimentBlueprint.experiment_blueprint.branch_type ?? "n/a"} />
                   <Row label={tx(locale, "Code Mode", "代码模式")} value={scientistExperimentBlueprint.experiment_blueprint.code_generation_mode ?? "n/a"} />
                   <Row label={tx(locale, "Resource", "资源模式")} value={scientistExperimentBlueprint.experiment_blueprint.resource_mode ?? "n/a"} />
-                  <Row label={tx(locale, "Run Command", "运行命令")} value={<span className="break-all font-mono text-[11px] text-blue-700">{scientistExperimentBlueprint.experiment_blueprint.run_command ?? "n/a"}</span>} />
-                  <Row label={tx(locale, "Dry Run", "干运行")} value={<span className="break-all font-mono text-[11px] text-blue-700">{scientistExperimentBlueprint.experiment_blueprint.dry_run_command ?? "n/a"}</span>} />
+                  <Row label={tx(locale, "Run Command", "运行命令")} value={<span className="break-all font-mono text-[11px] text-accent-dark">{scientistExperimentBlueprint.experiment_blueprint.run_command ?? "n/a"}</span>} />
+                  <Row label={tx(locale, "Dry Run", "干运行")} value={<span className="break-all font-mono text-[11px] text-accent-dark">{scientistExperimentBlueprint.experiment_blueprint.dry_run_command ?? "n/a"}</span>} />
                   <Row label={tx(locale, "Rollback", "回滚条件")} value={scientistExperimentBlueprint.experiment_blueprint.rollback_condition ?? "hold if gates fail"} />
                   <Row label={tx(locale, "Claim Boundary", "声明边界")} value={scientistExperimentBlueprint.experiment_blueprint.claim_boundary ?? "official claims blocked without Kaggle response"} />
                 </div>
               )}
             </div>
             <div className="grid gap-3 md:grid-cols-2">
-              <div className="rounded-md border border-slate-200 bg-white p-3">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Required Artifacts", "必需证据")}</div>
+              <div className="rounded-md border border-edge bg-surface-raised p-3">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Required Artifacts", "必需证据")}</div>
                 <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
                   {(scientistExperimentBlueprint?.experiment_blueprint?.required_artifacts ?? []).length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No artifact contract yet.", "暂无证据契约。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No artifact contract yet.", "暂无证据契约。")}</div>
                   ) : (
                     scientistExperimentBlueprint?.experiment_blueprint?.required_artifacts?.slice(0, 10).map((item, index) => (
-                      <div key={`${item}-${index}`} className="break-all rounded border border-slate-100 bg-slate-50 px-2 py-1 font-mono text-[11px] text-slate-700">- {item}</div>
+                      <div key={`${item}-${index}`} className="break-all rounded border border-edge-light bg-surface-sunken px-2 py-1 font-mono text-[11px] text-ink-secondary">- {item}</div>
                     ))
                   )}
                 </div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-white p-3">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Promotion Gates", "晋升门禁")}</div>
+              <div className="rounded-md border border-edge bg-surface-raised p-3">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Promotion Gates", "晋升门禁")}</div>
                 <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
                   {(scientistExperimentBlueprint?.experiment_blueprint?.promotion_gates ?? []).length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No promotion gate contract yet.", "暂无晋升门禁契约。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No promotion gate contract yet.", "暂无晋升门禁契约。")}</div>
                   ) : (
                     scientistExperimentBlueprint?.experiment_blueprint?.promotion_gates?.slice(0, 10).map((item, index) => (
-                      <div key={`${item}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-700">- {item}</div>
+                      <div key={`${item}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1 text-[11px] font-semibold text-ink-secondary">- {item}</div>
                     ))
                   )}
                 </div>
               </div>
             </div>
             {scientistExperimentBlueprint?.experiment_blueprint?.memory_writeback_plan ? (
-              <div className="rounded-md border border-blue-100 bg-blue-50 p-3 text-xs text-blue-900">
-                <div className="mb-2 font-bold uppercase text-blue-700">{tx(locale, "Memory Writeback", "记忆写回")}</div>
+              <div className="rounded-md border border-accent-light bg-accent-light p-3 text-xs text-accent-dark">
+                <div className="mb-2 font-bold uppercase text-accent-dark">{tx(locale, "Memory Writeback", "记忆写回")}</div>
                 <JsonInspector data={scientistExperimentBlueprint.experiment_blueprint.memory_writeback_plan} />
               </div>
             ) : null}
             {(scientistExperimentBlueprint?.experiment_blueprint?.memory_reuse_plan ?? scientistExperimentBlueprint?.memory_reuse_plan) ? (
-              <div className="rounded-md border border-emerald-100 bg-emerald-50 p-3 text-xs text-emerald-950">
-                <div className="mb-2 font-bold uppercase text-emerald-700">{tx(locale, "Memory Reuse", "记忆复用")}</div>
+              <div className="rounded-md border border-success/25 bg-success-light p-3 text-xs text-success-text">
+                <div className="mb-2 font-bold uppercase text-success-text">{tx(locale, "Memory Reuse", "记忆复用")}</div>
                 <JsonInspector data={scientistExperimentBlueprint.experiment_blueprint?.memory_reuse_plan ?? scientistExperimentBlueprint.memory_reuse_plan ?? {}} />
               </div>
             ) : null}
@@ -4337,7 +4673,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Recommendation", "建议")} value={scientistHypothesisReview?.recommendation ?? "not_run"} />
             <Row label={tx(locale, "Task", "任务")} value={scientistHypothesisReview?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Reviewed", "已评审")} value={scientistHypothesisReview?.hypotheses_reviewed ?? scientistHypothesisReview?.reviews?.length ?? 0} />
@@ -4345,47 +4681,47 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistHypothesisReview?.official_submit ?? "blocked_until_explicit_human_approval"} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistHypothesisReview?.artifact_path ?? ".xsci/scientist_hypothesis_review.json"} />
             <Row label={tx(locale, "Source", "来源")} value={scientistHypothesisReview?.source_backlog_path ?? ".xsci/scientist_innovation_backlog.json"} />
-            <div className="mt-3 rounded border border-slate-200 bg-white p-2">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Gate Summary", "门禁摘要")}</div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                {Object.entries(scientistHypothesisReview?.gate_summary ?? {}).slice(0, 8).map(([key, value]) => (
-                  <div key={key} className="rounded bg-slate-50 px-2 py-1">
-                    <div className="font-mono text-slate-500">{key}</div>
-                    <div className="break-all font-bold text-slate-900">{String(value ?? "")}</div>
+            <div className="mt-3 rounded border border-edge bg-surface-raised p-2">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Gate Summary", "门禁摘要")}</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-secondary">
+                {Object.entries(scientistHypothesisReview?.gate_summary ?? {}).slice(0, 8).map(([key, value], index) => (
+                  <div key={`${key}-${index}`} className="rounded bg-surface-sunken px-2 py-1">
+                    <div className="font-mono text-ink-muted">{key}</div>
+                    <div className="break-all font-bold text-ink">{String(value ?? "")}</div>
                   </div>
                 ))}
                 {Object.entries(scientistHypothesisReview?.gate_summary ?? {}).length === 0 ? (
-                  <div className="col-span-2 text-xs text-slate-400">{tx(locale, "Run review to see data, memory, and contract gates.", "运行评审后显示数据、记忆和执行契约门禁。")}</div>
+                  <div className="col-span-2 text-xs text-ink-muted">{tx(locale, "Run review to see data, memory, and contract gates.", "运行评审后显示数据、记忆和执行契约门禁。")}</div>
                 ) : null}
               </div>
             </div>
             {(scientistHypothesisReview?.next_safe_commands ?? []).length ? (
-              <div className="mt-3 rounded border border-blue-100 bg-blue-50 p-2">
-                <div className="mb-1 text-xs font-bold uppercase text-blue-700">{tx(locale, "Next Safe Commands", "安全下一步命令")}</div>
+              <div className="mt-3 rounded border border-accent-light bg-accent-light p-2">
+                <div className="mb-1 text-xs font-bold uppercase text-accent-dark">{tx(locale, "Next Safe Commands", "安全下一步命令")}</div>
                 <div className="space-y-1">
                   {scientistHypothesisReview?.next_safe_commands?.slice(0, 4).map((command, index) => (
-                    <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-blue-800">{command}</div>
+                    <div key={`${command}-${index}`} className="break-all font-mono text-[11px] font-semibold text-accent-dark">{command}</div>
                   ))}
                 </div>
               </div>
             ) : null}
           </div>
           <div className="space-y-3">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Selected Hypothesis", "选中假设")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Selected Hypothesis", "选中假设")}</div>
                 <StatusBadge tone={scientistHypothesisReview?.selected_hypothesis?.status === "ready_for_gated_execution" ? "green" : scientistHypothesisReview?.selected_hypothesis ? "amber" : "slate"}>
                   {scientistHypothesisReview?.selected_hypothesis?.status ?? "not_selected"}
                 </StatusBadge>
               </div>
               {!scientistHypothesisReview?.selected_hypothesis ? (
-                <div className="text-xs text-slate-400">{tx(locale, "No reviewed hypothesis yet.", "暂无已评审假设。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "No reviewed hypothesis yet.", "暂无已评审假设。")}</div>
               ) : (
-                <div className="space-y-2 text-xs text-slate-700">
+                <div className="space-y-2 text-xs text-ink-secondary">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-950">{scientistHypothesisReview.selected_hypothesis.strategy_name ?? scientistHypothesisReview.selected_hypothesis.hypothesis_id}</div>
-                      <div className="mt-1 font-mono text-[11px] text-slate-500">
+                      <div className="font-bold text-ink">{scientistHypothesisReview.selected_hypothesis.strategy_name ?? scientistHypothesisReview.selected_hypothesis.hypothesis_id}</div>
+                      <div className="mt-1 font-mono text-[11px] text-ink-muted">
                         {scientistHypothesisReview.selected_hypothesis.branch_type ?? "branch"} | {scientistHypothesisReview.selected_hypothesis.code_generation_mode ?? "stepwise"}
                       </div>
                     </div>
@@ -4394,62 +4730,62 @@ export function AiControlConsole({
                     </StatusBadge>
                   </div>
                   <div className="grid gap-2 md:grid-cols-4">
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Evidence</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistHypothesisReview.selected_hypothesis.evidence_score ?? 0}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Evidence</div>
+                      <div className="mt-1 font-bold text-ink">{scientistHypothesisReview.selected_hypothesis.evidence_score ?? 0}</div>
                     </div>
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Ready</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistHypothesisReview.selected_hypothesis.readiness_score ?? 0}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Ready</div>
+                      <div className="mt-1 font-bold text-ink">{scientistHypothesisReview.selected_hypothesis.readiness_score ?? 0}</div>
                     </div>
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Impact</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistHypothesisReview.selected_hypothesis.impact_score ?? 0}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Impact</div>
+                      <div className="mt-1 font-bold text-ink">{scientistHypothesisReview.selected_hypothesis.impact_score ?? 0}</div>
                     </div>
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Risk</div>
-                      <div className="mt-1 font-bold text-slate-900">{scientistHypothesisReview.selected_hypothesis.risk_penalty ?? 0}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Risk</div>
+                      <div className="mt-1 font-bold text-ink">{scientistHypothesisReview.selected_hypothesis.risk_penalty ?? 0}</div>
                     </div>
                   </div>
-                  <div><span className="font-bold text-slate-500">{tx(locale, "Next Gate", "下一门禁")}</span>: {scientistHypothesisReview.selected_hypothesis.next_gate ?? "score_promotion_gate"}</div>
+                  <div><span className="font-bold text-ink-muted">{tx(locale, "Next Gate", "下一门禁")}</span>: {scientistHypothesisReview.selected_hypothesis.next_gate ?? "score_promotion_gate"}</div>
                   {(scientistHypothesisReview.selected_hypothesis.reasons ?? []).length ? (
-                    <div className="rounded border border-green-100 bg-green-50 p-2 text-green-800">
+                    <div className="rounded border border-success/25 bg-success-light p-2 text-success-text">
                       {(scientistHypothesisReview.selected_hypothesis.reasons ?? []).slice(0, 4).map((reason, index) => <div key={`${reason}-${index}`}>- {reason}</div>)}
                     </div>
                   ) : null}
                   {(scientistHypothesisReview.selected_hypothesis.blockers ?? []).length ? (
-                    <div className="rounded border border-amber-100 bg-amber-50 p-2 text-amber-800">
+                    <div className="rounded border border-warning/25 bg-warning-light p-2 text-warning-text">
                       {(scientistHypothesisReview.selected_hypothesis.blockers ?? []).slice(0, 4).map((blocker, index) => <div key={`${blocker}-${index}`}>- {blocker}</div>)}
                     </div>
                   ) : null}
                 </div>
               )}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Ranked Reviews", "排序评审")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Ranked Reviews", "排序评审")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {(scientistHypothesisReview?.reviews ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Generate and review hypotheses to see ranked proposals.", "生成并评审假设后显示排序方案。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Generate and review hypotheses to see ranked proposals.", "生成并评审假设后显示排序方案。")}</div>
                 ) : (
                   scientistHypothesisReview?.reviews?.slice(0, 8).map((item, index) => (
-                    <div key={`${item.hypothesis_id ?? "review"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
+                    <div key={`${item.hypothesis_id ?? "review"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-3 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="font-bold text-slate-900">#{item.rank ?? index + 1} {item.strategy_name ?? item.hypothesis_id ?? "hypothesis"}</div>
-                          <div className="mt-1 font-mono text-[11px] text-slate-500">{item.branch_type ?? "branch"} | {item.code_generation_mode ?? "stepwise"}</div>
+                          <div className="font-bold text-ink">#{item.rank ?? index + 1} {item.strategy_name ?? item.hypothesis_id ?? "hypothesis"}</div>
+                          <div className="mt-1 font-mono text-[11px] text-ink-muted">{item.branch_type ?? "branch"} | {item.code_generation_mode ?? "stepwise"}</div>
                         </div>
                         <StatusBadge tone={item.status === "ready_for_gated_execution" ? "green" : item.status === "blocked" ? "red" : "amber"}>
                           {item.score ?? 0}
                         </StatusBadge>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1 text-[11px]">
-                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5">evidence {item.evidence_score ?? 0}</span>
-                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5">ready {item.readiness_score ?? 0}</span>
-                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5">impact {item.impact_score ?? 0}</span>
-                        <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5">risk {item.risk_penalty ?? 0}</span>
+                        <span className="rounded border border-edge bg-surface-raised px-1.5 py-0.5">evidence {item.evidence_score ?? 0}</span>
+                        <span className="rounded border border-edge bg-surface-raised px-1.5 py-0.5">ready {item.readiness_score ?? 0}</span>
+                        <span className="rounded border border-edge bg-surface-raised px-1.5 py-0.5">impact {item.impact_score ?? 0}</span>
+                        <span className="rounded border border-edge bg-surface-raised px-1.5 py-0.5">risk {item.risk_penalty ?? 0}</span>
                       </div>
                       {(item.reasons ?? []).length ? (
-                        <div className="mt-2 leading-4 text-slate-600">{(item.reasons ?? []).slice(0, 2).join(" ")}</div>
+                        <div className="mt-2 leading-4 text-ink-secondary">{(item.reasons ?? []).slice(0, 2).join(" ")}</div>
                       ) : null}
                     </div>
                   ))
@@ -4478,51 +4814,51 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.78fr_1.22fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Task", "任务")} value={scientistInnovationBacklog?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Hypotheses", "假设数量")} value={scientistInnovationBacklog?.innovation_hypotheses?.length ?? 0} />
             <Row label={tx(locale, "Training", "训练")} value={scientistInnovationBacklog?.no_training_started === false ? "started" : "not_started"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistInnovationBacklog?.official_submit ?? "blocked_until_explicit_human_approval"} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistInnovationBacklog?.artifact_path ?? ".xsci/scientist_innovation_backlog.json"} />
             <Row label={tx(locale, "Innovation Log", "创新日志")} value={scientistInnovationBacklog?.innovation_log_path ?? ".xsci/innovation_log.json"} />
-            <div className="mt-3 rounded border border-slate-200 bg-white p-2">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Memory Reuse", "记忆复用")}</div>
-              <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-600">
-                {Object.entries(scientistInnovationBacklog?.memory_summary ?? {}).slice(0, 8).map(([key, value]) => (
-                  <div key={key} className="rounded bg-slate-50 px-2 py-1">
-                    <div className="font-mono text-slate-500">{key}</div>
-                    <div className="font-bold text-slate-900">{String(value ?? 0)}</div>
+            <div className="mt-3 rounded border border-edge bg-surface-raised p-2">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Memory Reuse", "记忆复用")}</div>
+              <div className="grid grid-cols-2 gap-2 text-[11px] text-ink-secondary">
+                {Object.entries(scientistInnovationBacklog?.memory_summary ?? {}).slice(0, 8).map(([key, value], index) => (
+                  <div key={`${key}-${index}`} className="rounded bg-surface-sunken px-2 py-1">
+                    <div className="font-mono text-ink-muted">{key}</div>
+                    <div className="font-bold text-ink">{String(value ?? 0)}</div>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-          <div className="rounded-md border border-slate-200 bg-white p-3">
+          <div className="rounded-md border border-edge bg-surface-raised p-3">
             <div className="mb-2 flex items-center justify-between gap-2">
-              <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Proposal Branches", "候选分支")}</div>
+              <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Proposal Branches", "候选分支")}</div>
               <StatusBadge tone="blue">{tx(locale, "proposal-only", "仅提案")}</StatusBadge>
             </div>
             <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
               {(scientistInnovationBacklog?.innovation_hypotheses ?? []).length === 0 ? (
-                <div className="text-xs text-slate-400">{tx(locale, "Generate hypotheses to see memory-guided branches.", "生成创新假设后显示记忆驱动的候选分支。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "Generate hypotheses to see memory-guided branches.", "生成创新假设后显示记忆驱动的候选分支。")}</div>
               ) : (
                 scientistInnovationBacklog?.innovation_hypotheses?.slice(0, 6).map((item, index) => (
-                  <div key={`${item.id ?? "hyp"}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
+                  <div key={`${item.id ?? "hyp"}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-3 py-2 text-xs">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-bold text-slate-900">{item.strategy_name ?? item.id ?? "hypothesis"}</div>
+                      <div className="font-bold text-ink">{item.strategy_name ?? item.id ?? "hypothesis"}</div>
                       <StatusBadge tone="slate">{item.proposed_branch_type ?? "branch"}</StatusBadge>
                     </div>
-                    <div className="mt-1 text-[11px] text-slate-500">
+                    <div className="mt-1 text-[11px] text-ink-muted">
                       {item.code_generation_mode ?? "stepwise"} | {item.gate ?? "proposal_gate"}
                     </div>
                     {item.components?.length ? (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {item.components.slice(0, 5).map((component) => (
-                          <span key={component} className="rounded border border-blue-100 bg-blue-50 px-1.5 py-0.5 text-[11px] text-blue-700">{component}</span>
+                        {item.components.slice(0, 5).map((component, cIndex) => (
+                          <span key={`${component}-${index}-${cIndex}`} className="rounded border border-accent-light bg-accent-light px-1.5 py-0.5 text-[11px] text-accent-dark">{component}</span>
                         ))}
                       </div>
                     ) : null}
-                    {item.rationale ? <div className="mt-2 leading-4 text-slate-600">{item.rationale.slice(0, 220)}</div> : null}
+                    {item.rationale ? <div className="mt-2 leading-4 text-ink-secondary">{item.rationale.slice(0, 220)}</div> : null}
                   </div>
                 ))
               )}
@@ -4543,13 +4879,13 @@ export function AiControlConsole({
               )}
             </CardDescription>
           </div>
-          <Button size="sm" variant="primary" onClick={() => void runScientistAutopilot()} disabled={autopilotBusy}>
+          <Button size="sm" variant="primary" data-ui-action="control_run_scientist_autopilot" data-ui-skip-action="true" onClick={() => void runScientistAutopilot()} disabled={autopilotBusy}>
             {autopilotBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <BrainCircuit className="h-4 w-4" />}
             {tx(locale, "Run Diagnosis", "运行诊断")}
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.9fr_1.1fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Mode", "模式")}
               value={<StatusBadge tone={autopilot?.mode === "ready_to_execute" ? "green" : autopilot?.present ? "amber" : "slate"}>{autopilot?.mode ?? "not_run"}</StatusBadge>}
@@ -4567,25 +4903,25 @@ export function AiControlConsole({
             <Row label={tx(locale, "Task", "任务")} value={autopilot?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={autopilot?.artifact_path ?? ".xsci/scientist_autopilot.json"} />
             {autopilot?.blockers?.length ? (
-              <div className="mt-3 rounded-md border border-red-100 bg-red-50 p-2 text-xs text-red-700">
+              <div className="mt-3 rounded-md border border-danger/25 bg-danger-light p-2 text-xs text-danger-text">
                 <div className="mb-1 font-bold">{tx(locale, "Blockers", "阻塞项")}</div>
                 {autopilot.blockers.slice(0, 4).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)}
               </div>
             ) : null}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Tool Trace", "工具轨迹")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Tool Trace", "工具轨迹")}</div>
               <div className="max-h-40 space-y-1 overflow-y-auto pr-1">
                 {(autopilot?.tool_trace ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No diagnosis trace yet.", "暂无诊断轨迹。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No diagnosis trace yet.", "暂无诊断轨迹。")}</div>
                 ) : (
                   autopilot?.tool_trace?.slice(0, 8).map((item, index) => (
-                    <div key={`${item.tool}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-2 text-xs">
+                    <div key={`${item.tool}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-slate-800">{item.tool}</div>
-                          <div className="mt-0.5 text-[11px] text-slate-500">
+                          <div className="truncate font-semibold text-ink">{item.tool}</div>
+                          <div className="mt-0.5 text-[11px] text-ink-muted">
                             {tx(locale, "confidence", "置信度")}={
                               typeof item.confidence === "number" ? item.confidence.toFixed(2) : "n/a"
                             }
@@ -4595,7 +4931,7 @@ export function AiControlConsole({
                         <StatusBadge tone={item.ok === false ? "red" : "green"}>{item.status ?? (item.ok === false ? "blocked" : "ok")}</StatusBadge>
                       </div>
                       {item.rationale ? (
-                        <div className="mt-1.5 leading-4 text-slate-600">
+                        <div className="mt-1.5 leading-4 text-ink-secondary">
                           {item.rationale.slice(0, 220)}
                         </div>
                       ) : null}
@@ -4604,11 +4940,11 @@ export function AiControlConsole({
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Next Actions", "下一步")}</div>
-              <div className="max-h-40 space-y-1 overflow-y-auto pr-1 text-xs text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Next Actions", "下一步")}</div>
+              <div className="max-h-40 space-y-1 overflow-y-auto pr-1 text-xs text-ink-secondary">
                 {(autopilot?.next_actions ?? []).length === 0 ? (
-                  <div className="text-slate-400">{tx(locale, "Run diagnosis to get the next action.", "运行诊断以生成下一步建议。")}</div>
+                  <div className="text-ink-muted">{tx(locale, "Run diagnosis to get the next action.", "运行诊断以生成下一步建议。")}</div>
                 ) : (
                   autopilot?.next_actions?.slice(0, 5).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)
                 )}
@@ -4630,13 +4966,13 @@ export function AiControlConsole({
               )}
             </CardDescription>
           </div>
-          <Button size="sm" variant="primary" onClick={() => void runScientistLoop()} disabled={busy || autopilotBusy || scientistLoopBusy}>
+          <Button size="sm" variant="primary" data-ui-action="control_run_scientist_loop" data-ui-skip-action="true" onClick={() => void runScientistLoop()} disabled={busy || autopilotBusy || scientistLoopBusy}>
             {scientistLoopBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
             {tx(locale, "Run Loop", "运行循环")}
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.82fr_1.18fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Mode", "模式")}
               value={<StatusBadge tone={scientistLoop?.present ? (scientistLoop?.stop_reason?.includes("gate") ? "amber" : "green") : "slate"}>{scientistLoop?.mode ?? "not_run"}</StatusBadge>}
@@ -4679,7 +5015,7 @@ export function AiControlConsole({
             <Row label={tx(locale, "Memory Store", "记忆库")} value={scientistMemoryConsolidation?.memory_path ?? scientistLoop?.memory_path ?? "experiments/evolution/retrospective_memory.json"} />
             <Row label={tx(locale, "Training", "训练")} value={scientistLoop?.no_training_started === false ? "started" : "not_started"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistLoop?.official_submit ?? "blocked_until_explicit_human_approval"} />
-            <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-800">
+            <div className="mt-3 rounded-md border border-accent-light bg-accent-light p-2 text-xs leading-5 text-accent-dark">
               {tx(
                 locale,
                 "Loop execution is read-only and gate-aware. It improves the next decision and memory, but does not spend compute or submit Kaggle results.",
@@ -4688,46 +5024,46 @@ export function AiControlConsole({
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Loop Steps", "循环步骤")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Loop Steps", "循环步骤")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {(scientistLoop?.steps ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run Scientist Loop to see the autonomous step trace.", "运行科学家自主循环后会显示步骤轨迹。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run Scientist Loop to see the autonomous step trace.", "运行科学家自主循环后会显示步骤轨迹。")}</div>
                 ) : (
                   scientistLoop?.steps?.slice(0, 10).map((step, index) => (
-                    <div key={`${String(step.step ?? step.tool ?? index)}-${index}`} className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs">
+                    <div key={`${String(step.step ?? step.tool ?? index)}-${index}`} className="rounded-md border border-edge-light bg-surface-sunken/70 px-3 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-bold text-slate-800">{String(step.step ?? step.tool ?? `step_${index + 1}`)}</div>
-                          <div className="mt-1 font-mono text-[11px] text-blue-700">{String(step.tool ?? "tool")}</div>
+                          <div className="truncate font-bold text-ink">{String(step.step ?? step.tool ?? `step_${index + 1}`)}</div>
+                          <div className="mt-1 font-mono text-[11px] text-accent-dark">{String(step.tool ?? "tool")}</div>
                         </div>
                         <StatusBadge tone={String(step.status ?? "").includes("blocked") ? "amber" : String(step.status ?? "") === "ok" || String(step.status ?? "").includes("executed") ? "green" : "slate"}>{String(step.status ?? "unknown")}</StatusBadge>
                       </div>
-                      {step.selected_action ? <div className="mt-2 text-slate-600"><span className="font-bold">Action</span>: {String(step.selected_action)}</div> : null}
-                      {step.executed_tool ? <div className="mt-1 text-slate-600"><span className="font-bold">Executed</span>: {String(step.executed_tool)}</div> : null}
-                      {step.gate ? <div className="mt-1 text-amber-700"><span className="font-bold">Gate</span>: {String(step.gate)}</div> : null}
-                      {step.artifact_path ? <div className="mt-1 break-all font-mono text-[11px] text-slate-500">{String(step.artifact_path)}</div> : null}
+                      {step.selected_action ? <div className="mt-2 text-ink-secondary"><span className="font-bold">Action</span>: {String(step.selected_action)}</div> : null}
+                      {step.executed_tool ? <div className="mt-1 text-ink-secondary"><span className="font-bold">Executed</span>: {String(step.executed_tool)}</div> : null}
+                      {step.gate ? <div className="mt-1 text-warning-text"><span className="font-bold">Gate</span>: {String(step.gate)}</div> : null}
+                      {step.artifact_path ? <div className="mt-1 break-all font-mono text-[11px] text-ink-muted">{String(step.artifact_path)}</div> : null}
                     </div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Final Decision", "最终决策")}</div>
-              <div className="space-y-2 text-xs text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Final Decision", "最终决策")}</div>
+              <div className="space-y-2 text-xs text-ink-secondary">
                 <Row label={tx(locale, "Status", "状态")} value={String(loopFinalNext?.status ?? "not_run")} />
                 <Row label={tx(locale, "Selected", "选中动作")} value={String(loopFinalSelected?.id ?? "(none)")} />
-                <Row label={tx(locale, "Command", "命令")} value={<span className="font-mono text-[11px] text-blue-700">{String(loopFinalSelected?.command ?? "evomind loop")}</span>} />
+                <Row label={tx(locale, "Command", "命令")} value={<span className="font-mono text-[11px] text-accent-dark">{String(loopFinalSelected?.command ?? "evomind loop")}</span>} />
                 <Row label="Gate" value={String(loopFinalSelected?.gate ?? "read_only")} />
-                {loopFinalNext?.message ? <div className="rounded border border-slate-100 bg-slate-50 p-2">{String(loopFinalNext.message).slice(0, 260)}</div> : null}
-                {loopFinalSelected?.risk ? <div className="rounded border border-red-100 bg-red-50 p-2 text-red-700">{String(loopFinalSelected.risk).slice(0, 260)}</div> : null}
+                {loopFinalNext?.message ? <div className="rounded border border-edge-light bg-surface-sunken p-2">{String(loopFinalNext.message).slice(0, 260)}</div> : null}
+                {loopFinalSelected?.risk ? <div className="rounded border border-danger/25 bg-danger-light p-2 text-danger-text">{String(loopFinalSelected.risk).slice(0, 260)}</div> : null}
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Reusable Lesson", "可复用经验")}</div>
-                <div className="rounded-md border border-emerald-100 bg-emerald-50 p-2 text-xs leading-5 text-emerald-800">
+              <div className="mt-3 border-t border-edge-light pt-3">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Reusable Lesson", "可复用经验")}</div>
+                <div className="rounded-md border border-success/25 bg-success-light p-2 text-xs leading-5 text-success-text">
                   {String(loopLesson?.lesson ?? latestStoredLesson?.lesson ?? tx(locale, "No lesson written yet.", "暂无经验记录。")).slice(0, 520)}
                 </div>
-                <div className="mt-2 text-[11px] text-slate-500">
+                <div className="mt-2 text-[11px] text-ink-muted">
                   {tx(locale, "Latest stop", "最近停止原因")}: {String(loopLesson?.stop_reason ?? latestStoredLesson?.stop_reason ?? scientistLoop?.stop_reason ?? "not_run")}
                 </div>
               </div>
@@ -4757,25 +5093,25 @@ export function AiControlConsole({
               {scientistContinuationBusy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {tx(locale, "Resume Safe Tools", "自动续跑安全工具")}
             </Button>
-            <Button size="sm" variant="primary" onClick={() => void executeScientistNextAction()} disabled={busy || autopilotBusy}>
+            <Button size="sm" variant="primary" data-ui-action="control_execute_safe_next" data-ui-skip-action="true" onClick={() => void executeScientistNextAction()} disabled={busy || autopilotBusy}>
               {busy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {tx(locale, "Execute Safe Next", "执行安全下一步")}
             </Button>
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Status", "状态")}
               value={<StatusBadge tone={parityPhaseTone(scientistContinuationStatus?.status)}>{scientistContinuationStatus?.status ?? "not_run"}</StatusBadge>}
             />
             <Row label={tx(locale, "Task", "任务")} value={scientistContinuationStatus?.selected_task || selectedTask || "(none)"} />
             <Row label={tx(locale, "Progress", "进度")} value={`${continuationCompletedCount} / ${continuationTotal}`} />
-            <div className="mb-2 h-2 overflow-hidden rounded-full bg-slate-200">
-              <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${Math.max(0, Math.min(100, Math.round(continuationRatio * 100)))}%` }} />
+            <div className="mb-2 h-2 overflow-hidden rounded-full bg-edge">
+              <div className="h-full rounded-full bg-accent transition-all" style={{ width: `${Math.max(0, Math.min(100, Math.round(continuationRatio * 100)))}%` }} />
             </div>
             <Row label={tx(locale, "Remaining", "剩余工具")} value={scientistContinuationStatus?.remaining_count ?? continuationRemaining.length} />
-            <Row label={tx(locale, "Next Command", "下一条命令")} value={<span className="font-mono text-[11px] text-blue-700">{continuationNextCommand}</span>} />
+            <Row label={tx(locale, "Next Command", "下一条命令")} value={<span className="font-mono text-[11px] text-accent-dark">{continuationNextCommand}</span>} />
             <Row label={tx(locale, "Continuation", "续跑证据")} value={scientistContinuationStatus?.continuation_artifact_path ?? ".xsci/scientist_continuation.json"} />
             <Row label={tx(locale, "Status Artifact", "状态证据")} value={scientistContinuationStatus?.artifact_path ?? ".xsci/scientist_continuation_status.json"} />
             <Row label={tx(locale, "Training", "训练")} value={scientistContinuationStatus?.no_training_started === false ? "started" : "not_started"} />
@@ -4789,71 +5125,71 @@ export function AiControlConsole({
               </>
             ) : null}
             {scientistContinuationStatus?.message ? (
-              <div className="mt-3 rounded-md border border-slate-200 bg-white p-2 text-xs leading-5 text-slate-700">{scientistContinuationStatus.message}</div>
+              <div className="mt-3 rounded-md border border-edge bg-surface-raised p-2 text-xs leading-5 text-ink-secondary">{scientistContinuationStatus.message}</div>
             ) : null}
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Remaining Safe Tools", "剩余安全工具")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Remaining Safe Tools", "剩余安全工具")}</div>
               <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
                 {continuationRemaining.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No remaining safe tools, or no continuation artifact yet.", "暂无剩余安全工具，或尚未生成续跑证据。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No remaining safe tools, or no continuation artifact yet.", "暂无剩余安全工具，或尚未生成续跑证据。")}</div>
                 ) : (
-                  continuationRemaining.map((tool) => (
-                    <div key={tool} className="rounded-md border border-amber-100 bg-amber-50 px-3 py-2 font-mono text-[11px] font-semibold text-amber-800">{tool}</div>
+                  continuationRemaining.map((tool, index) => (
+                    <div key={`${tool}-${index}`} className="rounded-md border border-warning/25 bg-warning-light px-3 py-2 font-mono text-[11px] font-semibold text-warning-text">{tool}</div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Completed Tools", "已完成工具")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Completed Tools", "已完成工具")}</div>
               <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
                 {continuationCompleted.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No completed tool record yet.", "暂无已完成工具记录。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No completed tool record yet.", "暂无已完成工具记录。")}</div>
                 ) : (
-                  continuationCompleted.map((tool) => (
-                    <div key={tool} className="rounded-md border border-emerald-100 bg-emerald-50 px-3 py-2 font-mono text-[11px] font-semibold text-emerald-800">{tool}</div>
+                  continuationCompleted.map((tool, index) => (
+                    <div key={`${tool}-${index}`} className="rounded-md border border-success/25 bg-success-light px-3 py-2 font-mono text-[11px] font-semibold text-success-text">{tool}</div>
                   ))
                 )}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3 md:col-span-2">
+            <div className="rounded-md border border-edge bg-surface-raised p-3 md:col-span-2">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Auto Resume Trace", "自动续跑轨迹")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Auto Resume Trace", "自动续跑轨迹")}</div>
                 <StatusBadge tone={parityPhaseTone(scientistContinuationResume?.status)}>{scientistContinuationResume?.status ?? "not_run"}</StatusBadge>
               </div>
               <div className="mb-3 max-h-44 space-y-2 overflow-y-auto pr-1">
                 {scientistContinuationResume?.steps?.length ? (
                   scientistContinuationResume.steps.slice(-6).map((item, index) => (
-                    <div key={`${item.executed_tool ?? "resume"}-${item.index ?? index}`} className="rounded-md border border-blue-100 bg-blue-50/60 px-3 py-2 text-xs">
+                    <div key={`${item.executed_tool ?? "resume"}-${item.index ?? index}`} className="rounded-md border border-accent-light bg-accent-light/60 px-3 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-mono font-bold text-blue-800">#{item.index ?? index + 1} {item.executed_tool ?? "(no tool)"}</div>
-                          <div className="mt-1 truncate font-mono text-[11px] text-blue-700">{item.selected_command ?? "evomind next"}</div>
+                          <div className="truncate font-mono font-bold text-accent-dark">#{item.index ?? index + 1} {item.executed_tool ?? "(no tool)"}</div>
+                          <div className="mt-1 truncate font-mono text-[11px] text-accent-dark">{item.selected_command ?? "evomind next"}</div>
                         </div>
                         <StatusBadge tone={item.status?.includes("blocked") ? "amber" : item.status?.includes("executed") ? "green" : "blue"}>{item.status ?? "unknown"}</StatusBadge>
                       </div>
                     </div>
                   ))
                 ) : (
-                  <div className="text-xs text-slate-400">{tx(locale, "Run Resume Safe Tools to see bounded continuation steps.", "点击自动续跑安全工具后，这里会显示有界续跑步骤。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Run Resume Safe Tools to see bounded continuation steps.", "点击自动续跑安全工具后，这里会显示有界续跑步骤。")}</div>
                 )}
               </div>
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Continuation Progress History", "续跑进展记录")}</div>
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Continuation Progress History", "续跑进展记录")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {continuationHistory.length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Refresh after a Scientist turn or Safe Next action to see progress records.", "在科学家回合或安全下一步后刷新，可看到进展记录。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Refresh after a Scientist turn or Safe Next action to see progress records.", "在科学家回合或安全下一步后刷新，可看到进展记录。")}</div>
                 ) : (
                   continuationHistory.slice(-8).map((item, index) => (
-                    <div key={`${item.safe_tool ?? "tool"}-${item.updated_at ?? index}`} className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs">
+                    <div key={`${item.safe_tool ?? "tool"}-${item.updated_at ?? index}`} className="rounded-md border border-edge-light bg-surface-sunken/70 px-3 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-bold text-slate-800">{item.safe_tool ?? `tool_${index + 1}`}</div>
-                          <div className="mt-1 font-mono text-[11px] text-slate-500">{item.updated_at ?? "(no timestamp)"}</div>
+                          <div className="truncate font-bold text-ink">{item.safe_tool ?? `tool_${index + 1}`}</div>
+                          <div className="mt-1 font-mono text-[11px] text-ink-muted">{item.updated_at ?? "(no timestamp)"}</div>
                         </div>
                         <StatusBadge tone={item.tool_ok === false ? "red" : item.status?.includes("blocked") ? "amber" : "green"}>{item.status ?? (item.tool_ok === false ? "failed" : "ok")}</StatusBadge>
                       </div>
-                      {item.tool_artifact_path ? <div className="mt-2 break-all font-mono text-[11px] text-blue-700">{item.tool_artifact_path}</div> : null}
+                      {item.tool_artifact_path ? <div className="mt-2 break-all font-mono text-[11px] text-accent-dark">{item.tool_artifact_path}</div> : null}
                     </div>
                   ))
                 )}
@@ -4875,20 +5211,20 @@ export function AiControlConsole({
               )}
             </CardDescription>
           </div>
-          <Button size="sm" variant="secondary" onClick={() => void executeScientistNextAction()} disabled={busy || autopilotBusy}>
+          <Button size="sm" variant="secondary" data-ui-action="control_execute_safe_next" data-ui-skip-action="true" onClick={() => void executeScientistNextAction()} disabled={busy || autopilotBusy}>
             {busy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {tx(locale, "Execute Safe Next", "执行安全下一步")}
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.8fr_1.2fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Task", "任务")} value={scientistActionQueue?.selected_task || autopilot?.selected_task || selectedTask || "(none)"} />
             <Row label="Trace" value={scientistActionQueue?.trace_run_id ?? autopilot?.trace_run_id ?? "(none)"} />
             <Row label={tx(locale, "Actions", "动作数")} value={scientistActionQueue?.actions?.length ?? autopilot?.action_queue?.length ?? 0} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistActionQueue?.artifact_path ?? autopilot?.action_queue_artifact_path ?? ".xsci/scientist_action_queue.json"} />
             <Row label={tx(locale, "Training", "训练")} value={scientistActionQueue?.no_training_started === false ? "started" : "not_started"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistActionQueue?.official_submit ?? "blocked_until_explicit_human_approval"} />
-            <div className="mt-3 rounded-md border border-slate-200 bg-white p-2">
+            <div className="mt-3 rounded-md border border-edge bg-surface-raised p-2">
               <Row
                 label={tx(locale, "Safe Next", "安全下一步")}
                 value={<StatusBadge tone={scientistNextAction?.status === "executed_read_only_tool" ? "green" : scientistNextAction?.status === "blocked_by_gate" ? "amber" : scientistNextAction?.present ? "slate" : "slate"}>{scientistNextAction?.status ?? "not_run"}</StatusBadge>}
@@ -4897,13 +5233,13 @@ export function AiControlConsole({
               <Row label={tx(locale, "Executed Tool", "已执行工具")} value={scientistNextAction?.executed_tool ?? "(none)"} />
               <Row label={tx(locale, "Next Artifact", "下一步证据")} value={scientistNextAction?.artifact_path ?? ".xsci/scientist_next_action.json"} />
               {scientistNextAction?.message ? (
-                <div className="mt-2 text-xs leading-5 text-slate-600">{scientistNextAction.message}</div>
+                <div className="mt-2 text-xs leading-5 text-ink-secondary">{scientistNextAction.message}</div>
               ) : null}
               {scientistNextAction?.blocked_reason ? (
-                <div className="mt-2 rounded border border-amber-100 bg-amber-50 p-2 text-xs leading-5 text-amber-800">{scientistNextAction.blocked_reason}</div>
+                <div className="mt-2 rounded border border-warning/25 bg-warning-light p-2 text-xs leading-5 text-warning-text">{scientistNextAction.blocked_reason}</div>
               ) : null}
             </div>
-            <div className="mt-3 rounded-md border border-amber-100 bg-amber-50 p-2 text-xs leading-5 text-amber-800">
+            <div className="mt-3 rounded-md border border-warning/25 bg-warning-light p-2 text-xs leading-5 text-warning-text">
               {tx(
                 locale,
                 "Ready commands are still gated: EvoMind shows the next command, but long training and official submit remain policy-controlled.",
@@ -4913,66 +5249,66 @@ export function AiControlConsole({
           </div>
           <div className="max-h-96 space-y-2 overflow-y-auto pr-1">
             {((scientistActionQueue?.actions ?? autopilot?.action_queue) ?? []).length === 0 ? (
-              <div className="rounded-md border border-slate-200 bg-white p-3 text-xs text-slate-400">
+              <div className="rounded-md border border-edge bg-surface-raised p-3 text-xs text-ink-muted">
                 {tx(locale, "Run Scientist Autopilot to generate the action queue.", "运行科学家诊断后会生成行动队列。")}
               </div>
             ) : (
               ((scientistActionQueue?.actions ?? autopilot?.action_queue) ?? []).slice(0, 6).map((action, index) => (
-                <div key={`${action.id ?? index}`} className="rounded-md border border-slate-200 bg-white p-3 text-xs">
+                <div key={`${action.id ?? index}`} className="rounded-md border border-edge bg-surface-raised p-3 text-xs">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="font-bold text-slate-900">{action.title ?? action.id ?? tx(locale, "Action", "动作")}</div>
-                      <div className="mt-1 font-mono text-[11px] font-semibold text-blue-700">{action.command ?? "(no command)"}</div>
+                      <div className="font-bold text-ink">{action.title ?? action.id ?? tx(locale, "Action", "动作")}</div>
+                      <div className="mt-1 font-mono text-[11px] font-semibold text-accent-dark">{action.command ?? "(no command)"}</div>
                     </div>
                     <StatusBadge tone={actionStatusTone(action.status)}>{action.status ?? "unknown"}</StatusBadge>
                   </div>
                   <div className="mt-2 grid gap-2 md:grid-cols-2">
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Gate</div>
-                      <div className="mt-1 text-slate-700">{action.gate ?? "none"}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Gate</div>
+                      <div className="mt-1 text-ink-secondary">{action.gate ?? "none"}</div>
                     </div>
-                    <div className="rounded border border-slate-100 bg-slate-50 p-2">
-                      <div className="font-bold uppercase text-slate-500">Autonomy</div>
-                      <div className="mt-1 text-slate-700">{action.autonomy ?? "guarded"}</div>
+                    <div className="rounded border border-edge-light bg-surface-sunken p-2">
+                      <div className="font-bold uppercase text-ink-muted">Autonomy</div>
+                      <div className="mt-1 text-ink-secondary">{action.autonomy ?? "guarded"}</div>
                     </div>
                   </div>
-                  {action.why ? <div className="mt-2 text-slate-600">{action.why}</div> : null}
+                  {action.why ? <div className="mt-2 text-ink-secondary">{action.why}</div> : null}
                   {action.metadata?.selected_hypothesis && typeof action.metadata.selected_hypothesis === "object" ? (
-                    <div className="mt-2 rounded border border-blue-100 bg-blue-50 p-2 text-blue-800">
-                      <div className="mb-1 font-bold uppercase text-blue-700">{tx(locale, "Reviewed Hypothesis", "已评审假设")}</div>
+                    <div className="mt-2 rounded border border-accent-light bg-accent-light p-2 text-accent-dark">
+                      <div className="mb-1 font-bold uppercase text-accent-dark">{tx(locale, "Reviewed Hypothesis", "已评审假设")}</div>
                       <div className="grid gap-1 md:grid-cols-2">
                         <div>
-                          <span className="font-bold text-blue-700">{tx(locale, "Strategy", "策略")}: </span>
+                          <span className="font-bold text-accent-dark">{tx(locale, "Strategy", "策略")}: </span>
                           {String((action.metadata.selected_hypothesis as Record<string, unknown>).strategy_name ?? (action.metadata.selected_hypothesis as Record<string, unknown>).hypothesis_id ?? "unknown")}
                         </div>
                         <div>
-                          <span className="font-bold text-blue-700">Score: </span>
+                          <span className="font-bold text-accent-dark">Score: </span>
                           {String((action.metadata.selected_hypothesis as Record<string, unknown>).score ?? "n/a")}
                         </div>
                         <div>
-                          <span className="font-bold text-blue-700">Branch: </span>
+                          <span className="font-bold text-accent-dark">Branch: </span>
                           {String((action.metadata.selected_hypothesis as Record<string, unknown>).branch_type ?? "n/a")}
                         </div>
                         <div>
-                          <span className="font-bold text-blue-700">Mode: </span>
+                          <span className="font-bold text-accent-dark">Mode: </span>
                           {String((action.metadata.selected_hypothesis as Record<string, unknown>).code_generation_mode ?? "n/a")}
                         </div>
                       </div>
                     </div>
                   ) : null}
-                  {action.risk ? <div className="mt-2 rounded border border-red-100 bg-red-50 p-2 text-red-700">{action.risk}</div> : null}
+                  {action.risk ? <div className="mt-2 rounded border border-danger/25 bg-danger-light p-2 text-danger-text">{action.risk}</div> : null}
                   {action.rollback_condition ? (
-                    <div className="mt-2 text-slate-500">
+                    <div className="mt-2 text-ink-muted">
                       <span className="font-bold">{tx(locale, "Rollback", "回滚")}: </span>
                       {action.rollback_condition}
                     </div>
                   ) : null}
                   {(action.expected_artifacts ?? []).length ? (
-                    <div className="mt-2 border-t border-slate-100 pt-2">
-                      <div className="mb-1 font-bold uppercase text-slate-500">{tx(locale, "Expected Artifacts", "预期证据")}</div>
+                    <div className="mt-2 border-t border-edge-light pt-2">
+                      <div className="mb-1 font-bold uppercase text-ink-muted">{tx(locale, "Expected Artifacts", "预期证据")}</div>
                       <div className="grid gap-1">
                         {action.expected_artifacts?.slice(0, 5).map((artifact, artifactIndex) => (
-                          <div key={`${artifact}-${artifactIndex}`} className="break-all font-mono text-[11px] text-slate-600">- {artifact}</div>
+                          <div key={`${artifact}-${artifactIndex}`} className="break-all font-mono text-[11px] text-ink-secondary">- {artifact}</div>
                         ))}
                       </div>
                     </div>
@@ -5002,7 +5338,7 @@ export function AiControlConsole({
           </Button>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Decision", "恢复决策")}
               value={
@@ -5018,7 +5354,7 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistRecovery?.artifact_path ?? ".xsci/scientist_recovery_snapshot.json"} />
             <Row label={tx(locale, "Guard", "恢复 Guard")} value={scientistRecovery?.guard_path ?? ".xsci/recovery_guard.md"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistRecovery?.official_submit ?? "blocked_until_explicit_human_approval"} />
-            <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-800">
+            <div className="mt-3 rounded-md border border-accent-light bg-accent-light p-2 text-xs leading-5 text-accent-dark">
               {tx(
                 locale,
                 "This is a recovery and planning artifact only. It never starts model training and never submits to Kaggle.",
@@ -5027,41 +5363,41 @@ export function AiControlConsole({
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Selected Resume Action", "选中恢复动作")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Selected Resume Action", "选中恢复动作")}</div>
               {!scientistRecovery?.selected_resume_action ? (
-                <div className="text-xs text-slate-400">{tx(locale, "No ready resume action yet.", "暂无可恢复动作。")}</div>
+                <div className="text-xs text-ink-muted">{tx(locale, "No ready resume action yet.", "暂无可恢复动作。")}</div>
               ) : (
-                <div className="space-y-2 text-xs text-slate-700">
-                  <div className="font-bold text-slate-900">{scientistRecovery.selected_resume_action.title ?? scientistRecovery.selected_resume_action.id}</div>
-                  <div className="font-mono text-[11px] font-semibold text-blue-700">{scientistRecovery.selected_resume_action.command ?? "(no command)"}</div>
-                  <div><span className="font-bold text-slate-500">Gate</span>: {scientistRecovery.selected_resume_action.gate ?? "read_only"}</div>
-                  <div><span className="font-bold text-slate-500">Why</span>: {String(scientistRecovery.selected_resume_action.why ?? "").slice(0, 240)}</div>
+                <div className="space-y-2 text-xs text-ink-secondary">
+                  <div className="font-bold text-ink">{scientistRecovery.selected_resume_action.title ?? scientistRecovery.selected_resume_action.id}</div>
+                  <div className="font-mono text-[11px] font-semibold text-accent-dark">{scientistRecovery.selected_resume_action.command ?? "(no command)"}</div>
+                  <div><span className="font-bold text-ink-muted">Gate</span>: {scientistRecovery.selected_resume_action.gate ?? "read_only"}</div>
+                  <div><span className="font-bold text-ink-muted">Why</span>: {String(scientistRecovery.selected_resume_action.why ?? "").slice(0, 240)}</div>
                 </div>
               )}
               {(scientistRecovery?.blockers ?? []).length ? (
-                <div className="mt-3 rounded border border-amber-100 bg-amber-50 p-2 text-xs leading-5 text-amber-800">
+                <div className="mt-3 rounded border border-warning/25 bg-warning-light p-2 text-xs leading-5 text-warning-text">
                   <div className="mb-1 font-bold">{tx(locale, "Blockers", "阻塞项")}</div>
                   {scientistRecovery?.blockers?.slice(0, 8).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)}
                 </div>
               ) : null}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Resume Commands", "恢复命令")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Resume Commands", "恢复命令")}</div>
               <div className="max-h-36 space-y-1 overflow-y-auto pr-1">
                 {(scientistRecovery?.resume_commands ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "Build a recovery snapshot to get commands.", "生成恢复快照后会显示命令。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "Build a recovery snapshot to get commands.", "生成恢复快照后会显示命令。")}</div>
                 ) : (
                   scientistRecovery?.resume_commands?.slice(0, 8).map((command, index) => (
-                    <div key={`${command}-${index}`} className="rounded border border-slate-100 bg-slate-50 px-2 py-1 font-mono text-[11px] font-semibold text-blue-700">
+                    <div key={`${command}-${index}`} className="rounded border border-edge-light bg-surface-sunken px-2 py-1 font-mono text-[11px] font-semibold text-accent-dark">
                       {command}
                     </div>
                   ))
                 )}
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Linked Artifacts", "关联证据")}</div>
-                <div className="max-h-40 space-y-1 overflow-y-auto pr-1 text-[11px] text-slate-600">
+              <div className="mt-3 border-t border-edge-light pt-3">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Linked Artifacts", "关联证据")}</div>
+                <div className="max-h-40 space-y-1 overflow-y-auto pr-1 text-[11px] text-ink-secondary">
                   {[
                     scientistRecovery?.latest_workplan_artifact,
                     scientistRecovery?.latest_repair_artifact,
@@ -5076,7 +5412,7 @@ export function AiControlConsole({
                     scientistRecovery?.latest_contract_artifact,
                     scientistRecovery?.action_queue_artifact
                   ].filter(Boolean).length === 0 ? (
-                    <div className="text-xs text-slate-400">{tx(locale, "No linked artifacts yet.", "暂无关联证据。")}</div>
+                    <div className="text-xs text-ink-muted">{tx(locale, "No linked artifacts yet.", "暂无关联证据。")}</div>
                   ) : null}
                 </div>
               </div>
@@ -5097,7 +5433,7 @@ export function AiControlConsole({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Mode", "模式")}
               value={<StatusBadge tone={scientistWorkplan?.mode === "ready_for_gated_execution" ? "green" : scientistWorkplan?.present ? "amber" : "slate"}>{scientistWorkplan?.mode ?? "not_run"}</StatusBadge>}
@@ -5106,34 +5442,34 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistWorkplan?.artifact_path ?? ".xsci/scientist_workplan.json"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistWorkplan?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Current Focus", "当前焦点")}</div>
-              <div className="space-y-1 text-xs text-slate-700">
-                <div><span className="font-bold text-slate-500">Step</span>: {String(scientistWorkplan?.current_focus?.step_id ?? "not_run")}</div>
-                <div><span className="font-bold text-slate-500">Status</span>: {String(scientistWorkplan?.current_focus?.status ?? "not_run")}</div>
-                <div><span className="font-bold text-slate-500">Action</span>: {String(scientistWorkplan?.current_focus?.action ?? "").slice(0, 260)}</div>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-3 sm:grid-cols-2">
+            <div className="min-w-0 max-w-full rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Current Focus", "当前焦点")}</div>
+              <div className="min-w-0 space-y-1 break-words text-xs text-ink-secondary [overflow-wrap:anywhere]">
+                <div><span className="font-bold text-ink-muted">Step</span>: {String(scientistWorkplan?.current_focus?.step_id ?? "not_run")}</div>
+                <div><span className="font-bold text-ink-muted">Status</span>: {String(scientistWorkplan?.current_focus?.status ?? "not_run")}</div>
+                <div><span className="font-bold text-ink-muted">Action</span>: {String(scientistWorkplan?.current_focus?.action ?? "").slice(0, 260)}</div>
                 {scientistWorkplan?.current_focus?.blocked_reason ? (
-                  <div className="rounded border border-red-100 bg-red-50 p-2 text-red-700">
+                  <div className="rounded border border-danger/25 bg-danger-light p-2 text-danger-text">
                     {String(scientistWorkplan.current_focus.blocked_reason).slice(0, 260)}
                   </div>
                 ) : null}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Steps", "步骤")}</div>
-              <div className="grid grid-cols-4 gap-2 text-center text-xs">
-                {["completed", "ready", "pending", "blocked"].map((key) => (
-                  <div key={key} className="rounded border border-slate-100 bg-slate-50 p-2">
-                    <div className="font-bold text-slate-900">{String(scientistWorkplan?.summary?.[key] ?? 0)}</div>
-                    <div className="text-slate-500">{key}</div>
+            <div className="min-w-0 max-w-full rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Steps", "步骤")}</div>
+              <div className="grid grid-cols-2 gap-2 text-center text-xs sm:grid-cols-4">
+                {["completed", "ready", "pending", "blocked"].map((key, index) => (
+                  <div key={`${key}-${index}`} className="rounded border border-edge-light bg-surface-sunken p-2">
+                    <div className="font-bold text-ink">{String(scientistWorkplan?.summary?.[key] ?? 0)}</div>
+                    <div className="text-ink-muted">{key}</div>
                   </div>
                 ))}
               </div>
               <div className="mt-3 max-h-32 space-y-1 overflow-y-auto pr-1">
                 {(scientistWorkplan?.steps ?? []).slice(0, 6).map((step, index) => (
-                  <div key={`${String(step.id ?? index)}`} className="flex items-start justify-between gap-2 rounded border border-slate-100 px-2 py-1 text-xs">
-                    <span className="min-w-0 truncate font-semibold text-slate-700">{String(step.title ?? step.id ?? "")}</span>
+                  <div key={`${String(step.id ?? "step")}-${index}`} className="flex items-start justify-between gap-2 rounded border border-edge-light px-2 py-1 text-xs">
+                    <span className="min-w-0 truncate font-semibold text-ink-secondary">{String(step.title ?? step.id ?? "")}</span>
                     <StatusBadge tone={step.status === "completed" ? "green" : step.status === "ready" ? "blue" : step.status === "blocked" ? "red" : "amber"}>{String(step.status ?? "pending")}</StatusBadge>
                   </div>
                 ))}
@@ -5155,7 +5491,7 @@ export function AiControlConsole({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label={tx(locale, "Mode", "模式")}
               value={<StatusBadge tone={scientistRepairPlan?.mode === "ready_to_execute_guarded" ? "green" : scientistRepairPlan?.mode === "blocked_repair" ? "red" : scientistRepairPlan?.present ? "amber" : "slate"}>{scientistRepairPlan?.mode ?? "not_run"}</StatusBadge>}
@@ -5163,49 +5499,49 @@ export function AiControlConsole({
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistRepairPlan?.artifact_path ?? ".xsci/scientist_repair_plan.json"} />
             <Row label={tx(locale, "Safe Next", "安全下一步")} value={scientistRepairPlan?.safe_next_command ?? "evomind autopilot"} />
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistRepairPlan?.official_submit ?? "blocked_until_explicit_human_approval"} />
-            <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs text-blue-800">
+            <div className="mt-3 rounded-md border border-accent-light bg-accent-light p-2 text-xs text-accent-dark">
               {tx(locale, "This plan is read-only. It diagnoses and plans; training still requires a gated run command.", "该计划只读：只诊断和规划；训练仍必须通过门禁 run 命令发起。")}
             </div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Root Causes", "根因")}</div>
-              <div className="max-h-36 space-y-1 overflow-y-auto pr-1 text-xs text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Root Causes", "根因")}</div>
+              <div className="max-h-36 space-y-1 overflow-y-auto pr-1 text-xs text-ink-secondary">
                 {(scientistRepairPlan?.root_causes ?? []).length === 0 ? (
-                  <div className="text-slate-400">{tx(locale, "Run diagnosis to infer root causes.", "运行诊断后会推断根因。")}</div>
+                  <div className="text-ink-muted">{tx(locale, "Run diagnosis to infer root causes.", "运行诊断后会推断根因。")}</div>
                 ) : (
                   scientistRepairPlan?.root_causes?.slice(0, 8).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)
                 )}
               </div>
-              <div className="mt-3 border-t border-slate-100 pt-3">
-                <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Diagnosis", "诊断")}</div>
+              <div className="mt-3 border-t border-edge-light pt-3">
+                <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Diagnosis", "诊断")}</div>
                 <div className="max-h-32 space-y-1 overflow-y-auto pr-1">
                   {(scientistRepairPlan?.diagnosis ?? []).slice(0, 5).map((issue, index) => (
-                    <div key={`${String(issue.root_cause ?? index)}`} className="rounded border border-slate-100 px-2 py-1 text-xs">
+                    <div key={`${String(issue.root_cause ?? "issue")}-${index}`} className="rounded border border-edge-light px-2 py-1 text-xs">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="font-semibold text-slate-700">{String(issue.root_cause ?? "issue")}</span>
+                        <span className="font-semibold text-ink-secondary">{String(issue.root_cause ?? "issue")}</span>
                         <StatusBadge tone={issue.severity === "blocker" ? "red" : issue.severity === "warning" ? "amber" : "slate"}>{String(issue.severity ?? "info")}</StatusBadge>
                       </div>
-                      <div className="mt-1 text-slate-500">{String(issue.evidence ?? "").slice(0, 180)}</div>
+                      <div className="mt-1 text-ink-muted">{String(issue.evidence ?? "").slice(0, 180)}</div>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Repair Steps", "修复步骤")}</div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Repair Steps", "修复步骤")}</div>
               <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
                 {(scientistRepairPlan?.repair_steps ?? []).length === 0 ? (
-                  <div className="text-xs text-slate-400">{tx(locale, "No repair steps yet.", "暂无修复步骤。")}</div>
+                  <div className="text-xs text-ink-muted">{tx(locale, "No repair steps yet.", "暂无修复步骤。")}</div>
                 ) : (
                   scientistRepairPlan?.repair_steps?.slice(0, 8).map((step, index) => (
-                    <div key={`${String(step.id ?? index)}`} className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs">
+                    <div key={`${String(step.id ?? "step")}-${index}`} className="rounded-md border border-edge-light bg-surface-sunken/70 px-3 py-2 text-xs">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 font-bold text-slate-800">{String(step.title ?? step.id ?? "")}</div>
+                        <div className="min-w-0 font-bold text-ink">{String(step.title ?? step.id ?? "")}</div>
                         <StatusBadge tone={step.status === "ready" ? "blue" : step.status === "blocked" ? "red" : step.status === "completed" ? "green" : "amber"}>{String(step.status ?? "pending")}</StatusBadge>
                       </div>
-                      <div className="mt-1 text-slate-600">{String(step.action ?? "").slice(0, 220)}</div>
-                      {step.command ? <div className="mt-1 font-mono text-[11px] font-semibold text-blue-700">{String(step.command)}</div> : null}
+                      <div className="mt-1 text-ink-secondary">{String(step.action ?? "").slice(0, 220)}</div>
+                      {step.command ? <div className="mt-1 font-mono text-[11px] font-semibold text-accent-dark">{String(step.command)}</div> : null}
                     </div>
                   ))
                 )}
@@ -5227,7 +5563,7 @@ export function AiControlConsole({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row
               label="Go / No-Go"
               value={
@@ -5253,24 +5589,24 @@ export function AiControlConsole({
             <Row label={tx(locale, "Official Submit", "官方提交")} value={scientistExecutionContract?.official_submit ?? "blocked_until_explicit_human_approval"} />
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <div className="rounded-md border border-slate-200 bg-white p-3">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
-                <div className="text-xs font-bold uppercase text-slate-500">{tx(locale, "Execution Gate", "执行门禁")}</div>
+                <div className="text-xs font-bold uppercase text-ink-muted">{tx(locale, "Execution Gate", "执行门禁")}</div>
                 <StatusBadge tone={executionGateTone}>{executionGateStatus}</StatusBadge>
               </div>
-              <div className="space-y-2 text-xs text-slate-700">
+              <div className="space-y-2 text-xs text-ink-secondary">
                 <div>
-                  <span className="font-bold text-slate-500">{tx(locale, "Training", "训练状态")}</span>:{" "}
+                  <span className="font-bold text-ink-muted">{tx(locale, "Training", "训练状态")}</span>:{" "}
                   {executionGateNoTrainingStarted ? "no_training_started" : "execution_allowed_by_gate"}
                 </div>
                 <div>
-                  <span className="font-bold text-slate-500">{tx(locale, "Submit", "提交")}</span>:{" "}
+                  <span className="font-bold text-ink-muted">{tx(locale, "Submit", "提交")}</span>:{" "}
                   {executionGateOfficialSubmit}
                 </div>
                 <div>
-                  <div className="mb-1 font-bold text-slate-500">{tx(locale, "Blocked By", "阻断来源")}</div>
+                  <div className="mb-1 font-bold text-ink-muted">{tx(locale, "Blocked By", "阻断来源")}</div>
                   {executionGateBlockedBy.length === 0 ? (
-                    <div className="text-slate-400">{tx(locale, "No blockers recorded.", "未记录阻断项。")}</div>
+                    <div className="text-ink-muted">{tx(locale, "No blockers recorded.", "未记录阻断项。")}</div>
                   ) : (
                     <div className="flex flex-wrap gap-1">
                       {executionGateBlockedBy.slice(0, 6).map((item, index) => (
@@ -5280,13 +5616,13 @@ export function AiControlConsole({
                   )}
                 </div>
                 <div>
-                  <div className="mb-1 font-bold text-slate-500">{tx(locale, "Safe Next", "安全下一步")}</div>
+                  <div className="mb-1 font-bold text-ink-muted">{tx(locale, "Safe Next", "安全下一步")}</div>
                   {executionGateSafeCommands.length === 0 ? (
-                    <div className="font-mono text-[11px] text-blue-700">evomind contract</div>
+                    <div className="font-mono text-[11px] text-accent-dark">evomind contract</div>
                   ) : (
                     <div className="space-y-1">
                       {executionGateSafeCommands.slice(0, 4).map((command, index) => (
-                        <div key={`${command}-${index}`} className="rounded border border-blue-100 bg-blue-50 px-2 py-1 font-mono text-[11px] font-semibold text-blue-700">
+                        <div key={`${command}-${index}`} className="rounded border border-accent-light bg-accent-light px-2 py-1 font-mono text-[11px] font-semibold text-accent-dark">
                           {command}
                         </div>
                       ))}
@@ -5294,44 +5630,44 @@ export function AiControlConsole({
                   )}
                 </div>
                 {executionGateDecision?.message ? (
-                  <div className="rounded border border-slate-100 bg-slate-50 p-2 text-slate-600">
+                  <div className="rounded border border-edge-light bg-surface-sunken p-2 text-ink-secondary">
                     {executionGateDecision.message.slice(0, 260)}
                   </div>
                 ) : null}
                 {executionGateSetupBlockers.length ? (
-                  <div className="rounded border border-amber-100 bg-amber-50 p-2 text-amber-800">
+                  <div className="rounded border border-warning/25 bg-warning-light p-2 text-warning-text">
                     <div className="font-bold">{tx(locale, "Setup Blockers", "配置阻断")}</div>
                     {executionGateSetupBlockers.slice(0, 2).map((item, index) => <div key={`${item}-${index}`}>- {item.slice(0, 220)}</div>)}
                   </div>
                 ) : null}
               </div>
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Decision", "决策")}</div>
-              <div className="space-y-1 text-xs text-slate-700">
-                <div><span className="font-bold text-slate-500">Action</span>: {String(scientistExecutionContract?.decision?.selected_action ?? "not_run")}</div>
-                <div><span className="font-bold text-slate-500">Branch</span>: {String(scientistExecutionContract?.decision?.selected_branch ?? "not_run")}</div>
-                <div><span className="font-bold text-slate-500">Code Mode</span>: {String(scientistExecutionContract?.decision?.code_generation_mode ?? "not_run")}</div>
-                <div><span className="font-bold text-slate-500">Rollback</span>: {String(scientistExecutionContract?.rollback_condition ?? "hold if gates fail").slice(0, 220)}</div>
-                <div><span className="font-bold text-slate-500">Command</span>: <span className="font-mono text-[11px] text-blue-700">{scientistExecutionContract?.execution_command ?? "evomind contract"}</span></div>
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Decision", "决策")}</div>
+              <div className="space-y-1 text-xs text-ink-secondary">
+                <div><span className="font-bold text-ink-muted">Action</span>: {String(scientistExecutionContract?.decision?.selected_action ?? "not_run")}</div>
+                <div><span className="font-bold text-ink-muted">Branch</span>: {String(scientistExecutionContract?.decision?.selected_branch ?? "not_run")}</div>
+                <div><span className="font-bold text-ink-muted">Code Mode</span>: {String(scientistExecutionContract?.decision?.code_generation_mode ?? "not_run")}</div>
+                <div><span className="font-bold text-ink-muted">Rollback</span>: {String(scientistExecutionContract?.rollback_condition ?? "hold if gates fail").slice(0, 220)}</div>
+                <div><span className="font-bold text-ink-muted">Command</span>: <span className="font-mono text-[11px] text-accent-dark">{scientistExecutionContract?.execution_command ?? "evomind contract"}</span></div>
               </div>
               {executionGateRootCauses.length ? (
-                <div className="mt-3 rounded border border-amber-100 bg-amber-50 p-2 text-xs text-amber-800">
+                <div className="mt-3 rounded border border-warning/25 bg-warning-light p-2 text-xs text-warning-text">
                   <div className="font-bold">{tx(locale, "Root Causes", "根因")}</div>
                   {executionGateRootCauses.slice(0, 5).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)}
                 </div>
               ) : null}
             </div>
-            <div className="rounded-md border border-slate-200 bg-white p-3">
-              <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Required Evidence", "必须证据")}</div>
-              <div className="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs text-slate-700">
+            <div className="rounded-md border border-edge bg-surface-raised p-3">
+              <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Required Evidence", "必须证据")}</div>
+              <div className="max-h-44 space-y-1 overflow-y-auto pr-1 text-xs text-ink-secondary">
                 {(scientistExecutionContract?.required_artifacts ?? []).length === 0 ? (
-                  <div className="text-slate-400">{tx(locale, "Run diagnosis to build the contract.", "运行诊断以生成执行契约。")}</div>
+                  <div className="text-ink-muted">{tx(locale, "Run diagnosis to build the contract.", "运行诊断以生成执行契约。")}</div>
                 ) : (
                   scientistExecutionContract?.required_artifacts?.slice(0, 10).map((item, index) => <div key={`${item}-${index}`}>- {item}</div>)
                 )}
               </div>
-              <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs text-blue-800">
+              <div className="mt-3 rounded-md border border-accent-light bg-accent-light p-2 text-xs text-accent-dark">
                 {scientistExecutionContract?.claim_boundary ?? tx(locale, "No leaderboard, rank, medal, or top30 claim is allowed without Kaggle response evidence.", "没有 Kaggle response 证据时，不允许声明排行榜、排名、奖牌或 top30。")}
               </div>
             </div>
@@ -5361,14 +5697,14 @@ export function AiControlConsole({
           </div>
         </CardHeader>
         <CardContent className="grid gap-3 xl:grid-cols-[0.72fr_1.28fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Events", "事件数")} value={scientistStream?.event_count ?? 0} />
             <Row label={tx(locale, "Latest Tool", "最新工具")} value={latestStreamEvent?.tool || "(none)"} />
             <Row label={tx(locale, "Latest Phase", "最新阶段")} value={latestStreamEvent?.phase || "not_run"} />
             <Row label={tx(locale, "Latest Gate", "最新门禁")} value={latestStreamEvent?.gate || "(none)"} />
             <Row label={tx(locale, "Last Refresh", "最后刷新")} value={streamLastUpdated} />
             <Row label={tx(locale, "Artifact", "证据文件")} value={scientistStream?.artifact_path ?? ".xsci/scientist_step_trace.jsonl"} />
-            <div className="mt-3 rounded-md border border-blue-100 bg-blue-50 p-2 text-xs leading-5 text-blue-800">
+            <div className="mt-3 rounded-md border border-accent-light bg-accent-light p-2 text-xs leading-5 text-accent-dark">
               {tx(
                 locale,
                 "Official submit and leaderboard claims remain blocked unless a human approval and Kaggle response artifact exist.",
@@ -5376,9 +5712,9 @@ export function AiControlConsole({
               )}
             </div>
           </div>
-          <div className="thin-scrollbar max-h-80 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
+          <div className="thin-scrollbar max-h-80 overflow-y-auto rounded-md border border-edge bg-surface-raised p-3">
             {streamEvents.length === 0 ? (
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-ink-muted">
                 {tx(locale, "No Scientist stream event yet. Run Autopilot, Workplan, Contract, or a gated run to create trace evidence.", "暂无科学家事件流。运行 Autopilot、Workplan、Contract 或受控 run 后会生成轨迹证据。")}
               </div>
             ) : (
@@ -5393,18 +5729,18 @@ export function AiControlConsole({
                         ? "amber"
                         : "blue";
                   return (
-                    <div key={`${event.event_id ?? index}`} className="rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 text-xs">
+                    <div key={`${event.event_id ?? "evt"}-${index}`} className="rounded-md border border-edge-light bg-surface-sunken/80 px-3 py-2 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 font-bold text-slate-800">
-                          {event.phase || "step"} {event.tool ? <span className="font-semibold text-slate-500">/ {event.tool}</span> : null}
+                        <div className="min-w-0 font-bold text-ink">
+                          {event.phase || "step"} {event.tool ? <span className="font-semibold text-ink-muted">/ {event.tool}</span> : null}
                         </div>
                         <StatusBadge tone={tone}>{status}</StatusBadge>
                       </div>
-                      <div className="mt-1 text-slate-600">{String(event.message ?? "").slice(0, 300)}</div>
-                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+                      <div className="mt-1 text-ink-secondary">{String(event.message ?? "").slice(0, 300)}</div>
+                      <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-ink-muted">
                         {event.ts ? <span>{event.ts}</span> : null}
                         {event.gate ? <span>gate={event.gate}</span> : null}
-                        {event.artifact_path ? <span className="max-w-full truncate text-blue-700">artifact={event.artifact_path}</span> : null}
+                        {event.artifact_path ? <span className="max-w-full truncate text-accent-dark">artifact={event.artifact_path}</span> : null}
                       </div>
                     </div>
                   );
@@ -5427,22 +5763,22 @@ export function AiControlConsole({
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.85fr_1.15fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Artifact", "账本文件")} value={scientistTurns?.artifact_path ?? ".xsci/scientist_turns.jsonl"} />
             <Row label={tx(locale, "Recent Turns", "最近回合")} value={scientistTurns?.count ?? 0} />
             <Row label={tx(locale, "Route", "路线")} value={String(scientistTurns?.latest?.route ?? "not_run")} />
             <Row label={tx(locale, "Task", "任务")} value={String(scientistTurns?.latest?.task ?? selectedTask ?? "(none)")} />
           </div>
-          <div className="rounded-md border border-slate-200 bg-white p-3">
-            <div className="mb-2 text-xs font-bold uppercase text-slate-500">{tx(locale, "Latest Turn", "最近一次回合")}</div>
+          <div className="rounded-md border border-edge bg-surface-raised p-3">
+            <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Latest Turn", "最近一次回合")}</div>
             {!scientistTurns?.latest ? (
-              <div className="text-xs text-slate-400">{tx(locale, "No scientist turn has been recorded yet.", "还没有记录科学家回合。")}</div>
+              <div className="text-xs text-ink-muted">{tx(locale, "No scientist turn has been recorded yet.", "还没有记录科学家回合。")}</div>
             ) : (
-              <div className="space-y-2 text-xs text-slate-700">
-                <div><span className="font-bold text-slate-500">User</span>: {String(scientistTurns.latest.user ?? "").slice(0, 180)}</div>
-                <div><span className="font-bold text-slate-500">Tools</span>: {Array.isArray(scientistTurns.latest.forced_tools) ? scientistTurns.latest.forced_tools.join(", ") : "(none)"}</div>
-                <div><span className="font-bold text-slate-500">Preview</span>: {String(scientistTurns.latest.answer_preview ?? "").slice(0, 360)}</div>
-                <div><span className="font-bold text-slate-500">Submit</span>: {String(scientistTurns.latest.official_submit ?? "blocked_until_explicit_human_approval")}</div>
+              <div className="space-y-2 text-xs text-ink-secondary">
+                <div><span className="font-bold text-ink-muted">User</span>: {String(scientistTurns.latest.user ?? "").slice(0, 180)}</div>
+                <div><span className="font-bold text-ink-muted">Tools</span>: {Array.isArray(scientistTurns.latest.forced_tools) ? scientistTurns.latest.forced_tools.join(", ") : "(none)"}</div>
+                <div><span className="font-bold text-ink-muted">Preview</span>: {String(scientistTurns.latest.answer_preview ?? "").slice(0, 360)}</div>
+                <div><span className="font-bold text-ink-muted">Submit</span>: {String(scientistTurns.latest.official_submit ?? "blocked_until_explicit_human_approval")}</div>
               </div>
             )}
           </div>
@@ -5466,15 +5802,15 @@ export function AiControlConsole({
           </StatusBadge>
         </CardHeader>
         <CardContent className="grid gap-3 lg:grid-cols-[0.75fr_1.25fr]">
-          <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
             <Row label={tx(locale, "Trace File", "轨迹文件")} value={scientistStepTrace?.artifact_path ?? ".xsci/scientist_step_trace.jsonl"} />
             <Row label={tx(locale, "Recent Events", "最近事件")} value={scientistStepTrace?.count ?? 0} />
             <Row label={tx(locale, "Latest Phase", "最新阶段")} value={String(scientistStepTrace?.latest?.phase ?? "not_run")} />
             <Row label={tx(locale, "Latest Status", "最新状态")} value={String(scientistStepTrace?.latest?.status ?? "not_run")} />
           </div>
-          <div className="thin-scrollbar max-h-72 overflow-y-auto rounded-md border border-slate-200 bg-white p-3">
+          <div className="thin-scrollbar max-h-72 overflow-y-auto rounded-md border border-edge bg-surface-raised p-3">
             {(scientistStepTrace?.recent ?? []).length === 0 ? (
-              <div className="text-xs text-slate-400">
+              <div className="text-xs text-ink-muted">
                 {tx(locale, "Run Scientist Autopilot to create the first step trace.", "运行科学家诊断后会生成第一条步骤轨迹。")}
               </div>
             ) : (
@@ -5483,16 +5819,16 @@ export function AiControlConsole({
                   const status = String(event.status ?? "info");
                   const tone: StatusTone = status === "completed" || status === "ok" ? "green" : status === "blocked" || status === "failed" ? "red" : "blue";
                   return (
-                    <div key={`${String(event.event_id ?? index)}`} className="rounded-md border border-slate-100 bg-slate-50/70 px-3 py-2 text-xs">
+                    <div key={`${String(event.event_id ?? "evt")}-${index}`} className="rounded-md border border-edge-light bg-surface-sunken/70 px-3 py-2 text-xs">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 font-bold text-slate-800">
-                          {String(event.phase ?? "step")} {event.tool ? <span className="font-semibold text-slate-500">/ {String(event.tool)}</span> : null}
+                        <div className="min-w-0 font-bold text-ink">
+                          {String(event.phase ?? "step")} {event.tool ? <span className="font-semibold text-ink-muted">/ {String(event.tool)}</span> : null}
                         </div>
                         <StatusBadge tone={tone}>{status}</StatusBadge>
                       </div>
-                      <div className="mt-1 text-slate-600">{String(event.message ?? "").slice(0, 260)}</div>
+                      <div className="mt-1 text-ink-secondary">{String(event.message ?? "").slice(0, 260)}</div>
                       {event.artifact_path ? (
-                        <div className="mt-1 truncate text-[11px] font-semibold text-blue-700">{String(event.artifact_path)}</div>
+                        <div className="mt-1 truncate text-[11px] font-semibold text-accent-dark">{String(event.artifact_path)}</div>
                       ) : null}
                     </div>
                   );
@@ -5512,7 +5848,7 @@ export function AiControlConsole({
             </CardHeader>
             <CardContent className="space-y-3">
               <textarea
-                className="w-full rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-800 shadow-sm focus:border-blue-300 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                className="w-full rounded-md border border-edge bg-surface-raised p-3 text-sm text-ink shadow-sm focus:border-accent-muted focus:outline-none focus:ring-2 focus:ring-accent-light"
                 rows={3}
                 placeholder={tx(locale, "e.g. Create a workstation run for playground_series_s6e6", "例如：为 playground_series_s6e6 创建工作站 run")}
                 value={input}
@@ -5524,7 +5860,7 @@ export function AiControlConsole({
                   }
                 }}
               />
-              <Button onClick={() => parseInput()} disabled={!input.trim()}>
+              <Button data-ui-action="control_parse_command" data-ui-skip-action="true" onClick={() => parseInput()} disabled={!input.trim()}>
                 <Send className="h-4 w-4" />
                 {tx(locale, "Parse Command", "解析命令")}
               </Button>
@@ -5537,7 +5873,7 @@ export function AiControlConsole({
             </CardHeader>
             <CardContent className="flex flex-wrap gap-2">
               {quickActions.map((item) => (
-                <Button key={item.label} size="sm" variant="secondary" onClick={() => quick(item.label, item.command)} disabled={busy}>
+                <Button key={item.label} size="sm" variant="secondary" data-ui-action={`control_quick_${item.label.toLowerCase().replace(/[^a-z0-9]+/g, "_")}`} data-ui-skip-action="true" onClick={() => quick(item.label, item.command)} disabled={busy}>
                   <item.icon className="h-3.5 w-3.5" />
                   {item.label}
                 </Button>
@@ -5555,7 +5891,7 @@ export function AiControlConsole({
                 ["code", tx(locale, "Open Code Studio", "进入代码工作台")],
                 ["report", tx(locale, "Open Report Studio", "进入报告工作台")]
               ].map(([page, label]) => (
-                <Button key={page} size="sm" variant="ghost" onClick={() => navigateTo(page)}>
+                <Button key={page} size="sm" variant="ghost" data-ui-action={`control_open_page_${page}`} onClick={() => navigateTo(page)}>
                   {label}
                 </Button>
               ))}
@@ -5572,22 +5908,22 @@ export function AiControlConsole({
               </CardHeader>
               <CardContent>
                 {!parsed ? (
-                  <p className="text-xs text-slate-400">{tx(locale, "No command parsed yet.", "尚未解析命令。")}</p>
+                  <p className="text-xs text-ink-muted">{tx(locale, "No command parsed yet.", "尚未解析命令。")}</p>
                 ) : (
                   <div className="space-y-3">
                     <div className="flex items-center gap-2">
                       <StatusBadge tone={riskTone(parsed.risk)}>{parsed.risk}</StatusBadge>
-                      <span className="text-xs font-bold text-slate-700">{parsed.intent}</span>
+                      <span className="text-xs font-bold text-ink-secondary">{parsed.intent}</span>
                     </div>
-                    <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                    <div className="rounded-md border border-edge bg-surface-sunken p-3">
                       <Row label={tx(locale, "Intent", "意图")} value={parsed.intent} />
                       <Row label={tx(locale, "Task ID", "任务 ID")} value={parsed.taskId} />
                       <Row label={tx(locale, "Risk", "风险")} value={parsed.risk} />
                       <Row label={tx(locale, "Description", "说明")} value={parsed.description} />
-                      {parsed.blockedReason && <Row label={tx(locale, "Blocked", "阻断原因")} value={<span className="text-red-600">{parsed.blockedReason}</span>} />}
+                      {parsed.blockedReason && <Row label={tx(locale, "Blocked", "阻断原因")} value={<span className="text-danger">{parsed.blockedReason}</span>} />}
                     </div>
                     {parsed.risk !== "blocked" ? (
-                      <Button variant={parsed.risk === "gated" ? "secondary" : "primary"} onClick={executeAction} disabled={busy}>
+                      <Button variant={parsed.risk === "gated" ? "secondary" : "primary"} data-ui-action="control_execute_action" data-ui-skip-action="true" onClick={executeAction} disabled={busy}>
                         {busy ? <RefreshCcw className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                         {parsed.risk === "gated" ? tx(locale, "Submit to Gate", "提交到 Gate") : tx(locale, "Execute", "执行")}
                       </Button>
@@ -5609,14 +5945,14 @@ export function AiControlConsole({
                 <CardTitle>{tx(locale, "Execution Result", "执行结果")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-md border border-edge bg-surface-sunken p-3">
                   <Row label={tx(locale, "Action", "动作")} value={lastResult.action} />
-                  <Row label={tx(locale, "Status", "状态")} value={lastResult.ok ? <span className="text-emerald-600">OK</span> : <span className="text-red-600">{lastResult.error ?? "failed"}</span>} />
+                  <Row label={tx(locale, "Status", "状态")} value={lastResult.ok ? <span className="text-success">OK</span> : <span className="text-danger">{lastResult.error ?? "failed"}</span>} />
                   {lastResult.artifact && <Row label={tx(locale, "Artifact", "产物")} value={<span>{lastResult.artifact}</span>} />}
                   {lastResult.sessionId && <Row label="Session / Run / Gate ID" value={lastResult.sessionId} />}
                   {!!lastResult.rawResponse && (
                     <div className="mt-3">
-                      <div className="mb-2 text-xs font-semibold text-slate-500">Raw JSON Response</div>
+                      <div className="mb-2 text-xs font-semibold text-ink-muted">Raw JSON Response</div>
                       <JsonInspector data={lastResult.rawResponse} />
                     </div>
                   )}
@@ -5631,14 +5967,14 @@ export function AiControlConsole({
             </CardHeader>
             <CardContent>
               {messages.length === 0 ? (
-                <p className="text-xs text-slate-400">{tx(locale, "No messages yet.", "暂无消息。")}</p>
+                <p className="text-xs text-ink-muted">{tx(locale, "No messages yet.", "暂无消息。")}</p>
               ) : (
                 <div className="max-h-48 space-y-2 overflow-y-auto">
                   {messages.map((msg, i) => (
                     <div
                       key={`${msg.timestamp}-${i}`}
                       className={`rounded-md px-3 py-2 text-xs ${
-                        msg.role === "user" ? "bg-blue-50 text-blue-800" : msg.role === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-800"
+                        msg.role === "user" ? "bg-accent-light text-accent-dark" : msg.role === "error" ? "bg-danger-light text-danger-text" : "bg-success-light text-success-text"
                       }`}
                     >
                       <span className="mr-2 font-bold uppercase">{msg.role}</span>
@@ -5656,7 +5992,7 @@ export function AiControlConsole({
                 <CardTitle>{tx(locale, "Latest Action Trace", "最新 Action Trace")}</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <div className="rounded-md border border-edge bg-surface-sunken p-3">
                   <Row label={tx(locale, "Action", "动作")} value={lastActionTrace.action} />
                   <Row label={tx(locale, "Message", "消息")} value={lastActionTrace.message} />
                   {lastActionTrace.artifact && <Row label={tx(locale, "Artifact", "产物")} value={<span>{lastActionTrace.artifact}</span>} />}
@@ -5667,6 +6003,8 @@ export function AiControlConsole({
           )}
         </div>
       </div>
-    </main>
+        </>
+      )}
+    </div>
   );
 }

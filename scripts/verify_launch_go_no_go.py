@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import socket
 import struct
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -24,8 +25,15 @@ def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
 
 
 def get_json(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url, timeout=20) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(url, timeout=20) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
+        fail(
+            "live dashboard summary is unavailable",
+            {"url": url, "error": f"{type(exc).__name__}: {exc}"},
+        )
+    raise AssertionError("unreachable")
 
 
 def socks5_banner(proxy_host: str, proxy_port: int, dest_host: str, dest_port: int) -> str:

@@ -1,0 +1,39 @@
+{
+  "name": "@evomind-ai/cli",
+  "version": "0.3.0",
+  "description": "Signed Windows bootstrapper and lifecycle CLI for EvoMind",
+  "type": "module",
+  "bin": {
+    "evomind": "bin/evomind.mjs"
+  },
+  "files": [
+    "bin",
+    "src",
+    "scripts",
+    "keys",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "pack:check": "npm pack --dry-run --json"
+  },
+  "engines": {
+    "node": ">=20.9.0",
+    "npm": ">=10.0.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "license": "UNLICENSED",
+  "publishConfig": {
+    "access": "public"
+  },
+  "evomind": {
+    "defaultManifestUrl": "https://releases.evomind.ai/stable/latest.json",
+    "manifestSchema": "evomind.release.manifest.v2"
+  }
+}

@@ -76,9 +76,9 @@ export function ResearchBrief({ compact = false, locale }: { compact?: boolean; 
             >
               <div className="mb-3 flex items-center gap-3">
                 <Icon className="h-4 w-4 shrink-0 text-primary" />
-                <span className="min-w-0 text-xs font-bold text-slate-950">{briefLabel(locale, item.label)}</span>
+                <span className="min-w-0 text-xs font-bold text-ink">{briefLabel(locale, item.label)}</span>
               </div>
-              <p className="max-w-[280px] text-xs leading-5 text-slate-700">{briefValue(locale, item.label, item.value)}</p>
+              <p className="max-w-[280px] text-xs leading-5 text-ink-secondary">{briefValue(locale, item.label, item.value)}</p>
             </div>
           );
         })}
@@ -96,8 +96,8 @@ export function ResearchBrief({ compact = false, locale }: { compact?: boolean; 
 function BriefExtra({ label, value }: { label: string; value: string }) {
   return (
     <div className="min-h-[108px] border-l border-border px-6 py-5">
-      <div className="mb-3 text-xs font-bold text-slate-950">{label}</div>
-      <p className="text-xs leading-5 text-slate-700">{value}</p>
+      <div className="mb-3 text-xs font-bold text-ink">{label}</div>
+      <p className="text-xs leading-5 text-ink-secondary">{value}</p>
     </div>
   );
 }
@@ -112,12 +112,12 @@ export function MetricCurve({ height = 210 }: { height?: number }) {
   const x = (value: number) => padding.left + ((value - xMin) / (xMax - xMin)) * (width - padding.left - padding.right);
   const y = (value: number) => padding.top + ((yMax - value) / (yMax - yMin)) * (height - padding.top - padding.bottom);
   const series = [
-    ["fold1", "#F97316"],
-    ["fold2", "#A855F7"],
-    ["fold3", "#10B981"],
-    ["fold4", "#06B6D4"],
-    ["fold5", "#64748B"],
-    ["mean", "#1D4ED8"]
+    ["fold1", "rgb(var(--color-warning))"],
+    ["fold2", "rgb(var(--color-info))"],
+    ["fold3", "rgb(var(--color-success))"],
+    ["fold4", "rgb(var(--color-accent))"],
+    ["fold5", "rgb(var(--color-ink-muted))"],
+    ["mean", "rgb(var(--color-accent-dark))"]
   ] as const;
   const ticksX = [0, 250, 500, 1000, 1500, 2000];
   const ticksY = [0.1, 0.155, 0.21, 0.265, 0.32];
@@ -125,18 +125,18 @@ export function MetricCurve({ height = 210 }: { height?: number }) {
   return (
     <div className="w-full overflow-hidden" style={{ height }}>
       <svg viewBox={`0 0 ${width} ${height}`} className="h-full w-full" role="img" aria-label="Validation curve">
-        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="#CBD5E1" />
-        <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="#CBD5E1" />
+        <line x1={padding.left} y1={padding.top} x2={padding.left} y2={height - padding.bottom} stroke="rgb(var(--color-edge-strong))" />
+        <line x1={padding.left} y1={height - padding.bottom} x2={width - padding.right} y2={height - padding.bottom} stroke="rgb(var(--color-edge-strong))" />
         {ticksY.map((tick) => (
           <g key={tick}>
-            <line x1={padding.left} y1={y(tick)} x2={width - padding.right} y2={y(tick)} stroke="#F1F5F9" />
-            <text x={padding.left - 8} y={y(tick) + 4} textAnchor="end" className="fill-slate-400 text-[11px]">
+            <line x1={padding.left} y1={y(tick)} x2={width - padding.right} y2={y(tick)} stroke="rgb(var(--color-edge-light))" />
+            <text x={padding.left - 8} y={y(tick) + 4} textAnchor="end" className="fill-ink-muted text-[11px]">
               {tick}
             </text>
           </g>
         ))}
         {ticksX.map((tick) => (
-          <text key={tick} x={x(tick)} y={height - 8} textAnchor="middle" className="fill-slate-400 text-[11px]">
+          <text key={tick} x={x(tick)} y={height - 8} textAnchor="middle" className="fill-ink-muted text-[11px]">
             {tick}
           </text>
         ))}
@@ -201,8 +201,8 @@ export function ArtifactList({
             key={artifact.name}
             className="grid grid-cols-[1fr_70px_80px] items-center rounded-md border border-border px-3 py-2 text-xs"
           >
-            <span className="font-semibold text-slate-700">{artifact.name}</span>
-            <span className="text-slate-500">{artifact.size}</span>
+            <span className="font-semibold text-ink-secondary">{artifact.name}</span>
+            <span className="text-ink-muted">{artifact.size}</span>
             <StatusBadge tone="green">{artifact.binding}</StatusBadge>
           </div>
         ))}
@@ -250,8 +250,8 @@ export function ReproducibilityRecord({
       <CardContent className="space-y-2">
         {reproducibility.slice(0, compact ? 5 : reproducibility.length).map((item) => (
           <div key={item.key} className="grid grid-cols-[120px_1fr_70px] items-center gap-2 text-xs">
-            <span className="font-semibold text-slate-600">{item.key}</span>
-            <span className="truncate text-slate-700">{item.value}</span>
+            <span className="font-semibold text-ink-secondary">{item.key}</span>
+            <span className="truncate text-ink-secondary">{item.value}</span>
             <StatusBadge tone="green">{item.status}</StatusBadge>
           </div>
         ))}
@@ -274,7 +274,7 @@ export function HumanGateCard({
     ? status === "Approved" ? "已批准" : status === "Rejected" ? "已拒绝" : "待审核"
     : status;
   return (
-    <Card className="border-amber-200 bg-amber-50/35">
+    <Card className="border-warning/45 bg-warning-light/35">
       <CardHeader className="flex flex-row items-center justify-between">
         <div>
           <CardTitle>{locale === "zh-CN" ? "人工 Gate：Kaggle 提交" : "Human Gate: Kaggle Submission"}</CardTitle>
@@ -283,14 +283,14 @@ export function HumanGateCard({
         <StatusBadge tone={tone}>{statusText}</StatusBadge>
       </CardHeader>
       <CardContent className="flex items-center justify-between">
-        <p className="max-w-[420px] text-xs leading-5 text-slate-700">
+        <p className="max-w-[420px] text-xs leading-5 text-ink-secondary">
           {locale === "zh-CN"
             ? "官方排行榜提交保持受控，必须先由审核人确认依据链与限制说明。"
             : "Official leaderboard submission remains controlled until a reviewer approves the evidence chain and limitation statement."}
         </p>
         <button
           onClick={onReview}
-          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-bold text-white"
+          className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-4 text-sm font-bold text-accent-fg"
           data-testid="review-human-gate"
         >
           {locale === "zh-CN" ? "立即审核" : "Review Now"} <ArrowRight className="h-4 w-4" />
@@ -302,11 +302,11 @@ export function HumanGateCard({
 
 export function LockRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-md border border-border bg-white px-3 py-2 text-xs">
-      <span className="font-semibold text-slate-600">{label}</span>
-      <span className="flex items-center gap-2 text-slate-800">
+    <div className="flex items-center justify-between rounded-md border border-border bg-surface-raised px-3 py-2 text-xs">
+      <span className="font-semibold text-ink-secondary">{label}</span>
+      <span className="flex items-center gap-2 text-ink">
         {value}
-        <Lock className="h-3.5 w-3.5 text-emerald-600" />
+        <Lock className="h-3.5 w-3.5 text-success" />
       </span>
     </div>
   );
@@ -316,8 +316,8 @@ export function CheckRow({ label, state = "Passed" }: { label: string; state?: s
   const tone: StatusTone = state === "Pending" ? "amber" : state === "Warning" ? "amber" : "green";
   return (
     <div className="flex items-center justify-between border-b border-border py-2 text-xs last:border-0">
-      <span className="flex items-center gap-2 text-slate-700">
-        <CheckCircle2 className="h-4 w-4 text-slate-400" />
+      <span className="flex items-center gap-2 text-ink-secondary">
+        <CheckCircle2 className="h-4 w-4 text-ink-muted" />
         {label}
       </span>
       <StatusBadge tone={tone}>{state}</StatusBadge>
@@ -331,11 +331,11 @@ export function ArtifactPathRow({ label, path }: { label: string; path?: string 
     navigator.clipboard.writeText(path).catch(console.error);
   };
   return (
-    <div className="flex flex-col gap-1 border-b border-slate-100 py-2 text-xs last:border-0">
-      <div className="font-semibold text-slate-500">{label}</div>
-      <div className="flex items-center gap-2 rounded-md bg-slate-50 p-2 border border-slate-200">
-        <span className="break-all font-mono text-slate-700 flex-1">{path}</span>
-        <button onClick={copyToClipboard} className="text-slate-400 hover:text-slate-600" title="Copy path">
+    <div className="flex flex-col gap-1 border-b border-edge-light py-2 text-xs last:border-0">
+      <div className="font-semibold text-ink-muted">{label}</div>
+      <div className="flex items-center gap-2 rounded-md bg-surface-sunken p-2 border border-edge">
+        <span className="break-all font-mono text-ink-secondary flex-1">{path}</span>
+        <button onClick={copyToClipboard} className="text-ink-muted hover:text-ink-secondary" title="Copy path">
           <Copy className="h-4 w-4" />
         </button>
       </div>
@@ -346,8 +346,8 @@ export function ArtifactPathRow({ label, path }: { label: string; path?: string 
 export function JsonInspector({ data }: { data: unknown }) {
   if (!data) return null;
   return (
-    <div className="rounded-md border border-slate-800 bg-slate-950 p-4 overflow-auto">
-      <pre className="text-xs leading-5 text-slate-100 font-mono whitespace-pre-wrap break-all">
+    <div className="rounded-md border border-edge bg-frame p-4 overflow-auto">
+      <pre className="text-xs leading-5 text-ink font-mono whitespace-pre-wrap break-all">
         {JSON.stringify(data, null, 2)}
       </pre>
     </div>
@@ -359,8 +359,8 @@ export function CodeBlockPanel({ code, emptyMessage = "No code loaded" }: { code
     return <RealEmptyState message={emptyMessage} />;
   }
   return (
-    <div className="rounded-md border border-slate-800 bg-slate-950 p-4 overflow-auto max-h-[500px]">
-      <pre className="text-xs leading-5 text-slate-100 font-mono whitespace-pre-wrap break-all">
+    <div className="rounded-md border border-edge bg-frame p-4 overflow-auto max-h-[500px]">
+      <pre className="text-xs leading-5 text-ink font-mono whitespace-pre-wrap break-all">
         {code}
       </pre>
     </div>
@@ -384,7 +384,7 @@ export function WorkbenchSection({ title, description, action, children }: { tit
 
 export function RealEmptyState({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+    <div className="rounded-md border border-edge bg-surface-sunken p-8 text-center text-sm text-ink-muted">
       {message}
     </div>
   );
@@ -403,11 +403,11 @@ export function GateReviewRow({
 }) {
   const isPending = !gate.decision || gate.decision.toLowerCase() === 'pending';
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 text-xs shadow-sm mb-3">
+    <div className="rounded-md border border-edge bg-surface-raised p-4 text-xs shadow-sm mb-3">
       <div className="flex justify-between items-start mb-3">
         <div>
-          <div className="font-bold text-slate-900 text-sm">{gate.gate_type || 'Unknown Gate'}</div>
-          <div className="text-slate-500 mt-1">Run ID: {gate.run_id || 'N/A'}</div>
+          <div className="font-bold text-ink text-sm">{gate.gate_type || 'Unknown Gate'}</div>
+          <div className="text-ink-muted mt-1">Run ID: {gate.run_id || 'N/A'}</div>
         </div>
         <StatusBadge tone={gate.decision === 'Approved' ? 'green' : gate.decision === 'Rejected' ? 'red' : 'amber'}>
           {gate.decision || 'Pending'}
@@ -416,20 +416,20 @@ export function GateReviewRow({
       
       {!!gate.evidence && (
         <div className="mb-3">
-          <div className="font-semibold text-slate-500 mb-1">Evidence:</div>
+          <div className="font-semibold text-ink-muted mb-1">Evidence:</div>
           <div className="max-h-32 overflow-auto"><JsonInspector data={gate.evidence} /></div>
         </div>
       )}
       
       {!!gate.artifact && (
         <div className="mb-3">
-          <div className="font-semibold text-slate-500 mb-1">Artifact:</div>
+          <div className="font-semibold text-ink-muted mb-1">Artifact:</div>
           <div className="max-h-32 overflow-auto"><JsonInspector data={gate.artifact} /></div>
         </div>
       )}
 
       {isPending && (
-        <div className="flex gap-2 mt-4 pt-3 border-t border-slate-100">
+        <div className="flex gap-2 mt-4 pt-3 border-t border-edge-light">
           <Button size="sm" onClick={() => onApprove?.(gate.id!)}>Approve</Button>
           <Button size="sm" variant="danger" onClick={() => onReject?.(gate.id!)}>Reject</Button>
           <Button size="sm" variant="secondary" onClick={() => onRequestEvidence?.(gate.id!)}>Request Evidence</Button>

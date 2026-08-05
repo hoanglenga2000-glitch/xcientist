@@ -114,22 +114,25 @@ function buildDraftCode(taskId: string, sourceAgent: string, metrics: Record<str
   ].join("\n");
 }
 
-function buildPatch(taskId: string, sourceAgent: string, draftPath: string) {
+function buildPatch(targetPath: string, generatedCode: string) {
+  const lines = generatedCode.replaceAll("\r\n", "\n").replace(/\n$/, "").split("\n");
   return [
-    "diff --git a/workspace_agent_manifest.md b/workspace_agent_manifest.md",
-    "--- a/workspace_agent_manifest.md",
-    "+++ b/workspace_agent_manifest.md",
-    "@@",
-    `+Code agent draft generated for ${taskId}.`,
-    `+Source agent: ${sourceAgent}.`,
-    `+Draft file: ${draftPath}.`,
-    "+Next required action: review the draft, import a concrete diff, then run the local experiment."
+    `diff --git a/${targetPath} b/${targetPath}`,
+    "new file mode 100644",
+    "--- /dev/null",
+    `+++ b/${targetPath}`,
+    `@@ -0,0 +1,${lines.length} @@`,
+    ...lines.map((line) => `+${line}`)
   ].join("\n");
 }
 
-export async function POST(request: Request, { params }: { params: { taskId: string } }) {
+export async function POST(request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(taskId) || taskId === "." || taskId === "..") {
+    return NextResponse.json({ ok: false, error: "Invalid task_id." }, { status: 400 });
+  }
   const body = await request.json().catch(() => ({}));
   const sourceAgent = safeAgent(body.source_agent);
   if (body.cache_probe === true) {
@@ -163,11 +166,13 @@ export async function POST(request: Request, { params }: { params: { taskId: str
   await fs.mkdir(codeDir, { recursive: true });
   await fs.mkdir(patchDir, { recursive: true });
 
-  const draftPath = path.join(codeDir, "agent_draft.py");
-  const patchPath = path.join(patchDir, "agent_patch.diff");
-  const manifestPath = path.join(codeDir, "agent_draft_manifest.json");
+  const draftId = `${Date.now()}_${crypto.randomUUID().replaceAll("-", "").slice(0, 8)}`;
+  const draftPath = path.join(codeDir, `agent_draft_${draftId}.preview.py`);
+  const appliedRelativePath = path.posix.join("workspace", "tasks", taskId, "code", "current_code", `agent_draft_${draftId}.py`);
+  const patchPath = path.join(patchDir, `agent_patch_${draftId}.diff`);
+  const manifestPath = path.join(codeDir, `agent_draft_${draftId}.manifest.json`);
   const generatedCode = buildDraftCode(taskId, sourceAgent, metrics);
-  const patchDiff = buildPatch(taskId, sourceAgent, toRelativePath(draftPath) ?? "agent_draft.py");
+  const patchDiff = buildPatch(appliedRelativePath, generatedCode);
 
   await fs.writeFile(draftPath, generatedCode, "utf-8");
   await fs.writeFile(patchPath, patchDiff, "utf-8");
@@ -180,6 +185,7 @@ export async function POST(request: Request, { params }: { params: { taskId: str
         cli_status: "bridge_mode",
         latest_experiment: latest,
         draft_path: toRelativePath(draftPath),
+        applied_target_path: appliedRelativePath,
         patch_path: toRelativePath(patchPath),
         generated_at: new Date().toISOString(),
         safety_note: "Host Claude/Codex CLI execution is not invoked from the container. Use export/import gate for production safety."
@@ -209,6 +215,7 @@ export async function POST(request: Request, { params }: { params: { taskId: str
     task_id: taskId,
     source_agent: sourceAgent,
     draft_path: toRelativePath(draftPath),
+    applied_target_path: appliedRelativePath,
     patch_path: toRelativePath(patchPath),
     manifest_path: toRelativePath(manifestPath),
     generated_code: generatedCode,

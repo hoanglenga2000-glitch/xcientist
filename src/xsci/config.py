@@ -92,6 +92,7 @@ _ENV_MAP = {
     "EVOMIND_DASHBOARD_URL": "workstation.dashboard_url",
     "ANTHROPIC_API_KEY": "secrets.anthropic_api_key",
     "DEEPSEEK_API_KEY": "secrets.deepseek_api_key",
+    "OPENAI_API_KEY": "secrets.openai_api_key",
     "KAGGLE_API_TOKEN": "secrets.kaggle_api_token",
     "KAGGLE_USERNAME": "secrets.kaggle_username",
     "KAGGLE_KEY": "secrets.kaggle_key",
@@ -192,18 +193,63 @@ def global_workspace() -> Path:
     return GLOBAL_DIR / "workspace"
 
 
+def _valid_configured_workstation(raw_path: str | None) -> Optional[Path]:
+    """Resolve a trusted EvoMind source workspace configured outside the cwd."""
+    if not raw_path:
+        return None
+    candidate = Path(raw_path.strip()).expanduser()
+    if not candidate.is_absolute():
+        return None
+    try:
+        candidate = candidate.resolve()
+    except OSError:
+        return None
+    if not candidate.is_dir():
+        return None
+    if not (candidate / PROJECT_DIRNAME).is_dir():
+        return None
+    if not (candidate / "src" / "xsci").is_dir():
+        return None
+    return candidate
+
+
+def workstation_root_pointer() -> Path:
+    """Return the global pointer used by launchers outside an EvoMind checkout."""
+    return GLOBAL_DIR / "workstation-root.txt"
+
+
+def _pointer_workstation_root() -> Optional[Path]:
+    pointer = workstation_root_pointer()
+    try:
+        raw_path = pointer.read_text(encoding="utf-8-sig").strip()
+    except (OSError, UnicodeError):
+        return None
+    return _valid_configured_workstation(raw_path)
+
+
 def active_root(start: Optional[Path] = None) -> Path:
     """The root the `kaggle` console operates under.
 
-    If ``start`` (default cwd) is inside a real ``.xsci`` project, use it — so
-    running `kaggle` in a project keeps that project's tasks/experiments. Otherwise
-    fall back to the GLOBAL workspace (~/.xsci/workspace), scaffolding its ``.xsci/
-    tasks`` marker so the existing task helpers treat it as a project. This is what
-    lets `kaggle`, like `claude`, "just work" from any directory.
+    Resolution order is explicit EvoMind root, current project, persisted EvoMind
+    root pointer, then the global workspace. Configured roots must be absolute
+    source workspaces with both ``.xsci`` and ``src/xsci`` markers; this prevents a
+    stale installed package or copied validation checkout from silently owning a
+    terminal launched from the user's home directory.
     """
+    configured = _valid_configured_workstation(
+        os.environ.get("EVOMIND_WORKSTATION_ROOT")
+    )
+    if configured is not None:
+        return configured
+
     proj = find_project_dir(start)
     if proj is not None:
         return proj
+
+    pointed = _pointer_workstation_root()
+    if pointed is not None:
+        return pointed
+
     root = global_workspace()
     (root / PROJECT_DIRNAME / "tasks").mkdir(parents=True, exist_ok=True)
     (root / "experiments").mkdir(parents=True, exist_ok=True)
@@ -292,6 +338,7 @@ def set_global(section: str, key: str, value: Any) -> Path:
 _SECRET_ENV = {
     "anthropic_api_key": "ANTHROPIC_API_KEY",
     "deepseek_api_key": "DEEPSEEK_API_KEY",
+    "openai_api_key": "OPENAI_API_KEY",
     "kaggle_api_token": "KAGGLE_API_TOKEN",
     "kaggle_username": "KAGGLE_USERNAME",
     "kaggle_key": "KAGGLE_KEY",
@@ -331,7 +378,7 @@ def inject_engine_env(cfg: "Config", *, override: bool = False) -> list[str]:
     if provider and (override or not os.environ.get("EVOLUTION_PRIMARY_PROVIDER")):
         os.environ["EVOLUTION_PRIMARY_PROVIDER"] = str(provider)
         injected.append("EVOLUTION_PRIMARY_PROVIDER")
-    for prov in ("anthropic", "deepseek"):
+    for prov in ("anthropic", "deepseek", "openai"):
         base = cfg.get(f"llm.{prov}_base_url")
         env_name = f"{prov.upper()}_BASE_URL"
         if base and (override or not os.environ.get(env_name)):
@@ -344,7 +391,8 @@ def inject_engine_env(cfg: "Config", *, override: bool = False) -> list[str]:
     model = cfg.get("llm.model")
     if model:
         model_env = {"anthropic": "CLAUDE_CODE_MODEL",
-                     "deepseek": "DEEPSEEK_MODEL"}.get(str(provider or "").lower())
+                     "deepseek": "DEEPSEEK_MODEL",
+                     "openai": "OPENAI_MODEL"}.get(str(provider or "").lower())
         if model_env and (override or not os.environ.get(model_env)):
             os.environ[model_env] = str(model)
             injected.append(model_env)

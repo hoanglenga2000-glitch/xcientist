@@ -1,3 +1,4 @@
+import os
 """Check V3 status via SSHPiper bridge (port 7890)."""
 import socket, struct, paramiko, sys
 
@@ -21,7 +22,7 @@ ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 try:
     ssh.connect(
         hostname='100.85.169.63', port=1235,
-        username='aimslab-TTA2', password='wM5T1Qfz5l',
+        username='aimslab-TTA2', password=os.environ["GPU_SSH_PASSWORD"],
         sock=sock, timeout=20,
         banner_timeout=20, auth_timeout=20,
         allow_agent=False, look_for_keys=False

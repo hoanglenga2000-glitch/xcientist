@@ -37,6 +37,10 @@ class ExperimentNode:
     rank_percentile: float | None = None
     top30_reached: bool = False
     official_submission_ref: str | None = None
+    # ``parent_id`` remains the single tree parent for backwards-compatible
+    # traversal.  Crossover nodes additionally bind every selected parent here;
+    # the non-tree parents are also persisted as ``reference_edges``.
+    reference_parent_ids: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -52,6 +56,7 @@ class SearchGraph:
     best_exp_id: str | None = None
     promotion_history: list[dict[str, Any]] = field(default_factory=list)
     reference_edges: list[dict[str, Any]] = field(default_factory=list)
+    terminal_reason: str = ""
 
 
     def _node_score(self, node: ExperimentNode, metric: str | None = None) -> float | None:
@@ -167,14 +172,19 @@ class SearchGraph:
         return decision
 
     def add_node(self, node: ExperimentNode) -> None:
-        self.nodes[node.exp_id] = node
+        existing = self.nodes.get(node.exp_id)
+        if existing is not None and existing != node:
+            raise ValueError(f"immutable experiment node collision: {node.exp_id}")
+        self.nodes.setdefault(node.exp_id, node)
 
     def add_edge(self, source: str, target: str, reason: str = "") -> None:
         if source not in self.nodes:
             raise KeyError(f"Unknown source experiment: {source}")
         if target not in self.nodes:
             raise KeyError(f"Unknown target experiment: {target}")
-        self.edges.append({"source": source, "target": target, "reason": reason})
+        edge = {"source": source, "target": target, "reason": reason}
+        if edge not in self.edges:
+            self.edges.append(edge)
 
     def add_reference_edge(
         self,
@@ -189,15 +199,15 @@ class SearchGraph:
             raise KeyError(f"Unknown source experiment: {source}")
         if target not in self.nodes:
             raise KeyError(f"Unknown target experiment: {target}")
-        self.reference_edges.append(
-            {
-                "source": source,
-                "target": target,
-                "reason": reason,
-                "reference_type": reference_type,
-                "reusable_strategy": reusable_strategy,
-            }
-        )
+        edge = {
+            "source": source,
+            "target": target,
+            "reason": reason,
+            "reference_type": reference_type,
+            "reusable_strategy": reusable_strategy,
+        }
+        if edge not in self.reference_edges:
+            self.reference_edges.append(edge)
 
     def get_top_candidates(self, limit: int = 3, metric: str = "cv_score", higher_is_better: bool = True) -> list[ExperimentNode]:
         def score(node: ExperimentNode) -> float:
@@ -292,6 +302,7 @@ class SearchGraph:
             "metric_direction": self.metric_direction,
             "best_exp_id": self.best_exp_id,
             "promotion_history": self.promotion_history,
+            "terminal_reason": self.terminal_reason,
         }
 
     def export_json(self, path: str | Path) -> Path:
@@ -333,6 +344,7 @@ class SearchGraph:
         graph.best_exp_id = data.get("best_exp_id")
         graph.selected_next_branch = data.get("selected_next_branch")
         graph.exploration_stage = str(data.get("exploration_stage", "exploration"))
+        graph.terminal_reason = str(data.get("terminal_reason", ""))
         return graph
 
     @classmethod

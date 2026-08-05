@@ -10,6 +10,10 @@ export const supportedSecretEnvKeys = [
   "DEEPSEEK_API_KEY_FILE",
   "DEEPSEEK_BASE_URL",
   "DEEPSEEK_MODEL",
+  "OPENAI_API_KEY",
+  "OPENAI_API_KEY_FILE",
+  "OPENAI_BASE_URL",
+  "OPENAI_MODEL",
   "GPU_SSH_HOST",
   "GPU_SSH_HOST_FILE",
   "GPU_SSH_PORT",
@@ -97,6 +101,26 @@ export function deepSeekConfig() {
 
 export function deepSeekApiKeyStatus() {
   return hasDeepSeekApiKey() ? "configured" : "not_configured";
+}
+
+export function openAiApiKeyValue() {
+  return secretValue("OPENAI_API_KEY");
+}
+
+export function hasOpenAiApiKey() {
+  return Boolean(openAiApiKeyValue());
+}
+
+export function openAiConfig() {
+  return {
+    apiKey: openAiApiKeyValue(),
+    baseUrl: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
+    model: process.env.OPENAI_MODEL || "gpt-4o"
+  };
+}
+
+export function openAiApiKeyStatus() {
+  return hasOpenAiApiKey() ? "configured" : "not_configured";
 }
 
 export function gpuSshConfig() {

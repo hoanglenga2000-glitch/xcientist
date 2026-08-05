@@ -11,7 +11,7 @@ Competitions:
   - tabular-playground-series-may-2022  (grader: auc-roc, higher=better)
 
 Usage:
-  set GPU_SSH_PASSWORD=31PFmLLb1f
+  set GPU_SSH_PASSWORD=<runtime-secret>
   python grade_all_results.py                     # connect to HPC, download, grade, cleanup
   python grade_all_results.py --keep              # keep downloaded files and reports
   python grade_all_results.py --local <dir>       # grade CSVs already on local disk
@@ -39,9 +39,7 @@ from pathlib import Path
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-
-os.environ.setdefault("GPU_SSH_PASSWORD", "31PFmLLb1f")
-
+if "GPU_SSH_PASSWORD" not in os.environ: raise RuntimeError("GPU_SSH_PASSWORD is required")
 HPC_JOB_ID = "87384"
 HPC_USER = "aimslab-TTA-A800-1GPU"
 SOCKS5_HOST = "100.85.169.63"

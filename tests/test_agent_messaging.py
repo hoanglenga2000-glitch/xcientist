@@ -197,6 +197,33 @@ def test_openai_transport_parses_tool_calls():
     assert turn2.tool_calls[0].input == {}
 
 
+def test_openai_transport_accepts_v1_base_without_duplicate_segment():
+    from research_os.agent.messaging import OpenAITransport, ProviderConfig
+
+    transport = OpenAITransport(ProviderConfig(
+        "openai",
+        "http://127.0.0.1:65068/v1",
+        "gpt-5.6-sol",
+        "secret",
+        reasoning_effort="low",
+        service_tier="priority",
+    ))
+    url, _, payload = transport.build(
+        [{"role": "user", "content": "probe"}], "system", [], 64, 0.0
+    )
+
+    assert url == "http://127.0.0.1:65068/v1/chat/completions"
+    assert payload["model"] == "gpt-5.6-sol"
+    assert payload["reasoning_effort"] == "low"
+    assert payload["service_tier"] == "priority"
+
+    turn = transport.parse({"model": "gpt-5.6-sol", "choices": []})
+    assert turn.request_profile == {
+        "reasoning_effort": "low",
+        "service_tier": "priority",
+    }
+
+
 @pytest.mark.parametrize(
     ("primary", "expected"),
     [

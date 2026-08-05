@@ -6,8 +6,10 @@ import select
 import socket
 import socketserver
 import struct
+import sys
 import threading
 from pathlib import Path
+from typing import Iterable
 
 
 def secret_value(name: str) -> str:
@@ -100,6 +102,44 @@ def connect_upstream(upstream_host: str, upstream_port: int, username: str, pass
     return upstream
 
 
+def parse_destination(value: str) -> tuple[str, int]:
+    host, separator, raw_port = value.rpartition(":")
+    if not separator or not host:
+        raise argparse.ArgumentTypeError("destination must use HOST:PORT")
+    try:
+        port = int(raw_port)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("destination port must be an integer") from exc
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError("destination port is outside 1..65535")
+    return host, port
+
+
+def connect_target(
+    *,
+    upstream_host: str,
+    upstream_port: int,
+    username: str,
+    password: str,
+    dest_host: str,
+    dest_port: int,
+    direct_destinations: Iterable[tuple[str, int]],
+    upstream_enabled: bool = True,
+) -> socket.socket:
+    if (dest_host, dest_port) in set(direct_destinations):
+        return socket.create_connection((dest_host, dest_port), timeout=20)
+    if not upstream_enabled:
+        raise ConnectionError("destination is not in the direct allowlist and upstream routing is disabled")
+    return connect_upstream(
+        upstream_host,
+        upstream_port,
+        username,
+        password,
+        dest_host,
+        dest_port,
+    )
+
+
 def relay(left: socket.socket, right: socket.socket) -> None:
     sockets = [left, right]
     try:
@@ -126,14 +166,30 @@ class SocksBridgeHandler(socketserver.BaseRequestHandler):
     upstream_port: int
     username: str
     password: str
+    direct_destinations: set[tuple[str, int]]
+    upstream_enabled: bool
 
     def handle(self) -> None:
         try:
             dest_host, dest_port = parse_client_request(self.request)
-            upstream = connect_upstream(self.upstream_host, self.upstream_port, self.username, self.password, dest_host, dest_port)
+            upstream = connect_target(
+                upstream_host=self.upstream_host,
+                upstream_port=self.upstream_port,
+                username=self.username,
+                password=self.password,
+                dest_host=dest_host,
+                dest_port=dest_port,
+                direct_destinations=self.direct_destinations,
+                upstream_enabled=self.upstream_enabled,
+            )
             self.request.sendall(b"\x05\x00\x00\x01\x00\x00\x00\x00\x00\x00")
             relay(self.request, upstream)
-        except Exception:
+        except Exception as exc:
+            print(
+                f"HPC_SOCKS_BRIDGE_REQUEST_FAILED: {type(exc).__name__}: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
             try:
                 self.request.sendall(b"\x05\x01\x00\x01\x00\x00\x00\x00\x00\x00")
             except OSError:
@@ -151,19 +207,41 @@ def main() -> None:
     parser.add_argument("--listen-port", type=int, default=7890)
     parser.add_argument("--upstream-host", default=os.environ.get("HPC_SOCKS_HOST") or "8.163.52.223")
     parser.add_argument("--upstream-port", type=int, default=int(os.environ.get("HPC_SOCKS_PORT") or "1080"))
+    parser.add_argument(
+        "--direct-destination",
+        action="append",
+        default=[],
+        type=parse_destination,
+        help="Allow one exact HOST:PORT destination to bypass the upstream proxy.",
+    )
+    parser.add_argument(
+        "--disable-upstream",
+        action="store_true",
+        help="Reject destinations outside the direct allowlist without loading upstream credentials.",
+    )
     args = parser.parse_args()
 
     username = secret_value("GPU_SSH_SOCKS_USER") or secret_value("HPC_SOCKS_USER")
     password = secret_value("GPU_SSH_SOCKS_PASSWORD") or secret_value("HPC_SOCKS_PASSWORD")
-    if not username or not password:
+    upstream_enabled = not args.disable_upstream
+    if upstream_enabled and (not username or not password):
         raise SystemExit("HPC_SOCKS_BRIDGE_FAILED: set HPC_SOCKS_USER and HPC_SOCKS_PASSWORD or *_FILE")
+    if not upstream_enabled and not args.direct_destination:
+        raise SystemExit("HPC_SOCKS_BRIDGE_FAILED: direct mode requires at least one --direct-destination")
 
     SocksBridgeHandler.upstream_host = args.upstream_host
     SocksBridgeHandler.upstream_port = args.upstream_port
     SocksBridgeHandler.username = username
     SocksBridgeHandler.password = password
+    SocksBridgeHandler.direct_destinations = set(args.direct_destination)
+    SocksBridgeHandler.upstream_enabled = upstream_enabled
     with ThreadedSocksBridge((args.listen_host, args.listen_port), SocksBridgeHandler) as server:
-        print(f"HPC SOCKS bridge listening on {args.listen_host}:{args.listen_port} -> {args.upstream_host}:{args.upstream_port}", flush=True)
+        print(
+            f"HPC SOCKS bridge listening on {args.listen_host}:{args.listen_port}; "
+            f"upstream={'enabled' if upstream_enabled else 'disabled'}; "
+            f"direct_allowlist={len(SocksBridgeHandler.direct_destinations)}",
+            flush=True,
+        )
         server.serve_forever()
 
 

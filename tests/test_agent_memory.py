@@ -7,6 +7,9 @@ type and failure pattern; and record_lesson writes through to the shared store.
 from __future__ import annotations
 
 from pathlib import Path
+import json
+
+import pytest
 
 from research_os.agent.memory_library import MemoryLibrary
 from research_os.agent.tools import ResearchToolbox
@@ -43,6 +46,58 @@ def _ctx(task_type="classification") -> TaskContext:
 def test_index_digest_empty(tmp_path):
     lib = MemoryLibrary(RetrospectiveMemoryStore(tmp_path / "m.json"))
     assert "empty" in lib.index_digest("classification")
+
+
+def test_legacy_task_record_loads_without_breaking_current_store(tmp_path):
+    path = tmp_path / "retrospective_memory.json"
+    path.write_text(json.dumps([{
+        "memory_id": "mem_legacy",
+        "task": "spaceship_titanic",
+        "what_worked": "legacy baseline",
+        "reusable_strategy": "reuse preprocessing",
+    }]), encoding="utf-8")
+
+    record = RetrospectiveMemoryStore(path)._load()[0]
+
+    assert record.memory_id == "mem_legacy"
+    assert record.task_type == "unknown"
+    assert record.dataset_profile == {
+        "task_name": "spaceship_titanic",
+        "source": "legacy_retrospective_memory_v0",
+        "evidence_level": "provisional",
+    }
+    assert record.method == "legacy_memory"
+    assert record.linked_exp_ids == []
+
+
+def test_add_memory_migrates_supported_legacy_record_to_current_schema(tmp_path):
+    path = tmp_path / "retrospective_memory.json"
+    path.write_text(json.dumps([{
+        "memory_id": "mem_legacy",
+        "task": "spaceship_titanic",
+        "what_worked": "legacy baseline",
+        "reusable_strategy": "reuse preprocessing",
+    }]), encoding="utf-8")
+    store = RetrospectiveMemoryStore(path)
+
+    store.add_memory(_rec("modern", "classification", worked="validated lesson"))
+
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert len(saved) == 2
+    assert saved[0]["memory_id"] == "mem_legacy"
+    assert saved[0]["task_type"] == "unknown"
+    assert "task" not in saved[0]
+    assert saved[1]["memory_id"] == "modern"
+
+
+def test_memory_store_rejects_unknown_record_fields(tmp_path):
+    path = tmp_path / "retrospective_memory.json"
+    record = _rec("modern", "classification")
+    payload = record.__dict__ | {"private_grader_feedback": "must not enter memory"}
+    path.write_text(json.dumps([payload]), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown fields"):
+        RetrospectiveMemoryStore(path)._load()
 
 
 def test_index_digest_aggregates(tmp_path):

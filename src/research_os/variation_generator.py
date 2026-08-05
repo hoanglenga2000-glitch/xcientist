@@ -64,6 +64,24 @@ _BUDGET_CPU = """COMPUTE BUDGET (strict):
     150,000 rows for cross-validation (fixed seed) to stay within the time budget.
     Still generate predictions for the full test set."""
 
+_BUDGET_TABULAR_GPU = """COMPUTE BUDGET (strict):
+  * A single local NVIDIA RTX 4060 with 8 GB VRAM is available. Use it only for
+    GPU-capable tabular candidates: XGBoost with device='cuda' and
+    tree_method='hist', or CatBoost with task_type='GPU'. LightGBM should run on
+    CPU unless the installed build explicitly proves GPU support.
+  * Train model families sequentially. Never keep multiple GPU models resident,
+    and release model/fold intermediates before starting the next family.
+  * Keep GPU histogram bins and tree depth bounded (for example max_bin<=256 and
+    depth<=10). Use early stopping and at most 3 chronological folds.
+  * The machine has 16 GB system RAM. Do not use dense one-hot encoding or keep
+    duplicate full-size pandas frames. Prefer selected columns, float32/int32,
+    category codes, and native categorical handling.
+  * LARGE DATA: use the full rows for final fitting/prediction, but a fixed,
+    chronology-preserving validation window or bounded development subset is
+    allowed when required to keep each candidate inside roughly 15 minutes.
+  * The output probability column must contain probabilities, not thresholded
+    labels, so an independent PR-AUC/F1/Recall review can be performed."""
+
 _BUDGET_GPU = """COMPUTE BUDGET (strict):
   * A single CUDA GPU is available; use device='cuda'. Target about 4-6 minutes
     on one GPU. Ignore any 'CPU only' assumption.
@@ -76,15 +94,16 @@ _BUDGET_GPU = """COMPUTE BUDGET (strict):
 _DL_MODALITIES = {"image", "multimodal", "audio"}
 
 
-def _solution_contract(modality: str) -> str:
+def _solution_contract(modality: str, compute_backend: str = "cpu") -> str:
     """Return the modality-appropriate solution contract (libs + compute budget)."""
     m = (modality or "tabular").lower()
     if m in _DL_MODALITIES:
         libs, budget = _LIBS_DL, _BUDGET_GPU
     elif m == "text":
         libs, budget = _LIBS_TEXT, _BUDGET_CPU
-    else:  # tabular / time_series and any unknown -> safe fast default
-        libs, budget = _LIBS_TABULAR, _BUDGET_CPU
+    else:  # tabular / time_series and any unknown -> tree/linear defaults
+        libs = _LIBS_TABULAR
+        budget = _BUDGET_TABULAR_GPU if (compute_backend or "").lower() == "local_gpu" else _BUDGET_CPU
     return f"{_CONTRACT_HEAD}\n{libs}\n{_CONTRACT_TAIL}\n\n{budget}\n"
 
 
@@ -105,6 +124,7 @@ class TaskContext:
     n_train: int = 0
     n_test: int = 0
     extra_notes: str = ""
+    compute_backend: str = "cpu"
 
 
 @dataclass
@@ -132,6 +152,7 @@ class VariationProposal:
     llm_input_tokens: int = 0
     llm_output_tokens: int = 0
     raw_response: str = ""
+    prompt: str = ""
 
 
 _SYSTEM_PREAMBLE = (
@@ -144,10 +165,10 @@ _SYSTEM_PREAMBLE = (
 )
 
 
-def _system_prompt(modality: str) -> str:
+def _system_prompt(modality: str, compute_backend: str = "cpu") -> str:
     """System prompt carrying the modality-appropriate contract, so the engine
     is never told 'CPU/tree-only' on an image/multimodal/audio task."""
-    return _SYSTEM_PREAMBLE + _solution_contract(modality)
+    return _SYSTEM_PREAMBLE + _solution_contract(modality, compute_backend)
 
 
 # Backward-compatible default (tabular) for any external reference.
@@ -212,7 +233,7 @@ def _format_lessons(lessons: list[dict[str, Any]]) -> str:
     return out
 
 
-def _modality_guidance(modality: str) -> str:
+def _modality_guidance(modality: str, compute_backend: str = "cpu") -> str:
     """Modality-specific library allowance + compute guidance.
 
     The base contract forbids heavy DL libs to keep tabular runs fast. Image
@@ -256,6 +277,20 @@ def _modality_guidance(modality: str) -> str:
             "or pretrained backbone (e.g. resnet18) over the spectrogram works well. Normalize, "
             "keep epochs few, and use a validation split or K-fold for the CV score; never leak."
         )
+    if (compute_backend or "").lower() == "local_gpu":
+        return (
+            "MODALITY=TABULAR / COMPUTE=LOCAL_GPU: Build sequential LightGBM, XGBoost-CUDA, "
+            "and CatBoost-GPU candidates with one identical chronological validation contract. "
+            "The GPU is an RTX 4060 with 8 GB VRAM; keep bins/depth bounded, avoid dense one-hot, "
+            "and free each GPU model before the next candidate. Use PR-AUC as the primary metric "
+            "for severe imbalance, and persist F1/Recall/Precision plus calibrated probabilities. "
+            "metrics.json MUST include pr_auc, f1, recall, precision, brier_score and an "
+            "oof_decision_threshold selected only from chronological OOF/validation predictions. "
+            "Never use the test file or retained labels to choose that threshold. Never fit target "
+            "mean encoding on the full labeled frame; use fold-safe encoding, frequency/category "
+            "codes, or native categorical handling. For CatBoost use loss_function='Logloss' and "
+            "eval_metric='PRAUC' (not AveragePrecision); compute final AP with sklearn."
+        )
     return (
         "MODALITY=TABULAR: Gradient-boosted trees (LightGBM/CatBoost/XGBoost) with clean K-fold "
         "CV are the strong default."
@@ -289,11 +324,20 @@ def _build_user_prompt(
     best_code: Optional[str],
     expansion_type: str = "primary",
     reference_solutions: Optional[list["RefSolution"]] = None,
+    experience_context: str = "",
+    operator: str = "",
 ) -> str:
+    normalized_operator = (operator or "").strip()
+    operator_guidance = {
+        "Draft": "Create a genuinely independent first approach; do not inherit a parent implementation.",
+        "Improve": "Keep the selected parent's proven core and make one evidence-backed improvement.",
+        "Debug": "Diagnose the recorded failure and apply the smallest complete repair that resolves its error signature.",
+        "Crossover": "Use exactly two selected parent lineages; preserve complementary strengths and state what is taken from each.",
+    }.get(normalized_operator, "")
     parts = [
         f"TASK: {context.task_name}",
         f"modality={context.modality} | task_type={context.task_type} | "
-        f"metric={context.metric} ({context.metric_direction})",
+        f"metric={context.metric} ({context.metric_direction}) | compute={context.compute_backend}",
         f"target_column={context.target_column or 'unknown'} | id_column={context.id_column or 'none'}",
         f"n_train={context.n_train} | n_test={context.n_test}",
         "",
@@ -308,11 +352,19 @@ def _build_user_prompt(
         "",
         f"RECOMMENDED STRATEGIES to consider: {', '.join(strategies) if strategies else '(none suggested)'}",
         "",
+        f"SEARCH OPERATOR: {normalized_operator or 'legacy'}",
+        *( [f"OPERATOR CONTRACT: {operator_guidance}"] if operator_guidance else [] ),
         f"CODE-GENERATION MODE: {mode}",
     ]
-    parts += ["", _modality_guidance(context.modality)]
+    parts += ["", _modality_guidance(context.modality, context.compute_backend)]
     if context.extra_notes:
         parts += ["", "NOTES:", context.extra_notes]
+    if experience_context.strip():
+        parts += [
+            "",
+            "EXPERIENCE-GUIDED MEMORY (public-validation only; bounded and hash-audited):",
+            experience_context.strip(),
+        ]
 
     refs = reference_solutions or []
     if expansion_type == "aggregation" and refs:
@@ -417,6 +469,8 @@ class VariationGenerator:
         temperature: Optional[float] = None,
         expansion_type: str = "primary",
         reference_solutions: Optional[list[RefSolution]] = None,
+        experience_context: str = "",
+        operator: str = "",
     ) -> VariationProposal:
         user = _build_user_prompt(
             context,
@@ -427,9 +481,11 @@ class VariationGenerator:
             best_code=best_code,
             expansion_type=expansion_type,
             reference_solutions=reference_solutions or [],
+            experience_context=experience_context,
+            operator=operator,
         )
         response: LLMResponse = self.client.generate(
-            user, system=_system_prompt(context.modality),
+            user, system=_system_prompt(context.modality, context.compute_backend),
             max_tokens=self.max_tokens, temperature=temperature,
         )
         code = _extract_code(response.text)
@@ -439,7 +495,7 @@ class VariationGenerator:
             exp_id=exp_id,
             code=code,
             hypothesis=_extract_hypothesis(response.text),
-            changes_summary=f"{mode}/{expansion_type} proposal for {context.task_name}",
+            changes_summary=f"{operator or mode}/{expansion_type} proposal for {context.task_name}",
             applied_strategies=list(strategies or []),
             parent_exp_id=parent_exp_id,
             code_generation_mode=mode,
@@ -448,4 +504,5 @@ class VariationGenerator:
             llm_input_tokens=response.input_tokens,
             llm_output_tokens=response.output_tokens,
             raw_response=response.text,
+            prompt=user,
         )

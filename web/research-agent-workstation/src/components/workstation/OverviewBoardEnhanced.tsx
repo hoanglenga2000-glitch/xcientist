@@ -40,7 +40,6 @@ type OverviewBoardEnhancedProps = {
 function ui(locale: Locale | undefined, en: string, zh: string) {
   return locale === "zh-CN" ? zh : en;
 }
-
 function normalizeTaskId(taskId?: string) {
   const value = taskId || "playground_series_s6e6";
   return value === "house-prices" ? "house_prices" : value;
@@ -121,12 +120,12 @@ function MetricCard({
   tone?: StatusTone;
 }) {
   const toneClass: Record<StatusTone, string> = {
-    blue: "bg-blue-50 text-blue-700 border-blue-100",
-    green: "bg-emerald-50 text-emerald-700 border-emerald-100",
-    amber: "bg-amber-50 text-amber-700 border-amber-100",
-    red: "bg-red-50 text-red-700 border-red-100",
-    slate: "bg-slate-100 text-slate-600 border-slate-200",
-    purple: "bg-violet-50 text-violet-700 border-violet-100"
+    blue: "bg-accent-light text-accent-dark border-accent-light",
+    green: "bg-success-light text-success-text border-success/25",
+    amber: "bg-warning-light text-warning-text border-warning/25",
+    red: "bg-danger-light text-danger-text border-danger/25",
+    slate: "bg-surface-sunken text-ink-secondary border-edge",
+    purple: "bg-info-light text-info-text border-info/25"
   };
   return (
     <Card className="min-h-[112px]">
@@ -135,9 +134,9 @@ function MetricCard({
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <div className="text-xs font-bold text-slate-500">{label}</div>
-          <div className="mt-1 truncate text-2xl font-bold tracking-normal text-slate-950">{value}</div>
-          <div className="mt-1 truncate text-xs font-medium text-slate-500">{detail}</div>
+          <div className="text-xs font-bold text-ink-muted">{label}</div>
+          <div className="mt-1 truncate text-2xl font-bold tracking-normal text-ink">{value}</div>
+          <div className="mt-1 truncate text-xs font-medium text-ink-muted">{detail}</div>
         </div>
       </CardContent>
     </Card>
@@ -146,9 +145,9 @@ function MetricCard({
 
 function SmallRow({ label, value }: { label: string; value: unknown }) {
   return (
-    <div className="flex min-w-0 items-start justify-between gap-3 border-b border-slate-100 py-2 text-xs last:border-b-0">
-      <span className="shrink-0 font-semibold text-slate-500">{label}</span>
-      <span className="min-w-0 break-words text-right font-bold text-slate-900">{compactValue(value)}</span>
+    <div className="flex min-w-0 items-start justify-between gap-3 border-b border-edge-light py-2 text-xs last:border-b-0">
+      <span className="shrink-0 font-semibold text-ink-muted">{label}</span>
+      <span className="min-w-0 break-words text-right font-bold text-ink">{compactValue(value)}</span>
     </div>
   );
 }
@@ -173,17 +172,17 @@ function WorkspaceCard({
   testId: string;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-4 shadow-[0_1px_1px_rgba(15,23,42,0.025)]">
+    <div className="rounded-md border border-edge bg-surface-raised p-4 shadow-[0_1px_1px_rgba(15,23,42,0.025)]">
       <div className="flex items-start justify-between gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-accent-light bg-accent-light text-accent-dark">
           <Icon className="h-5 w-5" />
         </span>
         <StatusBadge tone={tone}>{status}</StatusBadge>
       </div>
-      <div className="mt-4 text-sm font-bold text-slate-950">{title}</div>
-      <p className="mt-2 min-h-12 text-xs leading-5 text-slate-600">{description}</p>
+      <div className="mt-4 text-sm font-bold text-ink">{title}</div>
+      <p className="mt-2 min-h-12 text-xs leading-5 text-ink-secondary">{description}</p>
       <button
-        className="mt-4 flex h-9 w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 text-xs font-bold text-slate-800 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="mt-4 flex h-9 w-full items-center justify-between rounded-md border border-edge bg-surface-sunken px-3 text-xs font-bold text-ink transition hover:border-accent-muted hover:bg-accent-light hover:text-accent-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
         onClick={() => openWorkstationPage(page)}
         data-testid={testId}
         data-ui-skip-action="true"
@@ -212,7 +211,6 @@ export function OverviewBoardEnhanced({
   const activeRun = workstationRuns[0] ?? runs[0];
   const gates = summary?.gates ?? [];
   const evidence = summary?.evidence ?? [];
-  const approvedGates = gates.filter((gate) => /approved|passed|verified/i.test(String(gate.status ?? gate.decision ?? ""))).length;
   const pendingGates = gates.filter((gate) => /pending|waiting|manual/i.test(String(gate.status ?? gate.decision ?? ""))).length;
   const gpu = connectorEntry(summary, "gpu");
   const deepseek = connectorEntry(summary, "deepseek");
@@ -353,15 +351,15 @@ export function OverviewBoardEnhanced({
   return (
     <div className="space-y-4" data-testid="enhanced-overview-board">
       <section className="grid gap-4 xl:grid-cols-[1.2fr_.8fr]">
-        <Card className="border-slate-200 overflow-hidden">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 pb-3">
+        <Card className="border-edge overflow-hidden">
+          <CardHeader className="bg-surface-sunken border-b border-edge-light pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>{ui(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</CardTitle>
                 <CardDescription>{ui(locale, "Initialize runs and manage gates for task execution.", "初始化运行，管理任务执行门禁。")}</CardDescription>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-md border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-emerald-700">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
+              <div className="inline-flex items-center gap-2 rounded-md border border-success/25 bg-success-light px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-success-text">
+                <span className="h-1.5 w-1.5 rounded-full bg-success animate-pulse" />
                 System Active
               </div>
             </div>
@@ -369,7 +367,7 @@ export function OverviewBoardEnhanced({
           <CardContent className="p-4 sm:p-5">
             <div className="grid gap-3 sm:grid-cols-3">
               <button
-                className="flex flex-col items-start rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex flex-col items-start rounded-md border border-edge bg-surface-raised p-4 text-left shadow-sm transition hover:border-accent-muted hover:bg-accent-light focus:outline-none focus:ring-2 focus:ring-accent"
                 onClick={() => runWorkstationAction?.("create_workstation_run", {
                   task_id: readiness?.task_id ?? normalizedTask,
                   config_path: readiness?.config_path ?? "configs/generated/playground_series_s6e6.yaml",
@@ -380,13 +378,13 @@ export function OverviewBoardEnhanced({
                 data-testid="create-workstation-run"
                 data-ui-skip-action="true"
               >
-                <GitBranch className="mb-3 h-5 w-5 text-blue-600" />
-                <span className="text-sm font-bold text-slate-900">{ui(locale, "Create Run", "创建 Run")}</span>
-                <span className="mt-1 text-xs leading-5 text-slate-500">{ui(locale, "Launch a workstation-controlled validation run", "启动受控的验证运行流程")}</span>
+                <GitBranch className="mb-3 h-5 w-5 text-accent" />
+                <span className="text-sm font-bold text-ink">{ui(locale, "Create Run", "创建 Run")}</span>
+                <span className="mt-1 text-xs leading-5 text-ink-muted">{ui(locale, "Launch a workstation-controlled validation run", "启动受控的验证运行流程")}</span>
               </button>
               
               <button
-                className="flex flex-col items-start rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-amber-300 hover:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                className="flex flex-col items-start rounded-md border border-edge bg-surface-raised p-4 text-left shadow-sm transition hover:border-warning/55 hover:bg-warning-light focus:outline-none focus:ring-2 focus:ring-warning"
                 onClick={() => runWorkstationAction?.("prepare_hpc_execution_gate", {
                   task_id: activeRun?.task_id ?? readiness?.task_id ?? normalizedTask,
                   run_id: activeRun?.id,
@@ -395,13 +393,13 @@ export function OverviewBoardEnhanced({
                 data-testid="prepare-hpc-execution-gate"
                 data-ui-skip-action="true"
               >
-                <Cpu className="mb-3 h-5 w-5 text-amber-600" />
-                <span className="text-sm font-bold text-slate-900">{ui(locale, "Prepare HPC Gate", "准备 HPC Gate")}</span>
-                <span className="mt-1 text-xs leading-5 text-slate-500">{ui(locale, "Request execution authorization on cluster", "申请计算集群的执行授权")}</span>
+                <Cpu className="mb-3 h-5 w-5 text-warning" />
+                <span className="text-sm font-bold text-ink">{ui(locale, "Prepare HPC Gate", "准备 HPC Gate")}</span>
+                <span className="mt-1 text-xs leading-5 text-ink-muted">{ui(locale, "Request execution authorization on cluster", "申请计算集群的执行授权")}</span>
               </button>
               
               <button
-                className="flex flex-col items-start rounded-md border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-purple-300 hover:bg-purple-50 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex flex-col items-start rounded-md border border-edge bg-surface-raised p-4 text-left shadow-sm transition hover:border-info/50 hover:bg-info-light focus:outline-none focus:ring-2 focus:ring-accent"
                 onClick={() => runWorkstationAction?.("prepare_score_improvement_plan", {
                   competition_slug: readiness?.competition_slug ?? "playground-series-s6e6",
                   task_id: readiness?.task_id ?? normalizedTask
@@ -409,33 +407,33 @@ export function OverviewBoardEnhanced({
                 data-testid="prepare-score-improvement-plan"
                 data-ui-skip-action="true"
               >
-                <SlidersHorizontal className="mb-3 h-5 w-5 text-purple-600" />
-                <span className="text-sm font-bold text-slate-900">{ui(locale, "Score Plan", "提分计划")}</span>
-                <span className="mt-1 text-xs leading-5 text-slate-500">{ui(locale, "Configure score recovery parameters", "配置分数回退的恢复策略")}</span>
+                <SlidersHorizontal className="mb-3 h-5 w-5 text-info" />
+                <span className="text-sm font-bold text-ink">{ui(locale, "Score Plan", "提分计划")}</span>
+                <span className="mt-1 text-xs leading-5 text-ink-muted">{ui(locale, "Configure score recovery parameters", "配置分数回退的恢复策略")}</span>
               </button>
             </div>
 
-            <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2">
-              <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mt-4 grid gap-3 border-t border-edge-light pt-4 sm:grid-cols-2">
+              <div className="rounded-md border border-edge bg-surface-raised p-3 shadow-sm">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="text-xs font-semibold text-slate-500">{ui(locale, "Historical best", "历史最佳")}</div>
-                  <div className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{ui(locale, "Protected baseline", "受保护基线")}</div>
+                  <div className="text-xs font-semibold text-ink-muted">{ui(locale, "Historical best", "历史最佳")}</div>
+                  <div className="rounded bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{ui(locale, "Protected baseline", "受保护基线")}</div>
                 </div>
-                <div className="font-mono text-2xl font-bold text-slate-950">{scoreText(currentBest)}</div>
+                <div className="font-mono text-2xl font-bold text-ink">{scoreText(currentBest)}</div>
               </div>
-              <div className="rounded-md border border-slate-200 bg-white p-3 shadow-sm">
+              <div className="rounded-md border border-edge bg-surface-raised p-3 shadow-sm">
                 <div className="mb-1 flex items-center justify-between">
-                  <div className="text-xs font-semibold text-slate-500">{ui(locale, "Latest official score", "最新官方分数")}</div>
-                  <div className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-500">{ui(locale, "Requires review", "需审查")}</div>
+                  <div className="text-xs font-semibold text-ink-muted">{ui(locale, "Latest official score", "最新官方分数")}</div>
+                  <div className="rounded bg-surface-sunken px-1.5 py-0.5 text-[10px] font-medium text-ink-muted">{ui(locale, "Requires review", "需审查")}</div>
                 </div>
-                <div className="font-mono text-2xl font-bold text-slate-950">{scoreText(latestScore)}</div>
+                <div className="font-mono text-2xl font-bold text-ink">{scoreText(latestScore)}</div>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        <Card className="flex flex-col border-slate-200">
-          <CardHeader className="bg-slate-50 border-b border-slate-100 pb-3">
+        <Card className="flex flex-col border-edge">
+          <CardHeader className="bg-surface-sunken border-b border-edge-light pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle>{ui(locale, "System Constraints", "系统约束")}</CardTitle>
@@ -454,8 +452,8 @@ export function OverviewBoardEnhanced({
                 ui(locale, "Reports must bind claims to metric artifacts.", "报告必须绑定具体的指标与产物。"),
                 ui(locale, "Low-score commits do not overwrite baseline.", "低分提交绝对不会覆盖当前基线。")
               ].map((item) => (
-                <div key={item} className="flex items-start gap-2 rounded border border-slate-200 bg-slate-50 p-2.5 text-xs font-medium text-slate-700">
-                  <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
+                <div key={item} className="flex items-start gap-2 rounded border border-edge bg-surface-sunken p-2.5 text-xs font-medium text-ink-secondary">
+                  <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink-muted" />
                   <span className="leading-5">{item}</span>
                 </div>
               ))}
@@ -481,12 +479,12 @@ export function OverviewBoardEnhanced({
               <div className="grid min-w-[820px] grid-cols-8 gap-2">
                 {workflow.map(([title, Icon, status], index) => (
                   <div key={title} className="relative">
-                    {index < workflow.length - 1 ? <div className="absolute left-[calc(50%+28px)] top-8 h-px w-[calc(100%-40px)] bg-slate-200" /> : null}
-                    <div className="relative rounded-md border border-slate-200 bg-white p-3 text-center">
-                      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border border-blue-100 bg-blue-50 text-blue-700">
+                    {index < workflow.length - 1 ? <div className="absolute left-[calc(50%+28px)] top-8 h-px w-[calc(100%-40px)] bg-edge" /> : null}
+                    <div className="relative rounded-md border border-edge bg-surface-raised p-3 text-center">
+                      <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-md border border-accent-light bg-accent-light text-accent-dark">
                         <Icon className="h-5 w-5" />
                       </div>
-                      <div className="mt-3 truncate text-sm font-bold text-slate-950">{title}</div>
+                      <div className="mt-3 truncate text-sm font-bold text-ink">{title}</div>
                       <StatusBadge tone={status === "done" ? "green" : status === "manual" ? "amber" : "slate"} className="mt-2">
                         {status === "done" ? ui(locale, "done", "已完成") : status === "manual" ? ui(locale, "gate", "需门禁") : ui(locale, "pending", "待处理")}
                       </StatusBadge>
@@ -504,7 +502,7 @@ export function OverviewBoardEnhanced({
             <CardDescription>{ui(locale, "Readiness is displayed, not simulated.", "展示真实 readiness，不模拟成功。")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <div className="rounded-md border border-edge bg-surface-sunken p-3">
               <SmallRow label={ui(locale, "Task", "任务")} value={readiness?.task_id ?? normalizedTask} />
               <SmallRow label={ui(locale, "Competition", "比赛")} value={readiness?.competition_slug ?? "playground-series-s6e6"} />
               <SmallRow label={ui(locale, "Metric", "指标")} value={readiness?.metric ?? "balanced_accuracy"} />
@@ -556,18 +554,18 @@ export function OverviewBoardEnhanced({
             const Icon = resource.icon;
             const state = String(resource.entry?.state ?? (isConfigured(resource.entry) ? "configured" : "not configured"));
             return (
-              <div key={resource.key} className="rounded-md border border-slate-200 bg-white p-3">
+              <div key={resource.key} className="rounded-md border border-edge bg-surface-raised p-3">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-slate-50 text-slate-700">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-surface-sunken text-ink-secondary">
                     <Icon className="h-4 w-4" />
                   </span>
                   <StatusBadge tone={statusTone(isConfigured(resource.entry), state)}>
                     {statusLabel(locale, isConfigured(resource.entry), state)}
                   </StatusBadge>
                 </div>
-                <div className="mt-3 text-sm font-bold text-slate-950">{resource.name}</div>
-                <div className="mt-1 text-xs font-semibold text-slate-500">{resource.evidence}</div>
-                <div className="mt-2 min-h-10 break-words text-xs leading-5 text-slate-600">{state}</div>
+                <div className="mt-3 text-sm font-bold text-ink">{resource.name}</div>
+                <div className="mt-1 text-xs font-semibold text-ink-muted">{resource.evidence}</div>
+                <div className="mt-2 min-h-10 break-words text-xs leading-5 text-ink-secondary">{state}</div>
               </div>
             );
           })}

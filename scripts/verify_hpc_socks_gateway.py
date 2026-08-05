@@ -62,6 +62,8 @@ def socks5_banner(proxy_host: str, proxy_port: int, dest_host: str, dest_port: i
     sock.recv(2)
     banner = sock.recv(64).decode("ascii", "replace").strip()
     sock.close()
+    if not banner.startswith("SSH-"):
+        raise RuntimeError("destination closed before sending an SSH protocol banner")
     return banner
 
 

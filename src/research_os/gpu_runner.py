@@ -13,14 +13,30 @@ from __future__ import annotations
 import json
 import os
 import posixpath
+import shlex
 from dataclasses import dataclass
 from typing import Optional
 
 from .evolution_loop import RunResult
 
+ALLOWED_REMOTE_ROOT = "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra"
+
 
 def _remote_root() -> str:
-    return os.environ.get("GPU_REMOTE_WORKSPACE", "~/jinghw/scripts/gpu_tra")
+    root = os.environ.get("GPU_REMOTE_WORKSPACE", ALLOWED_REMOTE_ROOT).rstrip("/")
+    if root != ALLOWED_REMOTE_ROOT:
+        raise ValueError("GPU_REMOTE_WORKSPACE must equal the dedicated EvoMind HPC root")
+    return root
+
+
+def _validated_remote_path(path: str, *, root: str) -> str:
+    if "~" in path:
+        raise ValueError("remote paths must be absolute and cannot use shell expansion")
+    normalized = posixpath.normpath(path)
+    root = posixpath.normpath(root)
+    if normalized != root and not normalized.startswith(root + "/"):
+        raise ValueError("remote path escapes the dedicated EvoMind HPC root")
+    return normalized
 
 
 @dataclass
@@ -36,6 +52,8 @@ class GPURunnerConfig:
             self.remote_root = _remote_root()
         if not self.data_root:
             self.data_root = posixpath.join(self.remote_root, "mlebench_raw_data")
+        self.remote_root = _validated_remote_path(self.remote_root, root=ALLOWED_REMOTE_ROOT)
+        self.data_root = _validated_remote_path(self.data_root, root=self.remote_root)
 
 
 class GPURunner:
@@ -82,8 +100,11 @@ class GPURunner:
         remote_exp = posixpath.join(cfg.remote_root, cfg.evolution_subdir, self.task_data_dirname, exp_id)
         remote_script = posixpath.join(remote_exp, "solution.py")
         remote_out = posixpath.join(remote_exp, "out")
-        remote_data = data_dir if data_dir.startswith("/") or data_dir.startswith("~") \
+        remote_data = data_dir if data_dir.startswith("/") \
             else posixpath.join(cfg.data_root, self.task_data_dirname)
+        remote_exp = _validated_remote_path(remote_exp, root=cfg.remote_root)
+        remote_out = _validated_remote_path(remote_out, root=cfg.remote_root)
+        remote_data = _validated_remote_path(remote_data, root=cfg.remote_root)
 
         client = self._open()
         try:
@@ -92,7 +113,9 @@ class GPURunner:
             # otherwise survive here. On a kill (timeout/OOM) the current run prints no
             # CV_SCORE, and the fallback below would then read that STALE metrics.json
             # and attribute a phantom score to a failed run -> fabricated result.
-            self._exec(client, f"mkdir -p {remote_exp} && rm -rf {remote_out} && mkdir -p {remote_out}", timeout=60)
+            q_exp = shlex.quote(remote_exp)
+            q_out = shlex.quote(remote_out)
+            self._exec(client, f"mkdir -p {q_exp} && rm -rf {q_out} && mkdir -p {q_out}", timeout=60)
             sftp = client.open_sftp()
             try:
                 with sftp.file(remote_script, "w") as handle:
@@ -100,8 +123,8 @@ class GPURunner:
             finally:
                 sftp.close()
             cmd = (
-                f"cd {remote_exp} && timeout {cfg.timeout} {cfg.remote_python} -u solution.py "
-                f"--data-dir {remote_data} --out-dir {remote_out} 2>&1"
+                f"cd {q_exp} && timeout {int(cfg.timeout)} {shlex.quote(cfg.remote_python)} -u solution.py "
+                f"--data-dir {shlex.quote(remote_data)} --out-dir {q_out} 2>&1"
             )
             rc, out, err = self._exec(client, cmd, timeout=cfg.timeout + 60)
             score = _parse_remote_score(out)
@@ -111,13 +134,13 @@ class GPURunner:
             # would fabricate a cv_score for a run that never emitted one. The clean-dir
             # step above already removes stale files; this gate is the belt-and-braces.
             if score is None and rc == 0:
-                rc2, mout, _ = self._exec(client, f"cat {remote_out}/metrics.json 2>/dev/null", timeout=60)
+                rc2, mout, _ = self._exec(client, f"cat {q_out}/metrics.json 2>/dev/null", timeout=60)
                 if rc2 == 0 and mout.strip():
                     try:
                         score = float(json.loads(mout).get("cv_score"))
                     except (ValueError, TypeError, json.JSONDecodeError):
                         score = None
-            rc3, listing, _ = self._exec(client, f"ls -1 {remote_out} 2>/dev/null", timeout=60)
+            rc3, listing, _ = self._exec(client, f"ls -1 {q_out} 2>/dev/null", timeout=60)
             artifacts = [posixpath.join(remote_out, name.strip()) for name in listing.splitlines() if name.strip()]
             success = rc == 0 and score is not None
             # A remote kill (timeout=124, OOM/SIGKILL=137, segfault=139) leaves NO
@@ -171,4 +194,3 @@ def _diagnose_exit(rc: int, out: str, *, timeout_s: int) -> str:
     ctx = f"\nlast stdout line before exit: {last}" if last else ""
     body = ("\n--- captured output tail ---\n" + tail[-1200:]) if tail else ""
     return f"{head}{ctx}{body}"
-

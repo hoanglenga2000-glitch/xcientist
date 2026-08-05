@@ -1,0 +1,22 @@
+{
+  "task_name": "credit_card_fraud_detection",
+  "modality": "tabular",
+  "task_type": "classification",
+  "metric": "average_precision",
+  "metric_direction": "maximize",
+  "target_column": "is_fraud",
+  "id_column": "Unnamed: 0",
+  "n_train": 1296675,
+  "n_test": 555719,
+  "n_features": 22,
+  "n_high_cardinality_features": 8,
+  "n_model_families": 3,
+  "has_time_column": true,
+  "target_is_positive": false,
+  "compute_backend": "local_gpu",
+  "orchestration_model": "gpt-5.6-sol",
+  "local_data_dir": "tasks/credit_card_fraud_detection/evolution_data",
+  "independent_holdout_labels": "tasks/credit_card_fraud_detection/evolution_data/holdout_labels.csv",
+  "data_schema": "23 raw columns including transaction time, merchant/category, amount, customer/geography and target is_fraud. The first CSV column is read by pandas as Unnamed: 0. Test features contain 22 columns; holdout labels are stored separately for independent review.",
+  "extra_notes": "Use the local NVIDIA GeForce RTX 4060 Laptop GPU with 8 GB VRAM. Train candidates sequentially: LightGBM on CPU, XGBoost with device='cuda' and tree_method='hist', and CatBoost with task_type='GPU'. The primary metric is PR-AUC (sklearn average_precision_score); also record F1, Recall, Precision, Brier score and an OOF-derived decision threshold. Use chronological validation based on trans_date_trans_time or unix_time, never a random split that leaks future behavior. Drop direct identifiers and PII-like memorization columns such as cc_num, trans_num, first, last, street; derive bounded time, amount, age and geo-distance features. Use native or ordinal categorical handling without dense one-hot expansion. Keep pandas memory bounded with selected columns/dtypes and release fold intermediates. Write sample_submission-compatible is_fraud probabilities for the full independent holdout. Never submit to a public leaderboard."
+}

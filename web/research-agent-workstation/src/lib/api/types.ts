@@ -70,6 +70,9 @@ export type TerminalAgentSummary = {
   events_present: boolean;
   event_count: number;
   recent_events: Array<Record<string, unknown>>;
+  terminal_events_path?: string | null;
+  terminal_event_count?: number;
+  recent_terminal_events?: Array<Record<string, unknown>>;
   summary_path: string | null;
   summary_present: boolean;
   iterations: Array<Record<string, unknown>>;
@@ -147,6 +150,200 @@ export type ScientistNextActionSummary = {
   action_queue_artifact_path?: string;
   no_training_started?: boolean;
   official_submit?: string;
+};
+
+export type MultiAgentCurrentRun = {
+  schema?: string;
+  task_id: string;
+  run_id: string;
+  run_dir?: string;
+  status?: string;
+  last_seq?: number;
+  updated_at?: string;
+};
+
+export type MultiAgentTaskNode = {
+  task_id: string;
+  goal?: string;
+  role?: string;
+  dependencies?: string[];
+  resource_type?: string;
+  status?: string;
+  attempts?: number;
+  result_ref?: string;
+  solution_id?: string;
+  [key: string]: unknown;
+};
+
+export type MultiAgentTaskGraph = {
+  schema?: string;
+  run_id?: string;
+  nodes?: MultiAgentTaskNode[];
+  edges?: Array<{ from?: string; to?: string }>;
+};
+
+export type MultiAgentHandoff = {
+  schema?: string;
+  handoff_id?: string;
+  run_id?: string;
+  task_id?: string;
+  sender?: string;
+  receiver?: string;
+  expected_output?: string[];
+  [key: string]: unknown;
+};
+
+export type MultiAgentCandidateMetric = {
+  solution_id?: string;
+  cv_score?: number;
+  uses_cuda?: boolean;
+  source_sha256?: string;
+  data_hash?: string;
+};
+
+export type MultiAgentReview = {
+  schema?: string;
+  status?: string;
+  review_input?: string;
+  parent_subjective_summary_received?: boolean;
+  accepted_candidates?: MultiAgentCandidateMetric[];
+  claim_audit?: {
+    status?: string;
+    official_kaggle_score_claimed?: boolean;
+    fresh_run_only?: boolean;
+  };
+  [key: string]: unknown;
+};
+
+export type MultiAgentHpcProbe = {
+  status?: string;
+  generated_at?: string;
+  hostname?: string;
+  pwd?: string;
+  python_version?: string;
+  gpu_inventory?: Array<{
+    index?: string;
+    name?: string;
+    memory_total_mb?: string;
+    driver_version?: string;
+  }>;
+  torch?: {
+    version?: string;
+    cuda_available?: boolean;
+    device_count?: number;
+  };
+  failure_type?: string;
+  error?: string;
+  [key: string]: unknown;
+};
+
+export type MultiAgentArtifactManifest = {
+  schema?: string;
+  run_id?: string;
+  selected_solution?: string;
+  artifacts?: Array<{
+    path?: string;
+    sha256?: string;
+    bytes?: number;
+    kind?: string;
+  }>;
+  official_submission?: string;
+  generated_at?: string;
+  base_model?: string;
+  training_method?: string;
+  review_status?: string;
+  claim_audit_status?: string;
+  model_publication?: string;
+};
+
+export type MultiAgentPublicArtifactPreview = {
+  id: "research_report" | "model_card" | "adapter" | string;
+  name: string;
+  title: string;
+  kind: "markdown" | "file_list";
+  content?: string;
+  sha256?: string;
+  bytes?: number;
+  files?: Array<{
+    name: string;
+    sha256?: string;
+    bytes?: number;
+  }>;
+};
+
+export type MultiAgentLlmFacts = {
+  task_type?: "llm_finetune" | string;
+  base_model?: string | null;
+  dataset?: {
+    counts?: { train?: number; validation?: number; test?: number };
+    data_hash?: string;
+    source_split_policy?: string;
+    secrets_removed?: boolean;
+    [key: string]: unknown;
+  } | null;
+  qlora_config?: {
+    method?: string;
+    lora_r?: number;
+    lora_alpha?: number;
+    lora_dropout?: number;
+    max_sequence_length?: number;
+    effective_batch_size?: number;
+    epochs?: number;
+    compute_dtype?: string;
+    [key: string]: unknown;
+  } | null;
+  training?: {
+    step?: number | null;
+    loss?: number | null;
+    gpu_memory_mb?: number | null;
+  } | null;
+  before_after_eval?: {
+    before?: Record<string, unknown> | null;
+    after?: Record<string, unknown> | null;
+    improvement_pp?: number | null;
+  } | null;
+  evaluation?: Record<string, unknown> | null;
+  environment?: Record<string, unknown> | null;
+  telemetry?: Array<Record<string, unknown>>;
+  adapter_reload?: Record<string, unknown> | null;
+  claim_audit?: Record<string, unknown> | null;
+};
+
+export type MultiAgentRuntimeSnapshot = {
+  schema?: string;
+  task_id?: string;
+  run_id?: string;
+  status?: string;
+  seq?: number;
+  active_agents?: string[];
+  open_requirements?: string[];
+  next_action?: string;
+  llm?: MultiAgentLlmFacts | null;
+  metrics?: {
+    selected_solution?: string;
+    metric?: string;
+    cv_score?: number;
+    official_kaggle_score?: number | null;
+    candidates?: MultiAgentCandidateMetric[];
+    review_status?: string;
+  };
+  reviewer?: MultiAgentReview;
+  dataset_profile?: Record<string, unknown> | null;
+  experiment_comparison?: Record<string, unknown> | null;
+  hpc_runtime?: Record<string, unknown> | null;
+  historical_thresholds?: Record<string, unknown> | null;
+  deliverables?: Record<string, unknown> | null;
+  private_grader?: Record<string, unknown> | null;
+  private_grader_ledger?: Record<string, unknown> | null;
+  candidate_freeze?: Record<string, unknown> | null;
+  gates?: {
+    code_quality?: string;
+    reviewer?: string;
+    claim_audit?: string;
+    promotion?: string;
+    official_submission?: string;
+  };
+  [key: string]: unknown;
 };
 
 export type ScientistContinuationProgress = {
@@ -1216,6 +1413,7 @@ export type ScientistTerminalTurnSummary = {
   stop_conditions?: string[];
   execution_ready?: boolean;
   execution_blocked?: boolean;
+  read_only_completed?: boolean;
   blocking_gates?: string[];
   reasoning_synthesis?: ScientistReasoningSynthesisSummary;
   answer_markdown?: string;
@@ -1456,19 +1654,27 @@ export type WorkstationSummary = {
     task_state?: Record<string, unknown> | null;
     agent_trace?: Array<Record<string, unknown>>;
     event_log?: Array<Record<string, unknown>>;
-    artifact_manifest?: Record<string, unknown> | null;
+    artifact_manifest?: MultiAgentArtifactManifest | null;
     evidence_graph?: Record<string, unknown> | null;
     experiment_graph?: Record<string, unknown> | null;
     reflection?: Record<string, unknown> | null;
     memory?: Record<string, unknown> | null;
     gate_engine?: Record<string, unknown> | null;
-    runtime_snapshot?: Record<string, unknown> | null;
+    runtime_snapshot?: MultiAgentRuntimeSnapshot | null;
+    current_run?: MultiAgentCurrentRun | null;
+    task_graph?: MultiAgentTaskGraph | null;
+    handoffs?: MultiAgentHandoff[];
+    review?: MultiAgentReview | null;
+    hpc_probe?: MultiAgentHpcProbe | null;
+    public_artifact_previews?: MultiAgentPublicArtifactPreview[];
     report_markdown?: string;
     generated_code?: string;
     training_log?: string[];
   };
   runtime_by_task?: Record<string, NonNullable<WorkstationSummary["runtime"]>>;
   terminal_agent?: TerminalAgentSummary;
+  literature_context?: LiteratureTaskState | LiteratureSearchResponse | null;
+  literature_by_task?: Record<string, LiteratureTaskState>;
   scientist_autopilot?: ScientistAutopilotSummary;
   scientist_action_queue?: ScientistActionQueueSummary;
   scientist_next_action?: ScientistNextActionSummary;
@@ -1533,9 +1739,148 @@ export type WorkstationActionResponse = WorkstationAction & {
   json_path?: string;
   gate_id?: string;
   latest_run?: string | null;
+  artifact_path?: string;
+  context_path?: string;
+  context_id?: string;
+  paper_count?: number;
+  handoff?: LiteratureAgentHandoff;
+  handoff_path?: string;
+  claim_binding?: LiteratureClaimBinding;
+  claim_binding_path?: string;
+  citation_audit?: LiteratureCitationAudit;
+  citation_audit_path?: string;
+  reviewer_status?: string;
 };
 
-export type LiteratureSearchSource = "local" | "arxiv" | "seed";
+export type ScientificFigure = {
+  id: string;
+  title: string;
+  caption: string;
+  path: string;
+  status: "ready" | "missing_data";
+  sources: string[];
+  preview_data_url?: string;
+};
+
+export type ScientificArtifact = {
+  id: string;
+  category: "research_report" | "model_artifacts" | "reproducibility" | "audit";
+  name: string;
+  type: string;
+  version: string;
+  status: "ready" | "unavailable";
+  bytes: number | null;
+  sha256: string | null;
+  path: string | null;
+  previewable: boolean;
+  downloadable: boolean;
+};
+
+export type ScientificVersionComparison = {
+  schema: "evomind.llm_version_comparison.v1";
+  status: string;
+  outcome: "improved" | "no_material_change" | "trade_off_detected" | "not_available";
+  metric: "fixed_test_domain_composite";
+  parent_version: string;
+  child_version: string;
+  v1: number | null;
+  v2: number | null;
+  delta_pp: number | null;
+  requested_changes: Array<{
+    field: string;
+    operation: string;
+    old_value: number | string | boolean | null;
+    value: number | string | boolean | null;
+    factor?: number;
+    source: string;
+  }>;
+  parent_preserved: boolean;
+  generated_by: "VersionComparatorAgent";
+  generated_at: string;
+};
+
+export type ScientificReportPackage = {
+  schema: "evomind.scientific_report_package.v1";
+  task_id: string;
+  run_id: string;
+  version: string;
+  parent_run_id: string | null;
+  status: "ready" | "partial";
+  renderer: "EvoMind Nature Skills";
+  generated_at: string;
+  source_evidence: string[];
+  metrics: {
+    before: number | null;
+    after: number | null;
+    improvement_pp: number | null;
+    train_steps: number | null;
+    train_loss: number | null;
+    max_gpu_memory_mb: number | null;
+  };
+  dataset: Record<string, unknown>;
+  method: Record<string, unknown>;
+  reviewer: Record<string, unknown>;
+  claim_audit: Record<string, unknown>;
+  version_comparison: ScientificVersionComparison | null;
+  figures: ScientificFigure[];
+  artifacts: ScientificArtifact[];
+  report_html_path: string;
+  report_pdf_path: string | null;
+  bundle_path: string | null;
+  manifest_path: string;
+};
+
+export type ScientificReportGenerationStage = "collecting_evidence" | "loading_metrics" | "rendering_figures" | "building_report" | "rendering_pdf" | "bundling" | "attaching_audit" | "ready" | "failed";
+
+export type ScientificReportGenerationStatus = {
+  schema: "evomind.scientific_report_generation.v1";
+  task_id: string;
+  run_id: string;
+  seq: number;
+  status: "running" | "ready" | "failed";
+  stage: ScientificReportGenerationStage;
+  automated: boolean;
+  error: string | null;
+  updated_at: string;
+  history: Array<{
+    seq: number;
+    stage: ScientificReportGenerationStage;
+    status: "running" | "ready" | "failed";
+    at: string;
+  }>;
+};
+
+export type RefinementPlan = {
+  schema: "evomind.llm_refinement_request.v1";
+  refinement_id: string;
+  task_id: string;
+  parent_run_id: string;
+  parent_version: string;
+  proposed_version: string;
+  prompt: string;
+  status: "awaiting_human_gate" | "approved" | "rejected" | "starting" | "running" | "completed" | "needs_continuation" | "cancelled" | "failed";
+  requested_changes: Array<{
+    field: string;
+    operation: string;
+    old_value?: number | string | boolean | null;
+    value: number | string | boolean | null;
+    factor?: number;
+    source: string;
+  }>;
+  preserved: string[];
+  affected_steps: string[];
+  rerun_policy: "only_affected_steps";
+  estimated_runtime_minutes: number | null;
+  gate: { decision: "pending" | "approved" | "rejected"; decided_at?: string | null };
+  child_run_id: string | null;
+  launch_reserved_at?: string | null;
+  launch_attempts?: number;
+  comparison_path?: string | null;
+  created_at: string;
+  updated_at?: string;
+};
+
+export type LiteratureSearchSource = "local" | "imported" | "arxiv" | "openalex" | "crossref" | "internal" | "seed";
 
 export type LiteraturePaper = {
   id: string;
@@ -1554,6 +1899,14 @@ export type LiteraturePaper = {
   methods?: string[];
   risks?: string[];
   authors?: string[];
+  doi?: string | null;
+  source_url?: string | null;
+  provenance?: {
+    verified: boolean;
+    source: string;
+    retrieved_at?: string;
+    checksum?: string | null;
+  };
 };
 
 export type LiteratureChunk = {
@@ -1591,6 +1944,8 @@ export type LiteratureSearchResponse = {
   ok: boolean;
   task_id: string;
   query: string;
+  original_query?: string;
+  search_queries?: string[];
   generated_at: string;
   source_counts: Record<string, number>;
   metrics: {
@@ -1601,6 +1956,11 @@ export type LiteratureSearchResponse = {
     max_tokens: number;
     local_documents_indexed: number;
     arxiv_results: number;
+    openalex_results?: number;
+    crossref_results?: number;
+    imported_documents?: number;
+    raw_external_results?: number;
+    relevance_filtered_results?: number;
   };
   papers: LiteraturePaper[];
   retrieval: LiteratureChunk[];
@@ -1610,6 +1970,96 @@ export type LiteratureSearchResponse = {
   context_path: string;
   manifest_path: string;
   used_fallback: boolean;
+  source_errors?: Array<{ source: string; error: string; retryable: boolean }>;
+  relevance?: {
+    status: "passed" | "relevance_filtered" | "no_external_results";
+    raw_external: number;
+    accepted_external: number;
+    filtered_external: number;
+  };
+  integrity?: {
+    external_verified: number;
+    imported: number;
+    internal_context: number;
+    fabricated: number;
+  };
+  error?: string;
+};
+
+export type LiteratureAgentContext = {
+  schema: "evomind.multi_agent.literature_context.v1" | string;
+  context_id: string;
+  task_id: string;
+  created_at: string;
+  source_manifest?: { path?: string; sha256?: string; query?: string; generated_at?: string | null };
+  source_context_path?: string;
+  source_counts?: Record<string, number>;
+  integrity?: Record<string, number>;
+  papers?: LiteraturePaper[];
+  evidence_contract?: Record<string, unknown>;
+};
+
+export type LiteratureAgentHandoff = {
+  schema?: string;
+  handoff_id?: string;
+  task_id?: string;
+  sender?: string;
+  recipient?: "research_agent" | "code_agent" | string;
+  created_at?: string;
+  status?: string;
+  input_evidence?: Array<Record<string, unknown>>;
+  expected_output?: string;
+  provenance?: Record<string, unknown>;
+};
+
+export type LiteratureClaimBinding = {
+  schema?: string;
+  binding_id?: string;
+  task_id?: string;
+  created_at?: string;
+  claim?: string;
+  paper?: LiteraturePaper;
+  evidence_reference?: Record<string, unknown>;
+  review_status?: string;
+  report_gate?: string;
+};
+
+export type LiteratureCitationAudit = {
+  schema?: string;
+  audit_id?: string;
+  task_id?: string;
+  reviewer?: string;
+  status?: "passed" | "needs_evidence" | "blocked" | string;
+  gate?: string;
+  claim?: string;
+  paper_id?: string;
+  evidence_checked?: Record<string, unknown>;
+  blockers?: string[];
+  open_requirements?: string[];
+  conclusion?: string;
+};
+
+export type LiteratureTaskState = LiteratureSearchResponse & {
+  present?: boolean;
+  agent_context?: LiteratureAgentContext | null;
+  agent_context_path?: string | null;
+  handoffs?: LiteratureAgentHandoff[];
+  latest_handoff?: LiteratureAgentHandoff | null;
+  claim_binding?: LiteratureClaimBinding | null;
+  claim_binding_path?: string | null;
+  citation_audits?: LiteratureCitationAudit[];
+  latest_citation_audit?: LiteratureCitationAudit | null;
+  citation_audit_path?: string | null;
+};
+
+export type LiteratureImportResponse = {
+  ok: boolean;
+  task_id: string;
+  paper: LiteraturePaper;
+  source_artifact: string;
+  text_artifact: string;
+  manifest_path: string;
+  indexed: boolean;
   error?: string;
 };
 
@@ -1962,6 +2412,200 @@ export type EvolutionMemoryResponse = {
   error?: string;
 };
 
+export type EvolutionSearchMode = "legacy_uct" | "experience_mcgs_v1";
+export type EvolutionSearchOperator = "Draft" | "Improve" | "Debug" | "Crossover";
+
+export type EvolutionExperienceCost = {
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  wall_seconds: number;
+  gpu_seconds: number;
+  estimated_cost_usd: number;
+};
+
+export type EvolutionExperienceCard = {
+  card_id: string;
+  node_id: string;
+  parent_ids: string[];
+  operator: EvolutionSearchOperator;
+  method_family: string;
+  status: string;
+  public_validation_score: number | null;
+  metric_direction: string;
+  error_signature: string;
+  code_hash: string;
+  prompt_hash: string;
+  execution_id: string;
+  content_hash: string;
+  cost: EvolutionExperienceCost;
+  summary: string;
+};
+
+export type EvolutionSelectionCandidate = {
+  node_id: string;
+  card_id: string;
+  quality: number;
+  progress: number;
+  novelty: number;
+  exploration: number;
+  utility: number;
+  visits: number;
+  parent_visits: number;
+};
+
+export type EvolutionSelectionTrace = {
+  selected_node_id: string;
+  selected_card_id: string;
+  exploration_c: number;
+  tie_break: string;
+  candidates: EvolutionSelectionCandidate[];
+  operator: EvolutionSearchOperator | null;
+  selection_reason: string | null;
+  selected_parent_ids: string[];
+};
+
+export type EvolutionRetrievalBundle = {
+  seq: number | null;
+  ts: string | null;
+  operator: EvolutionSearchOperator;
+  selected_node_id: string | null;
+  card_ids: string[];
+  estimated_tokens: number;
+  max_cards: number;
+  max_tokens: number;
+  truncated_by: string;
+  cache_key: string;
+  cache_hit: boolean | null;
+  cache_status: string;
+  card_cache_hits: number | null;
+  card_cache_misses: number | null;
+};
+
+export type EvolutionBudgetLedger = {
+  max_nodes: number;
+  max_total_tokens: number;
+  max_wall_seconds: number;
+  max_cost_usd: number | null;
+  nodes: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  wall_seconds: number;
+  gpu_seconds: number;
+  estimated_cost_usd: number;
+  terminal_reason: string;
+  can_continue: boolean;
+};
+
+export type EvolutionCandidateFreezeSummary = {
+  present: boolean;
+  status: string | null;
+  candidate_id: string | null;
+  frozen_at: string | null;
+  sha256: string | null;
+  artifact_count: number | null;
+  source: "local_candidate_freeze";
+  artifact: string | null;
+};
+
+export type EvolutionIndependentReviewSummary = {
+  present: boolean;
+  status: string | null;
+  reviewer: string | null;
+  reviewed_at: string | null;
+  rows: number | null;
+  metric: string | null;
+  score: number | null;
+  sha256: string | null;
+  candidate_freeze_sha256: string | null;
+  review_source: string | null;
+  artifact: "independent-review.json" | null;
+};
+
+export type EvolutionClaimAuditSummary = {
+  present: boolean;
+  status: string | null;
+  sha256: string | null;
+  supported_claim_count: number | null;
+  unsupported_claim_count: number | null;
+  claim_boundary: string | null;
+  artifact: "claim-audit.json" | null;
+};
+
+export type EvolutionReviewChainIntegrity = {
+  status: "verified" | "failed" | "not_present";
+  stages: {
+    candidate_freeze: "verified" | "failed" | "not_present";
+    independent_review: "verified" | "failed" | "not_present";
+    claim_audit: "verified" | "failed" | "not_present";
+  };
+  artifact_hashes_valid: boolean | null;
+  run_binding_valid: boolean | null;
+  review_candidate_freeze_hash_valid: boolean | null;
+  claim_candidate_freeze_hash_valid: boolean | null;
+  claim_independent_review_hash_valid: boolean | null;
+  errors: string[];
+};
+
+export type EvolutionPairedABSummary = {
+  present: boolean;
+  status: string | null;
+  phase: string | null;
+  task_count: number | null;
+  seed_count: number | null;
+  paired_wins: number | null;
+  baseline_valid_rate: number | null;
+  treatment_valid_rate: number | null;
+  median_paired_delta: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  prompt_p99_delta_percent: number | null;
+  new_best_per_million_delta_percent: number | null;
+  source: "local_mle_grader";
+};
+
+export type EvolutionExperienceResponse = {
+  ok: boolean;
+  task_id: string;
+  run_id: string | null;
+  present: boolean;
+  search_mode: EvolutionSearchMode;
+  board_hash: string | null;
+  integrity: {
+    status: "verified" | "failed" | "not_present";
+    board_hash_valid: boolean | null;
+    card_hashes_valid: boolean | null;
+    append_chain_valid: boolean | null;
+    public_only_valid: boolean | null;
+    errors: string[];
+  };
+  lineage: {
+    nodes: Array<{ node_id: string; operator: EvolutionSearchOperator; method_family: string; score: number | null }>;
+    edges: Array<{ parent_node_id: string; child_node_id: string }>;
+  };
+  cards: EvolutionExperienceCard[];
+  selection_traces: EvolutionSelectionTrace[];
+  retrievals: EvolutionRetrievalBundle[];
+  budget: EvolutionBudgetLedger | null;
+  operator_counts: Record<EvolutionSearchOperator, number>;
+  cache: {
+    hits: number;
+    misses: number;
+    unknown: number;
+    source: "summary_cache_stats" | "retrieval_bundles" | "bundle_status" | "none";
+    stats_consistent: boolean | null;
+  };
+  artifacts: string[];
+  candidate_freeze: EvolutionCandidateFreezeSummary;
+  independent_review: EvolutionIndependentReviewSummary;
+  claim_audit: EvolutionClaimAuditSummary;
+  review_chain: EvolutionReviewChainIntegrity;
+  paired_ab: EvolutionPairedABSummary;
+  claim_boundary: string;
+  error?: string;
+};
+
 // ── Evolution engine: real task configs (configs/evolution/*.json) ────────────
 export type EvolutionConfigSummary = {
   task_id: string; // config file stem; a valid task_id for the run CLI (exact match)
@@ -1974,6 +2618,16 @@ export type EvolutionConfigSummary = {
   n_features?: number | null;
   has_gpu_data_dir: boolean; // true when the config carries an HPC/GPU data path
   has_local_data_dir: boolean; // true when the config can feed the local runner
+  compute_backend?: string;
+  demo_campaign?: boolean;
+  required_runner?: "local" | "local_gpu" | "gpu";
+  default_search_mode?: EvolutionSearchMode;
+  required_iterations?: number | null;
+  required_max_nodes?: number | null;
+  required_max_tokens?: number | null;
+  required_max_wall_seconds?: number | null;
+  required_max_cost?: number | null;
+  required_mcgs?: boolean;
 };
 
 export type EvolutionConfigsResponse = {
@@ -1986,15 +2640,23 @@ export type EvolutionConfigsResponse = {
 
 // ── Evolution engine: full closed-loop cycle (plan -> approve -> train -> ingest)
 export type EvolutionEngine = "legacy" | "research_os";
-export type EvolutionRunner = "gpu" | "local";
+export type EvolutionRunner = "gpu" | "local_gpu" | "local";
 
 export type EvolutionCycleRequest = {
   task_id: string;
   engine?: EvolutionEngine; // UI selects research_os; server code default stays legacy
-  runner?: EvolutionRunner; // gpu is the only unblocked runner today
+  runner?: EvolutionRunner;
   iterations?: number;
   mcgs?: boolean;
+  search_mode?: EvolutionSearchMode;
+  max_nodes?: number;
+  max_tokens?: number;
+  max_wall_seconds?: number;
+  max_cost?: number | null;
   approve?: boolean; // real training only launches when true (human gate)
+  plan_id?: string;
+  plan_sha256?: string;
+  request_fingerprint?: string;
   official_submit_allowed?: false;
 };
 
@@ -2004,12 +2666,46 @@ export type EvolutionCycleResponse = {
   stage: "awaiting_approval" | "training" | "training_blocked" | "training_failed" | "completed";
   approved: boolean;
   plan?: EvolutionPlanResponse;
-  training?: { run_id?: string; best_score?: number | null; nodes_evaluated?: number | null };
+  plan_id?: string;
+  plan_sha256?: string;
+  request_fingerprint?: string;
+  approval_expires_at?: string;
+  training?: {
+    run_id?: string;
+    best_score?: number | null;
+    nodes_evaluated?: number | null;
+    search_mode?: EvolutionSearchMode;
+    observability?: Record<string, string | null> | null;
+    resource_gate?: Record<string, unknown> | null;
+    independent_review?: Record<string, unknown> | null;
+  };
   ingest?: Record<string, unknown>;
   best_so_far?: Record<string, unknown>;
   next_action?: string;
   reason?: string;
   official_submit_allowed: boolean;
   claim_boundary?: string;
+  error?: string;
+};
+
+export type LocalGpuTelemetryResponse = {
+  ok: boolean;
+  status: "ready" | "unexpected_gpu" | "unavailable";
+  gpu?: {
+    name: string;
+    memory_total_mib: number | null;
+    memory_used_mib: number | null;
+    memory_free_mib: number | null;
+    utilization_percent: number | null;
+    temperature_c: number | null;
+  };
+  system_memory?: {
+    available_gib: number;
+    total_gib: number;
+  };
+  compute_backend: "local_gpu";
+  remote_compute_used: false;
+  official_submission: "disabled";
+  sampled_at: string;
   error?: string;
 };

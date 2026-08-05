@@ -2,9 +2,13 @@
 GPU Cluster Dispatcher: trains across all 6 GPU servers in parallel.
 Each server runs a different task on its GPUs.
 """
-import paramiko, socket, socks, json, time, subprocess, sys, base64
-from datetime import datetime
+import base64
+import os
+import time
 from pathlib import Path
+
+import paramiko
+import socks
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -185,7 +189,8 @@ def main():
             )
             time.sleep(1)
             out = b''
-            while chan2.recv_ready(): out += chan2.recv(4096)
+            while chan2.recv_ready():
+                out += chan2.recv(4096)
             print(f'{srv["id"]}({srv["gpus"]}GPU): {out.decode().strip()} -> {task}')
 
             t.close()
@@ -214,11 +219,12 @@ def main():
             chan.exec_command(f'tail -3 /tmp/gpu_{srv["id"]}.log 2>/dev/null')
             time.sleep(2)
             out = b''
-            while chan.recv_ready(): out += chan.recv(4096)
+            while chan.recv_ready():
+                out += chan.recv(4096)
             log = out.decode().strip()[:150]
             print(f'{srv["id"]}: {log if log else "running..."}')
             t.close()
-        except:
+        except Exception:
             print(f'{srv["id"]}: check failed')
 
     print("\nDone. Results will be in /tmp/gpu_result_*.json")

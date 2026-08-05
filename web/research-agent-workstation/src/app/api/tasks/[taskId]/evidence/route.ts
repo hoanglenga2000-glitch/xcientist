@@ -52,9 +52,10 @@ async function filesystemEvidence(taskId: string) {
   return items.filter((item): item is NonNullable<typeof item> => Boolean(item));
 }
 
-export async function GET(_request: Request, { params }: { params: { taskId: string } }) {
+export async function GET(_request: Request, { params }: { params: Promise<{ taskId: string }> }) {
   await ensureWorkstationSeeded();
-  const taskId = normalizeTaskId(params.taskId);
+  const { taskId: rawTaskId } = await params;
+  const taskId = normalizeTaskId(rawTaskId);
   const evidence = await prisma.evidence.findMany({ where: { taskId }, orderBy: { createdAt: "desc" } });
   const serialized = evidence.map(serializeEvidence);
   return NextResponse.json({
