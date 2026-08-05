@@ -76,7 +76,7 @@ jobs:
               throw "Release input is not tracked in the clean checkout: $path"
             }
           }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.13.0"
           cache: npm
@@ -214,7 +214,7 @@ jobs:
     environment: production-release
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "24.13.0"
       - uses: actions/setup-python@v5
