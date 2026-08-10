@@ -152,12 +152,14 @@ def test_dashboard_environment_pins_database_and_sets_python(monkeypatch, tmp_pa
     monkeypatch.setattr(module, "DEFAULT_DATABASE_PATH", database)
     monkeypatch.setenv("DATABASE_URL", "file:C:/unrelated-project.db")
     monkeypatch.delenv("WORKSTATION_PYTHON", raising=False)
+    monkeypatch.setenv("PYTHONPATH", "C:/untrusted-source")
 
     environment = module.dashboard_env()
 
     assert environment["DATABASE_URL"] == f"file:{database.as_posix()}"
     assert environment["WORKSTATION_ROOT"] == str(module.ROOT)
     assert environment["WORKSTATION_PYTHON"] == module.sys.executable
+    assert environment["PYTHONPATH"] == str((module.ROOT / "src").resolve())
 
 
 def test_dashboard_manager_initializes_database_with_runtime_environment(monkeypatch, tmp_path) -> None:
@@ -579,6 +581,20 @@ def test_cdp_smokes_support_node20_without_a_global_websocket() -> None:
     )
     assert "9223 + (process.pid % 1000)" not in click_smoke
     assert '?? "9224"' not in controls_smoke
+
+
+def test_browser_smokes_bind_the_lifecycle_automation_token() -> None:
+    for script_name in (
+        "verify_workstation_click_smoke.mjs",
+        "verify_workstation_interactive_controls.mjs",
+        "verify_workstation_stateful_interactions.mjs",
+    ):
+        source = (ROOT / "scripts" / script_name).read_text(encoding="utf-8-sig")
+        assert "async function localAutomationToken" in source
+        assert "dashboard${suffix}.automation.token" in source
+        assert 'await client.send("Network.enable")' in source
+        assert 'await client.send("Network.setExtraHTTPHeaders"' in source
+        assert '"x-evomind-local-automation": automationToken' in source
 
 
 def test_tasks_agent_logs_action_is_rendered_and_routed() -> None:

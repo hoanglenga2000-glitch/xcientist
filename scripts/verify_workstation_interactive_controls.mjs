@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { createServer } from "node:net";
@@ -29,6 +29,22 @@ async function allocateCdpPort() {
       server.close((error) => error ? reject(error) : resolvePort(selected));
     });
   });
+}
+
+async function localAutomationToken() {
+  const parsed = new URL(baseUrl);
+  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) return "";
+  const suffix = parsed.port === "8088" || parsed.port === "" ? "" : `.${parsed.port}`;
+  const runtimeDir = process.env.WORKSTATION_RUNTIME_DIR
+    ? resolve(process.env.WORKSTATION_RUNTIME_DIR)
+    : join(root, "web", "research-agent-workstation", ".runtime-logs");
+  const target = join(runtimeDir, `dashboard${suffix}.automation.token`);
+  try {
+    const token = (await readFile(target, "ascii")).trim();
+    return /^[A-Za-z0-9_-]{24,256}$/.test(token) ? token : "";
+  } catch {
+    return "";
+  }
 }
 
 const pageTargets = [
@@ -304,6 +320,13 @@ async function run() {
     client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
     await client.connect();
     await client.send("Page.enable");
+    await client.send("Network.enable");
+    const automationToken = await localAutomationToken();
+    if (automationToken) {
+      await client.send("Network.setExtraHTTPHeaders", {
+        headers: { "x-evomind-local-automation": automationToken }
+      });
+    }
     await client.send("Runtime.enable");
     await client.send("Log.enable");
 
@@ -464,6 +487,9 @@ if (writeReport) {
 
 console.log(JSON.stringify({
   status: report.status,
+  blocker: report.blocker ?? null,
+  error: report.error ?? null,
+  chrome_stderr_tail: report.status === "blocked" ? report.chrome_stderr_tail ?? null : null,
   failed_pages: report.failed_pages,
   missing_control_count: report.missing_control_count,
   runtime_error_count: report.runtime_error_count ?? 0,

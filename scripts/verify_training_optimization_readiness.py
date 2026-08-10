@@ -276,7 +276,10 @@ def main() -> None:
         write_markdown(report, md_path)
         report["report_paths"] = {"json": rel(json_path), "markdown": rel(md_path)}
 
-    print(json.dumps(report, ensure_ascii=False, indent=2))
+    # stdout is a machine-readable transport and must survive Windows runners
+    # whose redirected console encoding can be CP1252.  Reports written to disk
+    # above retain native UTF-8 text.
+    print(json.dumps(report, ensure_ascii=True, indent=2))
     if not all_ready:
         raise SystemExit(1)
 

@@ -535,6 +535,13 @@ def dashboard_env(host: str = "127.0.0.1", port: int = 8088) -> dict[str, str]:
     database.parent.mkdir(parents=True, exist_ok=True)
     env["DATABASE_URL"] = f"file:{database.as_posix()}"
     env["WORKSTATION_PYTHON"] = sys.executable
+    if bundle_mode():
+        env.pop("PYTHONPATH", None)
+    else:
+        source_root = (ROOT / "src").resolve()
+        if not source_root.is_dir():
+            raise RuntimeError("source dashboard PYTHONPATH root is missing")
+        env["PYTHONPATH"] = str(source_root)
     # The dashboard is permanently bound to the local account-pool gateway.
     # Do not let an unrelated parent-shell OPENAI_BASE_URL bypass credential,
     # strict-provider, model, and latency-profile binding below.

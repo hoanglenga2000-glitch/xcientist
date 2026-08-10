@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,22 @@ const baseUrl = process.argv.includes("--base-url")
   : "http://127.0.0.1:8088";
 const writeReport = process.argv.includes("--write-report");
 const port = Number(process.env.WORKSTATION_STATEFUL_CDP_PORT ?? String(9623 + (process.pid % 1000)));
+
+async function localAutomationToken() {
+  const parsed = new URL(baseUrl);
+  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) return "";
+  const suffix = parsed.port === "8088" || parsed.port === "" ? "" : `.${parsed.port}`;
+  const runtimeDir = process.env.WORKSTATION_RUNTIME_DIR
+    ? resolve(process.env.WORKSTATION_RUNTIME_DIR)
+    : join(root, "web", "research-agent-workstation", ".runtime-logs");
+  const target = join(runtimeDir, `dashboard${suffix}.automation.token`);
+  try {
+    const token = (await readFile(target, "ascii")).trim();
+    return /^[A-Za-z0-9_-]{24,256}$/.test(token) ? token : "";
+  } catch {
+    return "";
+  }
+}
 
 const chromeCandidates = [
   process.env.WORKSTATION_BROWSER,
@@ -301,10 +317,13 @@ async function run() {
     "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
+    "--disable-extensions",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     `${baseUrl}/?page=overview`
-  ], { stdio: "ignore" });
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  const chromeStderr = [];
+  chromeProcess.stderr?.on("data", (chunk) => chromeStderr.push(String(chunk)));
 
   let client;
   let cleanupWarning = null;
@@ -315,6 +334,13 @@ async function run() {
     client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
     await client.connect();
     await client.send("Page.enable");
+    await client.send("Network.enable");
+    const automationToken = await localAutomationToken();
+    if (automationToken) {
+      await client.send("Network.setExtraHTTPHeaders", {
+        headers: { "x-evomind-local-automation": automationToken }
+      });
+    }
     await client.send("Runtime.enable");
     await client.send("Log.enable");
 
@@ -340,6 +366,19 @@ async function run() {
       runtime_errors: runtimeErrors.slice(0, 10),
       cleanup_warning: cleanupWarning,
       claim_boundary: "This smoke verifies visible state changes after safe UI clicks. It does not start training, GPU jobs, Kaggle submissions, or backend mutations."
+    };
+  } catch (error) {
+    return {
+      schema: "academic_research_os.workstation_stateful_interactions.v1",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: "blocked",
+      blocker: "browser_cdp_unavailable",
+      chrome,
+      chrome_stderr_tail: chromeStderr.join("").slice(-4000),
+      error: String(error?.message ?? error),
+      results: [],
+      failed_checks: checks.map((item) => item.name)
     };
   } finally {
     client?.close();
@@ -379,6 +418,9 @@ if (writeReport) {
 
 console.log(JSON.stringify({
   status: report.status,
+  blocker: report.blocker ?? null,
+  error: report.error ?? null,
+  chrome_stderr_tail: report.status === "blocked" ? report.chrome_stderr_tail ?? null : null,
   failed_checks: report.failed_checks,
   runtime_error_count: report.runtime_error_count ?? 0,
   json: writeReport ? "workspace/workstation_stateful_interactions_20260701.json" : null,

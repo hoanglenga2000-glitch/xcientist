@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import importlib.util
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -281,6 +282,7 @@ def test_training_readiness_reports_local_evidence_without_claiming_release() ->
     completed = subprocess.run(
         [sys.executable, str(root / "scripts/verify_training_optimization_readiness.py")],
         cwd=root,
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
         text=True,
         capture_output=True,
         check=False,
