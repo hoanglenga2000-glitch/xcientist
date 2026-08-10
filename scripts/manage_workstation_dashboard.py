@@ -1717,6 +1717,34 @@ def runtime_launch_command(release_nonce: str, port: int) -> tuple[list[str], Pa
     ], ROOT.resolve()
 
 
+def launch_runtime_process(
+    command: list[str],
+    *,
+    cwd: Path,
+    env: dict[str, str],
+    stdout,
+    stderr,
+    creationflags: int,
+) -> subprocess.Popen:
+    kwargs = {
+        "cwd": cwd,
+        "env": env,
+        "stdout": stdout,
+        "stderr": stderr,
+        "stdin": subprocess.DEVNULL,
+        "creationflags": creationflags,
+        "close_fds": True,
+    }
+    try:
+        return subprocess.Popen(command, **kwargs)
+    except PermissionError:
+        executable = Path(command[0])
+        fallback = executable.with_name("python.exe")
+        if os.name != "nt" or executable.name.lower() != "pythonw.exe" or not fallback.is_file():
+            raise
+        return subprocess.Popen([str(fallback), *command[1:]], **kwargs)
+
+
 def wait_runtime_ready(port: int, timeout: float) -> dict:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -1845,7 +1873,14 @@ def start(args: argparse.Namespace) -> None:
     runtime_stdout = runtime_out.open("ab")
     runtime_stderr = runtime_err.open("ab")
     try:
-        runtime_process = subprocess.Popen(runtime_command, cwd=runtime_cwd, env=isolated_runtime_env, stdout=runtime_stdout, stderr=runtime_stderr, stdin=subprocess.DEVNULL, creationflags=creationflags, close_fds=True)
+        runtime_process = launch_runtime_process(
+            runtime_command,
+            cwd=runtime_cwd,
+            env=isolated_runtime_env,
+            stdout=runtime_stdout,
+            stderr=runtime_stderr,
+            creationflags=creationflags,
+        )
     finally:
         runtime_stdout.close()
         runtime_stderr.close()

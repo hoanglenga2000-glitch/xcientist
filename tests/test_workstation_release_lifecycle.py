@@ -3,8 +3,8 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import sqlite3
 import socket
+import sqlite3
 import subprocess
 import sys
 import zipfile
@@ -120,6 +120,38 @@ def test_runtime_launch_uses_data_root_without_duplicate_workspace_suffix(
     assert Path(command[3]) / "workspace" / "runtime" == tmp_path / "workspace" / "runtime"
     assert "workspace/workspace" not in Path(command[3]).as_posix()
     assert cwd == tmp_path.resolve()
+
+
+def test_runtime_process_falls_back_to_console_python_when_pythonw_is_denied(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if os.name != "nt":
+        pytest.skip("pythonw fallback is Windows-specific")
+    manager = load("release_runtime_pythonw_fallback", "scripts/manage_workstation_dashboard.py")
+    pythonw = tmp_path / "pythonw.exe"
+    python = tmp_path / "python.exe"
+    pythonw.write_bytes(b"")
+    python.write_bytes(b"")
+    calls: list[list[str]] = []
+
+    def fake_popen(command, **_kwargs):
+        calls.append(list(command))
+        if len(calls) == 1:
+            raise PermissionError(5, "access denied", str(pythonw))
+        return object()
+
+    monkeypatch.setattr(manager.subprocess, "Popen", fake_popen)
+    result = manager.launch_runtime_process(
+        [str(pythonw), "-c", "pass"],
+        cwd=tmp_path,
+        env={},
+        stdout=None,
+        stderr=None,
+        creationflags=0,
+    )
+
+    assert result is not None
+    assert calls == [[str(pythonw), "-c", "pass"], [str(python), "-c", "pass"]]
 
 
 def test_dashboard_bootstrap_fragment_is_written_to_private_one_time_file(
