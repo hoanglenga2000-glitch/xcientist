@@ -124,6 +124,8 @@ function Write-JsonAtomic([string]$Path, [object]$Value) {
 }
 
 function Set-ManagedEnvValues([string]$Path, [System.Collections.IDictionary]$Values) {
+  $parent = Split-Path -Parent $Path
+  New-Item -ItemType Directory -Force -Path $parent | Out-Null
   $existing = if (Test-Path -LiteralPath $Path) { @(Get-Content -LiteralPath $Path) } else { @() }
   $managed = @{}
   foreach ($key in $Values.Keys) { $managed[[string]$key] = $true }
