@@ -868,6 +868,18 @@ def remove_tree_with_retry(path: Path, timeout: float = 20.0) -> None:
             time.sleep(0.25)
 
 
+def sqlite_cleanup_gate(database: Path, task_id: str) -> tuple[str, int]:
+    connection = sqlite3.connect(database)
+    try:
+        quick = connection.execute("PRAGMA quick_check").fetchone()[0]
+        residual = connection.execute(
+            "SELECT COUNT(*) FROM tasks WHERE id=?", (task_id,)
+        ).fetchone()[0]
+        return str(quick), int(residual)
+    finally:
+        connection.close()
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--zip", type=Path, required=True)
@@ -1055,9 +1067,7 @@ def main() -> int:
         request(args.port, "GET", f"/api/tasks/{task_id}", expected=404)
 
         database = local / "EvoMind" / "data" / "prisma" / "workstation.db"
-        with sqlite3.connect(database) as connection:
-            quick = connection.execute("PRAGMA quick_check").fetchone()[0]
-            residual = connection.execute("SELECT COUNT(*) FROM tasks WHERE id=?", (task_id,)).fetchone()[0]
+        quick, residual = sqlite_cleanup_gate(database, task_id)
         metrics = {
             "page_ms": round(page_ms, 3), "page_bytes": len(page),
             "tasks_p95_ms": round(percentile(task_latencies, 0.95), 3),

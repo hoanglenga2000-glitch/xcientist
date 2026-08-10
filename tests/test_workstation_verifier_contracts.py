@@ -4,6 +4,8 @@ import importlib.util
 import re
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -93,6 +95,41 @@ def test_release_verifier_accepts_only_a_packed_cli_artifact():
     assert "install_cli_from_tgz" in source
     assert "npm-tgz-disposable-prefix" in source
     assert 'packages" / "evomind-cli" / "bin"' not in source
+
+
+def test_release_verifier_closes_its_sqlite_cleanup_connection(tmp_path, monkeypatch):
+    verifier = load_script("verify_release_bundle")
+
+    class Cursor:
+        def __init__(self, value):
+            self.value = value
+
+        def fetchone(self):
+            return (self.value,)
+
+    class Connection:
+        def __init__(self, fail=False):
+            self.closed = False
+            self.fail = fail
+
+        def execute(self, statement, _parameters=()):
+            if self.fail:
+                raise RuntimeError("fixture query failed")
+            return Cursor("ok" if statement == "PRAGMA quick_check" else 0)
+
+        def close(self):
+            self.closed = True
+
+    connection = Connection()
+    monkeypatch.setattr(verifier.sqlite3, "connect", lambda _database: connection)
+    assert verifier.sqlite_cleanup_gate(tmp_path / "workstation.db", "fixture-task") == ("ok", 0)
+    assert connection.closed is True
+
+    failed_connection = Connection(fail=True)
+    monkeypatch.setattr(verifier.sqlite3, "connect", lambda _database: failed_connection)
+    with pytest.raises(RuntimeError, match="fixture query failed"):
+        verifier.sqlite_cleanup_gate(tmp_path / "workstation.db", "fixture-task")
+    assert failed_connection.closed is True
 
 
 def test_release_ci_binds_manifest_cli_tgz_and_zip_with_fixture_and_production_gates():
