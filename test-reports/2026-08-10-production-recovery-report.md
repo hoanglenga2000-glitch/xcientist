@@ -23,6 +23,7 @@
 | Production dependency audit | **PASS** | 0 vulnerabilities |
 | Candidate diff hygiene | **PASS** | alternate-index `git diff --cached --check` returned 0 |
 | Dashboard build transaction fixture | **PASS** | 10/10; self-contained SQLite schema; runtime DB excluded from staging |
+| SIIM test side-effect isolation | **PASS** | 3/3; tracked frozen-plan SHA-256 unchanged before/after |
 
 Python JUnit:
 

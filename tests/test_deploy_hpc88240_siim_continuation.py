@@ -26,8 +26,9 @@ def fake_inventory() -> dict:
     }
 
 
-def test_hpc_plans_preserve_siim_model_contract() -> None:
+def test_hpc_plans_preserve_siim_model_contract(tmp_path, monkeypatch) -> None:
     module = load_module()
+    monkeypatch.setattr(module, "LOCAL_ABLATION_PLAN", tmp_path / "ablation-plan.json")
     sources = module.source_records()
     ablation_base = json.loads(module.LOCAL_ABLATION_BASE.read_text(encoding="utf-8-sig"))
     final_base = json.loads(module.LOCAL_FINAL_BASE.read_text(encoding="utf-8-sig"))
