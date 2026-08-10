@@ -52,6 +52,10 @@ def finalize_inner_bundle(bundle: Path, verifier, version: str = "0.3.0") -> dic
         "product": "EvoMind",
         "version": version,
         "platform": "win-x64",
+        "git_commit": "b" * 40,
+        "source_digest": "a" * 64,
+        "build_id": "fixture-build-id",
+        "build_utc": "2026-08-10T00:00:00Z",
         "runtime_compatibility": {
             "node": {"bundled": "v22.0.0", "minimum": "20.9.0"},
             "python": {
@@ -87,6 +91,10 @@ def make_inner_bundle(tmp_path: Path, verifier, version: str = "0.3.0") -> Path:
         (bundle / directory).mkdir(parents=True, exist_ok=True)
     payloads = {
         "app/server.js": "server",
+        "app/.next/BUILD_ID": "fixture-build-id\n",
+        "app/prisma/migrations/20260810000000_baseline/migration.sql": (
+            'CREATE TABLE "tasks" ("id" TEXT PRIMARY KEY NOT NULL);\n'
+        ),
         "runtime/node/node.exe": b"node",
         "runtime/python/python.exe": b"python",
         "runtime/python/src/xsci/__init__.py": "",
@@ -155,6 +163,29 @@ def make_inner_bundle(tmp_path: Path, verifier, version: str = "0.3.0") -> Path:
         bundle / "metadata/release-contract.json",
         json.loads((ROOT / "configs/release/release-contract.json").read_text(encoding="utf-8")),
     )
+    scratch = tmp_path / "schema-scratch"
+    migration = verifier.migrate(
+        scratch / "workstation.db",
+        bundle / "app/prisma/migrations",
+    )
+    assert migration["ok"] is True
+    database_identity = verifier.runtime_schema_identity(
+        scratch / "workstation.db",
+        bundle / "app/prisma/migrations",
+    )
+    write_json(bundle / "app/runtime-build-manifest.json", {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": "b" * 40,
+        "source_dirty": False,
+        "source_tree_sha256": "a" * 64,
+        "build_id": "fixture-build-id",
+        "build_time": "2026-08-10T00:00:00Z",
+        "backend_version": version,
+        "frontend_version": version,
+        "database_schema_version": database_identity["version"],
+        "database_schema_sha256": database_identity["sha256"],
+    })
+    shutil.rmtree(scratch)
     finalize_inner_bundle(bundle, verifier, version)
     return bundle
 

@@ -4,17 +4,24 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path, PurePosixPath
 import stat
-import tomllib
-from typing import Any
-from urllib.parse import unquote, urlparse
+import tempfile
 import uuid
 import zipfile
+from datetime import datetime, timezone
+from pathlib import Path, PurePosixPath
+from typing import Any
+from urllib.parse import unquote, urlparse
+
+import tomllib
+
+try:
+    from scripts.release_db_migrate import migrate, runtime_schema_identity
+except ModuleNotFoundError:  # Direct execution from the repository scripts directory.
+    from release_db_migrate import migrate, runtime_schema_identity
 
 
 FORBIDDEN_TOP_LEVEL = {
@@ -40,6 +47,7 @@ REQUIRED_BUILDER_FIELDS = {
     "git_commit",
     "source_date_epoch",
     "source_digest",
+    "source_dirty",
     "build_id",
     "next_tree_sha256",
     "toolchain_contract_sha256",
@@ -280,6 +288,8 @@ def validate_builder_metadata(
         raise RuntimeError(f"Builder metadata is missing required fields: {missing}")
     if metadata["schema"] != BUILDER_METADATA_SCHEMA:
         raise RuntimeError(f"Unsupported builder metadata schema: {metadata['schema']}")
+    if metadata["source_dirty"] is not False:
+        raise RuntimeError("Release builder metadata must declare a clean source tree")
     if metadata["git_commit"] != commit or int(metadata["source_date_epoch"]) != source_date_epoch:
         raise RuntimeError("Builder metadata is not bound to the requested commit/source epoch")
     for field in (
@@ -325,6 +335,41 @@ def build_receipt(builder_metadata: dict[str, Any], wheelhouse_manifest_path: Pa
     if "published_utc" in receipt or "published_at" in receipt:
         raise RuntimeError("Published time must not be embedded in the reproducible build receipt")
     return receipt
+
+
+def build_runtime_manifest(
+    bundle: Path,
+    *,
+    receipt: dict[str, Any],
+    version: str,
+    source_date_epoch: int,
+) -> dict[str, Any]:
+    """Build a deterministic identity for the exact signed runtime and schema."""
+
+    if receipt.get("source_dirty") is not False:
+        raise RuntimeError("Runtime build identity requires a clean tracked source tree")
+    migrations = bundle / "app/prisma/migrations"
+    if not migrations.is_dir():
+        raise RuntimeError("Runtime build identity requires staged database migrations")
+    with tempfile.TemporaryDirectory(prefix="evomind-runtime-schema-") as temporary:
+        database = Path(temporary) / "workstation.db"
+        migration = migrate(database, migrations)
+        if migration.get("ok") is not True:
+            raise RuntimeError("Runtime build identity scratch migration did not complete")
+        database_identity = runtime_schema_identity(database, migrations)
+    build_time = datetime.fromtimestamp(source_date_epoch, timezone.utc).isoformat().replace("+00:00", "Z")
+    return {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": str(receipt["git_commit"]),
+        "source_dirty": False,
+        "source_tree_sha256": str(receipt["source_digest"]),
+        "build_id": str(receipt["build_id"]),
+        "build_time": build_time,
+        "backend_version": version,
+        "frontend_version": version,
+        "database_schema_version": database_identity["version"],
+        "database_schema_sha256": database_identity["sha256"],
+    }
 
 
 def normalize_generated_json(
@@ -429,6 +474,16 @@ def finalize_release(args: argparse.Namespace) -> dict[str, Any]:
     if receipt_path.exists() or receipt_path.is_symlink():
         raise RuntimeError("Refusing to overwrite a pre-existing build receipt")
     receipt_path.write_text(_canonical_json(receipt), encoding="utf-8")
+    runtime_manifest = build_runtime_manifest(
+        bundle,
+        receipt=receipt,
+        version=args.version,
+        source_date_epoch=args.source_date_epoch,
+    )
+    runtime_manifest_path = bundle / "app/runtime-build-manifest.json"
+    if runtime_manifest_path.exists() or runtime_manifest_path.is_symlink():
+        raise RuntimeError("Refusing to overwrite a pre-existing runtime build manifest")
+    runtime_manifest_path.write_text(_canonical_json(runtime_manifest), encoding="utf-8")
     normalize_generated_json(
         bundle,
         commit=args.commit,

@@ -11,7 +11,6 @@ import secrets
 import shlex
 import shutil
 import signal
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -20,6 +19,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
+
+try:
+    from scripts.release_db_migrate import runtime_schema_identity
+except ModuleNotFoundError:  # Direct execution from the bundled scripts directory.
+    from release_db_migrate import runtime_schema_identity
 
 try:
     import psutil
@@ -246,46 +250,12 @@ def git_source_identity() -> tuple[str, bool]:
     return commit_hash, bool(status_output.strip())
 
 
-def _normalized_schema_sql(value: object) -> str:
-    return re.sub(r"\s+", " ", str(value or "").strip())
-
-
 def database_schema_identity(database_path: Path | None = None) -> dict[str, str]:
     """Fingerprint the effective SQLite schema, not mutable database rows."""
 
     database = (database_path or DEFAULT_DATABASE_PATH).expanduser().resolve()
-    if not database.is_file():
-        raise RuntimeError(f"database schema is unavailable: {database}")
-    connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True, timeout=10)
-    try:
-        rows = connection.execute(
-            """
-            SELECT type, name, tbl_name, COALESCE(sql, '')
-            FROM sqlite_master
-            WHERE type IN ('table', 'index', 'view', 'trigger')
-              AND name NOT LIKE 'sqlite_%'
-            ORDER BY type, name, tbl_name
-            """
-        ).fetchall()
-    finally:
-        connection.close()
-    digest = hashlib.sha256()
-    for row in rows:
-        canonical = "\0".join(
-            (str(row[0] or ""), str(row[1] or ""), str(row[2] or ""), _normalized_schema_sql(row[3]))
-        )
-        digest.update(canonical.encode("utf-8"))
-        digest.update(b"\n")
     migrations = SOURCE_APP_DIR / "prisma" / "migrations"
-    versions = sorted(
-        child.name
-        for child in migrations.iterdir()
-        if child.is_dir() and (child / "migration.sql").is_file()
-    ) if migrations.is_dir() else []
-    return {
-        "version": versions[-1] if versions else "prisma-push",
-        "sha256": digest.hexdigest(),
-    }
+    return runtime_schema_identity(database, migrations)
 
 
 def runtime_build_manifest(build_id: str) -> dict[str, object]:

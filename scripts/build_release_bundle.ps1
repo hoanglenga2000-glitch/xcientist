@@ -324,6 +324,12 @@ $TrackedText = Invoke-NativeText -FilePath $Git -ArgumentList @(
     "-C", $Root, "-c", "core.quotepath=false", "ls-files"
 ) -Description "git tracked source enumeration"
 $TrackedFiles = @($TrackedText -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+$SourceStatus = Invoke-NativeText -FilePath $Git -ArgumentList @(
+    "-C", $Root, "status", "--porcelain=v1", "--untracked-files=all"
+) -Description "clean release source check"
+if (-not [string]::IsNullOrWhiteSpace($SourceStatus)) {
+    throw "Release builds require a clean source tree: $SourceStatus"
+}
 $TrackedFileSet = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
 foreach ($relative in $TrackedFiles) { [void]$TrackedFileSet.Add($relative.Replace('\', '/')) }
 $SourceDigest = Get-FileSetDigest -BasePath $Root -RelativePaths $TrackedFiles
@@ -662,6 +668,7 @@ try {
         git_commit = $Commit
         source_date_epoch = $Epoch
         source_digest = $SourceDigest
+        source_dirty = $false
         build_id = $BuildId
         next_tree_sha256 = $NextTreeDigest
         toolchain_contract_sha256 = $ToolchainContractHash

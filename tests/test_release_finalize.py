@@ -11,6 +11,7 @@ import pytest
 from scripts.release_finalize import (
     BUILD_RECEIPT_SCHEMA,
     build_receipt,
+    build_runtime_manifest,
     normalize_generated_json,
     validate_wheelhouse,
 )
@@ -231,3 +232,49 @@ def test_build_receipt_keeps_publication_time_outside_reproducible_payload(tmp_p
     assert receipt["schema"] == BUILD_RECEIPT_SCHEMA
     assert "published_utc" not in receipt
     assert receipt["wheelhouse_manifest_sha256"] == _sha256(manifest_path.read_bytes())
+
+
+def test_runtime_manifest_is_deterministic_and_bound_to_staged_migrations(tmp_path: Path) -> None:
+    migration = tmp_path / "app/prisma/migrations/20260810000000_baseline/migration.sql"
+    migration.parent.mkdir(parents=True)
+    migration.write_text(
+        'CREATE TABLE "tasks" ("id" TEXT PRIMARY KEY NOT NULL);\n',
+        encoding="utf-8",
+    )
+    receipt = {
+        "git_commit": "b" * 40,
+        "source_dirty": False,
+        "source_digest": "a" * 64,
+        "build_id": "next-build-id",
+    }
+    epoch = 1_786_297_200
+
+    first = build_runtime_manifest(
+        tmp_path,
+        receipt=receipt,
+        version="0.3.0",
+        source_date_epoch=epoch,
+    )
+    second = build_runtime_manifest(
+        tmp_path,
+        receipt=receipt,
+        version="0.3.0",
+        source_date_epoch=epoch,
+    )
+
+    assert first == second
+    assert first == {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": "b" * 40,
+        "source_dirty": False,
+        "source_tree_sha256": "a" * 64,
+        "build_id": "next-build-id",
+        "build_time": datetime.fromtimestamp(epoch, timezone.utc).isoformat().replace("+00:00", "Z"),
+        "backend_version": "0.3.0",
+        "frontend_version": "0.3.0",
+        "database_schema_version": "20260810000000_baseline",
+        "database_schema_sha256": first["database_schema_sha256"],
+    }
+    assert len(first["database_schema_sha256"]) == 64
+    assert set(first["database_schema_sha256"]) <= set("0123456789abcdef")
+    assert not list((tmp_path / "app/prisma").glob("workstation.db*"))

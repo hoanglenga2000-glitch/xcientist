@@ -28,6 +28,7 @@
     "mode": "next-standalone",
     "server": "app/server.js",
     "build_id": "app/.next/BUILD_ID",
+    "runtime_build_manifest": "app/runtime-build-manifest.json",
     "bind": "127.0.0.1",
     "port": 8088
   },
@@ -59,6 +60,7 @@
     "source_date_epoch_from_git": true,
     "build_receipt_required": true,
     "build_id_bound_to_next_tree": true,
+    "runtime_build_manifest_bound_to_source": true,
     "published_time_outside_bundle": true,
     "zip_entry_times_from_source_date_epoch": true
   },

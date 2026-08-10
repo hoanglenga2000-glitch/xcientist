@@ -26,6 +26,11 @@ from pathlib import Path, PurePosixPath
 
 import tomllib
 
+try:
+    from scripts.release_db_migrate import migrate, runtime_schema_identity
+except ModuleNotFoundError:  # Direct execution from the repository scripts directory.
+    from release_db_migrate import migrate, runtime_schema_identity
+
 MAX_ZIP_ENTRIES = 100_000
 MAX_ZIP_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024
 MAX_ZIP_MEMBER_BYTES = 2 * 1024 * 1024 * 1024
@@ -314,6 +319,36 @@ def _require_dict(value: object, label: str) -> dict:
     return value
 
 
+def _verify_runtime_build_identity(bundle: Path, manifest: dict) -> None:
+    runtime_manifest = _read_json_object(
+        bundle / "app" / "runtime-build-manifest.json", "runtime build identity manifest"
+    )
+    migrations = bundle / "app" / "prisma" / "migrations"
+    with tempfile.TemporaryDirectory(prefix="evomind-verify-runtime-schema-") as temporary:
+        database = Path(temporary) / "workstation.db"
+        migration = migrate(database, migrations)
+        if migration.get("ok") is not True:
+            raise RuntimeError("runtime build identity scratch migration did not complete")
+        database_identity = runtime_schema_identity(database, migrations)
+    expected = {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": manifest.get("git_commit"),
+        "source_dirty": False,
+        "source_tree_sha256": manifest.get("source_digest"),
+        "build_id": manifest.get("build_id"),
+        "build_time": manifest.get("build_utc"),
+        "backend_version": manifest.get("version"),
+        "frontend_version": manifest.get("version"),
+        "database_schema_version": database_identity["version"],
+        "database_schema_sha256": database_identity["sha256"],
+    }
+    if runtime_manifest != expected:
+        mismatches = sorted(
+            key for key in set(expected) | set(runtime_manifest) if runtime_manifest.get(key) != expected.get(key)
+        )
+        raise RuntimeError(f"runtime build identity manifest mismatch: {mismatches}")
+
+
 def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
     version = manifest["version"]
     compatibility = _require_dict(manifest.get("runtime_compatibility"), "runtime_compatibility")
@@ -406,6 +441,7 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
         or web.get("mode") != "next-standalone"
         or web.get("server") != "app/server.js"
         or web.get("build_id") != "app/.next/BUILD_ID"
+        or web.get("runtime_build_manifest") != "app/runtime-build-manifest.json"
         or web.get("bind") != "127.0.0.1"
         or web.get("port") != 8088
         or gateway.get("base_url") != "http://127.0.0.1:65068/v1"
@@ -432,6 +468,7 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
                 "source_date_epoch_from_git",
                 "build_receipt_required",
                 "build_id_bound_to_next_tree",
+                "runtime_build_manifest_bound_to_source",
                 "published_time_outside_bundle",
                 "zip_entry_times_from_source_date_epoch",
             )
@@ -457,6 +494,8 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
         or targets.get("no_reparse_points") is not True
     ):
         raise RuntimeError("release runtime contract is incomplete")
+
+    _verify_runtime_build_identity(bundle, manifest)
 
     wheelhouse = _read_json_object(
         bundle / "runtime" / "wheels" / "wheelhouse-manifest.json", "wheelhouse manifest"
@@ -627,7 +666,7 @@ def verify_inner_manifest(bundle: Path, outer_manifest: dict | None = None) -> d
         raise RuntimeError(f"inner manifest file-tree coverage mismatch: missing={missing}, extra={extra}")
 
     required = {
-        "app/server.js", "app/.next/static", "app/public", "app/prisma/migrations",
+        "app/server.js", "app/runtime-build-manifest.json", "app/.next/static", "app/public", "app/prisma/migrations",
         "runtime/node/node.exe", "runtime/python/python.exe", "runtime/python/src/xsci",
         "runtime/python/pyproject.toml", "runtime/python/uv.lock",
         "runtime/wheels/wheelhouse-manifest.json",

@@ -41,6 +41,8 @@ def test_release_build_cannot_reuse_unbound_next_output() -> None:
     assert "SkipBuild is disabled for release publishing" in text
     assert "next_tree_sha256" in text
     assert "build_id = $BuildId" in text
+    assert '"status", "--porcelain=v1", "--untracked-files=all"' in text
+    assert "source_dirty = $false" in text
 
 
 def test_native_calls_are_wrapped_and_npm_ls_problems_are_rejected() -> None:
@@ -90,4 +92,6 @@ def test_release_contract_is_repository_owned_and_publication_time_is_separate()
     assert contract["builder"]["atomic_directory_switch"] is True
     assert contract["builder"]["rollback_retained"] is True
     assert contract["reproducibility"]["published_time_outside_bundle"] is True
+    assert contract["reproducibility"]["runtime_build_manifest_bound_to_source"] is True
     assert contract["supply_chain"]["wheelhouse_exact_set_required"] is True
+    assert contract["web"]["runtime_build_manifest"] == "app/runtime-build-manifest.json"

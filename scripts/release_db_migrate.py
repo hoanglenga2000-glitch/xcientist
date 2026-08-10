@@ -250,6 +250,48 @@ def schema_snapshot(connection: sqlite3.Connection) -> dict[str, Any]:
     return {"sha256": sha256(canonical), "schema": payload}
 
 
+def runtime_schema_identity(database: Path, migrations: Path) -> dict[str, str]:
+    """Return the schema identity consumed by the dashboard runtime contract."""
+
+    database = ensure_no_links(database, allow_missing=False)
+    migrations = ensure_no_links(migrations, allow_missing=False)
+    if not database.is_file():
+        raise RuntimeError(f"database schema is unavailable: {database}")
+    connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = connection.execute(
+            """
+            SELECT type, name, tbl_name, COALESCE(sql, '')
+            FROM sqlite_master
+            WHERE type IN ('table', 'index', 'view', 'trigger')
+              AND name NOT LIKE 'sqlite_%'
+            ORDER BY type, name, tbl_name
+            """
+        ).fetchall()
+    finally:
+        connection.close()
+    digest = hashlib.sha256()
+    for row in rows:
+        canonical = "\0".join(
+            (
+                str(row[0] or ""),
+                str(row[1] or ""),
+                str(row[2] or ""),
+                re.sub(r"\s+", " ", str(row[3] or "").strip()),
+            )
+        )
+        digest.update(canonical.encode("utf-8"))
+        digest.update(b"\n")
+    versions = sorted(
+        child.name
+        for child in migrations.iterdir()
+        if child.is_dir() and (child / "migration.sql").is_file()
+    )
+    if not versions:
+        raise RuntimeError(f"runtime schema identity requires at least one migration: {migrations}")
+    return {"version": versions[-1], "sha256": digest.hexdigest()}
+
+
 def _contract_sha256(contract: dict[str, Any]) -> str:
     canonical = json.dumps(contract, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return sha256(canonical)
