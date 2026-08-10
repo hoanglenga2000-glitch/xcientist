@@ -1717,7 +1717,7 @@ def runtime_launch_command(release_nonce: str, port: int) -> tuple[list[str], Pa
     ], ROOT.resolve()
 
 
-def launch_runtime_process(
+def launch_process_with_windows_fallback(
     command: list[str],
     *,
     cwd: Path,
@@ -1732,17 +1732,31 @@ def launch_runtime_process(
         "stdout": stdout,
         "stderr": stderr,
         "stdin": subprocess.DEVNULL,
-        "creationflags": creationflags,
         "close_fds": True,
     }
-    try:
-        return subprocess.Popen(command, **kwargs)
-    except PermissionError:
+
+    commands = [command]
+    flags = [creationflags]
+    if os.name == "nt":
+        breakaway = getattr(subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+        without_breakaway = creationflags & ~breakaway
+        if without_breakaway != creationflags:
+            flags.append(without_breakaway)
         executable = Path(command[0])
         fallback = executable.with_name("python.exe")
-        if os.name != "nt" or executable.name.lower() != "pythonw.exe" or not fallback.is_file():
-            raise
-        return subprocess.Popen([str(fallback), *command[1:]], **kwargs)
+        if executable.name.lower() == "pythonw.exe" and fallback.is_file():
+            commands.append([str(fallback), *command[1:]])
+
+    last_error: PermissionError | None = None
+    for candidate_command in commands:
+        for candidate_flags in flags:
+            try:
+                return subprocess.Popen(candidate_command, creationflags=candidate_flags, **kwargs)
+            except PermissionError as exc:
+                last_error = exc
+    if last_error is None:
+        raise AssertionError("managed process launch exhausted without an error")
+    raise last_error
 
 
 def wait_runtime_ready(port: int, timeout: float) -> dict:
@@ -1873,7 +1887,7 @@ def start(args: argparse.Namespace) -> None:
     runtime_stdout = runtime_out.open("ab")
     runtime_stderr = runtime_err.open("ab")
     try:
-        runtime_process = launch_runtime_process(
+        runtime_process = launch_process_with_windows_fallback(
             runtime_command,
             cwd=runtime_cwd,
             env=isolated_runtime_env,
@@ -1901,7 +1915,14 @@ def start(args: argparse.Namespace) -> None:
         stdout = out_log.open("ab")
         stderr = err_log.open("ab")
         try:
-            process = subprocess.Popen(command, cwd=cwd, env=env, stdout=stdout, stderr=stderr, stdin=subprocess.DEVNULL, creationflags=creationflags, close_fds=True)
+            process = launch_process_with_windows_fallback(
+                command,
+                cwd=cwd,
+                env=env,
+                stdout=stdout,
+                stderr=stderr,
+                creationflags=creationflags,
+            )
         finally:
             stdout.close()
             stderr.close()

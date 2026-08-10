@@ -141,7 +141,7 @@ def test_runtime_process_falls_back_to_console_python_when_pythonw_is_denied(
         return object()
 
     monkeypatch.setattr(manager.subprocess, "Popen", fake_popen)
-    result = manager.launch_runtime_process(
+    result = manager.launch_process_with_windows_fallback(
         [str(pythonw), "-c", "pass"],
         cwd=tmp_path,
         env={},
@@ -152,6 +152,42 @@ def test_runtime_process_falls_back_to_console_python_when_pythonw_is_denied(
 
     assert result is not None
     assert calls == [[str(pythonw), "-c", "pass"], [str(python), "-c", "pass"]]
+
+
+def test_managed_process_retries_without_breakaway_when_job_forbids_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if os.name != "nt":
+        pytest.skip("Windows job-object fallback is Windows-specific")
+    manager = load("release_runtime_job_fallback", "scripts/manage_workstation_dashboard.py")
+    breakaway = getattr(manager.subprocess, "CREATE_BREAKAWAY_FROM_JOB", 0)
+    if not breakaway:
+        pytest.skip("CREATE_BREAKAWAY_FROM_JOB is unavailable")
+    calls: list[tuple[list[str], int]] = []
+
+    def fake_popen(command, **kwargs):
+        calls.append((list(command), kwargs["creationflags"]))
+        if len(calls) == 1:
+            raise PermissionError(5, "access denied", command[0])
+        return object()
+
+    monkeypatch.setattr(manager.subprocess, "Popen", fake_popen)
+    command = [str(tmp_path / "runtime.exe"), "--serve"]
+    creationflags = manager.subprocess.CREATE_NO_WINDOW | breakaway
+    result = manager.launch_process_with_windows_fallback(
+        command,
+        cwd=tmp_path,
+        env={},
+        stdout=None,
+        stderr=None,
+        creationflags=creationflags,
+    )
+
+    assert result is not None
+    assert calls == [
+        (command, creationflags),
+        (command, creationflags & ~breakaway),
+    ]
 
 
 def test_dashboard_bootstrap_fragment_is_written_to_private_one_time_file(
