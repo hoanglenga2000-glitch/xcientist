@@ -96,6 +96,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.21"
+      - name: Install Python runtime dependencies
+        working-directory: .
+        run: uv pip install --system -r requirements.txt
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
       - name: Test the npm CLI package and inspect its packed contents
