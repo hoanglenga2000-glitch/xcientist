@@ -76,7 +76,9 @@ jobs:
             "scripts/sign_evomind_release_manifest.mjs",
             "packages/evomind-cli/package.json",
             "packages/evomind-cli/package-lock.json",
-            "packages/evomind-cli/keys/release-ed25519-public.pem"
+            "packages/evomind-cli/keys/release-ed25519-public.pem",
+            "tests/fixtures/release/fixture-ed25519-private.pem",
+            "tests/fixtures/release/fixture-ed25519-public.pem"
           )
           foreach ($path in $required) {
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {

@@ -367,30 +367,94 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
     layout = _require_dict(release_contract.get("layout"), "release runtime layout")
     entrypoints = _require_dict(release_contract.get("entrypoints"), "release entrypoints")
     web = _require_dict(release_contract.get("web"), "release web contract")
+    gateway = _require_dict(release_contract.get("gateway"), "release gateway contract")
+    persistence = _require_dict(release_contract.get("persistence"), "release persistence contract")
+    builder = _require_dict(release_contract.get("builder"), "release builder contract")
+    reproducibility = _require_dict(
+        release_contract.get("reproducibility"), "release reproducibility contract"
+    )
+    supply_chain = _require_dict(release_contract.get("supply_chain"), "release supply-chain contract")
     targets = _require_dict(release_contract.get("release_targets"), "release targets")
     expected_layout = {
         "app": "app",
         "runtime": "runtime",
         "scripts": "scripts",
+        "config": "config",
+        "data": "user-data",
+        "logs": "user-data/logs",
+        "backups": "user-data/backups",
         "wheels": "runtime/wheels",
+        "metadata": "metadata",
     }
     expected_entrypoints = {
         "install": "install.ps1",
         "start": "start.ps1",
         "stop": "stop.ps1",
         "status": "status.ps1",
+        "migrate": "migrate.ps1",
+        "upgrade": "upgrade.ps1",
+        "rollback": "rollback.ps1",
+        "uninstall": "uninstall.ps1",
     }
     if (
-        release_contract.get("format_version") != 1
-        or any(layout.get(key) != value for key, value in expected_layout.items())
-        or any(entrypoints.get(key) != value for key, value in expected_entrypoints.items())
+        release_contract.get("schema") != "evomind.release.contract.v2"
+        or release_contract.get("format_version") != 2
+        or release_contract.get("product_mode") != "local-first-single-user"
+        or release_contract.get("bundle_root") != "EvoMind"
+        or layout != expected_layout
+        or entrypoints != expected_entrypoints
         or web.get("mode") != "next-standalone"
         or web.get("server") != "app/server.js"
+        or web.get("build_id") != "app/.next/BUILD_ID"
         or web.get("bind") != "127.0.0.1"
+        or web.get("port") != 8088
+        or gateway.get("base_url") != "http://127.0.0.1:65068/v1"
+        or gateway.get("health_probe") != "scripts/verify_openai_gateway.py"
+        or gateway.get("external_optional") is not False
+        or gateway.get("fallback_local_deterministic") is not True
+        or persistence.get("sqlite") != "user-data/prisma/workstation.db"
+        or persistence.get("workspace") != "user-data/workspace"
+        or persistence.get("migrations") != "app/prisma/migrations"
+        or persistence.get("preserve_on_upgrade") is not True
+        or persistence.get("preserve_on_uninstall_by_default") is not True
+        or builder.get("toolchain_contract") != "configs/release/toolchain.json"
+        or builder.get("fresh_next_build_required") is not True
+        or builder.get("skip_build_allowed") is not False
+        or builder.get("output_root_sentinel") != ".evomind-release-root.json"
+        or builder.get("replacement_requires_explicit_switch") is not True
+        or builder.get("random_staging_required") is not True
+        or builder.get("atomic_directory_switch") is not True
+        or builder.get("rollback_retained") is not True
+        or any(
+            reproducibility.get(key) is not True
+            for key in (
+                "source_digest_required",
+                "source_date_epoch_from_git",
+                "build_receipt_required",
+                "build_id_bound_to_next_tree",
+                "published_time_outside_bundle",
+                "zip_entry_times_from_source_date_epoch",
+            )
+        )
+        or any(
+            supply_chain.get(key) is not True
+            for key in (
+                "npm_lock_required",
+                "npm_ls_must_have_no_problems",
+                "uv_lock_required",
+                "wheel_hashes_required",
+                "wheelhouse_exact_set_required",
+                "wheelhouse_reuse_requires_offline_validation",
+                "cyclonedx_sbom_required",
+                "builder_metadata_merged_into_sbom",
+            )
+        )
+        or targets.get("base_bundle_max_mib") != 500
         or targets.get("clean_install_required") is not True
         or targets.get("offline_when_wheels_present") is not True
         or targets.get("sha256_manifest") is not True
         or targets.get("no_user_data_in_bundle") is not True
+        or targets.get("no_reparse_points") is not True
     ):
         raise RuntimeError("release runtime contract is incomplete")
 
@@ -398,23 +462,36 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
         bundle / "runtime" / "wheels" / "wheelhouse-manifest.json", "wheelhouse manifest"
     )
     wheels = wheelhouse.get("wheels")
+    wheelhouse_python = wheelhouse.get("python")
+    wheelhouse_abi = wheelhouse.get("abi")
+    wheelhouse_platform = wheelhouse.get("platform")
+    uv_lock_path = bundle / "runtime" / "python" / "uv.lock"
+    locked_requirements_path = bundle / "metadata" / "python-locked-requirements.txt"
     if (
-        wheelhouse.get("platform") != "win_amd64"
-        or wheelhouse.get("python") != ["3.12.x"]
-        or wheelhouse.get("abi") != ["cp312"]
+        wheelhouse.get("schema") != "evomind.release.wheelhouse-manifest.v2"
+        or wheelhouse_platform != "win_amd64"
+        or wheelhouse_python != "3.12"
+        or wheelhouse_abi != "cp312"
+        or wheelhouse.get("uv_lock_sha256") != sha256(uv_lock_path)
+        or wheelhouse.get("locked_requirements_sha256") != sha256(locked_requirements_path)
         or not isinstance(wheels, list)
         or not wheels
         or wheelhouse.get("wheel_count") != len(wheels)
-        or not bundled_python.startswith(str(wheelhouse.get("bundled_python") or ""))
+        or not bundled_python.startswith(f"{wheelhouse_python}.")
+        or f"/{wheelhouse_abi}/{wheelhouse_platform}/bundled" not in bundled_python
     ):
         raise RuntimeError("wheelhouse runtime contract is invalid")
     declared_wheels: set[str] = set()
+    first_party_wheels = 0
     for item in wheels:
         if not isinstance(item, dict):
             raise RuntimeError("wheelhouse entry must be an object")
         name = item.get("name")
         size = item.get("size")
         digest = item.get("sha256")
+        package = item.get("package")
+        package_version = item.get("version")
+        origin = item.get("origin")
         if (
             not isinstance(name, str)
             or PurePosixPath(name).name != name
@@ -424,8 +501,17 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
             or isinstance(size, bool)
             or size <= 0
             or not SHA256_PATTERN.fullmatch(str(digest or ""))
+            or not isinstance(package, str)
+            or not package.strip()
+            or not isinstance(package_version, str)
+            or not package_version.strip()
+            or origin not in {"uv.lock", "first-party-source-build"}
         ):
             raise RuntimeError("wheelhouse entry is invalid")
+        if origin == "first-party-source-build":
+            if package != "xcientist" or package_version != version:
+                raise RuntimeError("first-party wheel identity is invalid")
+            first_party_wheels += 1
         declared_wheels.add(name.casefold())
         wheel = bundle / "runtime" / "wheels" / name
         if not _regular_file(wheel) or wheel.stat().st_size != size or sha256(wheel) != digest:
@@ -435,6 +521,8 @@ def _verify_runtime_metadata(bundle: Path, manifest: dict) -> None:
     }
     if actual_wheels != declared_wheels:
         raise RuntimeError("wheelhouse manifest does not exactly cover wheel payloads")
+    if first_party_wheels != 1:
+        raise RuntimeError("wheelhouse must contain exactly one first-party release wheel")
 
     try:
         pyproject = tomllib.loads((bundle / "runtime" / "python" / "pyproject.toml").read_text(encoding="utf-8"))
@@ -726,6 +814,17 @@ def port_open(port: int) -> bool:
         return sock.connect_ex(("127.0.0.1", port)) == 0
 
 
+def remove_tree_with_retry(path: Path, timeout: float = 20.0) -> None:
+    deadline = time.monotonic() + timeout
+    while path.exists():
+        try:
+            shutil.rmtree(path, ignore_errors=False)
+        except OSError:
+            if time.monotonic() >= deadline:
+                raise
+            time.sleep(0.25)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--zip", type=Path, required=True)
@@ -980,7 +1079,7 @@ def main() -> int:
         result["cleanup"] = cleanup_receipt
         if cleanup_receipt["dashboard_port_released"] and cleanup_receipt["runtime_port_released"]:
             try:
-                shutil.rmtree(temp, ignore_errors=False)
+                remove_tree_with_retry(temp)
             except OSError as error:
                 cleanup_receipt["temp_cleanup_error"] = f"{type(error).__name__}: {error}"
         else:
@@ -1004,7 +1103,7 @@ def main() -> int:
     if args.json:
         args.json.expanduser().resolve().parent.mkdir(parents=True, exist_ok=True)
         args.json.expanduser().resolve().write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=True, indent=2))
     if failure and not passed:
         return 1
     return 0 if passed else 1

@@ -52,7 +52,7 @@ if ($BundleMode) {
   $installMarker = Get-Content -LiteralPath $markerPath -Raw | ConvertFrom-Json
   $canonicalRoot = [IO.Path]::GetFullPath($Root).TrimEnd('\')
   $canonicalDestination = [IO.Path]::GetFullPath([string]$Transaction.destination).TrimEnd('\')
-  if ($Transaction.schema -ne "evomind.release_transaction.v1" -or $Transaction.phase -ne "version_staged" -or
+  if ($Transaction.schema -ne "evomind.release_transaction.v1" -or $Transaction.phase -ne "python_env_prepared" -or
       $canonicalRoot -ne $canonicalDestination -or $Transaction.install_id -ne $installMarker.install_id -or
       [IO.Path]::GetFullPath($DataDir) -ne [IO.Path]::GetFullPath([string]$installMarker.paths.data) -or
       [IO.Path]::GetFullPath($LogsDir) -ne [IO.Path]::GetFullPath([string]$installMarker.paths.logs) -or

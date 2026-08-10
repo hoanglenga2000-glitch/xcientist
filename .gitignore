@@ -4,6 +4,8 @@
 !.env.example
 *.pem
 !packages/evomind-cli/keys/release-ed25519-public.pem
+!tests/fixtures/release/fixture-ed25519-private.pem
+!tests/fixtures/release/fixture-ed25519-public.pem
 *.key
 id_rsa
 id_rsa.*

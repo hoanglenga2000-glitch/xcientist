@@ -19,6 +19,11 @@ $maxMember = [int64]2GB
 $maxRatio = 1000.0
 $totalUncompressed = [int64]0
 $totalCompressed = [int64]0
+function ConvertTo-ExtendedPath([string]$Path) {
+  $full = [IO.Path]::GetFullPath($Path)
+  if ($full.StartsWith('\\')) { return '\\?\UNC\' + $full.Substring(2) }
+  return '\\?\' + $full
+}
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $zip = [IO.Compression.ZipFile]::OpenRead($archivePath)
 try {
@@ -74,9 +79,22 @@ try {
   if ($totalUncompressed -gt 0 -and ([double]$totalUncompressed / [Math]::Max([double]$totalCompressed, 1.0)) -gt $maxRatio) {
     throw "ZIP aggregate compression-ratio limit exceeded."
   }
+  foreach ($entry in $zip.Entries) {
+    $relative = ([string]$entry.FullName).Replace('/', '\')
+    $isDirectory = $relative.EndsWith('\')
+    $normalizedRelative = $relative.TrimEnd('\')
+    $target = [IO.Path]::GetFullPath((Join-Path $destinationPath $normalizedRelative))
+    $extendedTarget = ConvertTo-ExtendedPath $target
+    if ($isDirectory) {
+      [IO.Directory]::CreateDirectory($extendedTarget) | Out-Null
+      continue
+    }
+    $parent = [IO.Path]::GetDirectoryName($target)
+    [IO.Directory]::CreateDirectory((ConvertTo-ExtendedPath $parent)) | Out-Null
+    [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $extendedTarget, $false)
+  }
 } finally {
   $zip.Dispose()
 }
-Expand-Archive -LiteralPath $archivePath -DestinationPath $destinationPath -Force
-$reparse = Get-ChildItem -LiteralPath $destinationPath -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1
+$reparse = Get-ChildItem -LiteralPath (ConvertTo-ExtendedPath $destinationPath) -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } | Select-Object -First 1
 if ($reparse) { throw "Expanded archive contains a reparse point: $($reparse.FullName)" }

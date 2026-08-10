@@ -763,6 +763,18 @@ def test_release_wrappers_remove_unsigned_upgrade_and_verifier_uses_official_lif
         assert command in verifier
 
 
+def test_bundle_install_phase_matches_the_durable_cli_transaction_order() -> None:
+    installer = (ROOT / "install.ps1").read_text(encoding="utf-8")
+    cli = (ROOT / "packages" / "evomind-cli" / "src" / "core.mjs").read_text(encoding="utf-8")
+
+    phase = 'writeTransactionPhase(paths, journal, "python_env_prepared")'
+    install = 'runBundleScript(destination, "install.ps1"'
+    assert '$Transaction.phase -ne "python_env_prepared"' in installer
+    assert phase in cli
+    assert install in cli
+    assert cli.index(phase) < cli.index(install)
+
+
 def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

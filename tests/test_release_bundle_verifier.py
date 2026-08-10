@@ -104,21 +104,29 @@ def make_inner_bundle(tmp_path: Path, verifier, version: str = "0.3.0") -> Path:
             'version = 1\nrequires-python = ">=3.10"\n'
             '[[package]]\nname = "xcientist"\nversion = "0.3.0"\n'
         ),
+        "metadata/python-locked-requirements.txt": "fixture==1.0.0 --hash=sha256:" + "0" * 64 + "\n",
     }
     for relative, value in payloads.items():
         write_payload(bundle / relative, value)
 
     wheel = bundle / "runtime/wheels/xcientist-0.3.0-py3-none-any.whl"
     write_json(bundle / "runtime/wheels/wheelhouse-manifest.json", {
+        "schema": "evomind.release.wheelhouse-manifest.v2",
         "platform": "win_amd64",
-        "python": ["3.12.x"],
-        "abi": ["cp312"],
-        "bundled_python": "3.12.9",
+        "python": "3.12",
+        "abi": "cp312",
+        "uv_lock_sha256": verifier.sha256(bundle / "runtime/python/uv.lock"),
+        "locked_requirements_sha256": verifier.sha256(
+            bundle / "metadata/python-locked-requirements.txt"
+        ),
         "wheel_count": 1,
         "wheels": [{
             "name": wheel.name,
             "size": wheel.stat().st_size,
             "sha256": verifier.sha256(wheel),
+            "origin": "first-party-source-build",
+            "package": "xcientist",
+            "version": version,
         }],
     })
     write_json(bundle / "metadata/package-lock.json", {
@@ -143,28 +151,10 @@ def make_inner_bundle(tmp_path: Path, verifier, version: str = "0.3.0") -> Path:
         },
         "components": [{"type": "library", "name": "fixture", "version": "1.0.0"}],
     })
-    write_json(bundle / "metadata/release-contract.json", {
-        "format_version": 1,
-        "layout": {
-            "app": "app",
-            "runtime": "runtime",
-            "scripts": "scripts",
-            "wheels": "runtime/wheels",
-        },
-        "entrypoints": {
-            "install": "install.ps1",
-            "start": "start.ps1",
-            "stop": "stop.ps1",
-            "status": "status.ps1",
-        },
-        "web": {"mode": "next-standalone", "server": "app/server.js", "bind": "127.0.0.1"},
-        "release_targets": {
-            "clean_install_required": True,
-            "offline_when_wheels_present": True,
-            "sha256_manifest": True,
-            "no_user_data_in_bundle": True,
-        },
-    })
+    write_json(
+        bundle / "metadata/release-contract.json",
+        json.loads((ROOT / "configs/release/release-contract.json").read_text(encoding="utf-8")),
+    )
     finalize_inner_bundle(bundle, verifier, version)
     return bundle
 
@@ -228,6 +218,19 @@ def test_inner_manifest_rejects_aggregate_and_semantic_metadata_drift(tmp_path: 
     write_json(sbom_path, sbom)
     finalize_inner_bundle(bundle, verifier)
     with pytest.raises(RuntimeError, match="CycloneDX"):
+        verifier.verify_inner_manifest(bundle, outer_manifest(verifier))
+
+
+def test_inner_manifest_rejects_stale_release_runtime_contract(tmp_path: Path) -> None:
+    verifier = load_verifier()
+    bundle = make_inner_bundle(tmp_path, verifier)
+    contract_path = bundle / "metadata/release-contract.json"
+    contract = json.loads(contract_path.read_text(encoding="utf-8"))
+    contract["format_version"] = 1
+    write_json(contract_path, contract)
+    finalize_inner_bundle(bundle, verifier)
+
+    with pytest.raises(RuntimeError, match="release runtime contract is incomplete"):
         verifier.verify_inner_manifest(bundle, outer_manifest(verifier))
 
 
