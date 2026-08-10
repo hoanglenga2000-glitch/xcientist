@@ -1902,10 +1902,11 @@ def start(args: argparse.Namespace) -> None:
     finally:
         runtime_stdout.close()
         runtime_stderr.close()
-    runtime_launcher_record = make_process_record(runtime_process.pid, role="runtime_launcher", port=runtime_port, cwd=runtime_cwd, release_nonce=release_nonce)
+    runtime_launcher_record: dict | None = None
     runtime_pid_file.write_text(str(runtime_process.pid), encoding="utf-8")
     process: subprocess.Popen | None = None
     dashboard_record: dict | None = None
+    dashboard_launcher_record: dict | None = None
     try:
         runtime_ready = wait_runtime_ready(runtime_port, args.timeout)
         runtime_listeners = pids_on_port(runtime_port)
@@ -1915,6 +1916,14 @@ def start(args: argparse.Namespace) -> None:
         runtime_matched, runtime_failures = verify_process_record(runtime_record)
         if not runtime_matched:
             raise RuntimeError(f"runtime identity verification failed: {runtime_failures}")
+        if runtime_process.pid != runtime_record["pid"] and pid_running(runtime_process.pid):
+            runtime_launcher_record = make_process_record(
+                runtime_process.pid,
+                role="runtime_launcher",
+                port=runtime_port,
+                cwd=runtime_cwd,
+                release_nonce=release_nonce,
+            )
 
         stdout = out_log.open("ab")
         stderr = err_log.open("ab")
@@ -1930,7 +1939,6 @@ def start(args: argparse.Namespace) -> None:
         finally:
             stdout.close()
             stderr.close()
-        dashboard_launcher_record = make_process_record(process.pid, role="dashboard_launcher", port=args.port, cwd=cwd, release_nonce=release_nonce)
         pid_file.write_text(str(process.pid), encoding="utf-8")
         ready = wait_ready(args.host, args.port, args.timeout)
         listener_pids = pids_on_port(args.port)
@@ -1940,6 +1948,14 @@ def start(args: argparse.Namespace) -> None:
         dashboard_matched, dashboard_failures = verify_process_record(dashboard_record)
         if not dashboard_matched:
             raise RuntimeError(f"dashboard identity verification failed: {dashboard_failures}")
+        if process.pid != dashboard_record["pid"] and pid_running(process.pid):
+            dashboard_launcher_record = make_process_record(
+                process.pid,
+                role="dashboard_launcher",
+                port=args.port,
+                cwd=cwd,
+                release_nonce=release_nonce,
+            )
         write_automation_token(args.port, automation_token)
         bootstrap_file = write_bootstrap_url(args.host, args.port, bootstrap_token)
     except BaseException:
@@ -1957,7 +1973,7 @@ def start(args: argparse.Namespace) -> None:
                 stop_process_record(provisional, timeout=10, require_listener=False)
             except Exception:
                 pass
-        if process is not None and 'dashboard_launcher_record' in locals() and dashboard_launcher_record["pid"] != (dashboard_record or {}).get("pid"):
+        if process is not None and dashboard_launcher_record and dashboard_launcher_record["pid"] != (dashboard_record or {}).get("pid"):
             stop_process_record(dashboard_launcher_record, timeout=10, require_listener=False)
         if 'runtime_record' in locals():
             stop_process_record(runtime_record, timeout=10)
@@ -1968,7 +1984,7 @@ def start(args: argparse.Namespace) -> None:
                     stop_process_record(candidate, timeout=10)
                 except Exception:
                     pass
-        if runtime_launcher_record["pid"] != (locals().get("runtime_record") or {}).get("pid"):
+        if runtime_launcher_record and runtime_launcher_record["pid"] != (locals().get("runtime_record") or {}).get("pid"):
             stop_process_record(runtime_launcher_record, timeout=10, require_listener=False)
         pid_file.unlink(missing_ok=True)
         runtime_pid_file.unlink(missing_ok=True)
@@ -1977,11 +1993,11 @@ def start(args: argparse.Namespace) -> None:
     pid_file.write_text(str(dashboard_record["pid"]), encoding="utf-8")
     runtime_pid_file.write_text(str(runtime_record["pid"]), encoding="utf-8")
     processes = {"dashboard": dashboard_record, "runtime": runtime_record}
-    if dashboard_launcher_record["pid"] != dashboard_record["pid"]:
+    if dashboard_launcher_record and dashboard_launcher_record["pid"] != dashboard_record["pid"]:
         launcher_ok, _ = verify_process_record(dashboard_launcher_record, require_listener=False)
         if launcher_ok:
             processes["dashboard_launcher"] = dashboard_launcher_record
-    if runtime_launcher_record["pid"] != runtime_record["pid"]:
+    if runtime_launcher_record and runtime_launcher_record["pid"] != runtime_record["pid"]:
         launcher_ok, _ = verify_process_record(runtime_launcher_record, require_listener=False)
         if launcher_ok:
             processes["runtime_launcher"] = runtime_launcher_record

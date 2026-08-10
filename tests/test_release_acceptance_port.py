@@ -193,8 +193,12 @@ def test_dashboard_manager_initializes_database_before_build_and_server_start() 
 
     schema_sync = source.index("database_schema_status = ensure_database_schema(environment)")
     build = source.index("if args.build:", schema_sync)
-    server = source.index("process = launch_process_with_windows_fallback(", build)
-    assert schema_sync < build < server
+    runtime_ready = source.index("runtime_ready = wait_runtime_ready(", build)
+    runtime_identity = source.index("runtime_record = make_process_record(", runtime_ready)
+    server = source.index("process = launch_process_with_windows_fallback(", runtime_identity)
+    dashboard_ready = source.index("ready = wait_ready(", server)
+    dashboard_identity = source.index("dashboard_record = make_process_record(", dashboard_ready)
+    assert schema_sync < build < runtime_ready < runtime_identity < server < dashboard_ready < dashboard_identity
     assert "except SystemExit as readiness_error:" in source
     assert "if stop_pid(process.pid):" in source
     assert "runtime metadata was preserved" in source
