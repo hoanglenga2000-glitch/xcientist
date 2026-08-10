@@ -112,7 +112,7 @@ def runtime_dir() -> Path:
 
 def runtime_paths(port: int = 8088) -> tuple[Path, Path, Path, Path]:
     directory = runtime_dir()
-    if port == 8088:
+    if port == 8088 and not bundle_mode():
         return PID_FILE, STATE_FILE, directory / "dashboard.out.log", directory / "dashboard.err.log"
     suffix = "" if port == 8088 else f".{port}"
     return (

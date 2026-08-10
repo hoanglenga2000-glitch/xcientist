@@ -23,7 +23,9 @@ def load(name: str, relative: str):
     return module
 
 
-def test_dashboard_pid_detection_and_port_specific_runtime_files() -> None:
+def test_dashboard_pid_detection_and_port_specific_runtime_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     manager = load("launchfix_dashboard_manager", "scripts/manage_workstation_dashboard.py")
     assert manager.pid_running(os.getpid()) is True
     assert manager.pid_running(999_999_999) is False
@@ -33,6 +35,21 @@ def test_dashboard_pid_detection_and_port_specific_runtime_files() -> None:
     assert default_out.name == "dashboard.out.log"
     assert custom_pid.name == "dashboard.18192.pid"
     assert custom_out.name == "dashboard.18192.out.log"
+
+    monkeypatch.delenv("WORKSTATION_RUNTIME_DIR", raising=False)
+    monkeypatch.setattr(manager, "bundle_mode", lambda: True)
+    monkeypatch.setattr(manager, "data_root", lambda: tmp_path)
+    bundled_pid, bundled_state, _, _ = manager.runtime_paths(8088)
+    assert bundled_pid == tmp_path / "logs/dashboard.pid"
+    assert bundled_state == tmp_path / "logs/dashboard.process.json"
+
+
+def test_bundle_entrypoints_honor_the_managed_environment_port() -> None:
+    for relative in ("install.ps1", "start.ps1", "stop.ps1", "status.ps1"):
+        source = (ROOT / relative).read_text(encoding="utf-8-sig")
+        assert '$PSBoundParameters.ContainsKey("Port")' in source
+        assert "[int]::TryParse($env:WORKSTATION_PORT, [ref]$resolvedPort)" in source
+        assert "$Port = $resolvedPort" in source
 
 
 def test_runtime_environment_isolates_browser_secrets_and_binds_source_imports(monkeypatch: pytest.MonkeyPatch) -> None:
