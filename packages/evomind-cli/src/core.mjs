@@ -1669,11 +1669,19 @@ async function assertInstallationWithinAcceptance(paths, current) {
 }
 
 function parseLastJson(text) {
-  const candidates = String(text || "").split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const body = String(text || "").trim();
+  try {
+    const parsed = JSON.parse(body);
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch { /* Fall through to compact structured log lines. */ }
+  const candidates = body.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    try { return JSON.parse(candidates[index]); } catch { /* continue */ }
+    try {
+      const parsed = JSON.parse(candidates[index]);
+      if (parsed && typeof parsed === "object") return parsed;
+    } catch { /* continue */ }
   }
-  try { return JSON.parse(text); } catch { return { output: text }; }
+  return { output: text };
 }
 
 export async function lifecycle(command, { paths = layout(), visible = false } = {}) {

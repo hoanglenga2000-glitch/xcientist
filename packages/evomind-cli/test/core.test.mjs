@@ -25,6 +25,7 @@ import {
   signedPayload,
   stableStringify,
   uninstall,
+  validateRuntimeStatus,
   verifyManifest,
   verifyBundle,
 } from "../src/core.mjs";
@@ -34,6 +35,41 @@ const testKeyId = `evomind-${createHash("sha256").update(publicKey.export({ type
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const fixtureStartBootstrapToken = "fixture_start_bootstrap_token_0123456789-ABCDEFG";
 const hardExitChildTimeoutMs = 120_000;
+
+test("strict health accepts pretty-printed nested process status", () => {
+  const dashboard = {
+    status: "running",
+    identity_contract: "evomind.process_identity.v1",
+    dashboard_identity_verified: true,
+    runtime_identity_verified: true,
+    pid_running: true,
+    process_port_consistent: true,
+    runtime_process_consistent: true,
+    runtime_listener_pids: [12345],
+    health: {
+      reachable: true,
+      http_status: 200,
+      version: "0.3.0",
+      has_runtime: true,
+      runtime: {
+        reachable: true,
+        http_status: 200,
+        status: "ready",
+        version: "0.3.0",
+      },
+    },
+  };
+  const status = {
+    status: "ok",
+    install: { ok: true, exit_code: 0, output: JSON.stringify({ status: "installed" }, null, 2) },
+    dashboard: { ok: true, exit_code: 0, output: JSON.stringify(dashboard, null, 2) },
+  };
+
+  const result = validateRuntimeStatus(status, "0.3.0");
+
+  assert.equal(result.passed, true, result.failures.join("; "));
+  assert.deepEqual(result.dashboard, dashboard);
+});
 
 function psQuote(value) {
   return String(value).replaceAll("'", "''");
