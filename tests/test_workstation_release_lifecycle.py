@@ -122,6 +122,25 @@ def test_runtime_launch_uses_data_root_without_duplicate_workspace_suffix(
     assert cwd == tmp_path.resolve()
 
 
+def test_runtime_launch_uses_console_python_in_ci(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    if os.name != "nt":
+        pytest.skip("CI console Python selection is Windows-specific")
+    manager = load("release_runtime_ci_python", "scripts/manage_workstation_dashboard.py")
+    python = tmp_path / "python.exe"
+    pythonw = tmp_path / "pythonw.exe"
+    python.write_bytes(b"")
+    pythonw.write_bytes(b"")
+    monkeypatch.setattr(manager, "data_root", lambda: tmp_path)
+    monkeypatch.setenv("WORKSTATION_PYTHON", str(python))
+    monkeypatch.setenv("CI", "true")
+
+    command, _cwd = manager.runtime_launch_command("n" * 43, 18765)
+
+    assert Path(command[0]) == python.resolve()
+
+
 def test_runtime_process_falls_back_to_console_python_when_pythonw_is_denied(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -1697,7 +1697,11 @@ def runtime_launch_command(release_nonce: str, port: int) -> tuple[list[str], Pa
     # console-subsystem Python process.  A detached shim can therefore still
     # create a conhost/Windows Terminal window for its child.  Use the sibling
     # GUI-subsystem launcher so the complete runtime chain remains windowless.
-    if os.name == "nt" and python.name.lower() == "python.exe":
+    # Hosted CI runners have no interactive console to hide and may allow
+    # ``pythonw.exe`` to start without ever scheduling its runtime child, so CI
+    # deliberately keeps the console executable under CREATE_NO_WINDOW.
+    ci = os.environ.get("CI", "").strip().lower() in {"1", "true", "yes", "on"}
+    if os.name == "nt" and not ci and python.name.lower() == "python.exe":
         pythonw = python.with_name("pythonw.exe")
         if pythonw.is_file():
             python = pythonw
