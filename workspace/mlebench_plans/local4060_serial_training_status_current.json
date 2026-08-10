@@ -1,0 +1,188 @@
+{
+  "schema": "evomind.local4060.serial_training_status.v1",
+  "created_at": "2026-07-27T01:32:16.713145+08:00",
+  "status": "active_jigsaw_training_siim_staging_and_serial_queue",
+  "objective": {
+    "official_medals_current": 13,
+    "official_medals_required": 18,
+    "official_medal_deficit": 5,
+    "target_rate_percent": 81.81818181818183,
+    "leaderboard_top_percent": 80.3,
+    "claim": "not_achieved_yet"
+  },
+  "jigsaw": {
+    "heartbeat": {
+      "schema": "evomind.jigsaw.transformer_heartbeat.v1",
+      "created_at": "2026-07-27T01:32:10.508562+08:00",
+      "status": "running",
+      "stage": "training",
+      "fold": 2,
+      "epoch": 1,
+      "update": 2200,
+      "total_updates": 7980,
+      "progress_fraction": 0.2756892230576441,
+      "mean_train_loss": 0.09237097042168237,
+      "elapsed_seconds": 432.41606930000125,
+      "cuda_memory_allocated_mib": 961.81,
+      "cuda_memory_reserved_mib": 1676.0,
+      "cuda_peak_memory_mib": 1590.59,
+      "diagnostic": false,
+      "plan_sha256": "37503de1a8603c1ecaca0e200b3c3aeca861cf642b1605e71c7c51e97a2c28b4",
+      "private_labels_used": false,
+      "official_grader_executed": false
+    },
+    "watcher": {
+      "kaggle_submission_executed": false,
+      "watcher_pid": 67884,
+      "created_at": "2026-07-27T01:07:29.0300028+08:00",
+      "process_signals_sent": 0,
+      "deadline": "2026-07-27T07:07:29.0219924+08:00",
+      "run_id": "local4060_jigsaw_xfmr1_s42_20260727_0024",
+      "schema": "evomind.jigsaw.transformer_verification_watcher.v1",
+      "status": "waiting_for_summary",
+      "official_grader_executed": false
+    },
+    "summary_present": false,
+    "run_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024"
+  },
+  "siim_staging": {
+    "inventory": {
+      "file_count": 33129,
+      "total_bytes": 25765345055,
+      "train_jpeg_count": 28984,
+      "test_jpeg_count": 4142,
+      "manifest_sha256": "8fef392368fcc433f4532129312f3b2ef7118d76cad04dc70f694246c34eff13",
+      "private_paths_requested": false,
+      "remote_writes_performed": false
+    },
+    "heartbeat": {
+      "schema": "evomind.siim.public_staging_heartbeat.v1",
+      "created_at": "2026-07-27T01:32:12.856039+08:00",
+      "status": "running",
+      "pid": 41924,
+      "workers": 4,
+      "destination": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\prepared\\public",
+      "elapsed_seconds": 390.14100000000326,
+      "total_files": 33129,
+      "total_bytes": 25765345055,
+      "completed_files": 161,
+      "completed_bytes": 116025261,
+      "downloaded_bytes_this_run": 119170989,
+      "resumed_files": 0,
+      "skipped_files": 0,
+      "errors": [],
+      "private_paths_requested": false,
+      "remote_writes_performed": false,
+      "process_signals_sent": 0
+    },
+    "launcher": {
+      "schema": "evomind.siim.public_staging_launcher.v1",
+      "created_at": "2026-07-27T01:24:46.8080145+08:00",
+      "pid": 89584,
+      "workers": 4,
+      "python": "D:\\桌面\\codex\\科研港科技\\workspace\\release-venv\\Scripts\\python.exe",
+      "script": "D:\\桌面\\codex\\科研港科技\\scripts\\stage_siim_public_from_hpc.py",
+      "stdout": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_public_staging_stdout.log",
+      "stderr": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_public_staging_stderr.log",
+      "remote_access": "read_only",
+      "private_paths_requested": false,
+      "remote_writes_performed": false,
+      "process_signals_sent": 0,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false
+    }
+  },
+  "siim_queue": {
+    "state": {
+      "schema": "evomind.siim.training_queue.v1",
+      "created_at": "2026-07-27T01:31:50.919471+08:00",
+      "status": "waiting_for_prerequisites",
+      "pid": 46976,
+      "deadline": "2026-07-28T13:30:50.859221+08:00",
+      "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan.json",
+      "plan_sha256": "59a6c54f3f725743ea8ee9d0170ca1c7f26ffd171f7e718d8fd46b85852ce7ae",
+      "requested_model": "gpt-5.6-sol",
+      "served_model": "gpt-5.6-sol",
+      "prerequisites": {
+        "jigsaw_ready": false,
+        "jigsaw_status": "waiting_for_summary",
+        "jigsaw_watcher": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\independent_verification_watcher.json",
+        "staging_ready": false,
+        "staging_status": "inventory_complete",
+        "staging_completed_files": 0,
+        "staging_total_files": 33129,
+        "staging_completed_bytes": 0,
+        "staging_total_bytes": 25765345055,
+        "staging_error_count": 0,
+        "staging_report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_staging_report.json",
+        "ready": false
+      },
+      "gpu": null,
+      "consecutive_idle_checks": 0,
+      "required_idle_checks": 3,
+      "process_signals_sent": 0,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false
+    },
+    "launcher": {
+      "schema": "evomind.siim.training_queue_launcher.v1",
+      "created_at": "2026-07-27T01:30:50.7282261+08:00",
+      "pid": 54952,
+      "python": "D:\\桌面\\codex\\科研港科技\\workspace\\release-venv\\Scripts\\python.exe",
+      "script": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_siim_after_jigsaw.py",
+      "plan": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan.json",
+      "stdout": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_training_queue.stdout.log",
+      "stderr": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_training_queue.stderr.log",
+      "process_signals_sent": 0,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false
+    },
+    "frozen_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan.json",
+      "bytes": 4607,
+      "sha256": "59a6c54f3f725743ea8ee9d0170ca1c7f26ffd171f7e718d8fd46b85852ce7ae"
+    }
+  },
+  "implementation": {
+    "stager": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\stage_siim_public_from_hpc.py",
+      "bytes": 16470,
+      "sha256": "485e5d5fad194dd08adab86d4149c97e16f56e55f058ffe7b5502b5d6f3155ea"
+    },
+    "queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_siim_after_jigsaw.py",
+      "bytes": 15208,
+      "sha256": "0042150b227d1665e50acc67117fa131388c65962d6204ab76ec5a7625745691"
+    },
+    "stager_tests": {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_stage_siim_public_from_hpc.py",
+      "bytes": 3494,
+      "sha256": "0129654167f012782770271026129b725d9ac0026dfe55343c5f4546a28c405d"
+    },
+    "queue_tests": {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_queue_siim_after_jigsaw.py",
+      "bytes": 3074,
+      "sha256": "edda046a75dae6a0c945020c5f407220dddb327e8f699c1571c18379aee852a5"
+    },
+    "backup_dir": "D:\\桌面\\codex\\科研港科技\\backups\\siim_public_stager_20260727_012228"
+  },
+  "validation": {
+    "py_compile": "passed",
+    "ruff": "passed",
+    "focused_pytest": {
+      "passed": 23,
+      "failed": 0
+    },
+    "inventory_remote_crosscheck": "passed",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol"
+  },
+  "integrity": {
+    "private_labels_used": false,
+    "official_grader_executed_this_step": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "commit_created": false
+  },
+  "claim_boundary": "Active training and frozen queue evidence; official leaderboard target remains unproven until at least 18 official medals are recorded."
+}

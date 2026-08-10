@@ -1,0 +1,586 @@
+{
+  "schema": "evomind.mlebench.russian_transliteration_oof.v1",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "created_at": "2026-07-25T02:02:10.051779+00:00",
+  "remote_stderr_type": "nonempty",
+  "base_accuracy": 0.9494146611063659,
+  "candidate_accuracy": 0.965844345073607,
+  "candidate_applied_rows": 2476,
+  "candidate_gain": 1636,
+  "candidate_loss": 1,
+  "epochs": 40,
+  "fold_sizes": [
+    100001,
+    100001,
+    99999,
+    99999,
+    100000
+  ],
+  "folds": 5,
+  "held_out_fold": 0,
+  "loss_history": [
+    1.8345153923056654,
+    0.6851231148883183,
+    0.5064208268706224,
+    0.4212129001698902,
+    0.35443257694356656,
+    0.31118578513142175,
+    0.28348541325235727,
+    0.2558802138902108,
+    0.24387305904356862,
+    0.2242779754562357,
+    0.2165697719699674,
+    0.2078774977359065,
+    0.1982615534809217,
+    0.18934723692288238,
+    0.1810077011477435,
+    0.171591154744613,
+    0.16639398493301844,
+    0.16425189217611896,
+    0.15754453825502124,
+    0.15640578989671572,
+    0.15489133224295018,
+    0.15140968286784443,
+    0.14348387282170985,
+    0.13754910288781788,
+    0.13552875407860965,
+    0.13586136008769442,
+    0.13132757453781405,
+    0.1296328660451396,
+    0.12587049015386303,
+    0.12290354258401474,
+    0.12225874180666882,
+    0.11902841682220723,
+    0.11785618230271462,
+    0.1161928662982561,
+    0.1079442580126818,
+    0.1103581358433163,
+    0.1099271255899483,
+    0.10738550756583858,
+    0.1067111557750483,
+    0.10762687563406931
+  ],
+  "rows": 500000,
+  "target_vocabulary": [
+    "а",
+    "б",
+    "в",
+    "г",
+    "д",
+    "е",
+    "ж",
+    "з",
+    "и",
+    "й",
+    "к",
+    "л",
+    "м",
+    "н",
+    "о",
+    "п",
+    "р",
+    "с",
+    "т",
+    "у",
+    "ф",
+    "х",
+    "ц",
+    "ч",
+    "ш",
+    "ъ",
+    "ь",
+    "э",
+    "ю",
+    "я"
+  ],
+  "top_unseen_errors": [
+    {
+      "before": "Witcher",
+      "count": 3,
+      "prediction": "витчер",
+      "target": "уитчер"
+    },
+    {
+      "before": "Daniel",
+      "count": 3,
+      "prediction": "даниел",
+      "target": "дэниел"
+    },
+    {
+      "before": "Waterloo",
+      "count": 3,
+      "prediction": "уотерлу",
+      "target": "уотерлоо"
+    },
+    {
+      "before": "Eurovoix",
+      "count": 3,
+      "prediction": "эерово",
+      "target": "эеровуа"
+    },
+    {
+      "before": "cam",
+      "count": 3,
+      "prediction": "кэм",
+      "target": "кам"
+    },
+    {
+      "before": "BakerChlorophytum",
+      "count": 3,
+      "prediction": "бейкерчлорофитум",
+      "target": "бейкерчлорофичум"
+    },
+    {
+      "before": "Issue",
+      "count": 2,
+      "prediction": "иссю",
+      "target": "айсю"
+    },
+    {
+      "before": "Fabaceae",
+      "count": 2,
+      "prediction": "фабаси",
+      "target": "фабасе"
+    },
+    {
+      "before": "Fagaceae",
+      "count": 2,
+      "prediction": "фагаси",
+      "target": "фагасе"
+    },
+    {
+      "before": "HuynhPandanus",
+      "count": 2,
+      "prediction": "хайнгпанданус",
+      "target": "хаинпанданус"
+    },
+    {
+      "before": "sus",
+      "count": 2,
+      "prediction": "сас",
+      "target": "сус"
+    },
+    {
+      "before": "Munoz",
+      "count": 2,
+      "prediction": "мунос",
+      "target": "манос"
+    },
+    {
+      "before": "PsA",
+      "count": 2,
+      "prediction": "пса",
+      "target": "пза"
+    },
+    {
+      "before": "Fashion",
+      "count": 2,
+      "prediction": "фашен",
+      "target": "фэшен"
+    },
+    {
+      "before": "wave",
+      "count": 2,
+      "prediction": "уэв",
+      "target": "уэйв"
+    },
+    {
+      "before": "Pre",
+      "count": 2,
+      "prediction": "пр",
+      "target": "пре"
+    },
+    {
+      "before": "joins",
+      "count": 2,
+      "prediction": "джойнс",
+      "target": "джоинс"
+    },
+    {
+      "before": "PsycCRITIQUES",
+      "count": 2,
+      "prediction": "псиккритикус",
+      "target": "псиккритиквес"
+    },
+    {
+      "before": "Bjorlin",
+      "count": 2,
+      "prediction": "бхорлин",
+      "target": "бджорлин"
+    },
+    {
+      "before": "Volvo",
+      "count": 2,
+      "prediction": "волво",
+      "target": "вольво"
+    },
+    {
+      "before": "Persea",
+      "count": 2,
+      "prediction": "персия",
+      "target": "персея"
+    },
+    {
+      "before": "fashion",
+      "count": 2,
+      "prediction": "фашен",
+      "target": "фэшен"
+    },
+    {
+      "before": "Agence",
+      "count": 2,
+      "prediction": "аженс",
+      "target": "адженс"
+    },
+    {
+      "before": "Watchtower",
+      "count": 2,
+      "prediction": "уотчтоуэр",
+      "target": "уотчтауэр"
+    },
+    {
+      "before": "Deutsche",
+      "count": 2,
+      "prediction": "деутш",
+      "target": "дойче"
+    },
+    {
+      "before": "Whoopi",
+      "count": 2,
+      "prediction": "ухупи",
+      "target": "уупи"
+    },
+    {
+      "before": "Greatest",
+      "count": 2,
+      "prediction": "гритест",
+      "target": "грэйтест"
+    },
+    {
+      "before": "Fozzy",
+      "count": 2,
+      "prediction": "фоци",
+      "target": "фоззи"
+    },
+    {
+      "before": "Ukraine",
+      "count": 2,
+      "prediction": "юкрейн",
+      "target": "юкрэйн"
+    },
+    {
+      "before": "mech",
+      "count": 2,
+      "prediction": "мех",
+      "target": "мек"
+    },
+    {
+      "before": "Theater",
+      "count": 2,
+      "prediction": "титер",
+      "target": "театр"
+    },
+    {
+      "before": "BakerAsparagus",
+      "count": 2,
+      "prediction": "бейкераспагус",
+      "target": "бейкераспарагус"
+    },
+    {
+      "before": "Fighting",
+      "count": 2,
+      "prediction": "файттинг",
+      "target": "файтинг"
+    },
+    {
+      "before": "Coalla",
+      "count": 2,
+      "prediction": "колла",
+      "target": "коолла"
+    },
+    {
+      "before": "Euler",
+      "count": 2,
+      "prediction": "эулер",
+      "target": "юлер"
+    },
+    {
+      "before": "Schomburgk",
+      "count": 2,
+      "prediction": "шомбергк",
+      "target": "шомбургк"
+    },
+    {
+      "before": "Azerbaycan",
+      "count": 2,
+      "prediction": "азербайкан",
+      "target": "азербейкан"
+    },
+    {
+      "before": "Einaudi",
+      "count": 2,
+      "prediction": "эинауди",
+      "target": "эйноди"
+    },
+    {
+      "before": "Ranger",
+      "count": 2,
+      "prediction": "рангер",
+      "target": "рейнджер"
+    },
+    {
+      "before": "supply",
+      "count": 1,
+      "prediction": "сапли",
+      "target": "саплай"
+    },
+    {
+      "before": "Kulawi",
+      "count": 1,
+      "prediction": "кулови",
+      "target": "кулави"
+    },
+    {
+      "before": "capillifolia",
+      "count": 1,
+      "prediction": "кэпиллифолия",
+      "target": "капиллифолия"
+    },
+    {
+      "before": "BoeckelerRhynchospora",
+      "count": 1,
+      "prediction": "боекелеррхинчошоспекенчоспекор",
+      "target": "боекелерринчоспора"
+    },
+    {
+      "before": "Frikadelli",
+      "count": 1,
+      "prediction": "фрикаделли",
+      "target": "фрайкаделли"
+    },
+    {
+      "before": "Liechtenstein",
+      "count": 1,
+      "prediction": "лиечтенстейн",
+      "target": "личтенстейн"
+    },
+    {
+      "before": "Descriptio",
+      "count": 1,
+      "prediction": "дескрипшо",
+      "target": "дескрипше"
+    },
+    {
+      "before": "Universitesi",
+      "count": 1,
+      "prediction": "юниверсайтзи",
+      "target": "юниверсайтсай"
+    },
+    {
+      "before": "Welman",
+      "count": 1,
+      "prediction": "уэльман",
+      "target": "уэлман"
+    },
+    {
+      "before": "Naruszewo",
+      "count": 1,
+      "prediction": "нарусзуо",
+      "target": "нарусзв"
+    },
+    {
+      "before": "Nadya",
+      "count": 1,
+      "prediction": "надя",
+      "target": "надья"
+    },
+    {
+      "before": "Ochner",
+      "count": 1,
+      "prediction": "очнер",
+      "target": "ошнер"
+    },
+    {
+      "before": "Donzelli",
+      "count": 1,
+      "prediction": "донзелли",
+      "target": "донцелли"
+    },
+    {
+      "before": "padisahlarin",
+      "count": 1,
+      "prediction": "падисахларин",
+      "target": "падисалерин"
+    },
+    {
+      "before": "sultan",
+      "count": 1,
+      "prediction": "салтан",
+      "target": "салтэн"
+    },
+    {
+      "before": "Engel",
+      "count": 1,
+      "prediction": "инджел",
+      "target": "энджел"
+    },
+    {
+      "before": "Lugo",
+      "count": 1,
+      "prediction": "луго",
+      "target": "лаго"
+    },
+    {
+      "before": "Balls",
+      "count": 1,
+      "prediction": "боллс",
+      "target": "баллс"
+    },
+    {
+      "before": "surprised",
+      "count": 1,
+      "prediction": "серпризед",
+      "target": "серпрайзд"
+    },
+    {
+      "before": "Kaiser",
+      "count": 1,
+      "prediction": "каизер",
+      "target": "кайзер"
+    },
+    {
+      "before": "videogame",
+      "count": 1,
+      "prediction": "видеогам",
+      "target": "видеогейм"
+    },
+    {
+      "before": "GamingHeaven",
+      "count": 1,
+      "prediction": "гамингеявен",
+      "target": "геймингхевен"
+    },
+    {
+      "before": "Micha",
+      "count": 1,
+      "prediction": "мича",
+      "target": "майк"
+    },
+    {
+      "before": "Madej",
+      "count": 1,
+      "prediction": "мадех",
+      "target": "мадеж"
+    },
+    {
+      "before": "Stoops",
+      "count": 1,
+      "prediction": "ступс",
+      "target": "стоопс"
+    },
+    {
+      "before": "Nitisinone",
+      "count": 1,
+      "prediction": "нитисинон",
+      "target": "нитизинон"
+    },
+    {
+      "before": "mouse",
+      "count": 1,
+      "prediction": "муз",
+      "target": "маус"
+    },
+    {
+      "before": "oculocutaneous",
+      "count": 1,
+      "prediction": "окалокутанеас",
+      "target": "окулокутанаус"
+    },
+    {
+      "before": "Conservapedia",
+      "count": 1,
+      "prediction": "консервапедия",
+      "target": "консервейпедия"
+    },
+    {
+      "before": "Rosaceae",
+      "count": 1,
+      "prediction": "розаси",
+      "target": "розасе"
+    },
+    {
+      "before": "Vitaceae",
+      "count": 1,
+      "prediction": "витаси",
+      "target": "витасе"
+    },
+    {
+      "before": "Fashiontime",
+      "count": 1,
+      "prediction": "фашентим",
+      "target": "фэшентайм"
+    },
+    {
+      "before": "Gerrhosaurus",
+      "count": 1,
+      "prediction": "джеррхосорус",
+      "target": "джеррхосорос"
+    },
+    {
+      "before": "Cordylosaurus",
+      "count": 1,
+      "prediction": "кордилосаерус",
+      "target": "кордилосорос"
+    },
+    {
+      "before": "Shawn",
+      "count": 1,
+      "prediction": "шаун",
+      "target": "шон"
+    },
+    {
+      "before": "Handwritten",
+      "count": 1,
+      "prediction": "хандвриттен",
+      "target": "хандуриттен"
+    },
+    {
+      "before": "Gebruder",
+      "count": 1,
+      "prediction": "джбрудер",
+      "target": "джбрадер"
+    },
+    {
+      "before": "Waste",
+      "count": 1,
+      "prediction": "уост",
+      "target": "васт"
+    },
+    {
+      "before": "want",
+      "count": 1,
+      "prediction": "уонт",
+      "target": "вант"
+    },
+    {
+      "before": "leksikon",
+      "count": 1,
+      "prediction": "лексикон",
+      "target": "лексайкон"
+    },
+    {
+      "before": "Kunnskapsforlaget",
+      "count": 1,
+      "prediction": "куннскапсфорлагейдженгодженскаголелейпагагагенка",
+      "target": "куннскапсфорлагет"
+    }
+  ],
+  "training_pairs": 9746,
+  "transliteration_exact_accuracy": 0.3368334362775376,
+  "transliteration_rows": 4857,
+  "unseen_transliteration_exact_accuracy": 0.699743370402053,
+  "unseen_transliteration_rows": 2338,
+  "validation_mode": "source_ordered_last_20pct",
+  "validation_rows": 99515
+}

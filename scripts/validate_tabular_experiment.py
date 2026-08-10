@@ -30,6 +30,11 @@ def resolve_path(path_text: str, experiment_dir: Path | None = None) -> Path:
     path = Path(path_text.replace("\\", "/"))
     if path.is_absolute() and path.exists():
         return path
+    evidence_root_text = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    if evidence_root_text and not path.is_absolute():
+        candidate = Path(evidence_root_text).resolve() / path
+        if candidate.exists():
+            return candidate
     normalized = path_text.replace("\\", "/")
     marker = "/experiments/"
     if marker in normalized:
@@ -43,6 +48,10 @@ def resolve_path(path_text: str, experiment_dir: Path | None = None) -> Path:
     if path.is_absolute():
         return path
     return Path.cwd() / path
+
+
+def resolve_evidence_path(path_text: str, experiment_dir: Path | None = None) -> Path:
+    return resolve_path(path_text, experiment_dir)
 
 
 def validate_metric(config: dict[str, Any], log: dict[str, Any]) -> dict[str, Any]:

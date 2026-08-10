@@ -1,0 +1,64 @@
+{
+  "schema": "evomind.jigsaw.early_confirmation_after_may_control.v1",
+  "created_at": "2026-07-27T11:20:23.662274+08:00",
+  "status": "frozen_waiting_may_verification",
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "objective": "Remove SIIM HTTP-429 head-of-line blocking by confirming the already-passed Jigsaw seed42 public OOF candidate immediately after May 2022 verification.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "reason": "Jigsaw seed42 candidate AUC 0.9909391229 already passed its public OOF gate and is the highest-probability remaining conversion; SIIM data staging is rate limited."
+  },
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_jigsaw_confirmation_after_may.py",
+    "sha256": "7495270f99290edaeb4180e30d97ca017e6358551b2c45b6eb3dc6c18448fb9a"
+  },
+  "base_confirmation_plan": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_confirmation_s40_s41_frozen_plan_20260727.json",
+    "sha256": "a1721660255015334febbab5deabe53cfdcf4f1634bda95cf43d181024d1ca3b"
+  },
+  "may2022_dependency": {
+    "watcher_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_independent_verification_watcher_calibrated.json",
+    "watcher_schema": "evomind.local_candidate_verification_watcher.v1",
+    "run_id": "local4060_may2022_compactemb_s42_20260727_0335",
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_compact_embedding_s42_frozen_plan.json",
+      "sha256": "92d4f0ddd20c966328c7e9bb87f148be6d9c9dfcfeb79b19d8e043ad6cc77149"
+    },
+    "accepted_status": "verification_passed",
+    "candidate_gate_may_pass_or_fail": true
+  },
+  "original_after_leaf_queue_status": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_queue.json",
+  "shared_artifact_contract": {
+    "same_seed_plans": true,
+    "same_run_ids": true,
+    "same_token_cache": true,
+    "same_sparse_bundle": true,
+    "same_independent_verifier": true,
+    "same_result_path": true,
+    "existing_verified_seed_artifacts_are_resumed": true
+  },
+  "launch_contract": {
+    "strict_single_gpu_serial": true,
+    "fresh_idle_samples": 3,
+    "final_gpu_requery_immediately_before_launch": true,
+    "original_queue_must_remain_waiting_for_leaf": true,
+    "supersede_if_original_queue_advances": true,
+    "preemption_allowed": false,
+    "process_signals_allowed": false
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_allowed": false,
+  "human_gate_preserved": true,
+  "claim_boundary": "The early queue changes scheduling only. It does not change model, folds, seeds, OOF gate, official score, or medal status.",
+  "operational_revision": {
+    "created_at": "2026-07-27T11:23:02.434122+08:00",
+    "reason": "Add project root to sys.path for direct Scheduled Task execution. Model, folds, seeds, dependencies, gates, and run IDs unchanged.",
+    "prior_control_sha256": "ff933475aaadceddd51e991f335e4ec44710e1a3ef97cf9d05959ddec84cfe90",
+    "failed_launch_exit_code": 1,
+    "failed_launch_gpu_training_started": false,
+    "failed_launch_process_signals_sent": 0
+  }
+}

@@ -1,0 +1,209 @@
+{
+  "schema": "evomind.mlebench.taxi_source_audited_multiseed_plan.v1",
+  "created_at": "2026-08-06T22:08:01.890506+08:00",
+  "status": "approved_waiting_for_may_terminal_and_gpu_idle",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "objective": {
+    "metric": "rmse",
+    "direction": "minimize",
+    "candidate_only": true,
+    "expected_medal_gain": 1
+  },
+  "seeds": [
+    43,
+    44,
+    45
+  ],
+  "run_ids": [
+    "hpc88240_taxi_source_audited_route_s43_20260728",
+    "hpc88240_taxi_source_audited_route_s44_20260728",
+    "hpc88240_taxi_source_audited_route_s45_20260728"
+  ],
+  "source_readiness": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_source_audit_readiness_current.json",
+    "relative_path": "workspace/mlebench_plans/taxi_source_audit_readiness_current.json",
+    "bytes": 5942,
+    "sha256": "a98380c91678ebce8c1d5aa1caa4b8f1f481cd196d8a776b9a8609455844c5af"
+  },
+  "runner_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+    "relative_path": "scripts/run_mlebench_lite_full.py",
+    "bytes": 149240,
+    "sha256": "1277e1d79146b6e73cdeba5c00372e9c869cb777d185f1f797ae73cf6a138670"
+  },
+  "tests_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_mlebench_lite_full.py",
+    "relative_path": "tests/test_mlebench_lite_full.py",
+    "bytes": 117428,
+    "sha256": "17e22fba0bb2d85fd38a6722fe3d73bee3c4b49135921bb6953537501e714d81"
+  },
+  "bundle": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\deploy\\mlebench_unified_20260806_220719\\mlebench_unified_bundle.tar.gz",
+    "bytes": 2406944,
+    "sha256": "5c09e4a9875654e3401d2a205dee43349a71cacca9e6c396766ba7b9bd08e9ec",
+    "manifest_hash_count": 704,
+    "human_gate_preserved": true
+  },
+  "public_precomputed_cache": {
+    "required": true,
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+    "manifest_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json",
+    "manifest_bytes": 8528,
+    "manifest_sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d",
+    "schema": "evomind.mlebench.taxi_public_feature_cache.v1",
+    "status": "completed",
+    "visibility_mode": "PUBLIC_ONLY",
+    "cache_seed": 42,
+    "train_rows": 5000000,
+    "feature_count": 72,
+    "build_seconds": 599.3799366829917,
+    "collection_evidence": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_public_cache\\collection_current.json",
+      "relative_path": "workspace/hpc/job89941_taxi_public_cache/collection_current.json",
+      "bytes": 15883,
+      "sha256": "6a22058b9ca2594b344aff09295806680353c877fbbebe8993041488b677d99f"
+    },
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "public_sample_submission": {
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/sample_submission.csv",
+    "relative_path": "prepared/public/sample_submission.csv",
+    "bytes": 343716,
+    "sha256": "2ffb30d6529752503276f5a67e33c052e659967bfd96c8551748c3fa43c64ff4"
+  },
+  "verified_route_stat_sidecar": {
+    "required": true,
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/route_stats",
+    "schema": "evomind.mlebench.taxi_route_stat_sidecar.v1",
+    "status": "completed",
+    "visibility_mode": "PUBLIC_ONLY",
+    "cache_seed": 42,
+    "folds": 3,
+    "train_rows": 5000000,
+    "test_rows": 9914,
+    "base_cache_manifest_sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d",
+    "algorithm_source_sha256": "3ed99ec69b4071498b14493b41044ff7430e02fca5a7c376fa2792c7f38bb7e4",
+    "manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_route_stats\\collected\\taxi_route_stats_s42_v1_20260728\\route_stat_manifest.json",
+      "relative_path": "workspace/hpc/job89941_taxi_route_stats/collected/taxi_route_stats_s42_v1_20260728/route_stat_manifest.json",
+      "bytes": 3268,
+      "sha256": "2b63f41ba58923f44f789e8ab7df55f96e2f770dd2cb94012f2f251994a746b6"
+    },
+    "collection_evidence": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_route_stats\\collection_current.json",
+      "relative_path": "workspace/hpc/job89941_taxi_route_stats/collection_current.json",
+      "bytes": 812,
+      "sha256": "a31211c8f1ba0bd9103817c449f4869028a39bdc530056a2a5bdd318af78b713"
+    },
+    "validation_targets_used": 0,
+    "private_labels_used": false,
+    "gpu_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "serial_dependency": {
+    "competition_id": "tabular-playground-series-may-2022",
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_nested_selection_execution_multiseed_hpc88240_v8_cache_taxi_route_20260728.json",
+      "relative_path": "workspace/mlebench_plans/may2022_nested_selection_execution_multiseed_hpc88240_v8_cache_taxi_route_20260728.json",
+      "bytes": 16672,
+      "sha256": "bb7457379ae22acc6b42a77fa52adb10fc349eba0b7dff33de3d13c8975e0ddc"
+    },
+    "run_id": "hpc88240_may2022_nested_cache_s42_candidate_v8_20260728",
+    "run_ids": [
+      "hpc88240_may2022_nested_cache_s42_candidate_v8_20260728",
+      "hpc88240_may2022_nested_cache_s43_candidate_v8_20260728",
+      "hpc88240_may2022_nested_cache_s44_candidate_v8_20260728"
+    ],
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "all_seeds_terminal_before_taxi": true,
+    "required_terminal_before_taxi": true,
+    "natural_completion_only": true
+  },
+  "compute_gate": {
+    "target": "job88240",
+    "gpu": "NVIDIA A40",
+    "samples_required": 3,
+    "max_memory_used_mib": 1024,
+    "max_utilization_percent": 5,
+    "compute_apps_required_empty": true,
+    "launch_when_gate_false": false
+  },
+  "training_contract": {
+    "largest_predeclared_sample_rows": 5000000,
+    "chunk_rows": 250000,
+    "folds": 3,
+    "iterations": 1400,
+    "holdout_fraction": 0.05,
+    "duplicate_safe_oof": true,
+    "conflicting_targets_quarantined": true,
+    "fold_local_route_statistics": true,
+    "route_statistics_precomputed_on_cpu": true,
+    "temporal_stress": true,
+    "geographic_stress": true,
+    "full_data_refit": true,
+    "refit_iteration_source": "median_outer_fold_selected_iterations"
+  },
+  "runner_contract_args": [
+    "--candidate-only",
+    "--wave2-fast-kernels",
+    "--taxi-max-train-rows",
+    "5000000",
+    "--taxi-chunk-rows",
+    "250000",
+    "--taxi-folds",
+    "3",
+    "--taxi-iterations",
+    "1400",
+    "--taxi-holdout-fraction",
+    "0.05",
+    "--taxi-cache-seed",
+    "42",
+    "--taxi-precomputed-cache-dir",
+    "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+    "--taxi-require-precomputed-cache",
+    "--taxi-route-stat-cache-dir",
+    "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/route_stats",
+    "--taxi-require-route-stat-cache"
+  ],
+  "promotion_contract": {
+    "every_seed_random_oof_rmse_maximum": 2.85,
+    "every_seed_temporal_stress_rmse_maximum": 3.1,
+    "every_seed_geographic_stress_rmse_maximum": 3.35,
+    "mean_random_oof_rmse_maximum": 2.82,
+    "worst_seed_required": true,
+    "all_three_external_seeds_required": true,
+    "duplicate_isolation_required": true,
+    "full_refit_required": true,
+    "official_private_grader_approved": false,
+    "kaggle_submission_approved": false
+  },
+  "execution_contract": {
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "local_gpu_allowed": false,
+    "dedicated_remote_root_only": true,
+    "verified_precomputed_cache_required": true,
+    "gpu_feature_rebuild_forbidden": true,
+    "verified_route_stat_cache_required": true,
+    "gpu_route_stat_rebuild_forbidden": true
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "This plan authorizes bounded candidate computation only. Source readiness and future OOF metrics are not official scores, medals, or leaderboard proof."
+}

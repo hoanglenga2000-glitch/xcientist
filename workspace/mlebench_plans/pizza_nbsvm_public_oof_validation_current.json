@@ -1,0 +1,64 @@
+{
+  "schema": "evomind.mlebench.pizza_nbsvm_public_oof_validation.v1",
+  "created_at": "2026-07-25T03:04:58.983164+00:00",
+  "competition_id": "random-acts-of-pizza",
+  "dataset": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/random-acts-of-pizza/prepared/public",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "remote_stderr_type": "",
+  "production_runner_sha256": "43b8c3be405a99eab3ab6a0adb3679361e0cb9395653a761c5fa96a82bc40774",
+  "remote_source_sha256": "3001715c8cf309efa0f3701f08ddf35eb1aed08a8bf345c56701272d31b8de90",
+  "bronze_threshold": 0.6921,
+  "c_value": 4.0,
+  "char_features": 110000,
+  "fold_assignment_complete": true,
+  "fold_records": [
+    {
+      "auc": 0.6340864678047126,
+      "char_features": 61395,
+      "fold": 0,
+      "train_rows": 2302,
+      "valid_rows": 576,
+      "word_features": 30522
+    },
+    {
+      "auc": 0.6460214150745329,
+      "char_features": 61721,
+      "fold": 1,
+      "train_rows": 2302,
+      "valid_rows": 576,
+      "word_features": 30329
+    },
+    {
+      "auc": 0.6473134256044186,
+      "char_features": 61359,
+      "fold": 2,
+      "train_rows": 2302,
+      "valid_rows": 576,
+      "word_features": 30403
+    },
+    {
+      "auc": 0.6027745402745404,
+      "char_features": 60818,
+      "fold": 3,
+      "train_rows": 2303,
+      "valid_rows": 575,
+      "word_features": 30344
+    },
+    {
+      "auc": 0.6543803418803418,
+      "char_features": 61556,
+      "fold": 4,
+      "train_rows": 2303,
+      "valid_rows": 575,
+      "word_features": 30441
+    }
+  ],
+  "folds": 5,
+  "oof_auc": 0.6369707961940971,
+  "positive_rows": 715,
+  "rows": 2878,
+  "seed": 42,
+  "word_features": 90000,
+  "bronze_oriented_gate_passed": false
+}

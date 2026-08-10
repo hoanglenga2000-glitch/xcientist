@@ -30,7 +30,11 @@ def test_runtime_rotates_a_malformed_token_atomically(tmp_path: Path) -> None:
     assert ensure_token(root) == token
 
 
-def test_runtime_http_contract_is_authenticated_and_body_bounded(tmp_path: Path) -> None:
+def test_runtime_http_contract_is_authenticated_and_body_bounded(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("EVOMIND_BUILD_COMMIT_HASH", "b" * 40)
+    monkeypatch.setenv("EVOMIND_SOURCE_TREE_SHA256", "a" * 64)
     runtime = AgentRuntime(tmp_path)
     token = ensure_token(runtime.runtime_root)
     server = ThreadingHTTPServer(("127.0.0.1", 0), make_handler(runtime, token))
@@ -42,6 +46,9 @@ def test_runtime_http_contract_is_authenticated_and_body_bounded(tmp_path: Path)
         assert status == 401 and payload["error"] == "unauthorized"
         status, payload = request(port, "GET", "/v1/health", token)
         assert status == 200 and payload["status"] == "ready"
+        assert payload["backend_version"] == "0.3.0"
+        assert payload["commit_hash"] == "b" * 40
+        assert payload["source_tree_sha256"] == "a" * 64
 
         status, payload = request(
             port,

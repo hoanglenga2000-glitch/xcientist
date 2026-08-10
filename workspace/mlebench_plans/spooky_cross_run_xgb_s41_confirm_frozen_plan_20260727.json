@@ -1,0 +1,223 @@
+{
+  "schema": "evomind.spooky.cross_run_xgb_frozen_plan.v1",
+  "created_at": "2026-07-27T12:11:44.668150+08:00",
+  "status": "frozen_waiting_current_run",
+  "competition_id": "spooky-author-identification",
+  "objective": "Evaluate a predeclared nested cross-fit XGBoost stack over two public-data OOF runs without held-fold model selection leakage.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "decision": "confirmation seed 41: identical nested cross-fit configuration, varying only XGBoost random state"
+  },
+  "public_data_only": true,
+  "source": {
+    "evaluator": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\evaluate_spooky_cross_run_xgb.py",
+      "sha256": "65b52362ccacbaa5a07242a22f653a89df439caa1659d9b44469e8445165da7b"
+    },
+    "watcher": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\watch_spooky_cross_run_xgb_completion.py",
+      "sha256": "c2396b80220ef897b4be7d73d4346c72bf12d4a971caabd40fedbac69d169b53"
+    },
+    "cross_run_helper": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\evaluate_spooky_cross_run_meta.py",
+      "sha256": "99a16e686ea767f62cb36312395a31bd0018008b322687a8a887ae60b736861f"
+    },
+    "style_features": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_style_features.py",
+      "sha256": "a977f1a5581c28e1658799987f4a8308293ecee717b7619b29d3a24d32f9a47e"
+    }
+  },
+  "runtime": {
+    "package": "xgboost",
+    "version": "3.0.2",
+    "manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\xgboost_3_0_2_isolated_runtime_manifest.json",
+      "sha256": "bcc3a1e9e0088cf87053308184ce35946a0c5494cce81c6bb530449e3c409ddf"
+    },
+    "package_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\runtime_packages\\xgboost_3_0_2",
+    "tree_sha256": "66e116db1a91e549bf6a82711607aad6f4487d9e3601787025433c600d8d818e",
+    "file_count": 82,
+    "total_bytes": 212664961,
+    "global_environment_modified": false
+  },
+  "prior": {
+    "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+    "summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\summary.json",
+      "sha256": "a2cf99a54ecb31df8ba8d4b66b029b82dd7c55a5f61ccd1066dd67859afbdded"
+    },
+    "bundle": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\spooky_transformer_oof_and_test.npz",
+      "sha256": "4c0b5baf02ae4977241a69fed5e627c4d14049e6299e7a1665d5ebfbff12e319"
+    },
+    "terminal_status": "single_seed_gate_failed",
+    "candidate_oof_log_loss": 0.3449842458960858
+  },
+  "current": {
+    "run_id": "local4060_spooky_deberta_v2_s42_20260727_0642",
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_deberta_v2_s42_frozen_plan_20260727_0642.json",
+      "sha256": "2527cabaf8a1dc81f99e70d57ed1d9fa96a2833932b49a6c8cd045351b358efa"
+    },
+    "summary_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_v2\\runs\\local4060_spooky_deberta_v2_s42_20260727_0642\\summary.json",
+    "expected_bundle_name": "spooky_deberta_oof_v2.npz",
+    "allowed_terminal_statuses": [
+      "single_seed_gate_failed",
+      "single_seed_gate_passed_confirmation_pending"
+    ]
+  },
+  "inputs": {
+    "train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\train.csv",
+      "sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf"
+    },
+    "test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\test.csv",
+      "sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5"
+    },
+    "sample": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\sample_submission.csv",
+      "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+    }
+  },
+  "research_evidence": {
+    "repository": "D:\\桌面\\codex\\科研港科技\\external-projects\\saage-spooky-author",
+    "commit": "0e673f40c6b68b341b7e463d7eed4387ce241e7d",
+    "readme": {
+      "path": "D:\\桌面\\codex\\科研港科技\\external-projects\\saage-spooky-author\\README.md",
+      "sha256": "5d6ce53174aa2e24c7c3ec13cd721c13fc9f3b0f184d86570207c200f014a901"
+    },
+    "experiments": {
+      "path": "D:\\桌面\\codex\\科研港科技\\external-projects\\saage-spooky-author\\experiments.jsonl",
+      "sha256": "8de7402b0499e3fc8de0c172e792dd23df8d75d441170e3f257be3cb7d7a49e7"
+    },
+    "use": "architecture inspiration only; historical same-set validation is not reused"
+  },
+  "features": {
+    "channel_order": [
+      "prior_sparse",
+      "prior_byte",
+      "prior_transformer",
+      "prior_candidate",
+      "current_transformer",
+      "current_sparse",
+      "current_candidate"
+    ],
+    "per_probability_channel": [
+      "raw_probability_3",
+      "log_probability_3",
+      "entropy_1",
+      "top_margin_1"
+    ],
+    "probability_feature_count": 56,
+    "style_feature_count": 28,
+    "expected_total_feature_count": 84,
+    "style_source": "deterministic_public_text_only"
+  },
+  "alignment_contract": {
+    "truth_arrays_must_be_identical": true,
+    "fold_arrays_must_be_identical": true,
+    "outer_folds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "object_dtype_ids_are_not_loaded": true,
+    "public_csv_ids_are_authoritative": true
+  },
+  "meta": {
+    "model": "nested_cross_fit_xgboost_multiclass",
+    "configurations": [
+      {
+        "name": "conservative",
+        "params": {
+          "n_estimators": 400,
+          "max_depth": 2,
+          "learning_rate": 0.03,
+          "subsample": 0.85,
+          "colsample_bytree": 0.9,
+          "min_child_weight": 5.0,
+          "reg_lambda": 5.0,
+          "reg_alpha": 0.2,
+          "n_jobs": 2
+        }
+      },
+      {
+        "name": "external_faithful",
+        "params": {
+          "n_estimators": 200,
+          "max_depth": 3,
+          "learning_rate": 0.1,
+          "subsample": 0.8,
+          "colsample_bytree": 0.8,
+          "min_child_weight": 1.0,
+          "reg_lambda": 3.0,
+          "reg_alpha": 0.1,
+          "n_jobs": 2
+        }
+      }
+    ],
+    "temperatures": [
+      0.8,
+      0.9,
+      1.0,
+      1.1,
+      1.2
+    ],
+    "inner_validation_fold_offset": 1,
+    "random_state": 41000,
+    "selection": "fixed_configuration_and_temperature_selected_on_inner_fold_only",
+    "retrain": "selected_configuration_retrained_on_all_outer_fit_folds",
+    "score_scope": "held_outer_fold_only",
+    "test_aggregation": "corresponding_fold_features_then_mean"
+  },
+  "promotion_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "bronze_threshold_reference": 0.29381,
+    "single_seed_log_loss_threshold": 0.292,
+    "single_seed_only_is_not_promotable": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "official_medal_claim_requires_private_grader": true
+  },
+  "output": {
+    "run_id": "local4060_spooky_crossrun_xgb_s41_confirm_20260727",
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s41_confirm_20260727",
+    "result": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s41_confirm_20260727\\cross_run_xgb_result.json",
+    "submission_disposition": "withheld_human_gate"
+  },
+  "resource_policy": {
+    "device": "CPU only",
+    "cuda_visible_devices": "-1",
+    "max_cpu_threads": 2,
+    "may_run_while_next_gpu_job_is_active": true,
+    "process_signals_allowed": 0
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "Nested public OOF is a candidate promotion gate only, not an official score or medal.",
+  "confirmation": {
+    "model_seed": 41,
+    "seed42_result": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s42_20260727_0839\\cross_run_xgb_result.json",
+      "sha256": "b03b088a40d19914eaeacc615aca18f85e0947241ca916bad9973b59f9bf61b6"
+    },
+    "only_random_state_changed": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0
+  }
+}

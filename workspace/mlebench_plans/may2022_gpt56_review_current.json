@@ -1,0 +1,172 @@
+{
+  "schema": "evomind.mlebench_may2022.gpt56_review.v1",
+  "created_at": "2026-07-24T21:44:07.715637+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "input_tokens": 366,
+    "output_tokens": 5061
+  },
+  "prompt_sha256": "4222287915dbd8041ef45c566390b8701515ace50615ab04dbf596df201f96bf",
+  "response_sha256": "e7d8253851b7ba3b5fec54fc601323eb0c950fe7e75023f788f080b3c654e55b",
+  "latency_ms": 82847.7,
+  "review": {
+    "verdict": {
+      "status": "major_redesign_required",
+      "assessment": "The current XGBoost-CatBoost tree ensemble is not a credible path from the reported private ROC-AUC of 0.91719 to 0.99818 by tuning tree counts or blend type alone. The feature set is directionally appropriate, but this competition strongly rewards smooth high-order interactions among standardized numeric features, the position-wise f_27 representation, and the published interaction features. A GPU residual MLP should become the primary model, with boosted trees retained only when they add independently verified OOF lift.",
+      "threshold_claim": "No crossing of 0.99818 can be asserted without measured OOF results and external evaluation.",
+      "main_risks": [
+        "The current model family may underfit the synthetic continuous interaction structure despite having many trees.",
+        "Training a final model on all 800000 rows with early stopping is undefined unless a separate training-only validation set is retained.",
+        "Selecting between raw and rank blends on the same OOF predictions without a fixed protocol can create small selection bias.",
+        "Integer f_27 codes impose an artificial alphabet ordering in tree models; the existing fixed A-T one-hot representation is safer.",
+        "GPU CatBoost is not guaranteed to be bitwise deterministic even with fixed seeds."
+      ]
+    },
+    "critical_corrections": [
+      {
+        "priority": 1,
+        "correction": "Make a residual MLP the primary learner.",
+        "implementation": {
+          "inputs": [
+            "Fold-standardized numeric features",
+            "The 200 fixed position-letter indicators",
+            "Letter counts and string statistics",
+            "The exact published interaction features"
+          ],
+          "architecture": "Use a compact residual tabular MLP with approximately 4 to 6 hidden blocks, widths in the 512 to 768 range, SiLU or GELU activations, normalization, and modest dropout. Train with BCEWithLogitsLoss, AdamW, mixed precision, large batches, and a validation-driven learning-rate schedule.",
+          "validation": "Train one model per fold and retain the checkpoint with the best validation ROC-AUC. Generate test predictions by averaging the five fold checkpoints.",
+          "reason": "A neural model can learn smooth and high-order interactions from the dense numeric and one-hot representation more naturally than the current depth-limited tree ensemble."
+        }
+      },
+      {
+        "priority": 2,
+        "correction": "Remove the ambiguous full-data early-stopping procedure.",
+        "implementation": "Use the five cross-validation models directly for test inference. If a full-data refit is tested, fix its epoch or iteration count from the fold best-iteration distribution and do not use the test data or in-sample training loss for early stopping. Do not replace the fold ensemble unless the replacement has an independently validated advantage.",
+        "reason": "Fold-model averaging is fully defined, fold-safe, and usually more robust than a single full-data refit."
+      },
+      {
+        "priority": 3,
+        "correction": "Freeze and persist deterministic fold assignments before feature or model experimentation.",
+        "implementation": "For each required benchmark seed, create a five-fold stratified assignment from row identifiers and target, save it, and reuse it across all candidate models and blends for that seed. Fit normalization, clipping thresholds, imputers, and any learned preprocessing only on each fold's training partition. Fixed A-T one-hot mappings may be created globally because they do not use distributional or target information.",
+        "reason": "Paired OOF predictions are necessary to distinguish real ensemble lift from fold variation."
+      },
+      {
+        "priority": 4,
+        "correction": "Audit the interaction feature implementation exactly.",
+        "implementation": "Add unit tests for the published f_02/f_21, f_05/f_22, and f_00/f_01/f_26 expressions, including signs, operators, source columns, floating-point dtype, missing-value behavior, and train-test parity. Preserve the source columns and append the interactions rather than overwriting inputs.",
+        "reason": "A transcription error in these unusually important synthetic interactions can dominate all downstream model tuning."
+      },
+      {
+        "priority": 5,
+        "correction": "Use model-appropriate f_27 representations.",
+        "implementation": "Use the fixed 200-dimensional position-letter one-hot representation for the MLP and XGBoost. Do not rely on the 0-to-19 position codes as continuous XGBoost inputs. For CatBoost, either use the same one-hot indicators or mark the ten position characters as categorical; do not treat their integer codes as ordered numeric quantities.",
+        "reason": "Alphabet index distance has no justified continuous meaning and can force wasteful tree splits."
+      },
+      {
+        "priority": 6,
+        "correction": "Replace unconstrained blend selection with a deterministic OOF protocol.",
+        "implementation": "Store one OOF prediction per training row for every model. Compare single models, raw convex blends, and empirical-rank convex blends on the identical folds. Optimize nonnegative weights summing to one with a fixed grid or deterministic optimizer. For rank blends, apply the same empirical-rank transformation separately to each test prediction vector before blending. Retain a component only if its paired OOF contribution is stable across folds.",
+        "reason": "AUC does not require calibrated probabilities, but raw and rank blending behave differently. The transformation and weight search must match between OOF and test inference."
+      }
+    ],
+    "high_value_additions": [
+      {
+        "experiment": "Multi-seed residual-MLP ensemble",
+        "classification": "optional_after_seed_42_passes",
+        "plan": "Train the selected five-fold MLP pipeline with seeds 42, 43, and 44 and average all fold-seed predictions. Keep architecture and preprocessing fixed when measuring seed robustness.",
+        "promotion_rule": "Promote only if each seed remains competitive on its persisted folds and the combined OOF prediction improves the deterministic acceptance statistic."
+      },
+      {
+        "experiment": "XGBoost as a complementary residual model",
+        "classification": "optional",
+        "plan": "Retain the existing GPU XGBoost only if its OOF prediction improves a convex blend with the MLP. Tune a small number of structural alternatives such as depth, minimum child weight, subsampling, column subsampling, regularization, and histogram binning rather than merely adding trees.",
+        "promotion_rule": "Discard it if its optimal OOF blend weight is zero or its lift is inconsistent across folds."
+      },
+      {
+        "experiment": "CatBoost diversity check",
+        "classification": "optional_and_gated",
+        "plan": "Run CatBoost on seed 42 using position-wise categorical or fixed one-hot f_27 inputs and the audited numeric features. Do not spend three-seed budget on it until it demonstrates stable incremental OOF lift over the MLP-XGBoost blend.",
+        "promotion_rule": "If selected, repeat it under seeds 43 and 44 as part of the complete benchmark pipeline; otherwise remove it."
+      },
+      {
+        "experiment": "Second MLP inductive bias",
+        "classification": "optional",
+        "plan": "Compare the residual MLP with one narrower and deeper MLP or an MLP using learned embeddings for the ten 20-level character positions. Keep numeric preprocessing and folds identical.",
+        "promotion_rule": "Use it only as an ensemble component when it adds paired OOF lift; do not replace fixed one-hot encoding based on training loss alone."
+      },
+      {
+        "experiment": "Fold-safe feature ablation",
+        "classification": "optional_but_recommended_for_diagnosis",
+        "plan": "Measure the MLP with numeric-only, numeric plus position one-hot, string statistics, and published interactions added cumulatively. Also test integer character codes removed.",
+        "promotion_rule": "Keep only feature groups that improve repeated OOF behavior or add useful ensemble diversity."
+      },
+      {
+        "experiment": "LightGBM diversity model",
+        "classification": "lower_priority_optional",
+        "plan": "Evaluate LightGBM only after the primary MLP is established and only with a bounded tuning budget. Its purpose is prediction diversity rather than replacing the MLP.",
+        "promotion_rule": "Retain only with stable positive OOF blend weight."
+      },
+      {
+        "experiment": "Pseudo-labeling or target-derived encodings",
+        "classification": "not_recommended",
+        "plan": "Do not use them in the primary attempt.",
+        "promotion_rule": "None.",
+        "reason": "They complicate fold safety and private-distribution robustness without a sufficiently reliable validation signal for this target."
+      }
+    ],
+    "recommended_budget": {
+      "hardware": "One A800 80GB",
+      "stage_1_audit": {
+        "scope": [
+          "Persist seed-42 folds",
+          "Verify train-test feature parity",
+          "Unit-test all published interactions",
+          "Verify exactly one OOF prediction per training row",
+          "Verify that no target or validation statistics enter feature construction"
+        ],
+        "model_fits": "Use short fold-local smoke tests only."
+      },
+      "stage_2_primary_seed": {
+        "seed": 42,
+        "required_fits": [
+          "Five residual-MLP fold fits",
+          "Five XGBoost fold fits"
+        ],
+        "conditional_fits": [
+          "Five CatBoost fold fits only for its diversity test",
+          "Five fold fits of at most one alternative MLP architecture"
+        ],
+        "decision": "Select the feature set, architecture, checkpoint rule, and deterministic blend protocol using OOF predictions."
+      },
+      "stage_3_repetition": {
+        "seeds": [
+          43,
+          44
+        ],
+        "plan": "Repeat only the pipeline frozen after seed 42. Do not retune architecture or blend rules separately for these seeds.",
+        "required_base_total": "The MLP-XGBoost pipeline requires 30 full fold fits across three seeds.",
+        "conditional_total": "If CatBoost survives the seed-42 gate, the complete three-seed pipeline requires 15 additional CatBoost fold fits. An alternative MLP should receive the same treatment only if it survives the OOF diversity gate."
+      },
+      "resource_priorities": [
+        "Allocate GPU budget first to the residual MLP.",
+        "Use fold checkpointing and mixed precision.",
+        "Cache deterministic engineered features once, while fitting learned preprocessing per fold.",
+        "Do not train all optional models across all seeds before the seed-42 OOF gate.",
+        "Do not spend budget on broader tree searches if the tree predictions receive no stable blend weight."
+      ]
+    },
+    "stop_rule": {
+      "success": "Freeze the pipeline only when the pooled OOF ROC-AUC for each of seeds 42, 43, and 44 exceeds 0.99818 and a stratified bootstrap confidence interval computed from row-level OOF predictions has its lower bound above 0.99818 for the final ensemble. Also require no fold to show a material collapse relative to the others.",
+      "failure": "Stop and report the threshold as unsupported if the residual MLP plus the best validated complementary model does not clear the acceptance rule, or if apparent lift disappears across folds or seeds.",
+      "experiment_pruning": [
+        "Drop any model whose deterministic optimal blend weight is zero.",
+        "Drop any feature group whose benefit is not stable under paired fold comparison.",
+        "Stop increasing tree counts when validation AUC has plateaued; additional trees without OOF lift are not a path to the threshold.",
+        "Do not use private-score feedback, test labels, pseudo-labels, or post hoc seed-specific tuning to rescue a failing validation result."
+      ]
+    }
+  },
+  "status": "passed",
+  "ok": true
+}

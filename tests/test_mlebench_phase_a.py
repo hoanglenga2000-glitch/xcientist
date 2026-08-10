@@ -211,8 +211,19 @@ def test_export_specs_is_json_serializable(tmp_path: Path):
 
 def test_official_mlebench_private_grader_adapter_executes(tmp_path: Path):
     source_root = Path(__file__).resolve().parents[1] / "external-projects" / "mle-bench"
-    if not source_root.is_dir():
-        pytest.skip("upstream MLE-Bench source tree is not available")
+    required_source_files = (
+        source_root / "mlebench" / "__init__.py",
+        source_root / "mlebench" / "grade.py",
+        source_root / "mlebench" / "grade_helpers.py",
+        source_root / "mlebench" / "registry.py",
+        source_root
+        / "mlebench"
+        / "competitions"
+        / "tabular-playground-series-may-2022"
+        / "grade.py",
+    )
+    if not all(path.is_file() for path in required_source_files):
+        pytest.skip("complete upstream MLE-Bench grader source tree is not available")
     sample = pd.DataFrame({"id": [10, 11, 12, 13], "target": [0.5, 0.5, 0.5, 0.5]})
     answers = pd.DataFrame({"id": [10, 11, 12, 13], "target": [0, 1, 0, 1]})
     _materialize_competition(

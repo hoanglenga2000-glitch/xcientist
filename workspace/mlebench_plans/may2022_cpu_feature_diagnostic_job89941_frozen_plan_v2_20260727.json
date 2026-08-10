@@ -1,0 +1,79 @@
+{
+  "schema": "evomind.mlebench.may2022_cpu_feature_diagnostic_plan.v1",
+  "created_at": "2026-07-27T22:13:00.357289+08:00",
+  "status": "frozen",
+  "job_id": 89941,
+  "resource_mode": "cpu_only",
+  "competition_id": "tabular-playground-series-may-2022",
+  "visibility_mode": "PUBLIC_ONLY",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "run_id": "job89941_may2022_lgbm_fold0_v2_20260727",
+  "training": {
+    "fold": 0,
+    "seed": 42,
+    "threads": 48,
+    "max_rounds": 2500,
+    "learning_rate": 0.03,
+    "num_leaves": 127,
+    "early_stopping_rounds": 180
+  },
+  "inputs": {
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "oof_bundle": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/job89441_may2022_recovery_s42_20260726_133352/tabular-playground-series-may-2022/attempts/attempt_001/may2022_oof_ensemble.npz",
+    "oof_sha256": "53fd6725377def54a56d0039b7a7d074a1933471edbecd627f2c04e67a542855",
+    "oof_bytes": 18931321
+  },
+  "sources": [
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\diagnose_may2022_cpu_feature_model.py",
+      "relative_path": "scripts/diagnose_may2022_cpu_feature_model.py",
+      "bytes": 15124,
+      "sha256": "5d5f02148e8dbb494442dded65765ce1f5d2484af3a383c4f305ea256cf6b013"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 329712,
+      "sha256": "863ebf13b88cc189b14bda9aba489462f27434f9c3f78f75146a117c1e1e42f2"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "relative_path": "scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\russian_transliteration.py",
+      "relative_path": "scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+      "relative_path": "scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43703,
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+      "relative_path": "src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  ],
+  "contracts": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "writes_confined_to_remote_root": true,
+    "diagnostic_not_medal": true
+  },
+  "operational_revision": {
+    "reason": "Add the transitive russian_transliteration dependency discovered by the first remote import attempt; no model/data/fold/seed/hyperparameter change.",
+    "predecessor_plan": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_cpu_feature_diagnostic_job89941_frozen_plan_20260727.json",
+    "predecessor_run_id": "job89941_may2022_lgbm_fold0_v1_20260727",
+    "predecessor_terminal_status": "failed_before_training_import",
+    "process_signals_sent": 0
+  }
+}

@@ -305,6 +305,7 @@ def test_dashboard_manager_removes_stale_pid_metadata_without_killing_reused_pid
 
     monkeypatch.setattr(module, "PID_FILE", pid_file)
     monkeypatch.setattr(module, "STATE_FILE", state_file)
+    monkeypatch.setattr(module, "runtime_dir", lambda: tmp_path)
     monkeypatch.setattr(module, "port_processes", lambda port, state=None: ([], []))
     monkeypatch.setattr(module, "runtime_state_matches_process", lambda pid, port, state=None: False)
     monkeypatch.setattr(module, "pid_running", lambda pid: False)
@@ -326,6 +327,7 @@ def test_dashboard_manager_preserves_metadata_for_unverified_running_pid(monkeyp
 
     monkeypatch.setattr(module, "PID_FILE", pid_file)
     monkeypatch.setattr(module, "STATE_FILE", state_file)
+    monkeypatch.setattr(module, "runtime_dir", lambda: tmp_path)
     monkeypatch.setattr(module, "port_processes", lambda port, state=None: ([], []))
     monkeypatch.setattr(module, "runtime_state_matches_process", lambda pid, port, state=None: False)
     monkeypatch.setattr(module, "pid_running", lambda pid: True)

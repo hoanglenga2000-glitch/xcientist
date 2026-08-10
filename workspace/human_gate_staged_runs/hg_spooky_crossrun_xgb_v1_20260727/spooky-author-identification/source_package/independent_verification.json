@@ -1,0 +1,25 @@
+{
+  "schema": "evomind.spooky.cross_run_xgb_confirmation_verification.v1",
+  "created_at": "2026-07-27T12:16:46.304326+08:00",
+  "status": "verification_passed",
+  "ok": true,
+  "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_cross_run_xgb_multiseed_confirmation_frozen_plan_20260727.json",
+  "plan_sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1",
+  "result_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\spooky_cross_run_xgb_confirmation_result.json",
+  "result_sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742",
+  "recomputed_seed_log_loss": [
+    0.28162612782173346,
+    0.2816301611758751,
+    0.28168644302083534
+  ],
+  "recomputed_ensemble_oof_log_loss": 0.28159599305517885,
+  "maximum_log_loss": 0.292,
+  "candidate_ready_for_human_gate": true,
+  "errors": [],
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "human_gate_preserved": true,
+  "claim_boundary": "Independent public OOF verification is not an official score or medal."
+}

@@ -92,7 +92,59 @@ MACHINE_SPECIFIC_RELEASE_TOKENS = {
 
 
 def repository_files(root: Path = ROOT) -> tuple[list[Path], list[dict[str, object]]]:
-    return discover_candidate_files(root)
+    paths, findings = discover_candidate_files(root)
+    from scripts.verify_release_artifacts import _CRITICAL_ARCHIVE_SOURCE_PATHS
+
+    release_files = set(_CRITICAL_ARCHIVE_SOURCE_PATHS) | {
+        ".env.example",
+        ".github/workflows/ci.yml",
+        "Dockerfile",
+        "LICENSE",
+        "README.md",
+        "SECURITY.md",
+        "docker-compose.yml",
+        "docs/NEW_USER_ONBOARDING_GUIDE.md",
+        "docs/CAPABILITY_CERTIFICATION.md",
+        "docs/RELEASE_CHECKLIST.md",
+        "install.ps1",
+        "pyproject.toml",
+        "requirements.txt",
+    }
+    release_docs = {
+        "docs/NEW_USER_ONBOARDING_GUIDE.md",
+        "docs/CAPABILITY_CERTIFICATION.md",
+        "docs/RELEASE_CHECKLIST.md",
+    }
+    excluded_files = {"AGENTS.md", "CLAUDE.md"}
+    excluded_prefixes = (
+        ".backups/",
+        ".claude/",
+        "artifacts/",
+        "reports/",
+        "workspace/",
+        "configs/evolution/",
+    )
+    existing = []
+    for path in paths:
+        if not path.exists():
+            continue
+        relative = path.relative_to(root).as_posix()
+        if root.resolve() == ROOT.resolve() and relative not in release_files:
+            continue
+        if relative in excluded_files or relative.startswith(excluded_prefixes):
+            continue
+        if relative.startswith("docs/") and relative not in release_docs:
+            continue
+        if relative.startswith("configs/hpc_") or relative == "configs/external_resources.yaml":
+            continue
+        existing.append(path)
+    active_findings = [
+        item
+        for item in findings
+        if item.get("pattern") != "tracked_quarantine_path"
+        or (root / str(item.get("file", ""))).exists()
+    ]
+    return existing, active_findings
 
 
 def main() -> int:

@@ -40,7 +40,7 @@ DEFAULT_BUNDLE = (
     PROJECT_ROOT
     / "workspace"
     / "deploy"
-    / "mlebench_unified_20260728_134508"
+    / "mlebench_unified_20260806_220719"
     / "mlebench_unified_bundle.tar.gz"
 )
 LOCAL_CONTROL_ROOT = PROJECT_ROOT / "workspace" / "hpc" / "mlebench_remote_ops"
@@ -64,6 +64,7 @@ REMOTE_UNIFIED_SITE_PACKAGES = f"{REMOTE_UNIFIED_RUNTIME_ROOT}/site-packages"
 REMOTE_GRADER_SITE_PACKAGES = (
     f"{ALLOWED_GPU_REMOTE_ROOT}/runtime/python310/mlebench_grader_bundle_v1"
 )
+REMOTE_PYTHON = "/usr/bin/python3.10"
 REMOTE_RUNTIME_WHEEL_ROOT = (
     f"{ALLOWED_GPU_REMOTE_ROOT}/deployments/"
     "mlebench_phase_a_20260725_021916/wheels"
@@ -97,8 +98,12 @@ REMOTE_SCIKIT_LEARN_WHEEL = (
     "scikit_learn-1.7.2-cp310-cp310-manylinux2014_x86_64.manylinux_2_17_x86_64.whl"
 )
 REMOTE_JOBLIB_WHEEL = f"{REMOTE_RUNTIME_WHEEL_ROOT}/joblib-1.5.2-py3-none-any.whl"
+REMOTE_NUMPY_WHEEL = (
+    f"{REMOTE_RUNTIME_WHEEL_ROOT}/"
+    "numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+)
 
-EXPECTED_BUNDLE_SHA256 = "6ba428151245c9c4ccee1add67e50548193ad281a79482c4086abe1c52bd5721"
+EXPECTED_BUNDLE_SHA256 = "5c09e4a9875654e3401d2a205dee43349a71cacca9e6c396766ba7b9bd08e9ec"
 TRUSTED_CONCURRENT_RELEASE_SHA256S = frozenset({
     EXPECTED_BUNDLE_SHA256,
     "5ab7014aa642a2b88c7b30942b65306c5295f85445b2a8dbba108ae60e1e813b",
@@ -437,7 +442,7 @@ def normalize_runner_contract_args(values: Iterable[str] | None) -> list[str]:
             if option == "--wave2-dog-breed-backbone":
                 valid = value in {"convnext_small", "efficientnet_v2_s"}
             elif option == "--wave2-dog-breed-training-mode":
-                valid = value == "frozen_backbone_head"
+                valid = value in {"stability_finetune", "frozen_backbone_head"}
             elif option == "--wave2-dog-breed-head-learning-rate":
                 try:
                     numeric = float(value)
@@ -624,7 +629,10 @@ def verify_remote_runtime(client: Any) -> dict[str, Any]:
     grader_site = ensure_remote_path(REMOTE_GRADER_SITE_PACKAGES)
     source = _runtime_probe_source()
     pythonpath = f"{site}:{grader_site}"
-    command = f"PYTHONPATH={shlex.quote(pythonpath)} python3 - <<'PY'\n{source}\nPY"
+    command = (
+        f"PYTHONPATH={shlex.quote(pythonpath)} "
+        f"{shlex.quote(REMOTE_PYTHON)} - <<'PY'\n{source}\nPY"
+    )
     code, output, error = _run_remote(client, command, timeout=180)
     if code:
         raise RemoteOpsError(f"Unified runtime verification failed: {error[-500:] or output[-500:]}")
@@ -713,7 +721,7 @@ def stage_vision_weights() -> dict[str, Any]:
         pythonpath = f"{REMOTE_UNIFIED_SITE_PACKAGES}:{REMOTE_GRADER_SITE_PACKAGES}"
         command = (
             f"PYTHONPATH={shlex.quote(pythonpath)} "
-            f"python3 - <<'PY'\n{source}\nPY"
+            f"{shlex.quote(REMOTE_PYTHON)} - <<'PY'\n{source}\nPY"
         )
         code, output, error = _run_remote(client, command, timeout=1200)
     finally:
@@ -744,6 +752,7 @@ def prepare_remote_runtime() -> dict[str, Any]:
 
     site = ensure_remote_path(REMOTE_UNIFIED_SITE_PACKAGES)
     wheel_paths = [
+        ensure_remote_path(REMOTE_NUMPY_WHEEL),
         ensure_remote_path(REMOTE_SCIKIT_LEARN_WHEEL),
         ensure_remote_path(REMOTE_JOBLIB_WHEEL),
     ]
@@ -755,7 +764,8 @@ def prepare_remote_runtime() -> dict[str, Any]:
         except RemoteOpsError:
             command = " && ".join((
                 f"mkdir -p {shlex.quote(site)}",
-                "python3 -m pip install --disable-pip-version-check --no-index --no-deps "
+                f"{shlex.quote(REMOTE_PYTHON)} -m pip install "
+                "--disable-pip-version-check --no-index --no-deps "
                 f"--upgrade --target {shlex.quote(site)} "
                 + " ".join(shlex.quote(path) for path in wheel_paths),
             ))
@@ -1314,7 +1324,10 @@ def _python_command(source: str) -> str:
     import base64
 
     encoded = base64.b64encode(source.encode("utf-8")).decode("ascii")
-    return f"python3 -c {shlex.quote(f'import base64;exec(base64.b64decode({encoded!r}))')}"
+    return (
+        f"{shlex.quote(REMOTE_PYTHON)} -c "
+        f"{shlex.quote(f'import base64;exec(base64.b64decode({encoded!r}))')}"
+    )
 
 
 def release_dir(bundle_sha256: str) -> str:
@@ -1525,7 +1538,7 @@ def cuda_smoke(bundle: Path, gate_report: Path, *, max_gate_age: int) -> dict[st
     verification = verify_local_bundle(bundle)
     release = release_dir(verification["sha256"])
     source = f'''from __future__ import annotations
-import json, pathlib, sys, torch
+import json, pathlib, sys
 release = pathlib.Path({release!r})
 sys.path[:0] = [
     str(release),
@@ -1535,6 +1548,7 @@ sys.path[:0] = [
     {REMOTE_UNIFIED_SITE_PACKAGES!r},
     {REMOTE_GRADER_SITE_PACKAGES!r},
 ]
+import torch
 from mlebench_medal_recovery_adapters import build_may2022_residual_mlp
 from mlebench_wave2_adapters import VISION_BACKBONE_SPECS, _vision_model
 torch.manual_seed(42)
@@ -1642,7 +1656,7 @@ def build_runner_argv(
     if seed < 0:
         raise RemoteOpsError("Seed must be non-negative")
     argv = [
-        "python3",
+        REMOTE_PYTHON,
         f"{release}/scripts/run_mlebench_lite_full.py",
         "--data-root", REMOTE_DATA_ROOT,
         "--output-root", REMOTE_OUTPUT_ROOT,
@@ -1684,7 +1698,7 @@ def build_birds_precompute_argv(
         "nice",
         "-n",
         str(nice_level),
-        "python3",
+        REMOTE_PYTHON,
         f"{release}/scripts/run_mlebench_lite_full.py",
         "--data-root", REMOTE_DATA_ROOT,
         "--output-root", REMOTE_OUTPUT_ROOT,
@@ -2188,7 +2202,7 @@ def regrade_run(bundle: Path, run_id: str, *, force: bool) -> dict[str, Any]:
     if status["process"] == "running":
         raise RemoteOpsError("Regrade requires the training process to be stopped")
     argv = [
-        "python3", f"{release}/scripts/regrade_mlebench_lite_run.py",
+        REMOTE_PYTHON, f"{release}/scripts/regrade_mlebench_lite_run.py",
         "--run-id", run_id,
         "--output-root", REMOTE_OUTPUT_ROOT,
         "--data-root", REMOTE_DATA_ROOT,
@@ -2269,6 +2283,7 @@ def parse_args(argv: Iterable[str] | None = None) -> argparse.Namespace:
     start.add_argument("--resume", action="store_true")
     start.add_argument("--allow-concurrent-with-cpu-light", action="store_true")
     start.add_argument("--runner-performance-override", action="append", default=[])
+    start.add_argument("--runner-contract-arg", action="append", default=[])
 
     birds = subparsers.add_parser("precompute-birds")
     birds.add_argument("--run-id", required=True)
@@ -2330,6 +2345,7 @@ def main(argv: Iterable[str] | None = None) -> int:
                 allow_concurrent_with_cpu_light=args.allow_concurrent_with_cpu_light,
                 max_gate_age=args.max_gate_age,
                 runner_performance_overrides=args.runner_performance_override,
+                runner_contract_args=args.runner_contract_arg,
             )
             name = f"{args.run_id}_start.json"
         elif args.command == "precompute-birds":

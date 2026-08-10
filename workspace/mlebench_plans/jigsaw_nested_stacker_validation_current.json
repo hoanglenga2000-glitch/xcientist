@@ -1,0 +1,955 @@
+{
+  "schema": "evomind.mlebench_lite.jigsaw_nested_stacker_validation.v1",
+  "created_at": "2026-07-25T22:34:18.777235+00:00",
+  "artifact": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/job89441_jigsaw_toxic_s42_parallel_20260726_035500/jigsaw-toxic-comment-classification-challenge/attempts/attempt_001/jigsaw_sparse_oof_and_test.npz",
+  "artifact_sha256": "6dc2d5868dad8f44aa592156159d21b8f2e2d8c0e722f8aa313cc1ebef4fde8d",
+  "rows": 159571,
+  "labels": [
+    "toxic",
+    "severe_toxic",
+    "obscene",
+    "threat",
+    "insult",
+    "identity_hate"
+  ],
+  "folds": 5,
+  "feature_set": "hybrid30",
+  "feature_count": 30,
+  "c_grid": [
+    0.03,
+    0.1,
+    0.3,
+    1.0
+  ],
+  "class_weight": "balanced",
+  "existing_blend": {
+    "mean_columnwise_auc": 0.9855174292532056,
+    "per_label_auc": {
+      "toxic": 0.9808783071095353,
+      "severe_toxic": 0.9861663404131227,
+      "obscene": 0.9915755947383613,
+      "threat": 0.9892498406303074,
+      "insult": 0.9835442750930439,
+      "identity_hate": 0.9816902175348635
+    }
+  },
+  "nested_candidate": {
+    "mean_columnwise_auc": 0.9876181149895761,
+    "per_label_auc": {
+      "toxic": 0.9820333321864868,
+      "severe_toxic": 0.9900416344342136,
+      "obscene": 0.9929899050333709,
+      "threat": 0.9903101070301056,
+      "insult": 0.9860337485536097,
+      "identity_hate": 0.9842999626996691
+    },
+    "gain_over_existing_blend": 0.0021006857363704556,
+    "crosses_threshold": true
+  },
+  "exact_once_oof": true,
+  "selected_c_records": [
+    {
+      "score_fold": 0,
+      "target": "toxic",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9818832358580089,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9817162481965841
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9818098362911509
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9818600888010554
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9818832358580089
+        }
+      ]
+    },
+    {
+      "score_fold": 0,
+      "target": "severe_toxic",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9896727754278567,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9896727754278567
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9896258146269604
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9895723178846748
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9895295552169102
+        }
+      ]
+    },
+    {
+      "score_fold": 0,
+      "target": "obscene",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9928666036955611,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9928666036955611
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9928008256624924
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.992738213070317
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9926965949253197
+        }
+      ]
+    },
+    {
+      "score_fold": 0,
+      "target": "threat",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.3,
+      "selected_inner_auc": 0.9900013625749605,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9898823988261423
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9899799864366147
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9900013625749605
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9899859971933664
+        }
+      ]
+    },
+    {
+      "score_fold": 0,
+      "target": "insult",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9859763565274271,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9858798317989943
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9859197722091212
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9859489484165126
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9859763565274271
+        }
+      ]
+    },
+    {
+      "score_fold": 0,
+      "target": "identity_hate",
+      "fit_folds": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9837665988867685,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9837665988867685
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9837217890045591
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9836679158965269
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9836796298873884
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "toxic",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9823803314460955,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.982197279812506
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9822980460123211
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9823556302383059
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9823803314460955
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "severe_toxic",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9900427927715636,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9900427927715636
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9899893948240889
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9899216164515535
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.989878952663535
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "obscene",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9931302768108629,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9931302768108629
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9930757869484463
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9930164937641506
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9929716423636754
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "threat",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9902978728253107,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.989873323966835
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9901262103684124
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9902666502504758
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9902978728253107
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "insult",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9858894386985789,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.985759249724887
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9858260185649778
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9858673484809165
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9858894386985789
+        }
+      ]
+    },
+    {
+      "score_fold": 1,
+      "target": "identity_hate",
+      "fit_folds": [
+        0,
+        2,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.983678759107032,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.983678759107032
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9835181931950202
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9833795437284343
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9833164662719335
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "toxic",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9817237939332123,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.981499922917496
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9816177705269972
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9816890889264424
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9817237939332123
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "severe_toxic",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9899644185583132,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9899644185583132
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9899513652787824
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9899460013420632
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9899434526969862
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "obscene",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9932002033380469,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9932002033380469
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9931371267592474
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9930769505062292
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9930277685683256
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "threat",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9903179926386879,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9899006870763621
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9900194676777929
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.990167989707738
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9903179926386879
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "insult",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9859838789289266,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9859193805752121
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9859500940147158
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9859676938655275
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9859838789289266
+        }
+      ]
+    },
+    {
+      "score_fold": 2,
+      "target": "identity_hate",
+      "fit_folds": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9849474057278967,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9849474057278967
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9848381759271553
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9847034228450046
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9846022508074849
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "toxic",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9822558349288537,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9820645098591925
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9821677694694185
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9822262184790855
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9822558349288537
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "severe_toxic",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9902434920937062,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9902434920937062
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9901922587466834
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9901297580320084
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9900464216787478
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "obscene",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9928151208428323,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9928151208428323
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9927757473906412
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9927301425212013
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9926939716650309
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "threat",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 0.1,
+      "selected_inner_auc": 0.9900834549420443,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9899959789424104
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9900834549420443
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9900749191931969
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9900137291863993
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "insult",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9859297809625343,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9858813329928254
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9859052536221533
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9859221434641247
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9859297809625343
+        }
+      ]
+    },
+    {
+      "score_fold": 3,
+      "target": "identity_hate",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        4
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9849040477899328,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9849040477899328
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9847794899579317
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9846535680717726
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9845596241150486
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "toxic",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9818188188051454,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9816217211336644
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9817258892630436
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9817893085735168
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9818188188051454
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "severe_toxic",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9900986099925392,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9900986099925392
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.990068869598891
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9900243582257451
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9899895825527719
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "obscene",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9929312183139561,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9929312183139561
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9928775745246602
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9928251997808647
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9927841571116411
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "threat",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9903206814630847,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9903206814630847
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9901923630894238
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9901343274892503
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9901227983244225
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "insult",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 1.0,
+      "selected_inner_auc": 0.9861972691969623,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9861051137069383
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9861400663064427
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9861746422700112
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9861972691969623
+        }
+      ]
+    },
+    {
+      "score_fold": 4,
+      "target": "identity_hate",
+      "fit_folds": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "selected_c": 0.03,
+      "selected_inner_auc": 0.9837178128570008,
+      "candidate_scores": [
+        {
+          "c_value": 0.03,
+          "inner_auc": 0.9837178128570008
+        },
+        {
+          "c_value": 0.1,
+          "inner_auc": 0.9835134578567593
+        },
+        {
+          "c_value": 0.3,
+          "inner_auc": 0.9833407151631889
+        },
+        {
+          "c_value": 1.0,
+          "inner_auc": 0.9832290033463764
+        }
+      ]
+    }
+  ],
+  "promotion_threshold": 0.987,
+  "claim_boundary": "Nested-C cross-fitted public OOF confirmation with a previously frozen feature set; this is not an official private grade or medal.",
+  "runtime_seconds": 652.534932393115
+}

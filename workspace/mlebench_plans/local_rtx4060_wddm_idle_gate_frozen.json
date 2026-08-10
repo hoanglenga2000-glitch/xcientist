@@ -1,0 +1,46 @@
+{
+  "schema": "evomind.local_gpu.calibrated_idle_gate.v1",
+  "created_at": "2026-07-27T05:09:42.227243+08:00",
+  "status": "frozen_before_use",
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "platform_mode": "Windows_WDDM",
+  "baseline": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\rtx4060_wddm_idle_baseline_20260727_0508.json",
+    "sha256": "5af04692cf5c2fe002daea80ae6b1c7795f49472037a4563e94f396e9a0303f1"
+  },
+  "bound_execution_evidence": {
+    "seed42_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+      "sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb"
+    },
+    "confirmation_manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_confirmation_s4041_frozen_manifest.json",
+      "sha256": "9285bd62c29e53c3ab610e4e6e0cbd33024fe287f1dca78835ac48bbc08f87d1"
+    }
+  },
+  "legacy_gate": {
+    "gpu_utilization_max_percent": 20,
+    "observed_baseline_min_percent": 22,
+    "classification": "persistent_false_busy_on_WDDM"
+  },
+  "requirements": {
+    "maximum_gpu_utilization_percent": 50,
+    "maximum_memory_utilization_percent": 40,
+    "minimum_memory_free_mib": 6144,
+    "maximum_temperature_c": 65,
+    "allowed_pstates": [
+      "P8"
+    ],
+    "maximum_power_draw_w": 15.0,
+    "maximum_sm_clock_mhz": 600,
+    "python_compute_applications_must_be_empty": true,
+    "consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10
+  },
+  "calibration_scope": "Operational launch-idle classification only. Model, data, folds, seeds, optimizer, and promotion thresholds remain frozen.",
+  "single_gpu_strict_serial": true,
+  "preemption_allowed": false,
+  "process_signals_allowed": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

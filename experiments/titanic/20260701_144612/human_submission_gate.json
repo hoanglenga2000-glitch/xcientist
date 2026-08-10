@@ -1,0 +1,24 @@
+{
+  "gate_id": "gate_908a7a1a0f",
+  "task_id": "titanic",
+  "gate_type": "human_submission",
+  "decision": "pending",
+  "required_evidence": [
+    "ev_918292805f",
+    "ev_38f8b3f191",
+    "ev_adac3f6741",
+    "ev_8287792233",
+    "ev_31a7b873f5",
+    "ev_5badd6c06f",
+    "ev_565fc7b260",
+    "ev_094ebe480a",
+    "ev_34f30f185f",
+    "ev_d555ebfdd1",
+    "ev_102048edd2",
+    "ev_6512de94eb",
+    "ev_a3d005c0d3",
+    "ev_41b966fc53"
+  ],
+  "reviewer": "human",
+  "metadata": {}
+}

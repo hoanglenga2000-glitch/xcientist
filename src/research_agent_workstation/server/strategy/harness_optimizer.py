@@ -23,7 +23,7 @@ from datetime import datetime
 from dataclasses import dataclass, field
 from typing import Optional, Callable
 
-ROOT = Path(__file__).resolve().parents[5]  # up to project root
+ROOT = Path(__file__).resolve().parents[4]  # repository root
 if str(ROOT / "src") not in sys.path:
     sys.path.insert(0, str(ROOT / "src"))
 
@@ -191,7 +191,7 @@ class HarnessEngine:
                 "best_known_local": 0.285, "best_known_public": 0.40647,
                 "cv_public_gap": 0.121,
                 "strongest_model": "gbr", "strongest_oof": 0.285,
-                "sample_submission": "D:/桌面/codex/科研港科技/tasks/bike_sharing_demand/data/sample_submission.csv",
+                "sample_submission": str(ROOT / "tasks" / "bike_sharing_demand" / "data" / "sample_submission.csv"),
             },
             "digit_recognizer": {
                 "target": "label", "metric": "accuracy", "direction": "maximize",
@@ -199,7 +199,7 @@ class HarnessEngine:
                 "best_known_local": 0.9943, "best_known_public": 0.99578,
                 "cv_public_gap": 0.0015,
                 "strongest_model": "cnn", "strongest_oof": 0.9943,
-                "sample_submission": "D:/桌面/codex/科研港科技/tasks/digit_recognizer/data/sample_submission.csv",
+                "sample_submission": str(ROOT / "tasks" / "digit_recognizer" / "data" / "sample_submission.csv"),
             },
             "spaceship_titanic": {
                 "target": "Transported", "metric": "accuracy", "direction": "maximize",
@@ -207,7 +207,7 @@ class HarnessEngine:
                 "best_known_local": 0.8163, "best_known_public": 0.80640,
                 "cv_public_gap": 0.0099,
                 "strongest_model": "cb_hgb_blend", "strongest_oof": 0.8163,
-                "sample_submission": "D:/桌面/codex/科研港科技/tasks/spaceship_titanic/data/sample_submission.csv",
+                "sample_submission": str(ROOT / "tasks" / "spaceship_titanic" / "data" / "sample_submission.csv"),
             },
             "titanic": {
                 "target": "Survived", "metric": "accuracy", "direction": "maximize",
@@ -215,7 +215,7 @@ class HarnessEngine:
                 "best_known_local": 0.8418, "best_known_public": 0.77990,
                 "cv_public_gap": 0.062,
                 "strongest_model": "rf", "strongest_oof": 0.837,
-                "sample_submission": "D:/桌面/codex/科研港科技/tasks/titanic/data/sample_submission.csv",
+                "sample_submission": str(ROOT / "tasks" / "titanic" / "data" / "sample_submission.csv"),
             },
         }
         return configs.get(self.task_id, {})
@@ -309,6 +309,8 @@ class HarnessEngine:
 
 def train_ensemble_for_island(task_id: str, island_config: dict, n_folds: int = 3) -> dict:
     """Train a quick ensemble based on the island's strategy config."""
+    from research_os.hpc_policy import require_hpc_compute
+    require_hpc_compute("local")
     import lightgbm as lgb
     from catboost import CatBoostClassifier
     from sklearn.ensemble import HistGradientBoostingClassifier
@@ -317,8 +319,9 @@ def train_ensemble_for_island(task_id: str, island_config: dict, n_folds: int = 
     from sklearn.preprocessing import LabelEncoder, StandardScaler
 
     # Load data (simplified - reuse previously engineered features)
-    train = pd.read_csv(f"D:/桌面/codex/科研港科技/tasks/{task_id}/data/train.csv")
-    test = pd.read_csv(f"D:/桌面/codex/科研港科技/tasks/{task_id}/data/test.csv")
+    task_data = ROOT / "tasks" / task_id / "data"
+    train = pd.read_csv(task_data / "train.csv")
+    test = pd.read_csv(task_data / "test.csv")
 
     target = "Transported" if task_id == "spaceship_titanic" else "Survived"
     y = (train[target] == True).astype(int).values if target in train.columns else train[target].values
@@ -367,10 +370,10 @@ def train_ensemble_for_island(task_id: str, island_config: dict, n_folds: int = 
 
     # Save submission
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out_dir = Path(f"D:/桌面/codex/科研港科技/experiments/{task_id}/harness_{ts}")
+    out_dir = ROOT / "experiments" / task_id / f"harness_{ts}"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    sub = pd.read_csv(f"D:/桌面/codex/科研港科技/tasks/{task_id}/data/sample_submission.csv")
+    sub = pd.read_csv(task_data / "sample_submission.csv")
     pred_col = sub.columns[-1]
     sub[pred_col] = (test_pred > 0.5).astype(int) if task_id != "bike_sharing_demand" else np.maximum(0, test_pred)
     sub.to_csv(out_dir / "submission.csv", index=False)
@@ -447,7 +450,7 @@ if __name__ == "__main__":
     status = run_harness(args.task, args.iterations, args.islands)
 
     # Save status
-    out = Path(f"D:/桌面/codex/科研港科技/workspace/harness/status_{args.task}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json")
+    out = ROOT / "workspace" / "harness" / f"status_{args.task}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     with open(out, "w") as f:
         json.dump(status, f, indent=2, default=str)

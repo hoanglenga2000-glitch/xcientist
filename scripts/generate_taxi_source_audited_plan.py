@@ -17,6 +17,11 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts import verify_taxi_source_audit_readiness as readiness_verifier  # noqa: E402
+from scripts.pinned_source_identity import (  # noqa: E402
+    PinnedPathError,
+    bind_legacy_record_to_project_anchor,
+    resolve_pinned_project_path,
+)
 
 READINESS = (
     PROJECT_ROOT / "workspace" / "mlebench_plans" / "taxi_source_audit_readiness_current.json"
@@ -83,6 +88,21 @@ def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
     os.replace(temporary, path)
 
 
+def portable_freshness_value(value: Any) -> Any:
+    """Remove machine-local path projections from portable evidence records."""
+
+    if isinstance(value, Mapping):
+        has_relative_identity = isinstance(value.get("relative_path"), str)
+        return {
+            key: portable_freshness_value(item)
+            for key, item in value.items()
+            if not (has_relative_identity and key == "path")
+        }
+    if isinstance(value, list):
+        return [portable_freshness_value(item) for item in value]
+    return value
+
+
 def build_plan() -> dict[str, Any]:
     readiness = json.loads(READINESS.read_text(encoding="utf-8"))
     live_readiness = readiness_verifier.verify()
@@ -103,7 +123,8 @@ def build_plan() -> dict[str, Any]:
     stale_fields = [
         field
         for field in freshness_fields
-        if readiness.get(field) != live_readiness.get(field)
+        if portable_freshness_value(readiness.get(field))
+        != portable_freshness_value(live_readiness.get(field))
     ]
     if stale_fields:
         raise RuntimeError(
@@ -139,7 +160,17 @@ def build_plan() -> dict[str, Any]:
     )
     route_collection = json.loads(TAXI_ROUTE_STAT_COLLECTION.read_text(encoding="utf-8"))
     route_manifest_record = route_collection.get("manifest") or {}
-    route_manifest_path = Path(str(route_manifest_record.get("path") or "")).resolve()
+    try:
+        route_manifest_path = resolve_pinned_project_path(
+            bind_legacy_record_to_project_anchor(
+                route_manifest_record,
+                "workspace/hpc/job89941_taxi_route_stats",
+            ),
+            PROJECT_ROOT,
+            label="Taxi route-stat manifest",
+        )
+    except PinnedPathError as exc:
+        raise RuntimeError(str(exc)) from exc
     route_manifest = json.loads(route_manifest_path.read_text(encoding="utf-8"))
     route_contracts = route_manifest.get("contracts") or {}
     if not (
@@ -182,6 +213,9 @@ def build_plan() -> dict[str, Any]:
         "tests_source": readiness["tests"],
         "bundle": {
             "path": str(readiness_verifier.DEFAULT_BUNDLE.resolve()),
+            "relative_path": readiness_verifier.DEFAULT_BUNDLE.resolve()
+            .relative_to(PROJECT_ROOT.resolve())
+            .as_posix(),
             "bytes": readiness_verifier.DEFAULT_BUNDLE.stat().st_size,
             "sha256": bundle["sha256"],
             "manifest_hash_count": bundle["manifest_hash_count"],

@@ -127,7 +127,7 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
             raise FileNotFoundError(f"Bundle source is missing: {source}")
         destination = stage / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source, destination)
+        destination.write_bytes(source.read_bytes().replace(b"\r\n", b"\n"))
     (stage / "src" / "research_os" / "__init__.py").write_text(
         MINIMAL_RESEARCH_OS_INIT,
         encoding="utf-8",

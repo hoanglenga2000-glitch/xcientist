@@ -1,0 +1,484 @@
+{
+  "schema": "evomind.mlebench.gpt56_adaptive_loop.v1",
+  "created_at": "2026-07-28T15:05:45.317018+08:00",
+  "provider": "openai",
+  "requested_model": "gpt-5.6-sol",
+  "controller_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_gpt56_adaptive_loop.py",
+    "sha256": "8e8468a92f6419cf18470b8350b32ec5bb4f190bbca2770b3d95963d3493cf0b"
+  },
+  "secret_policy": "The API key is loaded from DPAPI/environment and is never persisted in this report.",
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false,
+  "status": "passed",
+  "ok": true,
+  "session_id": "session_f6633c1cd34d4e4e9190be28d31e6343",
+  "model_execution": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "native_tool_loop": true,
+    "native_tool_calls": 28,
+    "input_tokens": 109617,
+    "output_tokens": 3778,
+    "turns": 2
+  },
+  "snapshots": {
+    "official_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\official_progress.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/official_progress.json",
+      "sha256": "3cb8cdde1c9e6e397f0c43f65feb2f3b608fbd9ec7c412059c8aafe1c0bea22d",
+      "line_count": 367
+    },
+    "campaign_state": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\campaign_state.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/campaign_state.json",
+      "sha256": "7c98868b3445cde5ac7248845f8ea98e7db3bb0c87270ead7b78db80cb137ef3",
+      "line_count": 808
+    },
+    "ranzcr_failure": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\ranzcr_failure.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/ranzcr_failure.json",
+      "sha256": "77abefed8804be59bbf7e58092641675b752375d92603e1ca394018ec680aa88",
+      "line_count": 122
+    },
+    "a800_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a800_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/a800_status.json",
+      "sha256": "6e436c773612ddda3f81bc1a7cdb3b36c1f055eddb6e1fe8e1fea51dbc28b9ec",
+      "line_count": 64
+    },
+    "a800_parallel_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a800_parallel_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/a800_parallel_status.json",
+      "sha256": "82026984990346113f54ccbafd1a2a827b7ae8b0a50ec7101dc215c75790f960",
+      "line_count": 24
+    },
+    "a40_taxi_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a40_taxi_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/a40_taxi_status.json",
+      "sha256": "3297f5ec3b9b046d40bcc121ecd23b6004693a120b33d38864d1f72dc6ea9adb",
+      "line_count": 108
+    },
+    "local4060_dog_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\local4060_dog_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/local4060_dog_status.json",
+      "sha256": "658e1ca6206af4f7162b5c79337dcd343444b739e42602cc9e8bc8fdbcab412f",
+      "line_count": 96
+    },
+    "dog_gpt56_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\dog_gpt56_audit.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/dog_gpt56_audit.json",
+      "sha256": "5148a52b8584b48056b294e41a3687ff35697a215a788d0170b97716d76ea943",
+      "line_count": 170
+    },
+    "taxi_source_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\taxi_source_audit.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/taxi_source_audit.json",
+      "sha256": "942f7c356a3df156339ce904f5327c609dd23b684e9d6e93c39de1edb5c33b46",
+      "line_count": 66
+    },
+    "recovery_deep_review": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\recovery_deep_review.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/recovery_deep_review.json",
+      "sha256": "da834862f40ac8ec2a0424910f11096918228594f94dcbb43ff74638bed4fc3d",
+      "line_count": 281
+    },
+    "human_gate_candidates": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\human_gate_candidates.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/human_gate_candidates.json",
+      "sha256": "d12d22fea82bca6725ad779573842a94b42d1720912d21ce11c02d356cb40e15",
+      "line_count": 97
+    },
+    "job88240_gpu_gate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job88240_gpu_gate.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job88240_gpu_gate.json",
+      "sha256": "d06d0c84b1fe55e363c42517244038bf074b458195a9618348bd6ffaa82deed5",
+      "line_count": 61
+    },
+    "job89508_resource_probe": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89508_resource_probe.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89508_resource_probe.json",
+      "sha256": "5ca83cb6d0d69eec6c636461b6745c24df8ad0fb2ba3e89e33ab83bb6ddc6aee",
+      "line_count": 114
+    },
+    "job88240_serial_chain": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job88240_serial_chain.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job88240_serial_chain.json",
+      "sha256": "7a0c35b5376471581e5db47d101d5ac6b96a952f87fd8cdc186ffe819fff49a9",
+      "line_count": 186
+    },
+    "job89941_may_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_may_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89941_may_status.json",
+      "sha256": "a83ab543780e84e6975a18f3ffba67baea0b0573302c222c5faa9f081d607370",
+      "line_count": 83
+    },
+    "job89941_taxi_cpu_candidate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_candidate.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89941_taxi_cpu_candidate.json",
+      "sha256": "74b2372d116b5b2cc937ce91275828e37c7541eea17aee169658037d6461863e",
+      "line_count": 49
+    },
+    "job89941_taxi_cpu_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_progress.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89941_taxi_cpu_progress.json",
+      "sha256": "71268ad59301dad5824f59979cd20ea4f03845424bbfd5271a4ec96f3b7edd3b",
+      "line_count": 43
+    },
+    "job89941_taxi_cpu_confirmation": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_confirmation.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89941_taxi_cpu_confirmation.json",
+      "sha256": "9ab92740612c0880e0b9cb7cb7dacb21033b36c63047bdaf88e8b953789434b8",
+      "line_count": 25
+    },
+    "job89771_taxi_longhaul_expert": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89771_taxi_longhaul_expert.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89771_taxi_longhaul_expert.json",
+      "sha256": "9e33a8346d99a1db26179c523b16b164e42025edf11095de1a2978b67448e694",
+      "line_count": 69
+    },
+    "job89771_taxi_midhaul_expert": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89771_taxi_midhaul_expert.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89771_taxi_midhaul_expert.json",
+      "sha256": "ec4ca9de2f4ca496962b2db4d42463e1e805b9ee995293384063d947a7e0ab25",
+      "line_count": 106
+    },
+    "job89941_leaf_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_leaf_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/job89941_leaf_status.json",
+      "sha256": "5aabacae20bace3cc498f5f958ff8e2ff32eba5ca05db8245736326db4826c50",
+      "line_count": 68
+    },
+    "cactus_cpu_sidecar_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\cactus_cpu_sidecar_status.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/cactus_cpu_sidecar_status.json",
+      "sha256": "4faec64afc3ee3818c0ea0ff96ad421184dc5be132f0dacebe205d54481a08ab",
+      "line_count": 33
+    },
+    "cactus_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\cactus_human_gate_postrun.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/cactus_human_gate_postrun.json",
+      "sha256": "f5492e00e607a9c21e979b0222721d780e15e541fdf8426bc0cfdaf26341ad23",
+      "line_count": 17
+    },
+    "ranzcr_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\ranzcr_human_gate_postrun.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/ranzcr_human_gate_postrun.json",
+      "sha256": "75a8c93f6e8cfe62138a68c2b4dac1a1f23cd992e6de180bdbffd5b10e0d33ea",
+      "line_count": 17
+    },
+    "siim_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\siim_human_gate_postrun.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/siim_human_gate_postrun.json",
+      "sha256": "62fb9fb49d75288a45e35659ecb657ae79d65b94e2fa72f5b29c02d468c391d5",
+      "line_count": 17
+    },
+    "may2022_execution_queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\may2022_execution_queue.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/may2022_execution_queue.json",
+      "sha256": "01ca8713d9079cd0e9d77f820e77acbb06602492b8892afac22dc8c09f292e22",
+      "line_count": 67
+    },
+    "may2022_supersession_seal": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\may2022_supersession_seal.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/may2022_supersession_seal.json",
+      "sha256": "db9c990cfc1a959ebdb45010998560e7c4b9810dfcc922a5c42adf1d3ccef197",
+      "line_count": 95
+    },
+    "staged_human_gate_candidates": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\staged_human_gate_candidates.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_inputs/staged_human_gate_candidates.json",
+      "sha256": "6db013ac8eca281661d27e14ccb4ed6b9c8780319972766b9f0a222cab39d128",
+      "line_count": 72
+    }
+  },
+  "observed_tool_evidence": {
+    "official_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\official_progress.json",
+      "sha256": "3cb8cdde1c9e6e397f0c43f65feb2f3b608fbd9ec7c412059c8aafe1c0bea22d",
+      "line_count": 367,
+      "tool_call_id": "call_c902d18bcfca69c2876b84f0d03a1157"
+    },
+    "campaign_state": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\campaign_state.json",
+      "sha256": "7c98868b3445cde5ac7248845f8ea98e7db3bb0c87270ead7b78db80cb137ef3",
+      "line_count": 808,
+      "tool_call_id": "call_e68fa1ddb075bb8e02ec842ab575cf32"
+    },
+    "ranzcr_failure": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\ranzcr_failure.json",
+      "sha256": "77abefed8804be59bbf7e58092641675b752375d92603e1ca394018ec680aa88",
+      "line_count": 122,
+      "tool_call_id": "call_3f74f72a72085a4fb69e6d1f1fa2fd6e"
+    },
+    "a800_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a800_status.json",
+      "sha256": "6e436c773612ddda3f81bc1a7cdb3b36c1f055eddb6e1fe8e1fea51dbc28b9ec",
+      "line_count": 64,
+      "tool_call_id": "call_d87e9dc451a36235796abaffe4e0d1ac"
+    },
+    "a800_parallel_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a800_parallel_status.json",
+      "sha256": "82026984990346113f54ccbafd1a2a827b7ae8b0a50ec7101dc215c75790f960",
+      "line_count": 24,
+      "tool_call_id": "call_647c37b742ada9be2c48dabe48be4263"
+    },
+    "a40_taxi_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\a40_taxi_status.json",
+      "sha256": "3297f5ec3b9b046d40bcc121ecd23b6004693a120b33d38864d1f72dc6ea9adb",
+      "line_count": 108,
+      "tool_call_id": "call_ae24ba00541be4f5340a820957252e60"
+    },
+    "local4060_dog_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\local4060_dog_status.json",
+      "sha256": "658e1ca6206af4f7162b5c79337dcd343444b739e42602cc9e8bc8fdbcab412f",
+      "line_count": 96,
+      "tool_call_id": "call_4b5aa7827aff698995a66911bbf6acd6"
+    },
+    "dog_gpt56_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\dog_gpt56_audit.json",
+      "sha256": "5148a52b8584b48056b294e41a3687ff35697a215a788d0170b97716d76ea943",
+      "line_count": 170,
+      "tool_call_id": "call_a7c45ef09019f3f974365b63c0d51283"
+    },
+    "taxi_source_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\taxi_source_audit.json",
+      "sha256": "942f7c356a3df156339ce904f5327c609dd23b684e9d6e93c39de1edb5c33b46",
+      "line_count": 66,
+      "tool_call_id": "call_d45324c3fa74f694b753132991193702"
+    },
+    "recovery_deep_review": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\recovery_deep_review.json",
+      "sha256": "da834862f40ac8ec2a0424910f11096918228594f94dcbb43ff74638bed4fc3d",
+      "line_count": 281,
+      "tool_call_id": "call_4fea83b926713ddb559c04a5e90be58e"
+    },
+    "human_gate_candidates": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\human_gate_candidates.json",
+      "sha256": "d12d22fea82bca6725ad779573842a94b42d1720912d21ce11c02d356cb40e15",
+      "line_count": 97,
+      "tool_call_id": "call_581874b60fbb1a76b03ff1c8a8903b81"
+    },
+    "job88240_gpu_gate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job88240_gpu_gate.json",
+      "sha256": "d06d0c84b1fe55e363c42517244038bf074b458195a9618348bd6ffaa82deed5",
+      "line_count": 61,
+      "tool_call_id": "call_851d5f4593bc6ff5e69433054423d865"
+    },
+    "job89508_resource_probe": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89508_resource_probe.json",
+      "sha256": "5ca83cb6d0d69eec6c636461b6745c24df8ad0fb2ba3e89e33ab83bb6ddc6aee",
+      "line_count": 114,
+      "tool_call_id": "call_e3f19292617cf2109b5ca7c790b033f3"
+    },
+    "job88240_serial_chain": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job88240_serial_chain.json",
+      "sha256": "7a0c35b5376471581e5db47d101d5ac6b96a952f87fd8cdc186ffe819fff49a9",
+      "line_count": 186,
+      "tool_call_id": "call_8b88f05d3925c8b02e2a78abc3e432d8"
+    },
+    "job89941_may_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_may_status.json",
+      "sha256": "a83ab543780e84e6975a18f3ffba67baea0b0573302c222c5faa9f081d607370",
+      "line_count": 83,
+      "tool_call_id": "call_edf7d8c39e31641f6eeb30c8902cdd36"
+    },
+    "job89941_taxi_cpu_candidate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_candidate.json",
+      "sha256": "74b2372d116b5b2cc937ce91275828e37c7541eea17aee169658037d6461863e",
+      "line_count": 49,
+      "tool_call_id": "call_0cbd3de103fed3fe676c6d92f06bb783"
+    },
+    "job89941_taxi_cpu_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_progress.json",
+      "sha256": "71268ad59301dad5824f59979cd20ea4f03845424bbfd5271a4ec96f3b7edd3b",
+      "line_count": 43,
+      "tool_call_id": "call_65f714474934ac997bb5d0aae6e4d3b8"
+    },
+    "job89941_taxi_cpu_confirmation": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_taxi_cpu_confirmation.json",
+      "sha256": "9ab92740612c0880e0b9cb7cb7dacb21033b36c63047bdaf88e8b953789434b8",
+      "line_count": 25,
+      "tool_call_id": "call_39a43be4b68bf96b1c601a5b6afea337"
+    },
+    "job89771_taxi_longhaul_expert": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89771_taxi_longhaul_expert.json",
+      "sha256": "9e33a8346d99a1db26179c523b16b164e42025edf11095de1a2978b67448e694",
+      "line_count": 69,
+      "tool_call_id": "call_cc00476c8dec286601a4f6a2adce102e"
+    },
+    "job89771_taxi_midhaul_expert": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89771_taxi_midhaul_expert.json",
+      "sha256": "ec4ca9de2f4ca496962b2db4d42463e1e805b9ee995293384063d947a7e0ab25",
+      "line_count": 106,
+      "tool_call_id": "call_2b4cc964ec01a783f562a6f473a72a8f"
+    },
+    "job89941_leaf_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\job89941_leaf_status.json",
+      "sha256": "5aabacae20bace3cc498f5f958ff8e2ff32eba5ca05db8245736326db4826c50",
+      "line_count": 68,
+      "tool_call_id": "call_402a28974e2b0fdd146ad7bada2bcb22"
+    },
+    "cactus_cpu_sidecar_status": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\cactus_cpu_sidecar_status.json",
+      "sha256": "4faec64afc3ee3818c0ea0ff96ad421184dc5be132f0dacebe205d54481a08ab",
+      "line_count": 33,
+      "tool_call_id": "call_cb72ba42a16263e89f3054622c289561"
+    },
+    "cactus_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\cactus_human_gate_postrun.json",
+      "sha256": "f5492e00e607a9c21e979b0222721d780e15e541fdf8426bc0cfdaf26341ad23",
+      "line_count": 17,
+      "tool_call_id": "call_cbcabdd2bc71caead5c6052b373996fb"
+    },
+    "ranzcr_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\ranzcr_human_gate_postrun.json",
+      "sha256": "75a8c93f6e8cfe62138a68c2b4dac1a1f23cd992e6de180bdbffd5b10e0d33ea",
+      "line_count": 17,
+      "tool_call_id": "call_78eff41d5c49bf19581f332bf915ea32"
+    },
+    "siim_human_gate_postrun": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\siim_human_gate_postrun.json",
+      "sha256": "62fb9fb49d75288a45e35659ecb657ae79d65b94e2fa72f5b29c02d468c391d5",
+      "line_count": 17,
+      "tool_call_id": "call_68281769d7d7a0ce92d556d45ffce96d"
+    },
+    "may2022_execution_queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\may2022_execution_queue.json",
+      "sha256": "01ca8713d9079cd0e9d77f820e77acbb06602492b8892afac22dc8c09f292e22",
+      "line_count": 67,
+      "tool_call_id": "call_ed63a237698685cf2b6203d1c4c7f0fe"
+    },
+    "may2022_supersession_seal": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\may2022_supersession_seal.json",
+      "sha256": "db9c990cfc1a959ebdb45010998560e7c4b9810dfcc922a5c42adf1d3ccef197",
+      "line_count": 95,
+      "tool_call_id": "call_f1428b1b458ac5be16a5947494f75390"
+    },
+    "staged_human_gate_candidates": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_inputs\\staged_human_gate_candidates.json",
+      "sha256": "6db013ac8eca281661d27e14ccb4ed6b9c8780319972766b9f0a222cab39d128",
+      "line_count": 72,
+      "tool_call_id": "call_e51bca57ab634b380eb8861ddb2fb408"
+    }
+  },
+  "decision": {
+    "schema": "evomind.mlebench.adaptive_decision.v1",
+    "leaderboard_assessment": {
+      "official_scored": 21,
+      "official_medals": 13,
+      "target_medals": 18,
+      "medal_deficit": 5,
+      "strictly_above_top": false
+    },
+    "active_run_policy": [],
+    "next_actions": [
+      {
+        "priority": 1,
+        "action": "collect_and_grade",
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "lane": "cpu",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Verified frozen multiseed Human Gate package is gradeable; request the explicit one-shot approval and execute no grader until approved."
+      },
+      {
+        "priority": 2,
+        "action": "collect_and_grade",
+        "competition_id": "spooky-author-identification",
+        "lane": "cpu",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Verified frozen cross-run package is gradeable; request the explicit one-shot approval and execute no grader until approved."
+      },
+      {
+        "priority": 3,
+        "action": "hold_for_evidence",
+        "competition_id": "tabular-playground-series-may-2022",
+        "lane": "a40",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Authoritative cached candidate-only queue already waits behind Cactus; preserve its supersession seal and launch only after chain completion and a fresh passing GPU gate."
+      },
+      {
+        "priority": 4,
+        "action": "hold_for_evidence",
+        "competition_id": "leaf-classification",
+        "lane": "a40",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Existing serial wrapper is authoritative, while independent verification failed the frozen per-seed gate despite a strong ensemble metric; await its terminal evidence without grading or duplication."
+      },
+      {
+        "priority": 5,
+        "action": "hold_for_evidence",
+        "competition_id": "new-york-city-taxi-fare-prediction",
+        "lane": "a40",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Source-audited A40 candidate is already scheduled after May; the CPU campaign stopped without promotion, so preserve the queued bounded production path and do not start another CPU sweep."
+      },
+      {
+        "priority": 6,
+        "action": "hold_for_evidence",
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "lane": "a40",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Bounded high-resolution recovery and postrun workflow are already in the authoritative serial chain; await SIIM and fresh terminal gate evidence without duplicate training, collection, or grading."
+      },
+      {
+        "priority": 7,
+        "action": "hold_for_evidence",
+        "competition_id": "dog-breed-identification",
+        "lane": "a40",
+        "expected_medal_gain": 1,
+        "requires_active_run_completion": true,
+        "rationale": "Local recovery closed NO-GO and the authoritative remote successor already waits behind Taxi; preserve that bounded queue and withhold grading unless every frozen promotion check later passes."
+      }
+    ],
+    "evidence_source_sha256": {
+      "a40_taxi_status": "fd184c5d68b8de15f826fb17458e86b6a34bf510f0476e6d118f576b2cd1ed73",
+      "a800_parallel_status": "6ef5e6062f3c13357712a1b2757968c4cf914270e5c6c5d70dfa7bfa14f27b92",
+      "a800_status": "5c3e448d9d08d3cc1ad442b77375a211c9dc2ca55e7703f11bd313a17843ea1f",
+      "cactus_cpu_sidecar_status": "e2749dc5a66e9ed0745c90b2b5a8ddb52e0c5fa838a9dc93ee435581655bf471",
+      "cactus_human_gate_postrun": "d8b214e0a2cd3dcd56390ee1ae0c083d5d4314872e408a5d6081d102359f29dc",
+      "campaign_state": "e8ae5e8205f39b97e66ba59afedc2ff9e364ef87fcf727ede2381d933cfaf4cd",
+      "dog_gpt56_audit": "9cb2d38890a3532d0c9bfea4756402a3e2c800c9181fea2ad2ab22306be287e7",
+      "human_gate_candidates": "71a64957a8e4f90290cd1fdaf9cdccc38841bff0eac8f48d6de5fc7221f562ae",
+      "job88240_gpu_gate": "e057bd8425d8efe481d3ec84542ca58842b7091bc156e042bbcc86a449711010",
+      "job88240_serial_chain": "b348f6d9b586cd711ab43047b4294e8a1eccca84121cc698e775ca2b4cf88baa",
+      "job89508_resource_probe": "68560a38860b14dfaf5442c1b81108f2bf368b47e0d41277213713701d7e7ba8",
+      "job89771_taxi_longhaul_expert": "ff285f6e1936dfaed118d808f21245b3f2f29ddbdcbc7bd618767f31c79528ef",
+      "job89771_taxi_midhaul_expert": "0992391f40409407843ba84ff1cc10ff9244d86b5aa556ad76494655aa948edd",
+      "job89941_leaf_status": "f32d85e8fc1233d9807626e84e767c0acb6f9b3f9b49b3364611abcfec53c8f6",
+      "job89941_may_status": "b8c16fb52422e88c2a4a80bf34b343df89e0556fc4b2d802b9cb66298c3ec398",
+      "job89941_taxi_cpu_candidate": "daaa7e7765142123b9f74ac3f5a71616e954c7df01cf25351207e2f807a717f6",
+      "job89941_taxi_cpu_confirmation": "d5136d76aa9e283d6a89e9d79c9f98b1ef9338c0ca856c6532cdc9c15537f28a",
+      "job89941_taxi_cpu_progress": "362be12367c332303e560be67fdce038dce4cb9f0164095163fd8c928274d6b5",
+      "local4060_dog_status": "f3d5287e57aea33a420157490b067f8a54c333169b18b6e5a0dfae7849fe8f6c",
+      "may2022_execution_queue": "edacf00e0fe1d9a3d54e379e77a2122d57e9db6c3790605dc3667537f78bafe5",
+      "may2022_supersession_seal": "62ead51784f4af4b16d545351c7db0399b40b5e9ebc11610d6dd5ff98231c5b5",
+      "official_progress": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b",
+      "ranzcr_failure": "aed179d3711a4975e3202ba970022affe1a3092fa09ecb7fb2000ce8efc2d165",
+      "ranzcr_human_gate_postrun": "de01be588171b160bc4232f2547b677d73e6e51a8e3b356a0c06fe3e2114e529",
+      "recovery_deep_review": "1cee0b37eb0d44ce6ef90f45fcb5f3d9d3c5d5660e886dae38c01ff5551197cf",
+      "siim_human_gate_postrun": "d3ec1296d4c4520c7016774fdb66f9436031a2ed1cca69670a3761db407f7269",
+      "staged_human_gate_candidates": "3970487584351ec79a1217c333d75e94d0988d774acdd20c11d95f2ec995981a",
+      "taxi_source_audit": "a831fbfb4477efac63f46270fed44e05ff9da9857d6c3ed9034ae2f95c78d3b0"
+    },
+    "stop_conditions": [
+      "official 22/22 coverage",
+      "at least 18 official medals",
+      "seeds 43 and 44 confirmed"
+    ]
+  },
+  "raw_model_active_run_policy": [],
+  "deterministic_adjustments": [],
+  "validation_errors": [],
+  "response": {
+    "characters": 5416,
+    "sha256": "65b11d99017f800ec5940e9cb6716f514db4b018c3ced77ba74be35528f2fba5"
+  },
+  "runtime_seconds": 52.917
+}

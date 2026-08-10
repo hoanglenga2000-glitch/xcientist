@@ -1,0 +1,62 @@
+{
+  "schema": "evomind.spooky.confirmation_plans_manifest.v1",
+  "created_at": "2026-07-27T04:59:23.108281+08:00",
+  "status": "frozen_before_confirmation_training",
+  "requested_model": "gpt-5.6-sol",
+  "served_model": "gpt-5.6-sol",
+  "driver_audit_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+  "driver_audit_sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce",
+  "source_seed42_plan": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+  "source_seed42_plan_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb",
+  "confirmation_plans": [
+    {
+      "seed": 40,
+      "run_id": "local4060_spooky_xfmrbyte_s40_confirm_20260727_0459",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s40_confirmation_frozen_plan.json",
+      "sha256": "0c35689e12898a3c3c3a0ba5465b92e58f3fdf64940cc73d80cbb15985b217ce",
+      "duplicate_group_report": {
+        "schema": "evomind.spooky.duplicate_groups.v1",
+        "normalization": "NFKC_lower_word_number_tokens_v1",
+        "rows": 17621,
+        "unique_groups": 17613,
+        "duplicate_groups": 8,
+        "duplicate_rows_beyond_first": 8,
+        "maximum_group_size": 2,
+        "conflicting_label_groups": 0,
+        "folds": 5,
+        "seed": 40,
+        "group_isolation": true
+      }
+    },
+    {
+      "seed": 41,
+      "run_id": "local4060_spooky_xfmrbyte_s41_confirm_20260727_0459",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s41_confirmation_frozen_plan.json",
+      "sha256": "97026433716d5e2f5763fccd2c671b3e9ef430ffa5fac45c3a879a999a7c70d6",
+      "duplicate_group_report": {
+        "schema": "evomind.spooky.duplicate_groups.v1",
+        "normalization": "NFKC_lower_word_number_tokens_v1",
+        "rows": 17621,
+        "unique_groups": 17613,
+        "duplicate_groups": 8,
+        "duplicate_rows_beyond_first": 8,
+        "maximum_group_size": 2,
+        "conflicting_label_groups": 0,
+        "folds": 5,
+        "seed": 41,
+        "group_isolation": true
+      }
+    }
+  ],
+  "required_seeds": [
+    40,
+    41,
+    42
+  ],
+  "mean_seed_log_loss_threshold": 0.285,
+  "maximum_individual_seed_log_loss": 0.315,
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0
+}

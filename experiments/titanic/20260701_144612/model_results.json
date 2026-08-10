@@ -1,0 +1,35 @@
+{
+  "metric": "accuracy",
+  "best_model": "random_forest",
+  "selection_direction": "maximize",
+  "model_results": {
+    "logistic_regression": {
+      "cv_accuracy_mean": 0.793516,
+      "cv_accuracy_std": 0.019285,
+      "holdout_accuracy": 0.804469,
+      "holdout_macro_f1": 0.787922,
+      "seconds": 0.0619
+    },
+    "random_forest": {
+      "cv_accuracy_mean": 0.8305,
+      "cv_accuracy_std": 0.021618,
+      "holdout_accuracy": 0.798883,
+      "holdout_macro_f1": 0.777916,
+      "seconds": 1.8782
+    },
+    "extra_trees": {
+      "cv_accuracy_mean": 0.81032,
+      "cv_accuracy_std": 0.010396,
+      "holdout_accuracy": 0.798883,
+      "holdout_macro_f1": 0.770447,
+      "seconds": 2.0375
+    },
+    "gradient_boosting": {
+      "cv_accuracy_mean": 0.821537,
+      "cv_accuracy_std": 0.011073,
+      "holdout_accuracy": 0.793296,
+      "holdout_macro_f1": 0.772601,
+      "seconds": 0.585
+    }
+  }
+}

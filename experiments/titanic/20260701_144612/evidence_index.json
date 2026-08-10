@@ -1,0 +1,229 @@
+{
+  "task_id": "titanic",
+  "generated_at": "2026-07-01T14:46:17",
+  "evidence": [
+    {
+      "evidence_id": "evidence_942d8d0744",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.json",
+      "hash": "c3a273350e13c1941fdcecf8615cf89819a7610cf16b7ae82e634b33398804b5",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_a316aea28e",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.md",
+      "hash": "ac0acbd5c9f0fb0e3fd8f300c92e0dbe735d7d823944a3f12149e49aca8c1b20",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_ce0eec571e",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "generated_by": "LocalTemplateCodeAgent",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_bef43bb754",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+      "hash": "41262870f5bc31ce3a83f013579b8a68221013dfcef48baa3fa8529ee858dbca",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_42d8a440c9",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+      "hash": "87da01d238a243e2b2bca1cbb2f11c907dfe487545ae1caa55e503890736119c",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_c27a8810fd",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+      "hash": "7b6e18a5e5b29a46828f80cd9e174dae779faa5514d3b9d676d291f2fc8cab64",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_60cc63bc73",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+      "hash": "5adb8711a92f5b55b80b3d853081b8450b28ea54d2cb9316ce68f179f023bbbf",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_3cb63065a6",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+      "hash": "b13b75d5b4dcdd87b85357cf5fc36f634c4657d06c4d4fea231fb2a97ad30072",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [
+        "claim_b77be61b8c"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_075112b3ee",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+      "hash": "81ba37836428a35e857cd74835072556860563166384abe73a73e513bd0ed071",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_0b9ebf99d2",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+      "hash": "f728890102458d657571c1df097a2a12a6259b0e5433b59c0eb0ceccbc13d8a1",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_949f3f872a",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+      "hash": "6d64db1f757f8c265cefbb4f866e33d11ef75947d4d5e0026a8eee1fb1d83e55",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [
+        "claim_b77be61b8c"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_b3a3a43e98",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+      "hash": "c25ce2907d999a44a1e1715242fe97b74321dbd32f080c7a2d372861d7686a51",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_fd4ca02143",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+      "hash": "e0ae9717c6505fd407bedef4bbcf0934cf357bada9e5d98680011898f93b22a5",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_ba4e796291",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+      "hash": "7b6e18a5e5b29a46828f80cd9e174dae779faa5514d3b9d676d291f2fc8cab64",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_fa4632aef9",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+      "hash": "5adb8711a92f5b55b80b3d853081b8450b28ea54d2cb9316ce68f179f023bbbf",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_22a727a5e9",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+      "hash": "921ff7d8a40d070aa9af5d26690b6e8dd6f3d4d0de2df7d3e72101f09f894877",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_b2c0285077",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md",
+      "hash": "1552a326472fe74560c2e16b4742fa7ffa578ea20586c849ab5e151d6e07e348",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-07-01T14:46:17",
+      "linked_claims": [],
+      "status": "verified"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim_b77be61b8c",
+      "text": "Titanic - Machine Learning from Disaster local baseline produced validated accuracy results.",
+      "source": "reviewer",
+      "evidence_ids": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "confidence": 0.86,
+      "reviewer_status": "bound",
+      "risk_level": "medium"
+    }
+  ],
+  "needs_evidence": []
+}

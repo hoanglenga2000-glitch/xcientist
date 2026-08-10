@@ -1,0 +1,159 @@
+{
+  "schema": "evomind.mlebench.medal_candidate_gates.v2",
+  "created_at": "2026-07-28T07:08:41.293534+00:00",
+  "generated_by": "scripts/build_mlebench_candidate_gates.py",
+  "truth_boundary": {
+    "internal_candidate_is_official_medal": false,
+    "rule": "internal_candidate != official_medal",
+    "medal_authority": "official MLE-Bench private grader",
+    "kaggle_auto_submission": false,
+    "private_score_used_as_training_signal": false
+  },
+  "official_progress": {
+    "scored": 21,
+    "total": 22,
+    "official_medals": 13,
+    "official_gold": 6,
+    "medals_required_to_strictly_exceed_public_top": 18,
+    "source": {
+      "path": "workspace/mlebench_progress/lite11_current.json",
+      "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+    }
+  },
+  "unscored_internal_gate_pass_waiting_official_grader": [],
+  "officially_scored_internal_candidates": [
+    {
+      "competition_id": "text-normalization-challenge-english-language",
+      "mle_private_grader_score": 0.99586,
+      "any_medal": true,
+      "gold_medal": false,
+      "silver_medal": true,
+      "bronze_medal": false,
+      "official_status": "officially_scored",
+      "internal_gate_evidence": {
+        "path": "workspace/mlebench_plans/text_normalization_public_oof_validation_current.json",
+        "sha256": "3d383c2ccac5aff2286312b64cbb5f8a45d9abd9bcc047c358ca74a8668d19b2"
+      },
+      "official_progress_evidence": {
+        "path": "workspace/mlebench_progress/lite11_current.json",
+        "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+      }
+    },
+    {
+      "competition_id": "text-normalization-challenge-russian-language",
+      "mle_private_grader_score": 0.9869,
+      "any_medal": true,
+      "gold_medal": false,
+      "silver_medal": true,
+      "bronze_medal": false,
+      "official_status": "officially_scored",
+      "internal_gate_evidence": {
+        "path": "workspace/mlebench_plans/text_normalization_russian_public_oof_validation_current.json",
+        "sha256": "f8e6c42d0f9ad3c84bd844c9ba1b27b6c2f8441d2d30497542c1589946e7d13d"
+      },
+      "official_progress_evidence": {
+        "path": "workspace/mlebench_progress/lite11_current.json",
+        "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+      }
+    },
+    {
+      "competition_id": "nomad2018-predict-transparent-conductors",
+      "mle_private_grader_score": 0.05198,
+      "any_medal": true,
+      "gold_medal": true,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "official_status": "officially_scored",
+      "internal_gate_evidence": {
+        "path": "workspace/mlebench_plans/nomad_geometry_public_oof_validation_current.json",
+        "sha256": "70742b12527405b0190ebab191edefc0aa2c92f2930f51871df1d31094277911"
+      },
+      "official_progress_evidence": {
+        "path": "workspace/mlebench_progress/lite11_current.json",
+        "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+      }
+    }
+  ],
+  "scored_non_medal_internal_recovery_candidates": [],
+  "official_medal_recoveries": [
+    {
+      "competition_id": "random-acts-of-pizza",
+      "metric": "roc_auc",
+      "direction": "maximize",
+      "public_cross_fitted_oof_by_seed": [
+        0.793865681244322,
+        0.7791781034499481,
+        0.7941126834330718
+      ],
+      "bronze_oriented_threshold": 0.6921,
+      "internal_target": 0.7,
+      "official_score_before_recovery": 0.77971,
+      "official_medal_before_recovery": true,
+      "cross_fitted_meta_validation": true,
+      "official_status": "official_medal_confirmed",
+      "evidence": {
+        "path": "workspace/mlebench_plans/pizza_full_public_oof_validation_current.json",
+        "sha256": "30ad62bb7769c51d4726bbd2b6ecd7f0e27b992e1ac0cbde1400c9dcda1bec1a"
+      },
+      "supersedes_text_only_evidence": {
+        "path": "workspace/mlebench_plans/pizza_nbsvm_public_oof_validation_current.json",
+        "sha256": "6d91c00ce356ea0902bd7ac776858bfecb9f1ad59ce5da3b1e6f3e2ff6157b9f"
+      },
+      "mle_private_grader_score": 0.77971,
+      "gold_medal": false,
+      "silver_medal": true,
+      "bronze_medal": false
+    }
+  ],
+  "not_promoted": [
+    {
+      "competition_id": "spooky-author-identification",
+      "metric": "multiclass_log_loss",
+      "direction": "minimize",
+      "public_oof": 0.34266941238288384,
+      "bronze_oriented_threshold": 0.29381,
+      "reason": "cross-fitted public OOF remains above bronze-oriented threshold",
+      "channels": [
+        "word_nbsvm",
+        "character_word_boundary_nbsvm",
+        "character_raw_nbsvm",
+        "stylometry"
+      ],
+      "stop_rule_triggered": true,
+      "evidence": {
+        "path": "workspace/mlebench_plans/spooky_nbsvm_public_oof_validation_current.json",
+        "sha256": "f59e95e4a9df9a67b138a6d9c840eac814a9eddb9fa5c6f7859553e1c92e2ebf"
+      }
+    },
+    {
+      "competition_id": "leaf-classification",
+      "metric": "multiclass_log_loss",
+      "direction": "minimize",
+      "public_confirmation_oof_by_seed": [
+        0.04088817015277659,
+        0.034128282427415876
+      ],
+      "bronze_oriented_threshold": 0.01526,
+      "reason": "numeric-only calibrated recovery remains above bronze-oriented threshold",
+      "required_next_channel": "pretrained_image_features_or_image_model",
+      "evidence": {
+        "path": "workspace/mlebench_plans/leaf_linear_public_oof_validation_current.json",
+        "sha256": "a694f9d59b13f031f8127e75b2c810a71b879a32c6761aa91f81d6fe4ca70630"
+      }
+    }
+  ],
+  "audit_only_no_recovery_gain": [
+    {
+      "competition_id": "aerial-cactus-identification",
+      "strategy": "exact_duplicate_label_transfer",
+      "available": false,
+      "train_duplicate_hashes": 0,
+      "train_test_exact_matches": 0,
+      "conclusion": "exact duplicate transfer unavailable",
+      "evidence": {
+        "path": "workspace/mlebench_plans/aerial_exact_duplicate_audit_current.json",
+        "sha256": "66782849acc8b317d8206ce4c4e2ca9fb66abbf9b96aff8460cc6740c130dff0"
+      }
+    }
+  ]
+}

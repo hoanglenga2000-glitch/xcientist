@@ -1,0 +1,160 @@
+{
+  "schema": "evomind.ranzcr.highres_crossrun_frozen_plan.v1",
+  "created_at": "2026-07-27T14:31:48.881541+08:00",
+  "status": "frozen_waiting_for_siim",
+  "competition_id": "ranzcr-clip-catheter-line-classification",
+  "objective": {
+    "metric": "mean_columnwise_roc_auc",
+    "direction": "maximize",
+    "historical_official_score": 0.95889,
+    "bronze_threshold": 0.9709,
+    "public_oof_promotion_auc": 0.9725,
+    "official_score_claimed": false
+  },
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "execution_plan": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/plans/medal_recovery_gpt56_current.json",
+      "bytes": 12961,
+      "sha256": "6ddf45d8a594cdd5df77e011032369b5f74e57405ff6f09cd59633e1ed65e226"
+    }
+  },
+  "execution_target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "process_signals_allowed": false
+  },
+  "serial_dependency": {
+    "status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/full_siim_status.json",
+    "accepted_verified_terminal_statuses": [
+      "verification_passed",
+      "verification_complete_gate_failed"
+    ]
+  },
+  "baseline": {
+    "model_family": "efficientnet_v2_s_512_grouped_5fold",
+    "prediction_bundle": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/attempts/attempt_001/vision_oof_and_test.npz",
+      "sha256": "0c1660497fd7a24744f63ee0de3abb2d68d045d3cbf5e982df9db1bfaf80dc21",
+      "bytes": 2599523
+    },
+    "public_oof_auc": 0.9388353612205999,
+    "official_score": 0.95889
+  },
+  "training": {
+    "run_id": "hpc88240_ranzcr_convnext768_s42_20260727",
+    "python": "python3",
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/run_mlebench_lite_full.py",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/mlebench_lite_runs",
+    "allowed_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "official_source_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mle-bench",
+    "seed": 42,
+    "epochs": 12,
+    "folds": 5,
+    "backbone": "convnext_small",
+    "image_size": 768,
+    "batch_size": 8,
+    "workers": 32,
+    "learning_rate": 0.0001,
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "ensemble": {
+    "method": "per_label_fold_crossfit_probability_blend",
+    "grid_step": 0.025,
+    "output_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/crossrun_candidate",
+    "aggregator": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/aggregate_ranzcr_crossrun_candidate.py",
+      "bytes": 10688,
+      "sha256": "4efe9d7c30eac4b3c89d7de2a164f625eee6efa5d2bee36d296f9d19592b516f"
+    },
+    "verifier": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/verify_ranzcr_crossrun_candidate.py",
+      "bytes": 5130,
+      "sha256": "bc9c8ab7e1277bc34ec5e9b7b2a8409716409b992a981a99b98d14b4e9721d86"
+    }
+  },
+  "data_contract": {
+    "file_count": 30087,
+    "total_bytes": 6919980199,
+    "train_count": 27074,
+    "test_count": 3009,
+    "core": {
+      "description.md": {
+        "bytes": 13481,
+        "sha256": "9e44dcf23f08a1834d5b89cd784f1956a3c60c016be632e5499fb16319179d77"
+      },
+      "train_annotations.csv": {
+        "bytes": 4476635,
+        "sha256": "73d910aa1145da35d7f892449c8c433d8b290b404086292dde97f744e574b633"
+      },
+      "sample_submission.csv": {
+        "bytes": 249912,
+        "sha256": "df0f58c52f44639b71fd69682df105fe7350a9bba8e46c557720a5b7ef05040f"
+      },
+      "train.csv": {
+        "bytes": 2626393,
+        "sha256": "0c9e0d92b2ece5343039358adf3445bc87efb8cb81f5eb1ec0ede3adff764f46"
+      }
+    },
+    "public_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/ranzcr-clip-catheter-line-classification/prepared/public",
+    "private_paths_requested": false
+  },
+  "implementation": {
+    "run_mlebench_lite_full.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/run_mlebench_lite_full.py",
+      "bytes": 96818,
+      "sha256": "b42bca15710533a860058c32fb72cdaafee077a4dc87d2f652d655ddd0cc1f28"
+    },
+    "run_mlebench_lite_wave0.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43431,
+      "sha256": "4097f8188d537f993ddd306897fa517dd3a82b9237e9cf35f41a6c9a48f811a2"
+    },
+    "mlebench_medal_recovery_adapters.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 322949,
+      "sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8"
+    },
+    "mlebench_wave2_adapters.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    "russian_transliteration.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    "aggregate_ranzcr_crossrun_candidate.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/aggregate_ranzcr_crossrun_candidate.py",
+      "bytes": 10688,
+      "sha256": "4efe9d7c30eac4b3c89d7de2a164f625eee6efa5d2bee36d296f9d19592b516f"
+    },
+    "verify_ranzcr_crossrun_candidate.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/scripts/verify_ranzcr_crossrun_candidate.py",
+      "bytes": 5130,
+      "sha256": "bc9c8ab7e1277bc34ec5e9b7b2a8409716409b992a981a99b98d14b4e9721d86"
+    },
+    "mlebench_phase_a.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  },
+  "launch_contract": {
+    "gpu_idle_consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10,
+    "process_signals_allowed": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "human_confirmation_required": true
+  },
+  "claim_boundary": "Frozen public-OOF recovery plan; not an official medal."
+}

@@ -18,6 +18,12 @@ from sklearn.metrics import accuracy_score
 
 from xsci.user_request import UserRequest
 
+from research_agent_workstation.server.core.gpu_credentials import (
+    connect_ssh,
+    load_gpu_ssh_config,
+    verify_job_container_identity,
+)
+
 from ..hpc_runtime import HpcRuntime
 from .aibuild_v1 import build_aibuild_run, run_directory, write_current_run_pointer
 from .multi_agent import AgentResult, HandoffEnvelope, MultiAgentStore, MultiAgentSupervisor, SupervisorRun
@@ -457,6 +463,38 @@ class TitanicExecutors:
         self.data_dir = workspace_root / "tasks" / "titanic" / "data"
         self.data_hash = _combined_data_hash(self.data_dir)
 
+    def _verify_bound_hpc_identity(self) -> dict[str, Any]:
+        policy = self.request.compute_policy
+        if (
+            policy.backend != "hpc"
+            or not policy.remote_gpu_required
+            or not policy.job_id
+            or not policy.credential_profile
+            or not policy.resource_profile
+        ):
+            raise RuntimeError("Missing HPC execution contract")
+        if policy.credential_profile != f"job{int(policy.job_id)}":
+            raise RuntimeError("Invalid HPC execution contract")
+        if os.environ.get("EVOMIND_HPC_CREDENTIAL_PROFILE") != policy.credential_profile:
+            raise RuntimeError("HPC credential profile environment binding changed")
+        client = None
+        try:
+            config = load_gpu_ssh_config(strict_named_profile=True)
+            if (
+                config.job_id != int(policy.job_id)
+                or config.credential_profile != policy.credential_profile
+            ):
+                raise RuntimeError("strict named profile selected a different HPC allocation")
+            client = connect_ssh(config, timeout=30)
+            return verify_job_container_identity(
+                client,
+                config,
+                expected_job_id=int(policy.job_id),
+            )
+        finally:
+            if client is not None:
+                client.close()
+
     def setup(self, task, _handoff: HandoffEnvelope, _run: SupervisorRun) -> AgentResult:
         train_path = self.data_dir / "train.csv"
         test_path = self.data_dir / "test.csv"
@@ -465,6 +503,31 @@ class TitanicExecutors:
         test = pd.read_csv(test_path)
         if len(train) != 891 or "Survived" not in train or len(test) != 418:
             raise RuntimeError("Titanic data contract mismatch")
+        identity = self._verify_bound_hpc_identity()
+        identity_path = self.run_dir / "hpc_container_identity.json"
+        _atomic_json(identity_path, {
+            "schema": "evomind.hpc_container_identity.v1",
+            **identity,
+            "generated_at": _now(),
+        })
+        receipt_path = self.run_dir / "hpc_job_receipt.json"
+        _atomic_json(receipt_path, {
+            "schema": "evomind.hpc_job_receipt.v1",
+            "run_id": _run.run_id,
+            "task_id": "titanic",
+            "job_id": int(self.request.compute_policy.job_id or 0),
+            "cluster": "aimslab",
+            "owner": "workstation_orchestrator",
+            "status": "job_container_verified",
+            "verified": identity.get("job_container_verified") is True,
+            "credential_profile": self.request.compute_policy.credential_profile,
+            "resource_profile": self.request.compute_policy.resource_profile,
+            "execution_backend": self.request.compute_policy.backend,
+            "remote_root": identity.get("remote_root"),
+            "source_artifact": identity_path.name,
+            "source_sha256": _sha256(identity_path),
+            "created_time": _now(),
+        })
         initial_probe = self.runtime.probe()
         initial_probe_path = self.run_dir / "hpc_probe_initial.json"
         _atomic_json(initial_probe_path, initial_probe.to_dict())
@@ -514,6 +577,7 @@ class TitanicExecutors:
             "generated_at": _now(),
         })
         artifacts = [_artifact(path, self.run_dir, kind=kind) for path, kind in (
+            (identity_path, "hpc_container_identity"), (receipt_path, "hpc_job_receipt"),
             (initial_probe_path, "hpc_probe_initial"), (probe_path, "hpc_probe"),
             (runtime_path, "hpc_runtime_environment"), (contract_path, "data_contract"), (setup_path, "setup"),
         )]

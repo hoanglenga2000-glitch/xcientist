@@ -1,0 +1,118 @@
+{
+  "schema": "evomind.mlebench.a800_lane_watch.completion.v1",
+  "created_at": "2026-07-26T09:25:41.244100+08:00",
+  "run_id": "a800_dogs_recovery_s42_parallel32_20260726_090106",
+  "process": "stopped",
+  "summary_status": "passed",
+  "official_grade_count": 1,
+  "official_results": [
+    {
+      "competition_id": "dogs-vs-cats-redux-kernels-edition",
+      "metric": "log_loss",
+      "direction": "minimize",
+      "cv_score": 0.013236528140786913,
+      "mle_private_grader_score": 0.00939,
+      "upstream_report": {
+        "above_median": true,
+        "any_medal": true,
+        "bronze_medal": false,
+        "bronze_threshold": 0.06127,
+        "competition_id": "dogs-vs-cats-redux-kernels-edition",
+        "created_at": "2026-07-26T09:24:13.488200",
+        "gold_medal": true,
+        "gold_threshold": 0.03882,
+        "is_lower_better": true,
+        "median_threshold": 0.12216,
+        "score": 0.00939,
+        "silver_medal": false,
+        "silver_threshold": 0.05038,
+        "submission_exists": true,
+        "submission_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/attempts/attempt_001/submission.csv",
+        "valid_submission": true
+      }
+    }
+  ],
+  "regrade_executed": false,
+  "collection": {
+    "schema": "evomind.mlebench_remote_ops.collection.v1",
+    "created_at": "2026-07-26T01:25:41.242001+00:00",
+    "run_id": "a800_dogs_recovery_s42_parallel32_20260726_090106",
+    "remote_run": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106",
+    "local_root": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106",
+    "include_checkpoints": false,
+    "file_count": 11,
+    "files": [
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/environment.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\environment.json",
+        "bytes": 809,
+        "sha256": "e371436ba06b9c7b0be35b8744f581ebe40c1d205223c405f082432a6a3d1466"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/phase_a_audit.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\phase_a_audit.json",
+        "bytes": 51800,
+        "sha256": "5536bcadc5b080421f98c92ec46e261d7b4ccb361fc5710f70d0b2c00d1eca30"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/results_current.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\results_current.json",
+        "bytes": 491955,
+        "sha256": "54d0e64fdbf0a6b9a41014ed6ae634492897bf0f778c73bef90ec38f28e8f688"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/checkpoint.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\checkpoint.json",
+        "bytes": 325,
+        "sha256": "7c8a50861cd83343894bb13b5a1bad324705b81dafe737134094338e72c01c85"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/summary.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\summary.json",
+        "bytes": 492318,
+        "sha256": "4194093798c7aa9ccf92916388191bcdbe141d92e5787909e83e463115cdbbf8"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/manifest.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\manifest.json",
+        "bytes": 3876,
+        "sha256": "c1e75fbff2577ce5dd47100068fdc6ef1e9d04060ac2e3d9d655d54ca68bb016"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\dogs-vs-cats-redux-kernels-edition\\result.json",
+        "bytes": 433927,
+        "sha256": "ca82661b93db417262c97039f884ef4bc86611ca6ad6d5668a9ee0ab79a8281f"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/attempts/attempt_001/private_grader.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\dogs-vs-cats-redux-kernels-edition\\attempts\\attempt_001\\private_grader.json",
+        "bytes": 12165,
+        "sha256": "827fe3ae39428386402deade31c5a42711170c0f37ee755cb35a16c9aa52a31b"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/attempts/attempt_001/submission.csv",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\dogs-vs-cats-redux-kernels-edition\\attempts\\attempt_001\\submission.csv",
+        "bytes": 62635,
+        "sha256": "df55359a3b306b75815679a36dfe5f89a6fb336df654b83d8bed1a7345eeebdb"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/attempts/attempt_001/submission_validation.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\dogs-vs-cats-redux-kernels-edition\\attempts\\attempt_001\\submission_validation.json",
+        "bytes": 1141,
+        "sha256": "92feedc8e2b7be522df9cb1eb5b5c3bd712e8c032d02a49bc5fa64af730ffb3d"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_dogs_recovery_s42_parallel32_20260726_090106/dogs-vs-cats-redux-kernels-edition/attempts/attempt_001/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_dogs_recovery_s42_parallel32_20260726_090106\\dogs-vs-cats-redux-kernels-edition\\attempts\\attempt_001\\result.json",
+        "bytes": 433927,
+        "sha256": "ca82661b93db417262c97039f884ef4bc86611ca6ad6d5668a9ee0ab79a8281f"
+      }
+    ],
+    "passed": true
+  },
+  "campaign_mutation_performed": false,
+  "campaign_integration_required": true,
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false
+}

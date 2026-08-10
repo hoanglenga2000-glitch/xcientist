@@ -1,10 +1,10 @@
 # Kaggle DPAPI 安全配置就绪报告
 
-- 生成时间：`2026-07-29T10:52:57`
+- 生成时间：`2026-08-10T00:14:48`
 - 总体状态：`passed`
 - Kaggle 官方 token：`configured_dpapi`
 - Kaggle Python package：`2.2.2`
-- Kaggle CLI：`D:\tools\hermes\hermes-agent\venv\Scripts\kaggle.EXE`
+- Kaggle CLI：`D:\tools\hermes\hermes-agent\venv\Scripts\kaggle.exe`
 
 ## 结论
 

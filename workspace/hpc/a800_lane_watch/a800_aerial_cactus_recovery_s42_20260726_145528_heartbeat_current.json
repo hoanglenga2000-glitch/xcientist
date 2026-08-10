@@ -1,0 +1,35 @@
+{
+  "schema": "evomind.mlebench.a800_lane_watch.heartbeat.v1",
+  "created_at": "2026-07-26T14:58:13.889515+08:00",
+  "run_id": "a800_aerial_cactus_recovery_s42_20260726_145528",
+  "process": "stopped",
+  "summary_status": "partial_failure",
+  "summary_passed": 0,
+  "summary_failed": 1,
+  "official_grade_count": 0,
+  "checkpoint": {
+    "completed": {
+      "aerial-cactus-identification": "failed"
+    },
+    "remaining": [],
+    "requested": [
+      "aerial-cactus-identification"
+    ],
+    "run_id": "a800_aerial_cactus_recovery_s42_20260726_145528",
+    "schema": "evomind.mlebench_lite.checkpoint.v1",
+    "updated_at": "2026-07-26T06:57:04.827453+00:00"
+  },
+  "last_log_lines": [
+    "2026-07-26 14:57:04,588 INFO [aerial-cactus-identification] starting attempt=1",
+    "2026-07-26 14:57:04,812 ERROR [aerial-cactus-identification] failed",
+    "Traceback (most recent call last):",
+    "  File \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_remote_ops/releases/63aaaac2a44ae8de406bb04a0eef3ad2b663f7d782227ab24fb52ceb6f5d621f/scripts/run_mlebench_lite_full.py\", line 1824, in main",
+    "    result = RUNNERS[competition_id](args, attempt_dir, logger)",
+    "  File \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_remote_ops/releases/63aaaac2a44ae8de406bb04a0eef3ad2b663f7d782227ab24fb52ceb6f5d621f/scripts/mlebench_medal_recovery_adapters.py\", line 4463, in run_aerial_cactus_convnext",
+    "    raise FileNotFoundError(f\"Aerial Cactus image manifest is incomplete: missing={len(missing)}\")",
+    "FileNotFoundError: Aerial Cactus image manifest is incomplete: missing=17500",
+    "2026-07-26 14:57:04,830 INFO [aerial-cactus-identification] status=failed"
+  ],
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false
+}

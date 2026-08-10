@@ -1,0 +1,141 @@
+{
+  "schema": "evomind.cactus.multiseed_highres_frozen_plan.v1",
+  "created_at": "2026-07-27T15:56:39.748579+08:00",
+  "status": "frozen_waiting_for_ranzcr",
+  "competition_id": "aerial-cactus-identification",
+  "objective": {
+    "metric": "roc_auc",
+    "direction": "maximize",
+    "historical_official_score": 0.99201,
+    "bronze_threshold": 1.0,
+    "single_seed_stop_loss_auc": 0.9995,
+    "multiseed_promotion_auc": 0.9997,
+    "official_score_claimed": false
+  },
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "execution_plan": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/plans/medal_recovery_gpt56_current.json",
+      "bytes": 12961,
+      "sha256": "6ddf45d8a594cdd5df77e011032369b5f74e57405ff6f09cd59633e1ed65e226"
+    }
+  },
+  "execution_target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "process_signals_allowed": false
+  },
+  "serial_dependency": {
+    "status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_ranzcr_highres_s42_20260727/full_ranzcr_status.json",
+    "accepted_verified_terminal_statuses": [
+      "verification_passed",
+      "verification_complete_gate_failed"
+    ]
+  },
+  "training": {
+    "run_prefix": "hpc88240_cactus_convnext384",
+    "seeds": [
+      40,
+      41,
+      42
+    ],
+    "python": "python3",
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/run_mlebench_lite_full.py",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/mlebench_lite_runs",
+    "allowed_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "official_source_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mle-bench",
+    "epochs": 12,
+    "folds": 5,
+    "backbone": "convnext_small",
+    "image_size": 384,
+    "batch_size": 48,
+    "workers": 24,
+    "tta_flips": true,
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "stopping_policy": {
+    "kind": "serial_multiseed_with_public_oof_stop_loss",
+    "per_seed_minimum_auc": 0.9995,
+    "all_seeds_required_before_aggregate": true,
+    "abort_on_missing_bundle": true,
+    "abort_on_non_candidate_result": true
+  },
+  "aggregation": {
+    "method": "equal_weight_probability_mean_across_seeds",
+    "candidate_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/multiseed_candidate",
+    "promotion_auc": 0.9997,
+    "private_labels_used": false
+  },
+  "data_contract": {
+    "file_count": 5,
+    "total_bytes": 19230299,
+    "core": {
+      "train.csv": {
+        "bytes": 552839,
+        "sha256": "47f902f289a1630e5e1b5a8cf2d6e22e6cce480d7b41075cdfdce501890d7b0a"
+      },
+      "sample_submission.csv": {
+        "bytes": 136339,
+        "sha256": "1c85c903c5dd02909cc561bd2ba1db9071104bebdf49237c05a11494dd6b9462"
+      },
+      "train.zip": {
+        "bytes": 15009665,
+        "sha256": "c543a30f517a7865aa6a1820b4e825feef37b04aed12bcdb87eb87c7033eaeda"
+      },
+      "test.zip": {
+        "bytes": 3528345,
+        "sha256": "4a9ff5125b8dbd9c8627820282d0d75b657ef82a8cf397f101d8d9a8be48613f"
+      }
+    },
+    "public_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/aerial-cactus-identification/prepared/public",
+    "private_paths_requested": false
+  },
+  "implementation": {
+    "run_mlebench_lite_full.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/run_mlebench_lite_full.py",
+      "bytes": 96985,
+      "sha256": "115d0d6181cf2f724eb16f2e910979cd729f735a02c7d76cd08d7b2be63849b7"
+    },
+    "run_mlebench_lite_wave0.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43703,
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    "mlebench_wave2_adapters.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    "mlebench_medal_recovery_adapters.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 323017,
+      "sha256": "7da962b0c2b2bfc3b0cb5cb2f64ad11d5dc88c801cdd9a83a480d96b14dd4eb2"
+    },
+    "russian_transliteration.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    "mlebench_phase_a.py": {
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  },
+  "launch_contract": {
+    "gpu_idle_consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10,
+    "process_signals_allowed": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "human_confirmation_required": true
+  },
+  "claim_boundary": "Frozen public-OOF Cactus candidate; not an official medal."
+}

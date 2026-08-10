@@ -92,7 +92,7 @@ def test_real_entrypoint_prefers_current_source_repo_over_global_workspace(
     assert exit_code == 0
     assert payload["certification"]["artifact_path"].startswith(str(repository))
     assert certification_exit == 1
-    assert "capability_certification_result.json" in certification_output
+    assert "capability_certification_result.json" in "".join(certification_output.split())
     assert str(global_workspace) not in certification_output
 
 

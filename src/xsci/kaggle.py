@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+from research_os.hpc_policy import HPCPolicyError, require_hpc_compute
+
 from . import kaggle_menu
 from .config import (
     GLOBAL_DIR as GLOBAL_DIR,
@@ -104,8 +106,8 @@ _PROVIDERS = (
     _Provider("DeepSeek", "OpenAI-compatible chat/planning/code generation.",
               "deepseek", "https://api.deepseek.com", ("deepseek-chat", "deepseek-reasoner")),
     _Provider("OpenAI (GPT)", "OpenAI /v1/chat/completions endpoint.",
-              "deepseek", "https://api.openai.com", ("gpt-4o", "gpt-4o-mini", "gpt-4.1")),
-    _Provider("OpenAI-compatible gateway", "Qwen/Kimi/GLM/vLLM/LM Studio style gateway.", "deepseek", "", ()),
+              "openai", "https://api.openai.com", ("gpt-4o", "gpt-4o-mini", "gpt-4.1")),
+    _Provider("OpenAI-compatible gateway", "Qwen/Kimi/GLM/vLLM/LM Studio style gateway.", "openai", "", ()),
 )
 
 
@@ -188,13 +190,16 @@ def _strong(text: str) -> str:
     return _ansi("97;1", text)
 
 
-def _safe_print(text: str = "", *, end: str = "\n", flush: bool = False) -> None:
+def _safe_print(text: str = "") -> None:
+    from .workspace_agent import _safe_text
+
+    rendered = _safe_text(text, limit=1_000_000)
     try:
-        print(text, end=end, flush=flush)
+        print(rendered)  # lgtm[py/clear-text-logging-sensitive-data] _safe_text redacts credential-bearing values.
     except UnicodeEncodeError:
         encoding = sys.stdout.encoding or "utf-8"
-        safe = str(text).encode(encoding, errors="replace").decode(encoding, errors="replace")
-        print(safe, end=end, flush=flush)
+        safe = rendered.encode(encoding, errors="replace").decode(encoding, errors="replace")
+        print(safe)  # lgtm[py/clear-text-logging-sensitive-data] safe is derived only from redacted rendered text.
 
 
 def logo() -> str:
@@ -220,49 +225,16 @@ def _agent_reply(text: str, *, title: str = "EvoMind") -> None:
             _safe_print(f"  {line}")
 
 
-def _stream_agent_reply(text: str, session: SessionState, *, title: str = "EvoMind") -> str:
-    """Render a direct assistant turn token by token without exposing hidden reasoning."""
-    is_tty = bool(getattr(sys.stdout, "isatty", lambda: False)())
-    _safe_print()
-    _safe_print(
-        _dim("● 正在理解问题...") if is_tty else "正在理解问题...",
-        end="" if is_tty else "\n",
-        flush=True,
-    )
-
-    answer_parts: list[str] = []
-    answer_started = False
-    status_updated = False
-    for event in _conversation().stream_chat(text, session):
-        if event.kind == "thinking_status" and is_tty and not answer_started and not status_updated:
-            _safe_print("\r\033[2K" + _dim("● 正在组织回答..."), end="", flush=True)
-            status_updated = True
-            continue
-        if event.kind != "text_delta" or not event.text:
-            continue
-        if not answer_started:
-            if is_tty:
-                _safe_print("\r\033[2K", end="", flush=True)
-            _safe_print(_strong(title))
-            _safe_print("  ", end="", flush=True)
-            answer_started = True
-        answer_parts.append(event.text)
-        _safe_print(event.text, end="", flush=True)
-
-    if answer_started:
-        _safe_print()
-    else:
-        if is_tty:
-            _safe_print("\r\033[2K", end="", flush=True)
-        _agent_reply("模型连接暂时中断。你的问题已经保留，可以直接重试。", title=title)
-    return "".join(answer_parts).strip()
-
-
 def _has_llm(cfg=None) -> bool:
     cfg = cfg or load_config()
-    return bool(cfg.get("secrets.anthropic_api_key") or cfg.get("secrets.deepseek_api_key")
-                or cfg.get("secrets.openai_api_key") or os.environ.get("ANTHROPIC_API_KEY")
-                or os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("OPENAI_API_KEY"))
+    return bool(
+        cfg.get("secrets.anthropic_api_key")
+        or cfg.get("secrets.deepseek_api_key")
+        or cfg.get("secrets.openai_api_key")
+        or os.environ.get("ANTHROPIC_API_KEY")
+        or os.environ.get("DEEPSEEK_API_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    )
 
 
 def _has_kaggle(cfg=None) -> bool:
@@ -288,6 +260,10 @@ def _infer_compute_override(text: str) -> Optional[str]:
     if any(term in low for term in gpu_terms):
         return "gpu"
     return None
+
+
+def _effective_compute(session: SessionState, compute: Optional[str] = None) -> str:
+    return str(compute or session.compute_backend or "gpu").strip().lower()
 
 
 def _wants_model_status(text: str) -> bool:
@@ -353,13 +329,11 @@ def _model_status_text(session: SessionState) -> str:
     model = str(cfg.get("llm.model") or "")
     if not model:
         family = str(cfg.get("llm.provider") or "").lower()
-        model = (
-            os.environ.get("CLAUDE_CODE_MODEL")
-            if family == "anthropic"
-            else os.environ.get("OPENAI_MODEL")
-            if family == "openai"
-            else os.environ.get("DEEPSEEK_MODEL")
-        ) or "(provider default)"
+        model = {
+            "anthropic": os.environ.get("CLAUDE_CODE_MODEL"),
+            "deepseek": os.environ.get("DEEPSEEK_MODEL"),
+            "openai": os.environ.get("OPENAI_MODEL"),
+        }.get(family) or "(provider default)"
     family = str(cfg.get("llm.provider") or "").lower()
     base_url = cfg.get(f"llm.{family}_base_url") or "(provider default)"
     return "\n".join([
@@ -439,7 +413,7 @@ def _register_task(source: str, root: Optional[Path] = None, force: bool = False
 
 
 def official_main(argv: Optional[list[str]] = None) -> int:
-    args = list(argv or [])
+    args = list(sys.argv[1:] if argv is None else argv)
     if not args or args[0] in {"-h", "--help", "help"}:
         print("Official Kaggle CLI passthrough")
         print("")
@@ -504,128 +478,6 @@ def _run_agent(task: str, root: Optional[Path] = None, *, goal: str = "",
                      event_renderer=StageRenderer(), show_plan=False)
 
 
-def _is_titanic_aibuild_request(intent) -> bool:
-    request = getattr(intent, "request", None)
-    enabled = os.environ.get("EVOMIND_MULTI_AGENT_V1", "1").strip().lower() not in {"0", "false", "off", "no"}
-    if not enabled or request is None or request.dataset != "titanic" or not request.requests_execution:
-        return False
-    required = {"inspect_data", "compare", "train", "review", "report", "candidate_submission"}
-    return required.issubset(request.actions)
-
-
-def _is_llm_finetune_request(intent) -> bool:
-    request = getattr(intent, "request", None)
-    enabled = os.environ.get("EVOMIND_MULTI_AGENT_V1", "1").strip().lower() not in {"0", "false", "off", "no"}
-    return bool(
-        enabled
-        and request is not None
-        and request.task_type == "llm_finetune"
-        and request.requests_execution
-        and request.compute_policy.remote_gpu_required
-        and not request.compute_policy.local_gpu_allowed
-    )
-
-
-def _run_llm_finetune_request(root: Path, session: SessionState, intent) -> int:
-    from research_os.agent.llm_finetune_workflow import run_llm_finetune
-
-    request = intent.request
-    session.selected_task = "evomind-qwen7b-finetune"
-    session.last_goal = request.objective
-    session.current_compute_override = "gpu"
-    session.current_mode = MODE_EXECUTING
-    _agent_reply(
-        "已创建全新的 7B 领域微调 run。Supervisor 将自动准备 EvoMind 文档数据、生成 QLoRA 方案，"
-        "在远程 A40 上训练并交给独立 Reviewer 与 Claim Audit。所有步骤写入同一事件账本；"
-        "本地 GPU 和模型发布保持禁用。",
-        title="EvoMind Supervisor",
-    )
-    try:
-        run = run_llm_finetune(root, request)
-    except Exception as exc:
-        session.last_action = "llm_finetune_failed"
-        _agent_reply(
-            f"LLM fine-tune run stopped before a durable final state: {type(exc).__name__}: {exc}",
-            title="EvoMind needs continuation",
-        )
-        return 1
-    finally:
-        session.current_mode = MODE_CHAT
-    run_dir = root / "workspace" / "evomind_runs" / run.run_id
-    session.last_artifact = str(run_dir)
-    session.last_action = "llm_finetune_completed" if run.status == "completed" else "llm_finetune_needs_continuation"
-    if run.status != "completed":
-        requirements = "\n".join(f"- {item}" for item in run.open_requirements) or "- inspect run.json and failed task events"
-        _agent_reply(
-            f"Run `{run.run_id}` entered `{run.status}`.\n{requirements}\n\nRun directory: `{run_dir}`",
-            title="EvoMind needs continuation",
-        )
-        return 1
-    metrics = json.loads((run_dir / "llm_output" / "metrics.json").read_text(encoding="utf-8"))
-    _agent_reply(
-        "领域微调闭环已完成。\n\n"
-        f"Run: `{run.run_id}`\n"
-        f"Base model: `{metrics['base_model']}`\n"
-        f"Domain composite: `{metrics['before']['domain_composite']:.2f}` -> "
-        f"`{metrics['after']['domain_composite']:.2f}` (`{metrics['improvement_pp']:+.2f}` pp)\n"
-        "Compute: verified NVIDIA A40; local GPU unused\n"
-        "Reviewer: passed\nClaim Audit: passed\nModel publication: blocked\n\n"
-        f"Adapter: `{run_dir / 'llm_output' / 'adapter'}`\n"
-        f"Model card: `{run_dir / 'model_card.md'}`\n"
-        f"Report: `{run_dir / 'research_report.md'}`",
-        title="EvoMind completed",
-    )
-    return 0
-
-
-def _run_titanic_multi_agent_request(root: Path, session: SessionState, intent) -> int:
-    from research_os.agent.titanic_workflow import run_titanic_aibuild
-
-    request = intent.request
-    session.selected_task = "titanic"
-    session.last_goal = request.objective
-    session.current_compute_override = "gpu"
-    session.current_mode = MODE_EXECUTING
-    _agent_reply(
-        "已创建全新的 Titanic Multi-Agent run。Setup、数据审计、3 个 solution repository、"
-        "HPC 执行、独立 Reviewer 和报告将写入同一事件账本；本地 GPU 与 Kaggle 正式提交保持禁用。",
-        title="EvoMind Supervisor",
-    )
-    try:
-        run = run_titanic_aibuild(root, request)
-    except Exception as exc:
-        session.current_mode = MODE_CHAT
-        session.last_action = "multi_agent_failed"
-        _agent_reply(f"Multi-Agent run failed before a durable final state: {type(exc).__name__}: {exc}", title="EvoMind blocked")
-        return 1
-    finally:
-        session.current_mode = MODE_CHAT
-    run_dir = root / "workspace" / "evomind_runs" / run.run_id
-    session.last_artifact = str(run_dir)
-    session.last_action = "multi_agent_completed" if run.status == "completed" else "multi_agent_needs_continuation"
-    if run.status != "completed":
-        requirements = "\n".join(f"- {item}" for item in run.open_requirements) or "- inspect run.json and failed task events"
-        _agent_reply(
-            f"Run `{run.run_id}` entered `{run.status}`.\n{requirements}\n\n"
-            f"Run directory: `{run_dir}`",
-            title="EvoMind needs continuation",
-        )
-        return 1
-    metrics = json.loads((run_dir / "metrics.json").read_text(encoding="utf-8"))
-    _agent_reply(
-        f"完整闭环已完成。\n\n"
-        f"Run: `{run.run_id}`\n"
-        f"Selected: `{metrics['selected_solution']}`\n"
-        f"5-fold CV accuracy: `{metrics['cv_score']:.6f}`（不是 Kaggle 官方成绩）\n"
-        f"Reviewer: passed\n"
-        f"Kaggle submission: blocked by policy/Human Gate\n\n"
-        f"Report: `{run_dir / 'research_report.md'}`\n"
-        f"Candidate submission: `{run_dir / 'submission.csv'}`",
-        title="EvoMind completed",
-    )
-    return 0
-
-
 def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
                             compute: Optional[str] = None) -> int:
     """Autonomous research mode: inspect data → baseline → train → report.
@@ -637,7 +489,7 @@ def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
 
     print()
     print(_strong("EvoMind Autonomous Research Mode"))
-    print(_dim(f"  Task: {task} | Compute: {compute or session.compute_backend}"))
+    print(_dim(f"  Task: {task} | Compute: {_effective_compute(session, compute)}"))
     print()
 
     # Step 1: Inspect task
@@ -651,39 +503,24 @@ def _auto_research_pipeline(task: str, root: Path, session: SessionState, *,
                f"metric={task_info.get('metric')}({task_info.get('metric_direction')})"))
 
     # Step 2: Check data
-    effective_compute = compute or session.compute_backend
+    effective_compute = _effective_compute(session, compute)
     session.current_compute_override = effective_compute
     if effective_compute == "gpu":
         # Data is on remote GPU — check gpu_data_dir config
         gpu_dir = task_info.get("gpu_data_dir", "")
         if not gpu_dir:
-            _agent_reply(
-                f"GPU data directory not configured for {task}. "
-                f"Set gpu_data_dir in the task config.",
-                title="Auto blocked"
-            )
-            return 1
-        print(_dim(f"  Data: GPU remote path={gpu_dir}"))
-    else:
-        data_result = TerminalTools.dispatch("data_check", session, root)
-        if not data_result.get("train_csv"):
-            _agent_reply(
-                f"Training data not found for {task}. "
-                f"Run `evomind download {task}` first.",
-                title="Auto blocked"
-            )
-            return 1
-        print(_dim(f"  Data: train.csv found, test.csv {'found' if data_result.get('test_csv') else 'missing'}"))
+            print(_dim(f"  Data: GPU remote path not configured for {task}; planning remains read-only."))
+        else:
+            print(_dim(f"  Data: GPU remote path={gpu_dir}"))
 
-    # Step 3: Check gates
-    effective_compute = compute or session.compute_backend
+    # Step 3: Record execution gates without suppressing read-only planning.
+    effective_compute = _effective_compute(session, compute)
     blockers = session.blocking_setup(compute_override=effective_compute)
     if blockers:
-        _agent_reply(
-            "Setup needed before autonomous research:\n" + "\n".join(f"- {b}" for b in blockers),
-            title="Auto blocked"
-        )
-        return 1
+        print(_dim(
+            "  Execution gate blocked; planning remains read-only: "
+            + "; ".join(blockers[:3])
+        ))
 
     # Step 4: Ask the scientist decision layer for the next branch/code mode.
     decision_result = TerminalTools.dispatch("research_decision", session, root)
@@ -742,7 +579,7 @@ def _print_preflight_stream(session: SessionState, *, compute: Optional[str], go
     """
     from .terminal_tools import TerminalTools
 
-    effective_compute = compute or session.compute_backend
+    effective_compute = _effective_compute(session, compute)
     renderer = StageRenderer()
     root = Path(session.workspace_root) if session.workspace_root else active_root()
 
@@ -761,7 +598,12 @@ def _print_preflight_stream(session: SessionState, *, compute: Optional[str], go
         return
 
     # Stage 2: Check data
-    effective_compute = compute or session.compute_backend
+    effective_compute = _effective_compute(session, compute)
+    try:
+        require_hpc_compute(effective_compute)
+        policy_error = ""
+    except HPCPolicyError as exc:
+        policy_error = str(exc)
     if effective_compute == "gpu":
         # Data is on remote GPU — check gpu_data_dir config instead
         gpu_dir = task_result.get("gpu_data_dir", "")
@@ -769,12 +611,9 @@ def _print_preflight_stream(session: SessionState, *, compute: Optional[str], go
                            f"GPU remote path={gpu_dir or '(from task config)'}",
                            status="passed" if gpu_dir else "blocked")
     else:
-        data_result = TerminalTools.dispatch("data_check", session, root)
-        data_ok = data_result.get("ok") and data_result.get("train_csv")
         renderer.preflight("Checking data",
-                           f"train.csv={'found' if data_result.get('train_csv') else 'missing'}, "
-                           f"test.csv={'found' if data_result.get('test_csv') else 'missing'}",
-                           status="passed" if data_ok else "blocked")
+                           "not evaluated: local training is disabled",
+                           status="blocked")
 
     # Stage 3: Check config
     model_result = TerminalTools.dispatch("model_status", session, root)
@@ -785,19 +624,21 @@ def _print_preflight_stream(session: SessionState, *, compute: Optional[str], go
                        status="passed" if model_ready else "blocked")
 
     # Stage 4: Select compute
-    if effective_compute == "gpu" and session.gpu_blocked:
+    if policy_error:
+        renderer.preflight("Selecting compute",
+                           f"compute={effective_compute} BLOCKED: {policy_error}",
+                           status="blocked")
+    elif session.gpu_blocked:
         renderer.preflight("Selecting compute",
                            f"compute=gpu BLOCKED: {session.gpu_blocker or session.gpu_status}",
                            status="blocked")
     else:
-        note = ""
-        if effective_compute == "local" and session.compute_backend == "gpu" and session.gpu_blocked:
-            note = " (GPU blocker ignored for local run)"
-        renderer.preflight("Selecting compute", f"compute={effective_compute}{note}",
-                           status="passed")
+        renderer.preflight("Selecting compute", "compute=gpu", status="passed")
 
     # Stage 5: Planning experiment
-    blockers = session.blocking_setup(compute_override=effective_compute)
+    blockers = ([policy_error] if policy_error else []) + session.blocking_setup(
+        compute_override=effective_compute
+    )
     if blockers:
         renderer.preflight("Planning experiment",
                            f"blocked: {', '.join(blockers[:3])}",
@@ -810,12 +651,18 @@ def _print_preflight_stream(session: SessionState, *, compute: Optional[str], go
     # Stage 6: Entering agent
     renderer.preflight("Entering workstation agent",
                        f"compute={effective_compute}, events → events.jsonl, dashboard → :8088",
-                       status="passed")
+                       status="blocked" if blockers else "passed")
 
 
 def _execution_blocker_reply(session: SessionState, *, compute: Optional[str] = None) -> bool:
-    gaps = session.blocking_setup(compute_override=compute)
-    if session.can_execute(compute_override=compute) and not gaps:
+    effective_compute = _effective_compute(session, compute)
+    try:
+        require_hpc_compute(effective_compute)
+    except HPCPolicyError as exc:
+        _agent_reply(str(exc), title="Setup needed")
+        return True
+    gaps = session.blocking_setup(compute_override=effective_compute)
+    if session.can_execute(compute_override=effective_compute) and not gaps:
         return False
     _agent_reply(
         "Setup needed before execution. EvoMind will not start training until every gate below is clear:\n"
@@ -1063,6 +910,38 @@ def _show_scientist_hypothesis_review(session: SessionState, root: Path) -> int:
     return 0 if result.get("ok", True) else 1
 
 
+def _show_scientist_hypothesis_panel(session: SessionState, root: Path) -> int:
+    from .terminal_events import render_scientist_hypothesis_panel_summary
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch("scientist_hypothesis_panel", session, root)
+    _agent_reply("\n".join(render_scientist_hypothesis_panel_summary(result)), title="Scientist hypothesis panel")
+    return 0 if result.get("ok", True) else 1
+
+
+def _show_scientist_release_evidence(session: SessionState, root: Path, tool: str, title: str) -> int:
+    from .terminal_tools import TerminalTools
+
+    result = TerminalTools.dispatch(tool, session, root)
+    lines = [f"[{tool}]", f"status: {result.get('status') or 'unknown'}"]
+    if "verified" in result:
+        lines.append(f"verified: {result.get('verified') is True}")
+    if "active_and_verified" in result:
+        lines.append(f"active_and_verified: {result.get('active_and_verified') is True}")
+    if "parity_claim_allowed" in result:
+        lines.append(f"parity_claim_allowed: {result.get('parity_claim_allowed') is True}")
+    blockers = result.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        lines.append("blockers:")
+        lines.extend(f"  - {item}" for item in blockers[:8])
+    if result.get("reason"):
+        lines.append(f"reason: {result.get('reason')}")
+    if result.get("artifact_path"):
+        lines.append(f"artifact: {result.get('artifact_path')}")
+    _agent_reply("\n".join(lines), title=title)
+    return 0 if result.get("ok", False) else 1
+
+
 def _show_scientist_experiment_blueprint(session: SessionState, root: Path) -> int:
     from .terminal_events import render_scientist_experiment_blueprint_summary
     from .terminal_tools import TerminalTools
@@ -1252,6 +1131,62 @@ def _setup_llm() -> bool:
     return False
 
 
+def _run_llm_finetune_request(root: Path, session: SessionState, intent) -> int:
+    """Run the dedicated governed LLM fine-tuning supervisor."""
+
+    from research_os.agent.llm_finetune_workflow import run_llm_finetune
+
+    request = intent.request
+    session.selected_task = "evomind-qwen7b-finetune"
+    session.last_goal = request.objective
+    session.current_compute_override = "gpu"
+    session.current_mode = MODE_EXECUTING
+    try:
+        run = run_llm_finetune(root, request)
+    except Exception as exc:
+        session.last_action = "llm_finetune_failed"
+        _agent_reply(f"LLM fine-tune run stopped: {type(exc).__name__}: {exc}", title="EvoMind needs continuation")
+        return 1
+    finally:
+        session.current_mode = MODE_CHAT
+    run_dir = root / "workspace" / "evomind_runs" / run.run_id
+    session.last_artifact = str(run_dir)
+    session.last_action = "llm_finetune_completed" if run.status == "completed" else "llm_finetune_needs_continuation"
+    if run.status != "completed":
+        _agent_reply(f"Run `{run.run_id}` entered `{run.status}`.\nRun directory: `{run_dir}`", title="EvoMind needs continuation")
+        return 1
+    _agent_reply(f"领域微调闭环已完成。\nRun: `{run.run_id}`\nReport: `{run_dir / 'research_report.md'}`", title="EvoMind completed")
+    return 0
+
+
+def _run_titanic_multi_agent_request(root: Path, session: SessionState, intent) -> int:
+    """Run the dedicated governed Titanic multi-agent supervisor."""
+
+    from research_os.agent.titanic_workflow import run_titanic_aibuild
+
+    request = intent.request
+    session.selected_task = "titanic"
+    session.last_goal = request.objective
+    session.current_compute_override = "gpu"
+    session.current_mode = MODE_EXECUTING
+    try:
+        run = run_titanic_aibuild(root, request)
+    except Exception as exc:
+        session.last_action = "multi_agent_failed"
+        _agent_reply(f"Multi-Agent run stopped: {type(exc).__name__}: {exc}", title="EvoMind blocked")
+        return 1
+    finally:
+        session.current_mode = MODE_CHAT
+    run_dir = root / "workspace" / "evomind_runs" / run.run_id
+    session.last_artifact = str(run_dir)
+    session.last_action = "multi_agent_completed" if run.status == "completed" else "multi_agent_needs_continuation"
+    if run.status != "completed":
+        _agent_reply(f"Run `{run.run_id}` entered `{run.status}`.\nRun directory: `{run_dir}`", title="EvoMind needs continuation")
+        return 1
+    _agent_reply(f"完整闭环已完成。\nRun: `{run.run_id}`\nReport: `{run_dir / 'research_report.md'}`", title="EvoMind completed")
+    return 0
+
+
 def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int, bool]:
     raw = (line or "").strip()
     if not raw:
@@ -1278,10 +1213,7 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return run_setup(force=True), False
     if verb == "official":
         return official_main(rest), False
-    if verb == "open":
-        from .dashboard import open_dashboard
-        return open_dashboard(), False
-    if verb == "dashboard":
+    if verb in {"dashboard", "open"}:
         return _delegate_xsci(["dashboard", *(rest or ["start"])], root), False
     if verb in {"auto", "autonomous"}:
         task = (rest[0] if rest else None) or session.selected_task
@@ -1425,17 +1357,19 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             print(f"task not found: {task}")
             return 1, False
 
-    intent = classify(stripped)
+    preclassified = classify(stripped)
+    if _wants_model_status(stripped) and preclassified.kind == TOOL_QUERY and preclassified.payload == "model_status":
+        result = TerminalAgent().handle(raw, session, root)
+        _agent_reply(result.summary, title="Model status")
+        session.last_action = result.action
+        return result.rc, False
+
+    intent = preclassified
     # Bug #5: record the turn's action so status/recovery show real history.
     # Specific branches below (TOOL_QUERY, EXECUTION, switch) refine this.
     session.last_action = intent.kind
 
     # ── TOOL_QUERY: lightweight tool calls (no training) ──────────
-    if intent.kind == TOOL_QUERY and intent.payload == "model_status":
-        result = TerminalAgent().handle(raw, session, root)
-        _agent_reply(result.summary, title="Model status")
-        session.last_action = result.action
-        return result.rc, False
     if intent.kind == TOOL_QUERY:
         result = TerminalAgent().handle(raw, session, root)
         _agent_reply(result.summary, title="EvoMind Tool")
@@ -1443,7 +1377,21 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return result.rc, False
 
     if intent.kind == GREETING:
-        _stream_agent_reply(raw, session, title="EvoMind")
+        conversation = _conversation()
+        if hasattr(conversation, "stream_chat"):
+            print("\nEvoMind\n  正在理解问题…")
+            visible: list[str] = []
+            for event in conversation.stream_chat(raw, session):
+                if getattr(event, "kind", "") == "text_delta" and getattr(event, "text", ""):
+                    text = str(event.text)
+                    visible.append(text)
+                    print(text, end="", flush=True)
+            if visible:
+                print()
+            else:
+                _agent_reply(conversation._build_greeting(session), title="EvoMind")
+        else:
+            _agent_reply(conversation._build_greeting(session), title="EvoMind")
         return 0, False
     if intent.kind == STATUS:
         # Delegate to ConversationAgent's richer status report
@@ -1451,7 +1399,9 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         _agent_reply(reply, title="System status")
         return 0, False
     if intent.kind == CAPABILITY:
-        _stream_agent_reply(raw, session, title="EvoMind")
+        with thinking("thinking"):
+            reply = _conversation().capability(session)
+        _agent_reply(reply)
         return 0, False
     if intent.kind == TASK_ADD:
         if not intent.payload:
@@ -1491,14 +1441,9 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         return 0, False
     if intent.kind == EXECUTION:
         session.last_goal = raw
-        # LLM fine-tuning is a first-class Multi-Agent workflow. It never falls
-        # through to a local runner, a Kaggle runner, or a mock GPU path.
-        if _is_llm_finetune_request(intent):
+        if intent.request is not None and intent.request.task_type == "llm_finetune":
             return _run_llm_finetune_request(root, session, intent), False
-        # A complete natural-language Titanic development request is handled by
-        # the unified AIBuild v1 Supervisor. This path creates current_run.json
-        # immediately and never falls back to the legacy local/mock runner.
-        if _is_titanic_aibuild_request(intent):
+        if intent.request is not None and intent.request.dataset == "titanic":
             return _run_titanic_multi_agent_request(root, session, intent), False
         # Bug #2: "切换到 X [开始训练]" classifies as EXECUTION. Switch the task
         # first, then decide whether the same utterance also asked to train.
@@ -1534,7 +1479,7 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
             session.last_action = "training_blocked"
             return 1, False
         compute = _infer_compute_override(raw)
-        session.current_compute_override = compute or session.compute_backend
+        session.current_compute_override = _effective_compute(session, compute)
         resume = (intent.payload == "resume")
         _print_preflight_stream(session, compute=compute, goal=raw)
         if _execution_blocker_reply(session, compute=compute):
@@ -1565,10 +1510,24 @@ def _dispatch_intent(line: str, root: Path, session: SessionState) -> tuple[int,
         session.last_artifact = session.recent_run_id or ""
         return rc, False
 
+    if intent.kind == CHAT:
+        # Ordinary questions are conversational LLM turns.  They must not be
+        # promoted into the Scientist planning pipeline, which writes planning
+        # artifacts and can make a simple explanation look like an execution.
+        session.current_mode = MODE_CHAT
+        with thinking("thinking"):
+            reply = _conversation().chat(raw, session)
+        _agent_reply(reply, title="EvoMind")
+        session.last_action = "chat"
+        return 0, False
+
     session.current_mode = MODE_CHAT
-    _stream_agent_reply(raw, session, title="EvoMind")
-    session.last_action = "chat"
-    return 0, False
+    result = TerminalAgent().handle_scientist_turn(raw, session, root)
+    _agent_reply(result.summary, title="AI Scientist Turn")
+    session.last_action = result.action
+    if result.artifacts:
+        session.last_artifact = result.artifacts[-1]
+    return result.rc, False
 
 
 def _show_innovations(session: SessionState, root: Path) -> int:
@@ -1676,6 +1635,7 @@ def _print_console_help(selected_task: Optional[str]) -> None:
     print("  memory-consolidate       write Scientist lessons into retrospective memory")
     print("  innovate-plan            generate memory-guided proposal backlog before training")
     print("  review-hypotheses        rank proposed research hypotheses before training")
+    print("  hypothesis-panel         parallel specialist hypotheses + independent criticism")
     print("  blueprint                generate gated experiment blueprint from reviewed hypothesis")
     print("  innovation-feedback      write hypothesis/blueprint gate outcome into innovation memory")
     print("  situation                synthesize evidence, blockers, uncertainty, strategy, and memory")
@@ -1762,20 +1722,12 @@ def _print_help() -> None:
     print("Usage:")
     print("  evomind                     enter the EvoMind research terminal")
     print("  evomind setup               first-run setup wizard")
-    print("  evomind open                open a fresh authenticated local workstation session")
     print("  evomind ready               show terminal/model/Kaggle/GPU readiness")
     print("  evomind status              same as ready")
     print("  evomind competitions [q]    browse/search Kaggle competitions")
     print("  evomind task add <url>      register a Kaggle/MLE-Bench task")
     print("  evomind download <task>     download competition data")
-    print("  evomind agent <task>        open the legacy competition agent for a task slug")
-    print("  evomind agent \"goal\"      create a persistent general-agent session")
-    print("  evomind resume <session>    resume from the durable runtime checkpoint")
-    print("  evomind sessions            list persistent runtime sessions")
-    print("  evomind approvals           list or decide exact-parameter approvals")
-    print("  evomind tools               list unified runtime tools and schemas")
-    print("  evomind benchmark           show the 60-task parity gate")
-    print("  evomind doctor              probe runtime, browser, and desktop adapters")
+    print("  evomind agent <task>        open the deep research agent on a task")
     print("  evomind ask \"goal\"          run one auditable AI Scientist turn")
     print("  evomind turn \"goal\"         alias for `evomind ask`")
     print("  evomind run <task>          run the audited evolution loop")
@@ -1789,6 +1741,10 @@ def _print_help() -> None:
     print("  evomind briefing            build per-turn Scientist context packet")
     print("  evomind upgrade-plan        convert self-audit backlog into engineering plan")
     print("  evomind self-upgrade        create a safe work order for the next P0 capability upgrade")
+    print("  evomind upgrade-campaign    status/init/run/promote/rollback immutable candidate campaigns")
+    print("  evomind certification-status verify the anchored external hidden-suite certificate")
+    print("  evomind certification-install import a result using an explicit out-of-band SHA-256")
+    print("  evomind parity-status       require both certification and an active verified campaign")
     print("  evomind patch-order         create a code-agent patch work order from latest evidence")
     print("  evomind engineer            validate the latest patch in an isolated Git worktree")
     print("  evomind engineer --generate ask Code Agent for a diff, validate it, and stop before merge")
@@ -1798,6 +1754,7 @@ def _print_help() -> None:
     print("  evomind memory-consolidate  write Scientist lessons into retrospective memory")
     print("  evomind innovate-plan       generate memory-guided proposal backlog before training")
     print("  evomind review-hypotheses   rank proposed hypotheses against evidence/gates")
+    print("  evomind hypothesis-panel    run parallel specialist generation and independent critics")
     print("  evomind blueprint           turn reviewed hypothesis into gated experiment plan")
     print("  evomind innovation-feedback record gate feedback into innovation memory")
     print("  evomind situation           synthesize the current AI Scientist situation model")
@@ -1834,30 +1791,31 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"-h", "--help", "help"}:
         _print_help()
         return 0
+    if cmd == "open":
+        from .dashboard import open_dashboard
+
+        if len(argv) == 1:
+            return open_dashboard()
+        parser = argparse.ArgumentParser(prog="evomind open", description="Open an authenticated local EvoMind workstation session.")
+        parser.add_argument("--port", type=int, default=8088)
+        parser.add_argument("--timeout", type=float, default=90.0)
+        parser.add_argument("--build", action="store_true")
+        try:
+            args = parser.parse_args(argv[1:])
+        except SystemExit as exc:
+            return int(exc.code or 0)
+        return open_dashboard(port=args.port, timeout=args.timeout, build=args.build)
     if cmd in {"ready", "status"}:
         _print_readiness(root)
         return 0
     if cmd in {"setup", "configure", "--setup"}:
         return run_setup(force=True)
-    if cmd == "open":
-        from .dashboard import open_dashboard
-        return open_dashboard()
     if cmd == "official":
         return official_main(argv[1:])
     if cmd == "agent":
         if not argv[1:]:
             return run_console(root)
-        # Preserve the established competition-agent contract for
-        # ``evomind agent <task> [goal ...]``.  A quoted free-form objective is
-        # received as one argument containing spaces and is intentionally
-        # routed to the persistent general-agent runtime below.
-        if " " not in argv[1] and argv[1].replace("-", "").replace("_", "").isalnum():
-            return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
-        from evomind_runtime.cli import run_cli
-        return run_cli(argv, root)
-    if cmd in {"resume", "sessions", "approvals", "tools", "benchmark", "doctor", "runtime-server"}:
-        from evomind_runtime.cli import run_cli
-        return run_cli(argv, root)
+        return _run_agent(argv[1], root, goal=" ".join(argv[2:]))
     if cmd in {"workspace", "code-workspace"}:
         return _run_workspace_command(argv[1:], root)
     if cmd in {"benchmark-agent", "agent-benchmark"}:
@@ -1886,6 +1844,16 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"review-hypotheses", "hypothesis-review", "rank-hypotheses", "critique"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_hypothesis_review(session, root)
+    if cmd in {"hypothesis-panel", "research-panel", "parallel-hypotheses", "multi-agent-hypotheses"}:
+        cfg = load_config(root)
+        # Direct CLI aliases bypass ``run_console``, so hydrate the provider
+        # environment here before the panel creates its six fresh clients.
+        # Without this, securely stored credentials are invisible and a fully
+        # configured installation silently degrades to deterministic fallback.
+        inject_engine_env(cfg)
+        session = SessionState.from_root(root, cfg=cfg)
+        session.last_goal = " ".join(argv[1:]).strip() or session.last_goal
+        return _show_scientist_hypothesis_panel(session, root)
     if cmd in {"blueprint", "experiment-blueprint", "plan-experiment", "candidate-blueprint"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_experiment_blueprint(session, root)
@@ -1931,6 +1899,30 @@ def _dispatch(argv: list[str], root: Path) -> int:
     if cmd in {"self-upgrade", "self-upgrade-loop", "upgrade-loop", "capability-loop"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_self_upgrade_loop(session, root)
+    if cmd in {"upgrade-campaign", "candidate-campaign", "promotion-campaign"}:
+        from .scientist_upgrade_gateway import run_upgrade_campaign_cli
+
+        return run_upgrade_campaign_cli(argv[1:], root)
+    if cmd in {"certification-status", "capability-certification", "external-certification"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_release_evidence(
+            session,
+            root,
+            "scientist_capability_certification",
+            "External capability certification",
+        )
+    if cmd in {"certification-install", "install-certification"}:
+        from .scientist_upgrade_gateway import run_certification_install_cli
+
+        return run_certification_install_cli(argv[1:], root)
+    if cmd in {"parity-status", "research-parity", "parity-gate"}:
+        session = SessionState.from_root(root, cfg=load_config(root))
+        return _show_scientist_release_evidence(
+            session,
+            root,
+            "scientist_research_parity_gate",
+            "Research parity gate",
+        )
     if cmd in {"patch-order", "patch-work-order", "repair-order", "code-patch", "code-work-order"}:
         session = SessionState.from_root(root, cfg=load_config(root))
         return _show_scientist_patch_work_order(session, root)
@@ -1986,9 +1978,9 @@ def _dispatch(argv: list[str], root: Path) -> int:
                 return 1
             session = SessionState.from_root(root, cfg=load_config(root))
             session.selected_task = task
-            session.refresh_recent_run(root)
-            session.refresh_task_brief(root)
             session.last_action = "task_use"
+            session.last_artifact = task
+            session.refresh_task_brief(root)
             session.persist(root)
             print(f"selected task: {task}")
             return 0
@@ -2011,7 +2003,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
     parser.add_argument("--help", "-h", action="store_true")
     parser.add_argument("--json", action="store_true")
     parser.add_argument("--show-diff", action="store_true")
-    parser.add_argument("--provider", choices=("anthropic", "deepseek"), default="")
+    parser.add_argument("--provider", choices=("anthropic", "deepseek", "openai"), default="")
     parser.add_argument("--root", default="")
     parser.add_argument("--allow", "--allow-path", dest="allowed_paths", action="append", default=[])
     parser.add_argument("--check", dest="checks", action="append", default=[])
@@ -2027,7 +2019,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
 
     if args.help:
         print("Usage: evomind workspace [options] <goal>")
-        print("  --provider anthropic|deepseek  use only the selected configured provider")
+        print("  --provider anthropic|deepseek|openai  use only the selected configured provider")
         print("  --allow PATH                   restrict edits to a path; repeat as needed")
         print("  --check CMD                    allow and require a test/check command")
         print("  --max-steps N                  bounded model/tool decisions (1-40)")
@@ -2075,7 +2067,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
     with _provider_selection(args.provider):
         from research_os.agent.messaging import AgentMessageClient
 
-        from .workspace_agent import WorkspaceAgentLimits, run_workspace_agent
+        from .workspace_agent import WorkspaceAgentLimits, run_workspace_agent, sanitize_workspace_result
 
         client = AgentMessageClient(max_retries=1, timeout=min(120, timeout_seconds))
         if not client.is_available():
@@ -2098,6 +2090,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
                 acceptance_commands=checks,
                 allowed_edit_paths=allowed_paths,
                 require_post_patch_read=True,
+                allow_dynamic_behavioral_tests=False,
                 limits=WorkspaceAgentLimits(
                     max_steps=max_steps,
                     command_timeout_seconds=min(120, timeout_seconds),
@@ -2109,6 +2102,7 @@ def _run_workspace_command(argv: list[str], state_root: Path) -> int:
     payload.setdefault("workspace_root", str(workspace_root))
     payload.setdefault("goal", goal)
     payload.setdefault("requested_provider", args.provider or "configured_default")
+    payload = sanitize_workspace_result(payload)
     if args.json:
         _safe_print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
@@ -2139,7 +2133,7 @@ def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
     parser = _CliArgumentParser(prog="evomind benchmark-agent", add_help=False)
     parser.add_argument("--help", "-h", action="store_true")
     parser.add_argument("--json", action="store_true")
-    parser.add_argument("--provider", choices=("anthropic", "deepseek"), default="")
+    parser.add_argument("--provider", choices=("anthropic", "deepseek", "openai"), default="")
     parser.add_argument("--case", dest="case_ids", action="append", default=[])
     parser.add_argument("--all", action="store_true")
     parser.add_argument("--seed", type=int, default=20260711)
@@ -2155,7 +2149,7 @@ def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
         print("Usage: evomind benchmark-agent [options]")
         print("  --case ID                      run one public task id; repeat as needed")
         print("  --all                          run the full 12-case hidden-oracle suite")
-        print("  --provider anthropic|deepseek  use only the selected configured provider")
+        print("  --provider anthropic|deepseek|openai  use only the selected configured provider")
         print("  --timeout SECONDS              hard child-process budget per case")
         print("  --seed N                       deterministic fixture seed")
         print("  --json                         machine-readable report")
@@ -2170,7 +2164,7 @@ def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
     cfg = load_config(state_root)
     inject_engine_env(cfg)
     selected_provider = str(args.provider or cfg.get("llm.provider") or "").strip().lower()
-    if selected_provider not in {"anthropic", "deepseek"}:
+    if selected_provider not in {"anthropic", "deepseek", "openai"}:
         selected_provider = ""
     with _provider_selection(selected_provider):
         from .agentic_capability_benchmark import run_workspace_agent_benchmark
@@ -2216,10 +2210,12 @@ def _run_benchmark_agent_command(argv: list[str], state_root: Path) -> int:
 
 
 def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
-    """Run one non-interactive natural-language turn from the command line.
+    """Run one non-interactive AI Scientist turn from the command line.
 
-    Chat stays direct, research uses the Scientist path, and explicit execution
-    uses the same Supervisor route as the interactive terminal and UI.
+    This gives installed users a Claude-Code-like one-shot command:
+    `evomind ask "inspect the current task and tell me the next safe step"`.
+    It deliberately reuses the safe Scientist Turn path, so it writes evidence
+    artifacts and stops before training, downloads, or official submission.
     """
     args = list(argv)
     json_mode = False
@@ -2258,69 +2254,15 @@ def _run_scientist_turn_command(argv: list[str], root: Path) -> int:
     inject_engine_env(cfg)
     session = SessionState.from_root(root, cfg=cfg)
     intent = classify(prompt)
-    if intent.kind in {CHAT, GREETING, CAPABILITY}:
-        if json_mode:
-            answer = _conversation().chat(prompt, session)
-        else:
-            answer_parts: list[str] = []
-            for event in _conversation().stream_chat(prompt, session):
-                if event.kind == "text_delta" and event.text:
-                    answer_parts.append(event.text)
-                    _safe_print(event.text, end="", flush=True)
-            answer = "".join(answer_parts).strip()
-            _safe_print("")
-        session.last_action = "chat"
-        session.last_goal = prompt
-        session.persist(root)
-        if json_mode:
-            _safe_print(json.dumps({
-                "ok": True,
-                "action": "chat",
-                "selected_task": session.selected_task or "",
-                "summary": answer,
-                "artifacts": [],
-                "blocked": False,
-            }, ensure_ascii=False, indent=2))
-        return 0
-
-    if intent.kind == EXECUTION:
-        captured = io.StringIO()
-        output_context = contextlib.redirect_stdout(captured) if json_mode else contextlib.nullcontext()
-        with output_context:
-            rc, _should_exit = _dispatch_intent(prompt, root, session)
-        session.persist(root)
-        if json_mode:
-            from research_os.agent.aibuild_v1 import read_current_run_pointer
-
-            pointer = read_current_run_pointer(root) or {}
-            run_payload = {}
-            run_dir_value = pointer.get("run_dir")
-            if run_dir_value:
-                run_path = root / str(run_dir_value) / "run.json"
-                if run_path.is_file():
-                    with contextlib.suppress(OSError, json.JSONDecodeError):
-                        run_payload = json.loads(run_path.read_text(encoding="utf-8"))
-            task_graph = list((run_payload.get("tasks") or {}).values())
-            active_agents = sorted({
-                str(item.get("role") or "")
-                for item in task_graph
-                if item.get("status") == "running" and item.get("role")
-            })
-            _safe_print(json.dumps({
-                "ok": rc == 0,
-                "action": "multi_agent_execution",
-                "task_id": pointer.get("task_id") or "",
-                "run_id": pointer.get("run_id") or "",
-                "status": run_payload.get("status") or "unknown",
-                "seq": int(run_payload.get("seq") or 0),
-                "task_graph": task_graph,
-                "active_agents": active_agents,
-                "open_requirements": run_payload.get("open_requirements") or [],
-                "next_action": run_payload.get("next_action") or "",
-                "transcript": captured.getvalue(),
-            }, ensure_ascii=False, indent=2))
-        return rc
-
+    if intent.kind == EXECUTION and intent.request is not None:
+        if intent.request.task_type == "llm_finetune":
+            rc = _run_llm_finetune_request(root, session, intent)
+            session.persist(root)
+            return rc
+        if intent.request.dataset == "titanic":
+            rc = _run_titanic_multi_agent_request(root, session, intent)
+            session.persist(root)
+            return rc
     if json_mode:
         with contextlib.redirect_stdout(io.StringIO()):
             result = TerminalAgent().handle_scientist_turn(prompt, session, root, max_tools=max_tools)
@@ -2426,23 +2368,23 @@ def run_setup(*, force: bool = False, reason: str = "") -> int:
     print("    3. OpenAI (GPT) - /v1/chat/completions endpoint")
     choice = _safe_input("Select provider [1-3]", "1")
     if choice == "1":
-        key = _safe_input("Anthropic API key (sk-ant-...)")
+        key = getpass.getpass("  Anthropic API key (hidden)> ").strip()
         if key:
             save_llm_credentials("anthropic", api_key=key)
             set_global("llm", "provider", "anthropic")
             print("  saved Anthropic API key to secure storage")
     elif choice == "2":
-        key = _safe_input("DeepSeek API key (sk-...)")
+        key = getpass.getpass("  DeepSeek API key (hidden)> ").strip()
         if key:
             save_llm_credentials("deepseek", api_key=key)
             set_global("llm", "provider", "deepseek")
             print("  saved DeepSeek API key to secure storage")
     elif choice == "3":
-        key = _safe_input("OpenAI API key (sk-...)")
+        key = getpass.getpass("  OpenAI API key (hidden)> ").strip()
         if key:
-            save_llm_credentials("deepseek", api_key=key)
-            set_global("llm", "provider", "deepseek")
-            print("  saved OpenAI API key (routed as DeepSeek-compatible)")
+            save_llm_credentials("openai", api_key=key)
+            set_global("llm", "provider", "openai")
+            print("  saved OpenAI API key to secure storage")
     else:
         print("  skipped - you can configure later with `evomind setup`")
 
@@ -2454,16 +2396,12 @@ def run_setup(*, force: bool = False, reason: str = "") -> int:
             save_kaggle_api_token(token)
             print("  saved Kaggle API token")
     else:
-        print("  skipped - local/offline tasks still work.")
+        print("  skipped - read-only/offline inspection remains available.")
 
     # Step 3: Compute
-    _setup_step(3, "Compute backend", "Choose local for small tests, or gpu for SSH/HPC execution.")
-    compute = _safe_input("Default compute backend: local/gpu", "local").lower()
-    if compute in {"local", "gpu"}:
-        set_global("compute", "backend", compute)
-        print(f"  set compute backend to {compute}")
-    else:
-        print("  using default: local")
+    _setup_step(3, "Compute backend", "Release builds use the gated SSH/HPC GPU runtime.")
+    set_global("compute", "backend", "gpu")
+    print("  set compute backend to gpu (HPC-only release policy)")
 
     mark_onboarded()
     print()

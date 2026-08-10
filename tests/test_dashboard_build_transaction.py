@@ -89,6 +89,30 @@ def test_dashboard_env_binds_loopback_gateway_to_its_own_key(
 
     assert env["OPENAI_API_KEY"] == "local-gateway-key"
     assert env["EVOLUTION_PRIMARY_PROVIDER"] == "openai"
+    assert env["EVOLUTION_PROVIDER_STRICT"] == "true"
+    assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:65068/v1"
+    assert env["OPENAI_MODEL"] == "gpt-5.6-sol"
+
+
+def test_dashboard_env_overrides_unrelated_parent_model_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load_manager("dashboard_overrides_parent_model_route")
+    gateway = tmp_path / "gateway.json"
+    gateway.write_text(json.dumps({"api-keys": ["local-gateway-key"]}), encoding="utf-8")
+    monkeypatch.setenv("EVOMIND_LOCAL_GATEWAY_CONFIG", str(gateway))
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://unrelated.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "unrelated-model")
+    monkeypatch.setenv("EVOLUTION_PRIMARY_PROVIDER", "unrelated-provider")
+    monkeypatch.delenv("EVOLUTION_PROVIDER_STRICT", raising=False)
+
+    env = manager.dashboard_env("127.0.0.1", 18088)
+
+    assert env["OPENAI_API_KEY"] == "local-gateway-key"
+    assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:65068/v1"
+    assert env["OPENAI_MODEL"] == "gpt-5.6-sol"
+    assert env["EVOLUTION_PRIMARY_PROVIDER"] == "openai"
+    assert env["EVOLUTION_PROVIDER_STRICT"] == "true"
 
 
 def test_dashboard_env_uses_the_installed_interactive_gateway_profile(

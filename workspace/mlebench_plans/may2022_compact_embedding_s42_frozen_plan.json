@@ -1,0 +1,155 @@
+{
+  "schema": "evomind.mlebench.may2022_compact_embedding_plan.v1",
+  "created_at": "2026-07-27T03:35:27.513715+08:00",
+  "status": "frozen_before_training",
+  "competition_id": "tabular-playground-series-may-2022",
+  "objective": "Recover one official MLE-Bench Lite medal with fold-safe public-data training.",
+  "planner": {
+    "provider": "openai",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "gateway_evidence": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\gpt56_gateway_live_current.json",
+    "gateway_evidence_sha256": "26d111a5ec6529e00b925b5f90c584642c50222af8774bb47922c0b49e57636b",
+    "adaptive_controller_evidence": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_loop_current.json",
+    "adaptive_controller_evidence_sha256": "927948033c612e136d018d2baf2f45c0d174c9c44678a2c8094b8f2dfbc9e363",
+    "native_tool_calls": 9,
+    "validation_errors": []
+  },
+  "source_review": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+    "sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce",
+    "confirmed_defect_repaired": "Outer validation is excluded from epoch selection; a fresh fixed-budget outer refit produces OOF."
+  },
+  "failed_postprocessing_diagnostic": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_oof_meta_stacker_diagnostic_current.json",
+    "sha256": "279b9e4f7540aeeb46c009efacc095f382bef843b71912e8d8430883448f363f",
+    "route": "new_fold_safe_base_model"
+  },
+  "runner_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_may2022_compact_embedding_oof.py",
+  "runner_sha256": "dec3298b1d62aba79fed2001f5bf7a3b199efbbf45ba433102db647b118876cd",
+  "cuda_smoke": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_compact_embedding_cuda_smoke_current.json",
+    "sha256": "35e41b5eabee6c3303a008931d4773eb4ee4d0344081cf9ccfe0e4e602629b02",
+    "gpu_name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "batch_size": 8192,
+    "parameters": 2424641,
+    "forward_backward_step": true
+  },
+  "public_input_sha256": {
+    "train": "f0940d6a4c3536752bdc3ba99251fc3020662ea43b28dfad520d810b3cde5514",
+    "test": "6e758d247d1212a0b31733f751b9ce3f97e4704687294e11aa4290bbab0131ec",
+    "sample": "9f557b7177f5983dedabfc538aea050561bb4e4a362bfe4a35040959c26a6f6a"
+  },
+  "seed": 42,
+  "folds": 5,
+  "architecture": {
+    "name": "compact_position_embedding_residual_mlp",
+    "numeric_feature_count": 60,
+    "character_positions": 10,
+    "character_cardinality": 20,
+    "embedding_dim": 8,
+    "width": 384,
+    "blocks": 4,
+    "dropout": 0.05,
+    "parameters_at_smoke": 2424641
+  },
+  "training": {
+    "inner_validation_fraction": 0.1,
+    "max_selection_epochs": 16,
+    "patience": 3,
+    "batch_size": 8192,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0002,
+    "optimizer": "AdamW",
+    "scheduler": "cosine_with_fixed_16_epoch_horizon",
+    "gradient_clip_norm": 5.0,
+    "mixed_precision": "bfloat16_when_supported_else_float16",
+    "epoch_selection": "inner_split_only",
+    "outer_refit": "fresh_model_on_all_outer_fit_rows_for_selected_fixed_epoch",
+    "outer_validation_used_for_epoch_selection": false
+  },
+  "feature_contract": {
+    "numeric_source_columns": 30,
+    "learned_target_or_frequency_encoders": 0,
+    "f27_ordinal_distance_features": 0,
+    "f27_position_specific_embeddings": true,
+    "f27_letter_counts": 20,
+    "string_statistics": 4,
+    "continuous_published_interactions": 3,
+    "signed_published_interactions": 3,
+    "fold_local_standardization": true
+  },
+  "gates": {
+    "aggregate_oof_auc": 0.9985,
+    "every_fold_oof_auc": 0.99818,
+    "confirmation_seeds": [
+      42,
+      43,
+      44
+    ],
+    "exact_deployment_oof_only": true,
+    "single_seed_is_not_promotion": true
+  },
+  "resume_contract": {
+    "unit": "completed_outer_fold",
+    "input_hash_locked": true,
+    "plan_hash_locked": true,
+    "validation_indices_locked": true,
+    "test_rows_locked": true
+  },
+  "resource_policy": {
+    "device": "local RTX 4060",
+    "single_gpu_serial": true,
+    "may_run_only_after_existing_queue_prerequisites": true,
+    "process_signals_allowed": 0
+  },
+  "private_labels_allowed": false,
+  "official_grader_enabled": false,
+  "kaggle_submission_enabled": false,
+  "human_gate_required": true,
+  "claim_boundary": "Public OOF evidence is not an official medal.",
+  "execution": {
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\scripts\\run_may2022_compact_embedding_oof.py",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\tabular-playground-series-may-2022\\prepared\\public",
+    "data_report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\tabular-playground-series-may-2022\\public_staging_report.json",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_compact_embedding",
+    "run_id": "local4060_may2022_compactemb_s42_20260727_0335",
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_max_utilization_percent": 50,
+    "single_gpu_strict_serial": true,
+    "process_signals_allowed": false,
+    "automatic_kaggle_submission": false,
+    "official_private_grader_before_gate": false,
+    "serial_dependency": {
+      "competition_id": "spooky-author-identification",
+      "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+      "report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\summary.json",
+      "terminal_statuses": [
+        "single_seed_gate_passed_confirmation_pending",
+        "single_seed_gate_failed"
+      ],
+      "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+      "plan_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb"
+    },
+    "gpu_idle_gate_mode": "calibrated_wddm_multimetric_v1",
+    "gpu_idle_minimum_check_interval_seconds": 10,
+    "idle_gate_policy": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1"
+    }
+  },
+  "operational_revision": {
+    "created_at": "2026-07-27T07:05:29.990853+08:00",
+    "reason": "Replace the known-false-busy WDDM utilization-only <=20 gate with the frozen multi-metric calibrated RTX 4060 idle policy before training.",
+    "prior_plan_sha256": "15eb11d54159536b427bc09b8bcc90c08b9e1817f55971bd3682bef612d27de3",
+    "model_data_folds_optimizer_and_promotion_thresholds_changed": false,
+    "queue_script": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_may2022_after_spooky.py",
+    "queue_script_sha256": "485a2c5a045561cd048a969db0c53eaf6994708e108952f682a73fbca21f24c5",
+    "idle_gate_policy": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+    "idle_gate_policy_sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1",
+    "legacy_gate_classification": "persistent_false_busy_on_WDDM",
+    "process_signals_sent": 0,
+    "training_started_before_revision": false
+  }
+}

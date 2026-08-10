@@ -58,6 +58,51 @@ def test_not_configured_is_truthful_tooling_only_state() -> None:
     assert report["authenticated"] is False
 
 
+def test_local_status_probe_preserves_fresh_authenticated_evidence(tmp_path: Path) -> None:
+    status = _manager_status(installed=True, credential_path=str(tmp_path / "kaggle_api_token.xml"))
+    candidate = readiness.build_report(status)
+    candidate["credential_path"] = status["credential_path"]
+    authenticated = readiness.build_report(
+        status,
+        real_smoke={"status": "passed", "real_external_called": True},
+    )
+    authenticated["credential_path"] = status["credential_path"]
+
+    selected = readiness.preserve_fresh_authenticated_evidence(
+        candidate,
+        authenticated,
+        existing_age_seconds=60,
+    )
+
+    assert selected is authenticated
+    assert selected["credential_status"] == "authenticated_real_api"
+
+
+def test_local_status_probe_does_not_preserve_stale_or_removed_credentials(tmp_path: Path) -> None:
+    status = _manager_status(installed=True, credential_path=str(tmp_path / "kaggle_api_token.xml"))
+    candidate = readiness.build_report(status)
+    candidate["credential_path"] = status["credential_path"]
+    authenticated = readiness.build_report(
+        status,
+        real_smoke={"status": "passed", "real_external_called": True},
+    )
+    authenticated["credential_path"] = status["credential_path"]
+
+    stale = readiness.preserve_fresh_authenticated_evidence(
+        candidate,
+        authenticated,
+        existing_age_seconds=readiness.STRONG_EVIDENCE_MAX_AGE_SECONDS + 1,
+    )
+    removed = readiness.preserve_fresh_authenticated_evidence(
+        readiness.build_report(_manager_status(installed=False)),
+        authenticated,
+        existing_age_seconds=60,
+    )
+
+    assert stale is candidate
+    assert removed["credential_status"] == "not_configured"
+
+
 def test_manager_parse_failure_is_not_a_configured_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
     completed = SimpleNamespace(returncode=0, stdout=b"not-json", stderr=b"")
     monkeypatch.setattr(subprocess, "run", lambda *args, **kwargs: completed)

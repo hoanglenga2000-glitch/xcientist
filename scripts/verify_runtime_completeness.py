@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
-
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -30,15 +30,33 @@ def fail(message: str) -> None:
     raise SystemExit(f"RUNTIME_COMPLETENESS_FAILED: {message}")
 
 
+def configured_experiment_root() -> Path:
+    evidence_root = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    default = Path(evidence_root) / "experiments" if evidence_root else ROOT / "experiments"
+    configured = Path(os.environ.get("RESEARCH_EXPERIMENT_ROOT", default))
+    return (configured if configured.is_absolute() else ROOT / configured).resolve()
+
+
+def display_run_path(run_dir: Path) -> str:
+    resolved = run_dir.resolve()
+    root = ROOT.resolve()
+    if resolved.is_relative_to(root):
+        return resolved.relative_to(root).as_posix()
+    experiment_root = configured_experiment_root()
+    if resolved.is_relative_to(experiment_root):
+        return f"runtime/experiments/{resolved.relative_to(experiment_root).as_posix()}"
+    return "runtime/experiments/external-run"
+
+
 def read_json(path: Path) -> Any:
     if not path.exists() or path.stat().st_size == 0:
-        fail(f"missing or empty file: {path}")
+        fail(f"missing or empty runtime file: {path.name}")
     return json.loads(path.read_text(encoding="utf-8"))
 
 
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists() or path.stat().st_size == 0:
-        fail(f"missing or empty file: {path}")
+        fail(f"missing or empty runtime file: {path.name}")
     rows: list[dict[str, Any]] = []
     for line in path.read_text(encoding="utf-8").splitlines():
         if line.strip():
@@ -47,8 +65,11 @@ def read_jsonl(path: Path) -> list[dict[str, Any]]:
 
 
 def latest_run(task_id: str) -> Path:
-    task_root = ROOT / "experiments" / task_id
-    runs = sorted(path for path in task_root.iterdir() if path.is_dir())
+    task_root = configured_experiment_root() / task_id
+    try:
+        runs = sorted(path for path in task_root.iterdir() if path.is_dir())
+    except OSError as error:
+        raise SystemExit(f"RUNTIME_COMPLETENESS_FAILED: experiment root unavailable for task {task_id!r}") from error
     if not runs:
         fail(f"no experiment runs found for {task_id}")
     for run_dir in reversed(runs):
@@ -62,7 +83,7 @@ def verify_task(task_id: str) -> dict[str, Any]:
     for name in REQUIRED_RUNTIME_FILES:
         path = run_dir / name
         if not path.exists() or path.stat().st_size == 0:
-            fail(f"{task_id} missing runtime artifact: {path}")
+            fail(f"{task_id} missing runtime artifact: {name}")
 
     trace = read_jsonl(run_dir / "agent_trace.jsonl")
     events = read_jsonl(run_dir / "event_log.jsonl")
@@ -107,7 +128,7 @@ def verify_task(task_id: str) -> dict[str, Any]:
 
     return {
         "task_id": task_id,
-        "run_dir": str(run_dir.relative_to(ROOT)),
+        "run_dir": display_run_path(run_dir),
         "trace_count": len(trace),
         "event_count": len(events),
         "artifact_count": len(manifest.get("artifacts", [])),

@@ -101,7 +101,7 @@ def test_windows_dpapi_auth_is_used_when_plain_host_metadata_was_injected(monkey
         host="dpapi-current-host",
         port=2200,
         username="dpapi-current-user",
-        password="in-memory-only",
+        password="test-in-memory-only",
     )
     calls = []
 
@@ -633,7 +633,7 @@ def test_same_connection_job_container_identity_gate_is_read_only():
         host=gpu_credentials.HPC_SSH_GATEWAY_HOST,
         port=gpu_credentials.HPC_SSH_GATEWAY_PORT,
         username="fixture",
-        password="secret",
+        password="test-secret",
         socks=gpu_credentials.SocksConfig("127.0.0.1", 17897),
         known_hosts_path="fixture",
         credential_profile="job90353",

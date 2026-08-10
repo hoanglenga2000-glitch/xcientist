@@ -1,19 +1,21 @@
 # 科研 Agent 工作站上线资源就绪审计
 
-- 生成时间：2026-07-24T15:19:59
-- 总体状态：ready_for_external_resources
+- 生成时间：2026-08-09T23:47:13
+- 总体状态：fully_ready
 - 本地 Kaggle 风格训练闭环：ready
+- 严格 HPC/GPU 运行时：ready
 
 ## 结论
 
-本地 Kaggle 风格数据训练、指标阈值、submission 和审计产物已经就绪；GPU 容器硬件已由 Web Terminal 证据证明；正式进入外部增强训练/自动代码优化前，还缺 Claude API Key 与 GPU 自动作业凭据。
+本地训练、代码 Agent 与严格 HPC/GPU 运行时均已就绪，可以启动受控增强训练流程。
 
 ## 外部资源状态
 
 - code_agent: 已配置
-- gpu_ssh_gateway: 未配置
+- gpu_ssh_gateway_legacy_env: 未配置
   缺少：GPU_SSH_HOST, GPU_SSH_USER, GPU_REMOTE_WORKSPACE, GPU_SSH_PASSWORD or GPU_SSH_KEY_PATH
-- hpc_gpu_verified_container: 已配置
+- hpc_gpu_legacy_web_terminal: 已配置
+- hpc_gpu_strict_runtime: 已配置
 - kaggle_official_api_optional: 未配置
   缺少：KAGGLE_USERNAME, KAGGLE_KEY
 

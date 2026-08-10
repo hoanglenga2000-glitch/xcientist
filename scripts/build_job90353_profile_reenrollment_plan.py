@@ -86,7 +86,7 @@ def build_plan(
     plan_status = "ready_for_operator_secret_entry" if must_reenroll else "already_ready_no_reenrollment_needed"
     install_command = (
         "powershell -NoProfile -ExecutionPolicy Bypass -File "
-        "scripts\install_hpc_ssh_credential_from_stdin.ps1 "
+        "scripts\\install_hpc_ssh_credential_from_stdin.ps1 "
         "-User " + (account or "<HPC_ROLE_ACCOUNT>") + " "
         "-Profile job90353 "
         "-HostName 100.85.169.63 "

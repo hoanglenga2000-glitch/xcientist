@@ -2,7 +2,7 @@ import { isIP } from "node:net";
 
 const DNS_LABEL = /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?$/;
 const SSH_USERNAME = /^[A-Za-z0-9._-]{1,128}$/;
-const SHELL_PATH_METACHARACTERS = /[\0\r\n"%&|<>^!]/;
+const SHELL_PATH_METACHARACTERS = /[\r\n"%&|<>^!]/;
 
 export function requireNetworkHost(value: string, label = "network host") {
   if (!value || value !== value.trim() || value.length > 253 || /\s/.test(value)) {
@@ -34,6 +34,8 @@ export function requireOptionalProxyUsername(value: string) {
 }
 
 export function requireShellSafePath(value: string, label = "command path") {
-  if (!value || SHELL_PATH_METACHARACTERS.test(value)) throw new Error(`Invalid ${label}`);
+  if (!value || value.includes(String.fromCodePoint(0)) || SHELL_PATH_METACHARACTERS.test(value)) {
+    throw new Error(`Invalid ${label}`);
+  }
   return value;
 }

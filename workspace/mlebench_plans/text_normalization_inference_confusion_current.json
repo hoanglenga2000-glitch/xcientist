@@ -1,0 +1,2162 @@
+{
+  "rows": 500000,
+  "exact_class_rate": 0.783408,
+  "confusion": {
+    "ADDRESS": [
+      {
+        "inferred": "PLAIN",
+        "rows": 26
+      }
+    ],
+    "CARDINAL": [
+      {
+        "inferred": "CARDINAL",
+        "rows": 6362
+      },
+      {
+        "inferred": "DATE",
+        "rows": 198
+      },
+      {
+        "inferred": "ORDINAL",
+        "rows": 167
+      },
+      {
+        "inferred": "TELEPHONE",
+        "rows": 42
+      },
+      {
+        "inferred": "LETTERS",
+        "rows": 32
+      },
+      {
+        "inferred": "DIGIT",
+        "rows": 11
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 11
+      }
+    ],
+    "DATE": [
+      {
+        "inferred": "DATE",
+        "rows": 13748
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 1275
+      },
+      {
+        "inferred": "TELEPHONE",
+        "rows": 7
+      },
+      {
+        "inferred": "CARDINAL",
+        "rows": 1
+      }
+    ],
+    "DECIMAL": [
+      {
+        "inferred": "DECIMAL",
+        "rows": 478
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 48
+      },
+      {
+        "inferred": "CARDINAL",
+        "rows": 11
+      },
+      {
+        "inferred": "TELEPHONE",
+        "rows": 4
+      }
+    ],
+    "DIGIT": [
+      {
+        "inferred": "CARDINAL",
+        "rows": 143
+      },
+      {
+        "inferred": "DIGIT",
+        "rows": 102
+      },
+      {
+        "inferred": "DATE",
+        "rows": 36
+      },
+      {
+        "inferred": "TELEPHONE",
+        "rows": 4
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 1
+      }
+    ],
+    "ELECTRONIC": [
+      {
+        "inferred": "ELECTRONIC",
+        "rows": 198
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 23
+      }
+    ],
+    "FRACTION": [
+      {
+        "inferred": "FRACTION",
+        "rows": 44
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 9
+      }
+    ],
+    "LETTERS": [
+      {
+        "inferred": "LETTERS",
+        "rows": 5786
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 1505
+      },
+      {
+        "inferred": "ORDINAL",
+        "rows": 297
+      }
+    ],
+    "MEASURE": [
+      {
+        "inferred": "MEASURE",
+        "rows": 643
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 142
+      }
+    ],
+    "MONEY": [
+      {
+        "inferred": "MONEY",
+        "rows": 268
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 41
+      }
+    ],
+    "ORDINAL": [
+      {
+        "inferred": "ORDINAL",
+        "rows": 584
+      },
+      {
+        "inferred": "LETTERS",
+        "rows": 25
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 15
+      }
+    ],
+    "PLAIN": [
+      {
+        "inferred": "PLAIN",
+        "rows": 363299
+      },
+      {
+        "inferred": "LETTERS",
+        "rows": 3325
+      },
+      {
+        "inferred": "ORDINAL",
+        "rows": 455
+      }
+    ],
+    "PUNCT": [
+      {
+        "inferred": "PLAIN",
+        "rows": 96230
+      }
+    ],
+    "TELEPHONE": [
+      {
+        "inferred": "TELEPHONE",
+        "rows": 156
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 27
+      },
+      {
+        "inferred": "DIGIT",
+        "rows": 6
+      },
+      {
+        "inferred": "CARDINAL",
+        "rows": 2
+      },
+      {
+        "inferred": "DATE",
+        "rows": 1
+      }
+    ],
+    "TIME": [
+      {
+        "inferred": "TIME",
+        "rows": 36
+      },
+      {
+        "inferred": "PLAIN",
+        "rows": 27
+      },
+      {
+        "inferred": "DECIMAL",
+        "rows": 1
+      }
+    ],
+    "VERBATIM": [
+      {
+        "inferred": "PLAIN",
+        "rows": 4139
+      },
+      {
+        "inferred": "ORDINAL",
+        "rows": 8
+      },
+      {
+        "inferred": "CARDINAL",
+        "rows": 1
+      }
+    ]
+  },
+  "examples": {
+    "PUNCT->PLAIN": [
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ",",
+        "after": ","
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": "(",
+        "after": "("
+      },
+      {
+        "before": "—",
+        "after": "—"
+      },
+      {
+        "before": ")",
+        "after": ")"
+      },
+      {
+        "before": ".",
+        "after": "."
+      },
+      {
+        "before": ".",
+        "after": "."
+      }
+    ],
+    "VERBATIM->PLAIN": [
+      {
+        "before": "-",
+        "after": "-"
+      },
+      {
+        "before": "#",
+        "after": "number"
+      },
+      {
+        "before": "&",
+        "after": "and"
+      },
+      {
+        "before": "サ",
+        "after": "サ"
+      },
+      {
+        "before": "イ",
+        "after": "イ"
+      },
+      {
+        "before": "バ",
+        "after": "バ"
+      },
+      {
+        "before": "ー",
+        "after": "ー"
+      },
+      {
+        "before": "ス",
+        "after": "ス"
+      },
+      {
+        "before": "レ",
+        "after": "レ"
+      },
+      {
+        "before": "ッ",
+        "after": "ッ"
+      },
+      {
+        "before": "ド",
+        "after": "ド"
+      },
+      {
+        "before": "pp",
+        "after": "p p"
+      },
+      {
+        "before": "-",
+        "after": "-"
+      },
+      {
+        "before": "-",
+        "after": "-"
+      },
+      {
+        "before": "&",
+        "after": "and"
+      },
+      {
+        "before": "&",
+        "after": "and"
+      },
+      {
+        "before": "pp",
+        "after": "p p"
+      },
+      {
+        "before": "&",
+        "after": "and"
+      },
+      {
+        "before": "-",
+        "after": "-"
+      },
+      {
+        "before": "Σ",
+        "after": "sigma"
+      }
+    ],
+    "PLAIN->LETTERS": [
+      {
+        "before": "As",
+        "after": "As"
+      },
+      {
+        "before": "A",
+        "after": "A"
+      },
+      {
+        "before": "M",
+        "after": "M"
+      },
+      {
+        "before": "E",
+        "after": "E"
+      },
+      {
+        "before": "FRELIMO",
+        "after": "FRELIMO"
+      },
+      {
+        "before": "Us",
+        "after": "Us"
+      },
+      {
+        "before": "L",
+        "after": "L"
+      },
+      {
+        "before": "CET",
+        "after": "CET"
+      },
+      {
+        "before": "As",
+        "after": "As"
+      },
+      {
+        "before": "MIA",
+        "after": "MIA"
+      },
+      {
+        "before": "BEA",
+        "after": "BEA"
+      },
+      {
+        "before": "As",
+        "after": "As"
+      },
+      {
+        "before": "UA",
+        "after": "UA"
+      },
+      {
+        "before": "AIDS",
+        "after": "AIDS"
+      },
+      {
+        "before": "B",
+        "after": "B"
+      },
+      {
+        "before": "S",
+        "after": "S"
+      },
+      {
+        "before": "DOH",
+        "after": "DOH"
+      },
+      {
+        "before": "A",
+        "after": "A"
+      },
+      {
+        "before": "SHU",
+        "after": "SHU"
+      },
+      {
+        "before": "U",
+        "after": "U"
+      }
+    ],
+    "PLAIN->ORDINAL": [
+      {
+        "before": "mix",
+        "after": "mix"
+      },
+      {
+        "before": "LL",
+        "after": "LL"
+      },
+      {
+        "before": "did",
+        "after": "did"
+      },
+      {
+        "before": "ill",
+        "after": "ill"
+      },
+      {
+        "before": "did",
+        "after": "did"
+      },
+      {
+        "before": "civil",
+        "after": "civil"
+      },
+      {
+        "before": "Mill",
+        "after": "Mill"
+      },
+      {
+        "before": "Mid",
+        "after": "Mid"
+      },
+      {
+        "before": "Civil",
+        "after": "Civil"
+      },
+      {
+        "before": "mimic",
+        "after": "mimic"
+      },
+      {
+        "before": "did",
+        "after": "did"
+      },
+      {
+        "before": "mill",
+        "after": "mill"
+      },
+      {
+        "before": "Mill",
+        "after": "Mill"
+      },
+      {
+        "before": "mi",
+        "after": "mi"
+      },
+      {
+        "before": "mid",
+        "after": "mid"
+      },
+      {
+        "before": "civil",
+        "after": "civil"
+      },
+      {
+        "before": "mid",
+        "after": "mid"
+      },
+      {
+        "before": "mid",
+        "after": "mid"
+      },
+      {
+        "before": "civil",
+        "after": "civil"
+      },
+      {
+        "before": "Civil",
+        "after": "Civil"
+      }
+    ],
+    "LETTERS->PLAIN": [
+      {
+        "before": "Aceh",
+        "after": "a c e h"
+      },
+      {
+        "before": "Aceh",
+        "after": "a c e h"
+      },
+      {
+        "before": "Ukh",
+        "after": "u k h"
+      },
+      {
+        "before": "TM-",
+        "after": "t m"
+      },
+      {
+        "before": "Boev",
+        "after": "b o e v"
+      },
+      {
+        "before": "DoD",
+        "after": "d o d"
+      },
+      {
+        "before": "Revd",
+        "after": "r e v d"
+      },
+      {
+        "before": "b",
+        "after": "b"
+      },
+      {
+        "before": "Wim",
+        "after": "w i m"
+      },
+      {
+        "before": "MBV-",
+        "after": "m b v"
+      },
+      {
+        "before": "nr",
+        "after": "n r"
+      },
+      {
+        "before": "Wim",
+        "after": "w i m"
+      },
+      {
+        "before": "seq",
+        "after": "s e q"
+      },
+      {
+        "before": "Pnyx",
+        "after": "p n y x"
+      },
+      {
+        "before": "J. H.",
+        "after": "j h"
+      },
+      {
+        "before": "CNF-",
+        "after": "c n f"
+      },
+      {
+        "before": "HRF-",
+        "after": "h r f"
+      },
+      {
+        "before": "tv",
+        "after": "t v"
+      },
+      {
+        "before": "tv",
+        "after": "t v"
+      },
+      {
+        "before": "S. J.",
+        "after": "s j"
+      }
+    ],
+    "CARDINAL->TELEPHONE": [
+      {
+        "before": "1065520",
+        "after": "one million sixty five thousand five hundred twenty"
+      },
+      {
+        "before": "8174781757",
+        "after": "eight billion one hundred seventy four million seven hundred eighty one thousand seven hundred fifty seven"
+      },
+      {
+        "before": "1061750",
+        "after": "one million sixty one thousand seven hundred fifty"
+      },
+      {
+        "before": "1084351",
+        "after": "one million eighty four thousand three hundred fifty one"
+      },
+      {
+        "before": "15468064",
+        "after": "fifteen million four hundred sixty eight thousand sixty four"
+      },
+      {
+        "before": "1344042",
+        "after": "one million three hundred forty four thousand forty two"
+      },
+      {
+        "before": "3836497263",
+        "after": "three billion eight hundred thirty six million four hundred ninety seven thousand two hundred sixty three"
+      },
+      {
+        "before": "9783836497268",
+        "after": "nine trillion seven hundred eighty three billion eight hundred thirty six million four hundred ninety seven thousand two hundred sixty eight"
+      },
+      {
+        "before": "9780764307690",
+        "after": "nine trillion seven hundred eighty billion seven hundred sixty four million three hundred seven thousand six hundred ninety"
+      },
+      {
+        "before": "87001002",
+        "after": "eighty seven million one thousand two"
+      },
+      {
+        "before": "14208955",
+        "after": "fourteen million two hundred eight thousand nine hundred fifty five"
+      },
+      {
+        "before": "1060513",
+        "after": "one million sixty thousand five hundred thirteen"
+      },
+      {
+        "before": "1206940",
+        "after": "one million two hundred six thousand nine hundred forty"
+      },
+      {
+        "before": "16522072",
+        "after": "sixteen million five hundred twenty two thousand seventy two"
+      },
+      {
+        "before": "6194308",
+        "after": "six million one hundred ninety four thousand three hundred eight"
+      },
+      {
+        "before": "87000772",
+        "after": "eighty seven million seven hundred seventy two"
+      },
+      {
+        "before": "18263864",
+        "after": "eighteen million two hundred sixty three thousand eight hundred sixty four"
+      },
+      {
+        "before": "24468683",
+        "after": "twenty four million four hundred sixty eight thousand six hundred eighty three"
+      },
+      {
+        "before": "20072005",
+        "after": "twenty million seventy two thousand five"
+      },
+      {
+        "before": "1999753",
+        "after": "one million nine hundred ninety nine thousand seven hundred fifty three"
+      }
+    ],
+    "CARDINAL->ORDINAL": [
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "XIX",
+        "after": "nineteen"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "VII",
+        "after": "seven"
+      },
+      {
+        "before": "III",
+        "after": "three"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "III",
+        "after": "three"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "III",
+        "after": "three"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "XXI",
+        "after": "twenty one"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      },
+      {
+        "before": "II",
+        "after": "two"
+      }
+    ],
+    "DATE->PLAIN": [
+      {
+        "before": "August 1999",
+        "after": "august nineteen ninety nine"
+      },
+      {
+        "before": "Sep 7, 2009",
+        "after": "september seventh two thousand nine"
+      },
+      {
+        "before": "24 April 350",
+        "after": "the twenty fourth of april three fifty"
+      },
+      {
+        "before": "April 1735",
+        "after": "april seventeen thirty five"
+      },
+      {
+        "before": "April 1998",
+        "after": "april nineteen ninety eight"
+      },
+      {
+        "before": "1830s",
+        "after": "eighteen thirties"
+      },
+      {
+        "before": "July 2002",
+        "after": "july two thousand two"
+      },
+      {
+        "before": "Thursday 17 February 2011",
+        "after": "thursday the seventeenth of february twenty eleven"
+      },
+      {
+        "before": "April 1996",
+        "after": "april nineteen ninety six"
+      },
+      {
+        "before": "October 2006",
+        "after": "october two thousand six"
+      },
+      {
+        "before": "March 2013",
+        "after": "march twenty thirteen"
+      },
+      {
+        "before": "Dec. 9, 2014",
+        "after": "december ninth twenty fourteen"
+      },
+      {
+        "before": "Feb. 6, 2008",
+        "after": "february sixth two thousand eight"
+      },
+      {
+        "before": "June 2004",
+        "after": "june two thousand four"
+      },
+      {
+        "before": "September 1918",
+        "after": "september nineteen eighteen"
+      },
+      {
+        "before": "July 1833",
+        "after": "july eighteen thirty three"
+      },
+      {
+        "before": "February 1998",
+        "after": "february nineteen ninety eight"
+      },
+      {
+        "before": "7 May,",
+        "after": "the seventh of may"
+      },
+      {
+        "before": "September 2012",
+        "after": "september twenty twelve"
+      },
+      {
+        "before": "June 2002",
+        "after": "june two thousand two"
+      }
+    ],
+    "LETTERS->ORDINAL": [
+      {
+        "before": "LC",
+        "after": "l c"
+      },
+      {
+        "before": "XXX",
+        "after": "x x x"
+      },
+      {
+        "before": "ID",
+        "after": "i d"
+      },
+      {
+        "before": "CD",
+        "after": "c d"
+      },
+      {
+        "before": "DVD",
+        "after": "d v d"
+      },
+      {
+        "before": "DVD",
+        "after": "d v d"
+      },
+      {
+        "before": "CD",
+        "after": "c d"
+      },
+      {
+        "before": "DC",
+        "after": "d c"
+      },
+      {
+        "before": "XX",
+        "after": "x x"
+      },
+      {
+        "before": "mml",
+        "after": "m m l"
+      },
+      {
+        "before": "DVD",
+        "after": "d v d"
+      },
+      {
+        "before": "dx",
+        "after": "d x"
+      },
+      {
+        "before": "CD",
+        "after": "c d"
+      },
+      {
+        "before": "MV",
+        "after": "m v"
+      },
+      {
+        "before": "DC",
+        "after": "d c"
+      },
+      {
+        "before": "lmv",
+        "after": "l m v"
+      },
+      {
+        "before": "ili",
+        "after": "i l i"
+      },
+      {
+        "before": "MD",
+        "after": "m d"
+      },
+      {
+        "before": "MCC",
+        "after": "m c c"
+      },
+      {
+        "before": "DVD",
+        "after": "d v d"
+      }
+    ],
+    "TIME->PLAIN": [
+      {
+        "before": "3:00 pm",
+        "after": "three p m"
+      },
+      {
+        "before": "3:00 am",
+        "after": "three a m"
+      },
+      {
+        "before": "8 a.m.",
+        "after": "eight a m"
+      },
+      {
+        "before": "1:00pm",
+        "after": "one p m"
+      },
+      {
+        "before": "3: 18",
+        "after": "three eighteen"
+      },
+      {
+        "before": "1pm",
+        "after": "one p m"
+      },
+      {
+        "before": "4pm",
+        "after": "four p m"
+      },
+      {
+        "before": "2pm",
+        "after": "two p m"
+      },
+      {
+        "before": "5pm",
+        "after": "five p m"
+      },
+      {
+        "before": "10.50pm IST",
+        "after": "ten fifty p m i s t"
+      },
+      {
+        "before": "7:15 AM",
+        "after": "seven fifteen a m"
+      },
+      {
+        "before": "3pm",
+        "after": "three p m"
+      },
+      {
+        "before": "8:00 AM PST",
+        "after": "eight a m p s t"
+      },
+      {
+        "before": "8 p.m.",
+        "after": "eight p m"
+      },
+      {
+        "before": "11:55 am",
+        "after": "eleven fifty five a m"
+      },
+      {
+        "before": "9 p.m.",
+        "after": "nine p m"
+      },
+      {
+        "before": "2:00 p.m. EDT",
+        "after": "two p m e d t"
+      },
+      {
+        "before": "5: 12",
+        "after": "five twelve"
+      },
+      {
+        "before": "PM2",
+        "after": "two p m"
+      },
+      {
+        "before": "3:30 p.m.",
+        "after": "three thirty p m"
+      }
+    ],
+    "ELECTRONIC->PLAIN": [
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "#Foreign",
+        "after": "hash tag foreign"
+      },
+      {
+        "before": "#ARLHS",
+        "after": "hash tag arlhs"
+      },
+      {
+        "before": "3.2.1.168",
+        "after": "t h r e e dot t w o dot o n e dot o n e s i x e i g h t"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "#AIP-CD-1060",
+        "after": "hash aip dash c d dash one o six o"
+      },
+      {
+        "before": "/INF.DOC",
+        "after": "s l a s h i n f dot d o c"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      },
+      {
+        "before": "#Socialhttp",
+        "after": "hash tag socialhttp"
+      },
+      {
+        "before": "::",
+        "after": "::"
+      }
+    ],
+    "DIGIT->CARDINAL": [
+      {
+        "before": "200",
+        "after": "two o o"
+      },
+      {
+        "before": "747",
+        "after": "seven four seven"
+      },
+      {
+        "before": "4",
+        "after": "four"
+      },
+      {
+        "before": "9",
+        "after": "nine"
+      },
+      {
+        "before": "130",
+        "after": "one three o"
+      },
+      {
+        "before": "2",
+        "after": "two"
+      },
+      {
+        "before": "2290",
+        "after": "two two nine o"
+      },
+      {
+        "before": "2",
+        "after": "two"
+      },
+      {
+        "before": "10",
+        "after": "one o"
+      },
+      {
+        "before": "887",
+        "after": "eight eight seven"
+      },
+      {
+        "before": "5",
+        "after": "five"
+      },
+      {
+        "before": "1",
+        "after": "one"
+      },
+      {
+        "before": "1",
+        "after": "one"
+      },
+      {
+        "before": "1",
+        "after": "one"
+      },
+      {
+        "before": "20",
+        "after": "two o"
+      },
+      {
+        "before": "3",
+        "after": "three"
+      },
+      {
+        "before": "134",
+        "after": "one three four"
+      },
+      {
+        "before": "6955",
+        "after": "six nine five five"
+      },
+      {
+        "before": "68",
+        "after": "six eight"
+      },
+      {
+        "before": "22444",
+        "after": "two two four four four"
+      }
+    ],
+    "CARDINAL->DATE": [
+      {
+        "before": "1917",
+        "after": "one thousand nine hundred seventeen"
+      },
+      {
+        "before": "1918",
+        "after": "one thousand nine hundred eighteen"
+      },
+      {
+        "before": "2012",
+        "after": "two thousand twelve"
+      },
+      {
+        "before": "1907",
+        "after": "one thousand nine hundred seven"
+      },
+      {
+        "before": "1908",
+        "after": "one thousand nine hundred eight"
+      },
+      {
+        "before": "1923",
+        "after": "one thousand nine hundred twenty three"
+      },
+      {
+        "before": "1924",
+        "after": "one thousand nine hundred twenty four"
+      },
+      {
+        "before": "1992",
+        "after": "one thousand nine hundred ninety two"
+      },
+      {
+        "before": "1994",
+        "after": "one thousand nine hundred ninety four"
+      },
+      {
+        "before": "2009",
+        "after": "two thousand nine"
+      },
+      {
+        "before": "2014",
+        "after": "two thousand fourteen"
+      },
+      {
+        "before": "2015",
+        "after": "two thousand fifteen"
+      },
+      {
+        "before": "1913",
+        "after": "one thousand nine hundred thirteen"
+      },
+      {
+        "before": "2010",
+        "after": "two thousand ten"
+      },
+      {
+        "before": "2011",
+        "after": "two thousand eleven"
+      },
+      {
+        "before": "2010",
+        "after": "two thousand ten"
+      },
+      {
+        "before": "2011",
+        "after": "two thousand eleven"
+      },
+      {
+        "before": "1975",
+        "after": "one thousand nine hundred seventy five"
+      },
+      {
+        "before": "1983",
+        "after": "one thousand nine hundred eighty three"
+      },
+      {
+        "before": "1984",
+        "after": "one thousand nine hundred eighty four"
+      }
+    ],
+    "CARDINAL->LETTERS": [
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      },
+      {
+        "before": "I",
+        "after": "one"
+      }
+    ],
+    "ORDINAL->LETTERS": [
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "X",
+        "after": "the tenth"
+      },
+      {
+        "before": "X",
+        "after": "the tenth"
+      },
+      {
+        "before": "I.",
+        "after": "the first"
+      },
+      {
+        "before": "V.",
+        "after": "the fifth"
+      },
+      {
+        "before": "V",
+        "after": "the fifth"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "V",
+        "after": "the fifth"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "V",
+        "after": "the fifth"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "I",
+        "after": "first"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "V",
+        "after": "the fifth"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      },
+      {
+        "before": "X",
+        "after": "the tenth"
+      },
+      {
+        "before": "I",
+        "after": "the first"
+      }
+    ],
+    "DECIMAL->PLAIN": [
+      {
+        "before": "1.7 million",
+        "after": "one point seven million"
+      },
+      {
+        "before": "1.3 million",
+        "after": "one point three million"
+      },
+      {
+        "before": "1.4 million",
+        "after": "one point four million"
+      },
+      {
+        "before": "1.25 million",
+        "after": "one point two five million"
+      },
+      {
+        "before": "0.68 billion",
+        "after": "zero point six eight billion"
+      },
+      {
+        "before": "38 million",
+        "after": "thirty eight million"
+      },
+      {
+        "before": "300 million",
+        "after": "three hundred million"
+      },
+      {
+        "before": "1.5 million",
+        "after": "one point five million"
+      },
+      {
+        "before": "5 million",
+        "after": "five million"
+      },
+      {
+        "before": "1.9 million",
+        "after": "one point nine million"
+      },
+      {
+        "before": "1.18 million",
+        "after": "one point one eight million"
+      },
+      {
+        "before": "3 million",
+        "after": "three million"
+      },
+      {
+        "before": "325 million",
+        "after": "three hundred twenty five million"
+      },
+      {
+        "before": "2.58 million",
+        "after": "two point five eight million"
+      },
+      {
+        "before": "1.5 million",
+        "after": "one point five million"
+      },
+      {
+        "before": "1.17 million",
+        "after": "one point one seven million"
+      },
+      {
+        "before": "4.3 million",
+        "after": "four point three million"
+      },
+      {
+        "before": "1.2 million",
+        "after": "one point two million"
+      },
+      {
+        "before": "2 million",
+        "after": "two million"
+      },
+      {
+        "before": "114 million",
+        "after": "one hundred fourteen million"
+      }
+    ],
+    "DIGIT->DATE": [
+      {
+        "before": "1665",
+        "after": "one six six five"
+      },
+      {
+        "before": "1272",
+        "after": "one two seven two"
+      },
+      {
+        "before": "1990",
+        "after": "one nine nine o"
+      },
+      {
+        "before": "1519",
+        "after": "one five one nine"
+      },
+      {
+        "before": "2012",
+        "after": "two o one two"
+      },
+      {
+        "before": "2011",
+        "after": "two o one one"
+      },
+      {
+        "before": "1994",
+        "after": "one nine nine four"
+      },
+      {
+        "before": "2007",
+        "after": "two o o seven"
+      },
+      {
+        "before": "1878 ",
+        "after": "one eight seven eight"
+      },
+      {
+        "before": "2013",
+        "after": "two o one three"
+      },
+      {
+        "before": "2012",
+        "after": "two o one two"
+      },
+      {
+        "before": "2013",
+        "after": "two o one three"
+      },
+      {
+        "before": "1114",
+        "after": "one one one four"
+      },
+      {
+        "before": "2007",
+        "after": "two o o seven"
+      },
+      {
+        "before": "2015",
+        "after": "two o one five"
+      },
+      {
+        "before": "1929",
+        "after": "one nine two nine"
+      },
+      {
+        "before": "2005",
+        "after": "two o o five"
+      },
+      {
+        "before": "1996",
+        "after": "one nine nine six"
+      },
+      {
+        "before": "2000",
+        "after": "two o o o"
+      },
+      {
+        "before": "2000",
+        "after": "two o o o"
+      }
+    ],
+    "ORDINAL->PLAIN": [
+      {
+        "before": "XXVth",
+        "after": "twenty fifth"
+      },
+      {
+        "before": "10ths",
+        "after": "tenths"
+      },
+      {
+        "before": "10ths",
+        "after": "tenths"
+      },
+      {
+        "before": "XIVth",
+        "after": "fourteenth"
+      },
+      {
+        "before": "5ª",
+        "after": "fifth"
+      },
+      {
+        "before": "33, 140th",
+        "after": "thirty three thousand one hundred fortieth"
+      },
+      {
+        "before": "II's",
+        "after": "the second's"
+      },
+      {
+        "before": "II's",
+        "after": "the second's"
+      },
+      {
+        "before": "1º",
+        "after": "first"
+      },
+      {
+        "before": "III's",
+        "after": "the third's"
+      },
+      {
+        "before": "1,500th",
+        "after": "one thousand five hundredth"
+      },
+      {
+        "before": "II's",
+        "after": "the second's"
+      },
+      {
+        "before": "6ª",
+        "after": "sixth"
+      },
+      {
+        "before": "2º",
+        "after": "second"
+      },
+      {
+        "before": "1º",
+        "after": "first"
+      }
+    ],
+    "CARDINAL->DIGIT": [
+      {
+        "before": "00",
+        "after": "zero"
+      },
+      {
+        "before": "09",
+        "after": "nine"
+      },
+      {
+        "before": "09",
+        "after": "nine"
+      },
+      {
+        "before": "21-",
+        "after": "twenty one"
+      },
+      {
+        "before": "41-",
+        "after": "forty one"
+      },
+      {
+        "before": "08",
+        "after": "eight"
+      },
+      {
+        "before": "09",
+        "after": "nine"
+      },
+      {
+        "before": "03",
+        "after": "three"
+      },
+      {
+        "before": "07",
+        "after": "seven"
+      },
+      {
+        "before": "08",
+        "after": "eight"
+      },
+      {
+        "before": "1881-",
+        "after": "one thousand eight hundred eighty one"
+      }
+    ],
+    "MEASURE->PLAIN": [
+      {
+        "before": "1.17 sq mi",
+        "after": "one point one seven square miles"
+      },
+      {
+        "before": "208.913 mph",
+        "after": "two hundred eight point nine one three miles per hour"
+      },
+      {
+        "before": "336.213 km/h",
+        "after": "three hundred thirty six point two one three kilometers per hour"
+      },
+      {
+        "before": "50 nm",
+        "after": "fifty nanometers"
+      },
+      {
+        "before": "4000ha",
+        "after": "four thousand hectares"
+      },
+      {
+        "before": "1,483 ha",
+        "after": "one thousand four hundred eighty three hectares"
+      },
+      {
+        "before": "854 m³/s",
+        "after": "eight hundred fifty four cubic meters per second"
+      },
+      {
+        "before": "12,800 m³/s",
+        "after": "twelve thousand eight hundred cubic meters per second"
+      },
+      {
+        "before": "15 km/h",
+        "after": "fifteen kilometers per hour"
+      },
+      {
+        "before": "75 percent",
+        "after": "seventy five percent"
+      },
+      {
+        "before": "3lbs",
+        "after": "three pounds"
+      },
+      {
+        "before": "2,835 cc",
+        "after": "two thousand eight hundred thirty five c c"
+      },
+      {
+        "before": "37 ch",
+        "after": "thirty seven chains"
+      },
+      {
+        "before": "190 mph",
+        "after": "one hundred ninety miles per hour"
+      },
+      {
+        "before": "56 percent",
+        "after": "fifty six percent"
+      },
+      {
+        "before": "303 km/h",
+        "after": "three hundred three kilometers per hour"
+      },
+      {
+        "before": "188 mph",
+        "after": "one hundred eighty eight miles per hour"
+      },
+      {
+        "before": "65 hp",
+        "after": "sixty five horsepower"
+      },
+      {
+        "before": "48 kW",
+        "after": "forty eight kilowatts"
+      },
+      {
+        "before": "128.10 ha",
+        "after": "one hundred twenty eight point one o hectares"
+      }
+    ],
+    "TELEPHONE->PLAIN": [
+      {
+        "before": "1-00-CV-788657",
+        "after": "one sil o o sil c v sil seven eight eight six five seven"
+      },
+      {
+        "before": "(1998) 53",
+        "after": "one nine nine eight sil five three"
+      },
+      {
+        "before": "01-312",
+        "after": "o one sil three one two"
+      },
+      {
+        "before": "(2)4",
+        "after": "two sil four"
+      },
+      {
+        "before": "44-9-SIM",
+        "after": "four four sil nine sil sim"
+      },
+      {
+        "before": "(2001)07",
+        "after": "two o o one sil o seven"
+      },
+      {
+        "before": "152-181 CE",
+        "after": "one five two sil one eight one sil c e"
+      },
+      {
+        "before": "165-195 CE",
+        "after": "one six five sil one nine five sil c e"
+      },
+      {
+        "before": "170-199 CE",
+        "after": "one seven o sil one nine nine sil c e"
+      },
+      {
+        "before": "24-14 MTN",
+        "after": "two four sil one four sil mountain"
+      },
+      {
+        "before": "0000 UTC",
+        "after": "o o o o sil u t c"
+      },
+      {
+        "before": "0900 UTC",
+        "after": "o nine hundred sil u t c"
+      },
+      {
+        "before": "26 03 09",
+        "after": "two six sil o three sil o nine"
+      },
+      {
+        "before": "978-0-812-81275-6 OCLC 15585961",
+        "after": "nine seven eight sil o sil eight one two sil eight one two seven five sil six sil o c l c sil one five five eight five nine six one"
+      },
+      {
+        "before": "978-1599403724 ISBN 1599403722",
+        "after": "nine seven eight sil one five nine nine four o three seven two four sil i s b n sil one five nine nine four o three seven two two"
+      },
+      {
+        "before": "4-1-0-0",
+        "after": "four sil one sil o sil o"
+      },
+      {
+        "before": "350-300 BC",
+        "after": "three five o sil three hundred sil b c"
+      },
+      {
+        "before": "8400-XI",
+        "after": "eight four o o sil xi"
+      },
+      {
+        "before": "(2013) 50",
+        "after": "two o one three sil five o"
+      },
+      {
+        "before": "08-205",
+        "after": "o eight sil two o five"
+      }
+    ],
+    "CARDINAL->PLAIN": [
+      {
+        "before": "322 U.S. ",
+        "after": "three hundred twenty two"
+      },
+      {
+        "before": "493 U.S. ",
+        "after": "four hundred ninety three"
+      },
+      {
+        "before": "99 093",
+        "after": "ninety nine thousand ninety three"
+      },
+      {
+        "before": "448 U.S. ",
+        "after": "four hundred forty eight"
+      },
+      {
+        "before": "20 000",
+        "after": "twenty thousand"
+      },
+      {
+        "before": "4:",
+        "after": "four"
+      },
+      {
+        "before": "153 U.S. ",
+        "after": "one hundred fifty three"
+      },
+      {
+        "before": "9 950",
+        "after": "nine thousand nine hundred fifty"
+      },
+      {
+        "before": "40 126",
+        "after": "forty thousand one hundred twenty six"
+      },
+      {
+        "before": "3:",
+        "after": "three"
+      },
+      {
+        "before": "50 500",
+        "after": "fifty thousand five hundred"
+      }
+    ],
+    "DECIMAL->CARDINAL": [
+      {
+        "before": "287",
+        "after": "two hundred eighty seven"
+      },
+      {
+        "before": "15",
+        "after": "fifteen"
+      },
+      {
+        "before": "5",
+        "after": "five"
+      },
+      {
+        "before": "3",
+        "after": "three"
+      },
+      {
+        "before": "49",
+        "after": "forty nine"
+      },
+      {
+        "before": "17",
+        "after": "seventeen"
+      },
+      {
+        "before": "42",
+        "after": "forty two"
+      },
+      {
+        "before": "28",
+        "after": "twenty eight"
+      },
+      {
+        "before": "7",
+        "after": "seven"
+      },
+      {
+        "before": "93",
+        "after": "ninety three"
+      },
+      {
+        "before": "108",
+        "after": "one hundred eight"
+      }
+    ],
+    "ADDRESS->PLAIN": [
+      {
+        "before": "A1",
+        "after": "a one"
+      },
+      {
+        "before": "M3",
+        "after": "m three"
+      },
+      {
+        "before": "B3",
+        "after": "b three"
+      },
+      {
+        "before": "C2",
+        "after": "c two"
+      },
+      {
+        "before": "A78",
+        "after": "a seventy eight"
+      },
+      {
+        "before": "A76",
+        "after": "a seventy six"
+      },
+      {
+        "before": "M16",
+        "after": "m sixteen"
+      },
+      {
+        "before": "A29091",
+        "after": "a two nine o nine one"
+      },
+      {
+        "before": "I 001",
+        "after": "i o o one"
+      },
+      {
+        "before": "SR 19",
+        "after": "s r nineteen"
+      },
+      {
+        "before": "SR 266",
+        "after": "s r two sixty six"
+      },
+      {
+        "before": "A1",
+        "after": "a one"
+      },
+      {
+        "before": "SR 490",
+        "after": "s r four ninety"
+      },
+      {
+        "before": "US 95",
+        "after": "u s ninety five"
+      },
+      {
+        "before": "B7",
+        "after": "b seven"
+      },
+      {
+        "before": "B71",
+        "after": "b seventy one"
+      },
+      {
+        "before": "C23",
+        "after": "c twenty three"
+      },
+      {
+        "before": "C1",
+        "after": "c one"
+      },
+      {
+        "before": "C64",
+        "after": "c sixty four"
+      },
+      {
+        "before": "A1",
+        "after": "a one"
+      }
+    ],
+    "MONEY->PLAIN": [
+      {
+        "before": "199 trillion VND",
+        "after": "one hundred ninety nine trillion vietnamese dongs"
+      },
+      {
+        "before": "$10bn",
+        "after": "ten billion dollars"
+      },
+      {
+        "before": "€10m",
+        "after": "ten million euros"
+      },
+      {
+        "before": "$13m",
+        "after": "thirteen million dollars"
+      },
+      {
+        "before": "$200m",
+        "after": "two hundred million dollars"
+      },
+      {
+        "before": "€95m",
+        "after": "ninety five million euros"
+      },
+      {
+        "before": "1988 USD",
+        "after": "one thousand nine hundred eighty eight united states dollars"
+      },
+      {
+        "before": "1990 USD",
+        "after": "one thousand nine hundred ninety united states dollars"
+      },
+      {
+        "before": "$5M",
+        "after": "five million dollars"
+      },
+      {
+        "before": "£5m",
+        "after": "five million pounds"
+      },
+      {
+        "before": "DKK 740 million",
+        "after": "seven hundred forty million danish kroner"
+      },
+      {
+        "before": "A$87 million",
+        "after": "eighty seven million dollars"
+      },
+      {
+        "before": "US$55,000",
+        "after": "fifty five thousand dollars"
+      },
+      {
+        "before": "1,578 yuan",
+        "after": "one thousand five hundred seventy eight yuan"
+      },
+      {
+        "before": "¥0.06 million",
+        "after": "zero point o six million yen"
+      },
+      {
+        "before": "Rs.600",
+        "after": "six hundred rupees"
+      },
+      {
+        "before": "1116 CHF",
+        "after": "one thousand one hundred sixteen swiss francs"
+      },
+      {
+        "before": "A$21.6 million",
+        "after": "twenty one point six million dollars"
+      },
+      {
+        "before": "€3.1b",
+        "after": "three point one billion euros"
+      },
+      {
+        "before": "NZ$20,000",
+        "after": "twenty thousand dollars"
+      }
+    ]
+  }
+}

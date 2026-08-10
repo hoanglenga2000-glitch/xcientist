@@ -1,0 +1,37 @@
+{
+  "run_id": "20260627_190321",
+  "task_id": "house_prices",
+  "source_type": "local_template",
+  "code_agent_provider": "local_template",
+  "code_patch_id": null,
+  "runner_provider": "local_pipeline",
+  "gpu_provider": "mock",
+  "llm_provider": "rule_based",
+  "dataset_version": "house_prices",
+  "code_commit": null,
+  "seed": 42,
+  "metric": {
+    "cv_rmsle_mean": 0.12899,
+    "cv_rmsle_std": 0.020176,
+    "holdout_rmsle": 0.129797,
+    "holdout_mae": 15187.626782,
+    "seconds": 50.5501
+  },
+  "artifacts": [
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+    "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md"
+  ],
+  "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321"
+}

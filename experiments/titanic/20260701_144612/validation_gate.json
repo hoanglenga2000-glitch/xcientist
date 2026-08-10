@@ -1,0 +1,15 @@
+{
+  "status": "passed",
+  "experiment_dir": "experiments\\titanic\\20260701_144612",
+  "best_model": "random_forest",
+  "cv_accuracy_mean": 0.8305,
+  "holdout_accuracy": 0.798883,
+  "submission_rows": 418,
+  "submission_columns": [
+    "PassengerId",
+    "Survived"
+  ],
+  "scaffold_present": true,
+  "stage_audit_present": true,
+  "reports_present": true
+}

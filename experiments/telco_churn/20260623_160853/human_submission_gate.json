@@ -1,0 +1,24 @@
+{
+  "gate_id": "gate_ae99c68cde",
+  "task_id": "telco_churn",
+  "gate_type": "human_submission",
+  "decision": "pending",
+  "required_evidence": [
+    "ev_8e2e94a6f7",
+    "ev_ff5341106d",
+    "ev_f13008e49b",
+    "ev_c512960238",
+    "ev_a7769da0d2",
+    "ev_2b0ecd7dbf",
+    "ev_0618470956",
+    "ev_c9901c917b",
+    "ev_544534e9bc",
+    "ev_6caabeb28e",
+    "ev_0bb5a87560",
+    "ev_6f1ecadfd3",
+    "ev_b0ce9288e3",
+    "ev_049ec3a5ee"
+  ],
+  "reviewer": "human",
+  "metadata": {}
+}

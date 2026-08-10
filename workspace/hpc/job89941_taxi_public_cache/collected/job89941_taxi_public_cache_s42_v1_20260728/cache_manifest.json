@@ -1,0 +1,222 @@
+{
+  "schema": "evomind.mlebench.taxi_public_feature_cache.v1",
+  "created_at": "2026-07-27T19:44:11.693193+00:00",
+  "status": "completed",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "visibility_mode": "PUBLIC_ONLY",
+  "seed": 42,
+  "folds": 3,
+  "max_rows": 5000000,
+  "chunk_rows": 250000,
+  "holdout_fraction": 0.05,
+  "rows_scanned": 55413942,
+  "train_rows": 5000000,
+  "test_rows": 9914,
+  "feature_count": 72,
+  "feature_names": [
+    "pickup_longitude",
+    "pickup_latitude",
+    "dropoff_longitude",
+    "dropoff_latitude",
+    "passenger_count",
+    "pickup_coordinate_missing",
+    "dropoff_coordinate_missing",
+    "passenger_count_missing",
+    "pickup_datetime_missing",
+    "haversine_km",
+    "manhattan_km",
+    "bearing_sin",
+    "bearing_cos",
+    "delta_latitude",
+    "delta_longitude",
+    "center_latitude",
+    "center_longitude",
+    "year",
+    "month",
+    "day",
+    "hour",
+    "weekday",
+    "day_of_year",
+    "hour_sin",
+    "hour_cos",
+    "weekday_sin",
+    "weekday_cos",
+    "rush_hour",
+    "night",
+    "weekend",
+    "pickup_jfk_km",
+    "dropoff_jfk_km",
+    "pickup_jfk_within_3km",
+    "dropoff_jfk_within_3km",
+    "jfk_route",
+    "pickup_lga_km",
+    "dropoff_lga_km",
+    "pickup_lga_within_3km",
+    "dropoff_lga_within_3km",
+    "lga_route",
+    "pickup_ewr_km",
+    "dropoff_ewr_km",
+    "pickup_ewr_within_3km",
+    "dropoff_ewr_within_3km",
+    "ewr_route",
+    "pickup_airport_min_km",
+    "dropoff_airport_min_km",
+    "airport_trip",
+    "airport_distance_sum_km",
+    "airport_rush_hour",
+    "airport_night",
+    "airport_weekend",
+    "pickup_manhattan_center_km",
+    "dropoff_manhattan_center_km",
+    "pickup_brooklyn_center_km",
+    "dropoff_brooklyn_center_km",
+    "pickup_queens_center_km",
+    "dropoff_queens_center_km",
+    "pickup_bronx_center_km",
+    "dropoff_bronx_center_km",
+    "pickup_staten_island_center_km",
+    "dropoff_staten_island_center_km",
+    "pickup_borough_proxy",
+    "dropoff_borough_proxy",
+    "cross_borough_proxy",
+    "pickup_cell_lat",
+    "pickup_cell_lon",
+    "dropoff_cell_lat",
+    "dropoff_cell_lon",
+    "pickup_cell_id",
+    "dropoff_cell_id",
+    "airport_route_code"
+  ],
+  "inputs": [
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/labels.csv",
+      "relative_path": "prepared/public/labels.csv",
+      "bytes": 5662345732,
+      "sha256": "20497ff0e594e99e2a7f3b35c41e5aba6137e3ce7e43b327ee3553c961912321"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/sample_submission.csv",
+      "relative_path": "prepared/public/sample_submission.csv",
+      "bytes": 343716,
+      "sha256": "2ffb30d6529752503276f5a67e33c052e659967bfd96c8551748c3fa43c64ff4"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/test.csv",
+      "relative_path": "prepared/public/test.csv",
+      "bytes": 968912,
+      "sha256": "e24e2939ee49d07407562c4e672e2964403d2f86fe882c4b9eaed95c6ef770b0"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/train_features.npy",
+      "relative_path": "train_features.npy",
+      "bytes": 1440000128,
+      "sha256": "022466b7487f9415a21d7bba63e2de8f3af8977a5ed9fb10264518f820ae9569"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/test_features.npy",
+      "relative_path": "test_features.npy",
+      "bytes": 2855360,
+      "sha256": "4b02e4d28cc3445f54da1ece3415e0eb7ecf602b0f5eb4f9fc123d7120792d92"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/target.npy",
+      "relative_path": "target.npy",
+      "bytes": 40000128,
+      "sha256": "3ae4836c4352ed6eb9732512c97b922dd00d25245faf76f3c9c18e01c2fa5f79"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/train_key.npy",
+      "relative_path": "train_key.npy",
+      "bytes": 580000128,
+      "sha256": "f64780947d2b2b95669e6b63609f9e7e47704027f1295b83571f54dd68eab61d"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/test_key.npy",
+      "relative_path": "test_key.npy",
+      "bytes": 1150152,
+      "sha256": "d50d8d63f2b64eb8ef29fdd32979ff5f8d9c754b87b2096d9fef354ed08b9595"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/source_row.npy",
+      "relative_path": "source_row.npy",
+      "bytes": 40000128,
+      "sha256": "aa66bb9722b48303dd36b37642da6c80dca628970793f3ce9cea492090cdce59"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/duplicate_group.npy",
+      "relative_path": "duplicate_group.npy",
+      "bytes": 40000128,
+      "sha256": "c20163161d249d818aa697258217e206bf6739e061ecc2b8f0ce4494a6e1e931"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/fold_assignment.npy",
+      "relative_path": "fold_assignment.npy",
+      "bytes": 10000128,
+      "sha256": "82dc874e580db416d91df2b621d06eb0a4540fb7ed4edcf568168f2c5799f831"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/pickup_datetime_ns.npy",
+      "relative_path": "pickup_datetime_ns.npy",
+      "bytes": 40000128,
+      "sha256": "826b9505e85a8f4cfb09dc56766c77418d890161077adfaf333061937a6f5601"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/split_indices.npz",
+      "relative_path": "split_indices.npz",
+      "bytes": 49159062,
+      "sha256": "e469febd9d15f696dd1ed84917e0a234c7f95c1d3d11fbc77a3a0afbdf9cebf1"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/feature_names.json",
+      "relative_path": "feature_names.json",
+      "bytes": 1796,
+      "sha256": "3dcee367e9d178695ca17e9983d652a057c2149d328423101d56ed39c30fec1d"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cleaning_audit.json",
+      "relative_path": "cleaning_audit.json",
+      "bytes": 492,
+      "sha256": "8566c321c05cbb1ddd9ef67aab3fe1266d3f6481578cdbc276e14ca240c5150e"
+    },
+    {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/duplicate_audit.json",
+      "relative_path": "duplicate_audit.json",
+      "bytes": 463,
+      "sha256": "499287fd7e29a242f512e572b0cc9c5686463e5a4d300fc3424afb9b45cb11e3"
+    }
+  ],
+  "temporal_split": {
+    "holdout_fraction": 0.05,
+    "fit_rows": 4750000,
+    "validation_rows": 250000,
+    "fit_latest_timestamp": "2015-02-21T23:42:03+00:00",
+    "validation_earliest_timestamp": "2015-02-21T23:42:55+00:00",
+    "validation_latest_timestamp": "2015-06-30T23:59:14+00:00"
+  },
+  "geographic_split": {
+    "holdout_fraction": 0.05,
+    "fit_rows": 4830489,
+    "validation_rows": 169511,
+    "fit_pickup_cells": 3153,
+    "validation_pickup_cells": 166,
+    "seed": 42
+  },
+  "build_seconds": 599.3799366829917,
+  "contracts": {
+    "public_files_read": [
+      "labels.csv",
+      "sample_submission.csv",
+      "test.csv"
+    ],
+    "private_files_read": [],
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "cuda_visible_devices": "",
+    "manifest_written_last": true
+  },
+  "claim_boundary": "Taxi public cache is throughput evidence, not a score or medal."
+}

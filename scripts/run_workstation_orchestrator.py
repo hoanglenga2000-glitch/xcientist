@@ -23,14 +23,12 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
-    orchestrator = AgentOrchestrator(ROOT)
-    summary = orchestrator.run_local_tabular_closed_loop(
-        config_path=ROOT / args.config,
-        output_base=ROOT / args.output_base,
-        random_state=args.random_state,
-    )
-    print(json.dumps(summary["run"], ensure_ascii=False, indent=2))
-    print(f"Summary written to: {ROOT / 'workspace' / 'workstation_summary.json'}")
+    print(json.dumps({
+        "status": "blocked_local_training_disabled",
+        "training_started": False,
+        "hpc_queue_command": [sys.executable, "scripts/run_workstation_ensemble.py", "--config", args.config],
+    }, ensure_ascii=False))
+    raise SystemExit(2)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,130 @@
+{
+  "schema": "evomind.mlebench.a800_lane_watch.completion.v1",
+  "created_at": "2026-07-26T14:57:16.642246+08:00",
+  "run_id": "a800_aptos2019_recovery_s42_20260726_134347",
+  "process": "stopped",
+  "summary_status": "passed",
+  "official_grade_count": 1,
+  "official_results": [
+    {
+      "competition_id": "aptos2019-blindness-detection",
+      "metric": "quadratic_weighted_kappa",
+      "direction": "maximize",
+      "cv_score": 0.9067214372324367,
+      "mle_private_grader_score": 0.92925,
+      "upstream_report": {
+        "above_median": true,
+        "any_medal": true,
+        "bronze_medal": false,
+        "bronze_threshold": 0.914492,
+        "competition_id": "aptos2019-blindness-detection",
+        "created_at": "2026-07-26T14:55:40.751574",
+        "gold_medal": false,
+        "gold_threshold": 0.930508,
+        "is_lower_better": false,
+        "median_threshold": 0.888912,
+        "score": 0.92925,
+        "silver_medal": true,
+        "silver_threshold": 0.919654,
+        "submission_exists": true,
+        "submission_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/attempts/attempt_001/submission.csv",
+        "valid_submission": true
+      }
+    }
+  ],
+  "regrade_executed": true,
+  "collection": {
+    "schema": "evomind.mlebench_remote_ops.collection.v1",
+    "created_at": "2026-07-26T06:57:16.639594+00:00",
+    "run_id": "a800_aptos2019_recovery_s42_20260726_134347",
+    "remote_run": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347",
+    "local_root": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347",
+    "include_checkpoints": false,
+    "file_count": 13,
+    "files": [
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/environment.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\environment.json",
+        "bytes": 803,
+        "sha256": "7af0e42a62a779dbffed00fb3d70e9fcda57168c10e0dc306d48a24b5a00f000"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/phase_a_audit.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\phase_a_audit.json",
+        "bytes": 51800,
+        "sha256": "5536bcadc5b080421f98c92ec46e261d7b4ccb361fc5710f70d0b2c00d1eca30"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/results_current.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\results_current.json",
+        "bytes": 1432404,
+        "sha256": "c9bb69a6d64da487f40affa6dc83555c5852e8de5eb267024d2cd82322dca373"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/checkpoint.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\checkpoint.json",
+        "bytes": 349,
+        "sha256": "3d2d7e5750afe7dea459406c0ea55406f7b061cc00283038e268a8c900401e00"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/summary.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\summary.json",
+        "bytes": 1432821,
+        "sha256": "61aefdcf5f52c27246a97fa8123471922a87d8a043adb78e93f594491d71b107"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/manifest.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\manifest.json",
+        "bytes": 3618,
+        "sha256": "ce31efa2d1f6fa116fed926505f4475396537c798402dc3fdeb99cbd73c869ad"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\result.json",
+        "bytes": 1260618,
+        "sha256": "bdaff68bd1356225aa84ff0098644fd88667e85599641e774e75da6fc8cef855"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/regrades/regrade_001/private_grader.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\regrades\\regrade_001\\private_grader.json",
+        "bytes": 14165,
+        "sha256": "f6e951d6ca03957f77d4c0067f6c160c6d2cbceb1c5e3d9bdb47b7e8f15a09c8"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/regrades/regrade_001/submission_validation.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\regrades\\regrade_001\\submission_validation.json",
+        "bytes": 1145,
+        "sha256": "aef15a151372fbb786b5d98023afaecbdf5ad2f135e1184a37db069a1174f12c"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/regrades/regrade_001/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\regrades\\regrade_001\\result.json",
+        "bytes": 1260618,
+        "sha256": "bdaff68bd1356225aa84ff0098644fd88667e85599641e774e75da6fc8cef855"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/attempts/attempt_001/submission.csv",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\attempts\\attempt_001\\submission.csv",
+        "bytes": 5523,
+        "sha256": "c1fb56e0d018739b760c47626703b0e0c001bb12e12d62aeccda19c164ba575b"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/attempts/attempt_001/submission_validation.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\attempts\\attempt_001\\submission_validation.json",
+        "bytes": 1145,
+        "sha256": "aef15a151372fbb786b5d98023afaecbdf5ad2f135e1184a37db069a1174f12c"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_aptos2019_recovery_s42_20260726_134347/aptos2019-blindness-detection/attempts/attempt_001/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_aptos2019_recovery_s42_20260726_134347\\aptos2019-blindness-detection\\attempts\\attempt_001\\result.json",
+        "bytes": 1245190,
+        "sha256": "87f70ab4bda1a717779e8a2ae65f8c889e2a7b752955f52a22d4feebf84d4601"
+      }
+    ],
+    "passed": true
+  },
+  "campaign_mutation_performed": false,
+  "campaign_integration_required": true,
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false
+}

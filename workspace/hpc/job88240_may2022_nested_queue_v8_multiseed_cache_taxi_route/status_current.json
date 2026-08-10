@@ -1,0 +1,38 @@
+{
+  "schema": "evomind.hpc88240.may2022_cached_queue.v1",
+  "created_at": "2026-07-28T05:04:49.102282+08:00",
+  "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_nested_selection_execution_multiseed_hpc88240_v8_cache_taxi_route_20260728.json",
+  "plan_sha256": "efefe647d02f506e8d7d588b03fcf5456469ce8771eb861527591d4fe8f67fcd",
+  "bundle": {
+    "schema": "evomind.mlebench_remote_ops.bundle_verification.v1",
+    "bundle": "D:\\桌面\\codex\\科研港科技\\workspace\\deploy\\mlebench_unified_20260728_050217\\mlebench_unified_bundle.tar.gz",
+    "sha256": "da685ff0166eb3a9bdfb9e61901b2c565f7033356a8ab5540f0859fda3237a55",
+    "archive_member_count": 705,
+    "manifest_hash_count": 704,
+    "manifest_schema": "evomind.mlebench_lite.unified_bundle.v1",
+    "human_gate_preserved": true,
+    "passed": true
+  },
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "status": "waiting_for_cactus_terminal",
+  "dependency": {
+    "schema": "evomind.hpc_cactus_persistent_run.v2",
+    "created_at": "2026-07-28T05:04:20.503269+08:00",
+    "status": "waiting_for_v1_retirement",
+    "wrapper_pid": 721144,
+    "candidate_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/multiseed_candidate",
+    "stable_idle_observations": 0,
+    "completed_seeds": 0,
+    "exit_code": null,
+    "visibility_mode": "PUBLIC_ONLY",
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "other_processes_modified": false,
+    "v1_supersession": "observe_only_natural_retirement"
+  }
+}

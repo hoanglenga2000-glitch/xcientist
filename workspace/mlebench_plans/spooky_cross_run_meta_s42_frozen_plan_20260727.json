@@ -1,0 +1,127 @@
+{
+  "schema": "evomind.spooky.cross_run_meta_frozen_plan.v1",
+  "created_at": "2026-07-27T07:38:17.4016307+08:00",
+  "status": "frozen_waiting_current_run",
+  "competition_id": "spooky-author-identification",
+  "objective": "Recover a stronger public OOF candidate by leakage-free second-level stacking of two materially different public-data runs.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "decision": "predeclare one fixed cross-run meta configuration before the current five-fold run completes"
+  },
+  "public_data_only": true,
+  "source": {
+    "evaluator": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\evaluate_spooky_cross_run_meta.py",
+      "sha256": "99a16e686ea767f62cb36312395a31bd0018008b322687a8a887ae60b736861f"
+    },
+    "meta_helper": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_leakage_free_meta.py",
+      "sha256": "063651234a02cad8d60394209ab6de76b775f706cad97c8f5267ec19889609b4"
+    }
+  },
+  "prior": {
+    "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+    "summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\summary.json",
+      "sha256": "a2cf99a54ecb31df8ba8d4b66b029b82dd7c55a5f61ccd1066dd67859afbdded"
+    },
+    "bundle": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\spooky_transformer_oof_and_test.npz",
+      "sha256": "4c0b5baf02ae4977241a69fed5e627c4d14049e6299e7a1665d5ebfbff12e319"
+    },
+    "terminal_status": "single_seed_gate_failed",
+    "candidate_oof_log_loss": 0.3449842458960858
+  },
+  "current": {
+    "run_id": "local4060_spooky_deberta_v2_s42_20260727_0642",
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_deberta_v2_s42_frozen_plan_20260727_0642.json",
+      "sha256": "2527cabaf8a1dc81f99e70d57ed1d9fa96a2833932b49a6c8cd045351b358efa"
+    },
+    "summary_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_v2\\runs\\local4060_spooky_deberta_v2_s42_20260727_0642\\summary.json",
+    "expected_bundle_name": "spooky_deberta_oof_v2.npz",
+    "allowed_terminal_statuses": [
+      "single_seed_gate_failed",
+      "single_seed_gate_passed_confirmation_pending"
+    ]
+  },
+  "inputs": {
+    "train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\train.csv",
+      "sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf"
+    },
+    "test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\test.csv",
+      "sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5"
+    },
+    "sample": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\sample_submission.csv",
+      "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+    }
+  },
+  "channels": [
+    "prior_sparse",
+    "prior_byte",
+    "prior_transformer",
+    "prior_candidate",
+    "current_transformer",
+    "current_sparse",
+    "current_candidate"
+  ],
+  "alignment_contract": {
+    "truth_arrays_must_be_identical": true,
+    "fold_arrays_must_be_identical": true,
+    "outer_folds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "object_dtype_ids_are_not_loaded": true,
+    "public_csv_ids_are_authoritative": true
+  },
+  "meta": {
+    "model": "cross_fit_regularized_multinomial_logistic_regression",
+    "c_value": 0.1,
+    "max_iter": 3000,
+    "random_state": 42000,
+    "fit_scope": "all_other_oof_folds_only",
+    "score_scope": "held_outer_fold_only",
+    "hyperparameter_selection": "fixed_before_current_run_completion",
+    "test_aggregation": "corresponding_fold_component_features_then_average"
+  },
+  "promotion_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "bronze_threshold_reference": 0.29381,
+    "single_seed_log_loss_threshold": 0.292,
+    "single_seed_only_is_not_promotable": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "official_medal_claim_requires_private_grader": true
+  },
+  "output": {
+    "run_id": "local4060_spooky_crossrun_s42_20260727_0735",
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_meta\\runs\\local4060_spooky_crossrun_s42_20260727_0735",
+    "result": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_meta\\runs\\local4060_spooky_crossrun_s42_20260727_0735\\cross_run_meta_result.json",
+    "submission_disposition": "withheld_human_gate"
+  },
+  "resource_policy": {
+    "device": "CPU only",
+    "may_run_while_next_GPU_job_is_active": true,
+    "process_signals_allowed": 0
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "The resulting cross-fitted public OOF score is a promotion gate, not an official score or medal."
+}

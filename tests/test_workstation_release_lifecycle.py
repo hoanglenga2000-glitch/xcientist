@@ -39,8 +39,9 @@ def test_runtime_environment_isolates_browser_secrets_and_binds_source_imports(m
     manager = load("release_runtime_environment", "scripts/manage_workstation_dashboard.py")
     monkeypatch.setattr(manager, "bundle_mode", lambda: False)
     source = {
-        "WORKSTATION_SESSION_SECRET": "dashboard-only",
-        "WORKSTATION_BOOTSTRAP_TOKEN_HASH": "bootstrap-only",
+        "WORKSTATION_SESSION_SECRET": "test-dashboard-only",
+        "WORKSTATION_BOOTSTRAP_TOKEN_HASH": "test-bootstrap-only",
+        "WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH": "test-automation-only",
         "HTTP_COOKIE": "cookie",
         "COOKIE": "cookie2",
         "EVOMIND_SESSION_COOKIE": "cookie3",
@@ -50,14 +51,15 @@ def test_runtime_environment_isolates_browser_secrets_and_binds_source_imports(m
     }
     isolated = manager.runtime_env(source, "n" * 43, 18765)
     for name in (
-        "WORKSTATION_SESSION_SECRET", "WORKSTATION_BOOTSTRAP_TOKEN_HASH", "HTTP_COOKIE",
+        "WORKSTATION_SESSION_SECRET", "WORKSTATION_BOOTSTRAP_TOKEN_HASH",
+        "WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH", "HTTP_COOKIE",
         "COOKIE", "EVOMIND_SESSION_COOKIE", "EVOMIND_CSRF_TOKEN",
     ):
         assert name not in isolated
     assert isolated["PYTHONPATH"] == str((manager.ROOT / "src").resolve())
     assert isolated["WORKSTATION_RELEASE_NONCE"] == "n" * 43
     assert isolated["EVOMIND_RUNTIME_PORT"] == "18765"
-    assert source["WORKSTATION_SESSION_SECRET"] == "dashboard-only"
+    assert source["WORKSTATION_SESSION_SECRET"] == "test-dashboard-only"
 
 
 def test_dashboard_runtime_health_uses_file_token_without_exposing_it(
@@ -141,6 +143,57 @@ def test_dashboard_bootstrap_fragment_is_written_to_private_one_time_file(
     )
     assert token not in json.dumps(safe_result)
     assert "#bootstrap=" not in safe_result["url"]
+
+
+def test_dashboard_bootstrap_and_automation_tokens_are_independent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manager = load("launchfix_dashboard_independent_auth", "scripts/manage_workstation_dashboard.py")
+    issued = iter(("bootstrap-token-value-aaaaaaaa", "automation-token-value-bbbbbbbb"))
+    monkeypatch.setattr(manager.secrets, "token_urlsafe", lambda _size: next(issued))
+    env: dict[str, str] = {}
+
+    bootstrap_token, automation_token = manager.bind_local_auth_tokens(env)
+
+    assert bootstrap_token != automation_token
+    assert env["WORKSTATION_BOOTSTRAP_TOKEN_HASH"] != env["WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH"]
+    assert bootstrap_token not in json.dumps(env)
+    assert automation_token not in json.dumps(env)
+
+
+def test_automation_token_survives_bootstrap_claim_and_rotates_on_restart(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    manager = load("launchfix_dashboard_automation_lifecycle", "scripts/manage_workstation_dashboard.py")
+    auth = load("launchfix_local_automation_reader", "scripts/workstation_local_auth.py")
+    monkeypatch.setattr(manager, "runtime_dir", lambda: tmp_path)
+    monkeypatch.setenv("WORKSTATION_RUNTIME_DIR", str(tmp_path))
+    first = "automation-token-first-aaaaaaaa"
+    second = "automation-token-second-bbbbbbb"
+
+    bootstrap = manager.write_bootstrap_url("127.0.0.1", 18088, "bootstrap-token-cccccccccccc")
+    token_path = manager.write_automation_token(18088, first)
+    bootstrap.unlink()
+
+    assert auth.automation_token("http://127.0.0.1:18088") == first
+    manager.write_automation_token(18088, second)
+    assert token_path.read_text(encoding="ascii") == second
+    assert auth.authenticated_headers("http://127.0.0.1:18088")[auth.AUTOMATION_HEADER] == second
+    assert capsys.readouterr().out == ""
+
+
+def test_verified_stop_cleanup_removes_all_local_auth_material(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load("launchfix_dashboard_auth_cleanup", "scripts/manage_workstation_dashboard.py")
+    monkeypatch.setattr(manager, "runtime_dir", lambda: tmp_path)
+    bootstrap = manager.write_bootstrap_url("127.0.0.1", 18088, "bootstrap-token-dddddddddddd")
+    automation = manager.write_automation_token(18088, "automation-token-eeeeeeeeeeee")
+
+    manager.remove_local_auth_files(18088)
+
+    assert not bootstrap.exists()
+    assert not automation.exists()
 
 
 def test_gateway_rejects_non_loopback_or_wrong_port() -> None:
@@ -621,3 +674,99 @@ def test_release_wrappers_remove_unsigned_upgrade_and_verifier_uses_official_lif
     assert "direct PackagePath upgrades were removed" in manager
     for command in ('"install"', '"status"', '"doctor"', '"stop"', '"start"', '"uninstall"'):
         assert command in verifier
+
+
+def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load("release_runtime_build_manifest", "scripts/manage_workstation_dashboard.py")
+    monkeypatch.setattr(manager, "ROOT", tmp_path)
+    monkeypatch.setattr(manager, "SOURCE_APP_DIR", tmp_path / "web")
+    monkeypatch.setattr(manager, "DEFAULT_DATABASE_PATH", tmp_path / "workstation.db")
+    monkeypatch.setattr(manager, "source_tree_digest", lambda *_args, **_kwargs: "a" * 64)
+    monkeypatch.setattr(manager, "git_source_identity", lambda: ("b" * 40, True))
+    monkeypatch.setattr(manager, "application_version", lambda: "0.3.0")
+    monkeypatch.setattr(manager, "backend_version", lambda: "0.3.0")
+    monkeypatch.setattr(
+        manager,
+        "database_schema_identity",
+        lambda *_args, **_kwargs: {
+            "version": "20260728171000_performance_indexes",
+            "sha256": "c" * 64,
+        },
+    )
+
+    manifest = manager.runtime_build_manifest("build-123")
+
+    assert manifest == {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": "b" * 40,
+        "source_dirty": True,
+        "source_tree_sha256": "a" * 64,
+        "build_id": "build-123",
+        "build_time": manifest["build_time"],
+        "backend_version": "0.3.0",
+        "frontend_version": "0.3.0",
+        "database_schema_version": "20260728171000_performance_indexes",
+        "database_schema_sha256": "c" * 64,
+    }
+    assert manifest["build_time"].endswith("Z")
+
+
+def test_source_build_stale_uses_exact_manifest_digest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load("release_exact_source_build_identity", "scripts/manage_workstation_dashboard.py")
+    app = tmp_path / "web"
+    active = app / ".next"
+    active.mkdir(parents=True)
+    (active / "BUILD_ID").write_text("build-123", encoding="utf-8")
+    (active / "runtime-build-manifest.json").write_text(
+        json.dumps({
+            "schema": "evomind.runtime_build.v1",
+            "source_tree_sha256": "a" * 64,
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(manager, "SOURCE_APP_DIR", app)
+    monkeypatch.setattr(manager, "source_tree_digest", lambda *_args, **_kwargs: "a" * 64)
+    assert manager.source_build_stale() is False
+
+    monkeypatch.setattr(manager, "source_tree_digest", lambda *_args, **_kwargs: "d" * 64)
+    assert manager.source_build_stale() is True
+
+
+def test_source_build_registration_creates_managed_install_marker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load("release_source_install_marker", "scripts/manage_workstation_dashboard.py")
+    monkeypatch.setattr(manager, "ROOT", tmp_path)
+    manifest = {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": "b" * 40,
+        "source_tree_sha256": "a" * 64,
+        "build_id": "build-123",
+        "build_time": "2026-08-09T00:00:00Z",
+        "backend_version": "0.3.0",
+        "frontend_version": "0.3.0",
+        "database_schema_version": "20260728171000_performance_indexes",
+        "database_schema_sha256": "c" * 64,
+        "source_dirty": True,
+    }
+
+    marker_path = manager.write_source_install_marker(manifest)
+    marker = json.loads(marker_path.read_text(encoding="utf-8"))
+
+    assert marker_path == tmp_path / ".workstation-install.json"
+    assert marker["format_version"] == 1
+    assert marker["product"] == "research-workstation"
+    assert marker["layout"] == "source_tree"
+    assert marker["data_root"] == str(tmp_path.resolve())
+    assert marker["runtime_build"]["build_id"] == "build-123"
+    assert marker["managed_files"] == []
+
+
+def test_source_lifecycle_status_uses_the_same_data_root_as_source_launch() -> None:
+    script = (ROOT / "scripts" / "manage_workstation_lifecycle.ps1").read_text(encoding="utf-8")
+    assert 'elseif ($env:WORKSTATION_DATA_DIR)' in script
+    assert 'else { $Root }' in script

@@ -31,10 +31,9 @@ const nextConfig = {
       },
       {
         source: "/_next/static/:path*",
-        headers: [
-          ...commonSecurityHeaders,
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        // Next owns immutable static-asset caching. Overriding Cache-Control
+        // here triggers a production-build warning and can break dev caching.
+        headers: commonSecurityHeaders,
       },
       // These download routes intentionally emit a stricter, media-specific
       // CSP. Do not replace it with the application-shell CSP.

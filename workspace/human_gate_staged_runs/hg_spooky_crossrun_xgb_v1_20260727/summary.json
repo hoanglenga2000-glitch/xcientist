@@ -1,0 +1,27 @@
+{
+  "approval_template_path": "approvals/spooky-author-identification.approval_template.json",
+  "approval_template_sha256": "49cd1666bdaf846af9fe13a3210befd4f7af222ffe552c72ac47640c37ea2f27",
+  "approved": false,
+  "candidate_only": true,
+  "competition_count": 1,
+  "created_at": "2026-07-27T23:43:14.928047+08:00",
+  "frozen_candidate_manifest_sha256": "e60b5f0f1eba02d98568d9882bab8f6adfdfada8fbd801cf337406d5a11c783a",
+  "independent_verification_passed": true,
+  "kaggle_submission_executed": false,
+  "official_grader_executed": false,
+  "private_labels_used": false,
+  "process_signals_sent": 0,
+  "public_submission_valid": true,
+  "requested": [
+    "spooky-author-identification"
+  ],
+  "run_id": "hg_spooky_crossrun_xgb_v1_20260727",
+  "schema": "evomind.mlebench_lite.human_gate_staged_summary.v1",
+  "source_package_verified": true,
+  "staged": [
+    "spooky-author-identification"
+  ],
+  "status": "human_approval_pending",
+  "submission_sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec",
+  "training_executed": false
+}

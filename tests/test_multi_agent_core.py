@@ -101,6 +101,31 @@ def test_failure_retries_then_enters_needs_continuation(tmp_path):
     assert result.status == "needs_continuation"
     assert result.next_action == "repair_or_resume"
 
+    failure_dir = tmp_path / run.run_id / "failure" / "unstable"
+    assert {path.name for path in failure_dir.iterdir()} == {
+        "error.json",
+        "traceback.txt",
+        "environment.json",
+        "node_status.json",
+        "recovery_plan.json",
+    }
+    error = json.loads((failure_dir / "error.json").read_text(encoding="utf-8"))
+    assert error["failure_type"] == "provider"
+    assert error["attempt"] == 2
+    assert "provider down" in (failure_dir / "traceback.txt").read_text(encoding="utf-8")
+    environment = json.loads((failure_dir / "environment.json").read_text(encoding="utf-8"))
+    assert environment["schema"] == "evomind.failure_environment.v1"
+    assert "environment_variables" not in environment
+    node = json.loads((failure_dir / "node_status.json").read_text(encoding="utf-8"))
+    assert node["status"] == "failed"
+    recovery = json.loads((failure_dir / "recovery_plan.json").read_text(encoding="utf-8"))
+    assert recovery["recovery_agent"] == "RecoveryAgent"
+    actions = [
+        json.loads(line)["action"]
+        for line in (tmp_path / run.run_id / "action_log.jsonl").read_text(encoding="utf-8").splitlines()
+    ]
+    assert actions[-4:] == ["detect", "analyze", "repair", "retry"]
+
 
 def test_connection_failure_is_normalized_in_event_ledger(tmp_path):
     run = create_run(

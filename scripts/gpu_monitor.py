@@ -13,12 +13,17 @@ import argparse
 import socks
 import paramiko
 
+try:
+    from scripts.hpc_connect import secure_ssh_client
+except ModuleNotFoundError:  # direct script execution
+    from hpc_connect import secure_ssh_client
+
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-SSH_HOST = "100.85.169.63"
+SSH_HOST = os.environ.get("EVOMIND_HPC_HOST", "")
 SSH_PORT = 1235
-SSH_USER = "aimslab-IwkteXqP"
+SSH_USER = os.environ.get("EVOMIND_HPC_USER", "")
 SOCKS5_HOST = "127.0.0.1"
 SOCKS5_PORT = 7890
 
@@ -60,13 +65,19 @@ def ssh_connect(host, port, user, password, socks_host, socks_port):
     sock.connect((host, port))
 
     # SSH over the proxied socket
-    transport = paramiko.Transport(sock)
-    transport.connect(username=user, password=password)
-
-    ssh = paramiko.SSHClient()
-    ssh._transport = transport
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-
+    ssh = secure_ssh_client()
+    ssh.connect(
+        host,
+        port=port,
+        username=user,
+        password=password,
+        sock=sock,
+        allow_agent=False,
+        look_for_keys=False,
+        timeout=30,
+        banner_timeout=30,
+        auth_timeout=30,
+    )
     return ssh
 
 

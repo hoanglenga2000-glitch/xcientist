@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 import time
 import urllib.error
 import urllib.parse
@@ -11,6 +12,9 @@ from typing import Iterable
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 
 
 SOURCE_FILES = [
@@ -166,7 +170,10 @@ def fetch(url: str, attempts: int = 3) -> str:
     last_error: Exception | None = None
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(url, timeout=20) as response:
+            parsed = urllib.parse.urlparse(url)
+            base_url = f"{parsed.scheme}://{parsed.netloc}"
+            request = urllib.request.Request(url, headers=authenticated_headers(base_url))
+            with urllib.request.urlopen(request, timeout=20) as response:
                 return response.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as error:
             last_error = error
@@ -218,9 +225,17 @@ def main() -> None:
 
         summary_url = f"{origin}/api/workstation-summary"
         summary_text = fetch(summary_url)
-        absent_summary_terms = missing_terms(SUMMARY_TERMS, summary_text)
-        if absent_summary_terms:
-            fail("workstation summary is missing required integration terms", {"url": summary_url, "missing_summary_terms": absent_summary_terms})
+        try:
+            summary_payload = json.loads(summary_text)
+        except json.JSONDecodeError:
+            fail("workstation summary did not return JSON", {"url": summary_url})
+        if (summary_payload.get("_meta") or {}).get("mode") == "lite":
+            if not isinstance(summary_payload.get("tasks"), list) or not isinstance(summary_payload.get("connector_status"), dict):
+                fail("lite workstation summary is missing tasks/connectors", {"url": summary_url})
+        else:
+            absent_summary_terms = missing_terms(SUMMARY_TERMS, summary_text)
+            if absent_summary_terms:
+                fail("workstation summary is missing required integration terms", {"url": summary_url, "missing_summary_terms": absent_summary_terms})
         if "Not Configured" not in summary_text and "Ready" not in summary_text and "fully_ready" not in summary_text and "ready" not in summary_text:
             fail("workstation summary is missing an integration readiness state", {"url": summary_url})
 

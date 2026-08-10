@@ -8,6 +8,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from workstation_local_auth import authenticated_headers
+
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "workspace" / "code_agent_cache" / "deepseek_cache_manifest.json"
@@ -31,7 +33,7 @@ def post_json(url: str, payload: dict[str, Any], timeout: float) -> dict[str, An
     request = Request(
         url,
         data=data,
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=authenticated_headers(url, {"Content-Type": "application/json", "Accept": "application/json", "Origin": url.split("/api/", 1)[0]}),
         method="POST",
     )
     with urlopen(request, timeout=timeout) as response:

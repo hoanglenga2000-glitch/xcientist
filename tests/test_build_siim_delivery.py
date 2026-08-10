@@ -504,7 +504,7 @@ def test_private_grader_freeze_drift_blocks_delivery(tmp_path):
 
 def test_secret_literal_in_code_package_is_rejected_and_temp_is_removed(tmp_path):
     run_dir, code_file = _complete_run(tmp_path)
-    code_file.write_text('password = "not-for-a-delivery"\n', encoding="utf-8")
+    code_file.write_text('password = "test-not-for-a-delivery"\n', encoding="utf-8")
     output = tmp_path / "secret-blocked"
 
     with pytest.raises(delivery.DeliveryBuildError, match="秘密扫描规则"):

@@ -1,0 +1,78 @@
+{
+  "schema": "evomind.spooky.transformer_preflight.v1",
+  "created_at": "2026-07-27T02:34:46.824198+08:00",
+  "status": "passed",
+  "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+  "plan_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb",
+  "runner_sha256": "cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22",
+  "data": {
+    "train_rows": 17621,
+    "test_rows": 1958,
+    "sample_rows": 1958,
+    "fold_sizes": [
+      {
+        "fold": 0,
+        "fit": 14097,
+        "valid": 3524
+      },
+      {
+        "fold": 1,
+        "fit": 14097,
+        "valid": 3524
+      },
+      {
+        "fold": 2,
+        "fit": 14097,
+        "valid": 3524
+      },
+      {
+        "fold": 3,
+        "fit": 14097,
+        "valid": 3524
+      },
+      {
+        "fold": 4,
+        "fit": 14096,
+        "valid": 3525
+      }
+    ],
+    "fold_assignment_complete": true,
+    "duplicate_group_isolation": true
+  },
+  "checks": {
+    "train_schema": true,
+    "test_schema": true,
+    "sample_schema": true,
+    "sample_ids_exact": true,
+    "all_classes_present": true,
+    "fold_assignment_complete": true,
+    "duplicate_group_isolation": true,
+    "private_labels_unused": true,
+    "official_grader_not_executed": true,
+    "kaggle_submission_not_executed": true
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "ok": true,
+  "execution": {
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_transformer_oof.py",
+    "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs",
+    "hf_cache": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\model_cache\\huggingface\\hub",
+    "serial_dependency": {
+      "competition_id": "leaf-classification",
+      "run_id": "local4060_leaf_dualbb_s404142_20260727_0154",
+      "report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\runs\\local4060_leaf_dualbb_s404142_20260727_0154\\leaf_multibackbone_oof.json",
+      "terminal_statuses": [
+        "promotion_gate_passed",
+        "promotion_gate_failed"
+      ]
+    },
+    "single_gpu_strict_serial": true,
+    "process_signals_allowed": false
+  }
+}

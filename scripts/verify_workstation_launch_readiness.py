@@ -9,11 +9,13 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from shutil import which
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 WEB = ROOT / "web" / "research-agent-workstation"
 OUT_JSON = ROOT / "workspace" / "workstation_launch_readiness_20260630.json"
 OUT_MD = ROOT / "reports" / "WORKSTATION_LAUNCH_READINESS_20260630.md"
@@ -163,6 +165,26 @@ COMMANDS: list[dict[str, Any]] = [
     },
 ]
 
+RUNTIME_BASE_URL_FLAGS = {
+    "server_health": "--base-url",
+    "ui_action_contract": "--base-url",
+    "runtime_navigation_matrix": "--base-url",
+    "browser_render_smoke": "--base-url",
+    "task_api_matrix": "--base-url",
+}
+
+
+def with_runtime_base_url(command: dict[str, Any], base_url: str) -> dict[str, Any]:
+    resolved = {**command, "cmd": list(command["cmd"])}
+    flag = RUNTIME_BASE_URL_FLAGS.get(str(command.get("id") or ""))
+    if flag:
+        resolved["cmd"].extend([flag, base_url])
+    if command.get("id") == "server_health":
+        from urllib.parse import urlsplit
+        port = urlsplit(base_url).port or 8088
+        resolved["cmd"].extend(["--port", str(port)])
+    return resolved
+
 
 API_PATHS = [
     "/api/workstation-summary",
@@ -283,10 +305,27 @@ def run_frontend(command: str, timeout: int = 240) -> dict[str, Any]:
     }
 
 
+def run_dashboard_lifecycle(action: str, *, timeout: int = 120) -> dict[str, Any]:
+    arguments = [sys.executable, "-m", "xsci", "dashboard", action]
+    if action == "restart":
+        arguments.append("--force")
+    return run_command(
+        {
+            "id": f"dashboard_{action}_for_build",
+            "kind": "lifecycle",
+            "critical": True,
+            "cmd": arguments,
+            "claim": f"Dashboard {action} completes as part of the build transaction.",
+        },
+        timeout=timeout,
+    )
+
+
 def http_check(base_url: str, path: str) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        with urlopen(url, timeout=12) as response:
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}))
+        with urlopen(request, timeout=12) as response:
             body = response.read(512)
             return {
                 "target": path,
@@ -500,10 +539,12 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     if args.include_frontend:
         checks.append(run_frontend("typecheck", timeout=240))
     if args.include_build:
+        checks.append(run_dashboard_lifecycle("stop"))
         checks.append(run_frontend("build", timeout=360))
+        checks.append(run_dashboard_lifecycle("restart", timeout=180))
     checks.append(write_figma_gate(args))
     for item in COMMANDS:
-        checks.append(run_command(item, timeout=args.command_timeout))
+        checks.append(run_command(with_runtime_base_url(item, args.base_url), timeout=args.command_timeout))
 
     page_smoke = [http_check(args.base_url, f"/?page={page}") for page in PAGES]
     api_smoke = [http_check(args.base_url, path) for path in API_PATHS]

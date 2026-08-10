@@ -17,6 +17,7 @@ import os
 import re
 import socket
 import struct
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -27,6 +28,245 @@ from typing import Any, Callable, Optional
 from .config import load_config
 from .kaggle_session import SessionState
 from .tasks import list_tasks
+
+
+def normalize_literature_query(query: str, *, task_id: str = "", task_brief: str = "") -> str:
+    """Normalize a research request into a compact external-index query."""
+
+    text = " ".join(str(query or "").split()) or f"research papers for {task_brief or task_id or 'current task'}"
+    if task_id:
+        escaped = re.escape(task_id).replace(r"\-", r"[-_ ]")
+        text = re.sub(rf"^(?:请|帮我|我想|我要|麻烦|请你)?\s*为\s*{escaped}\s*", "", text, flags=re.I)
+    text = re.sub(r"(?:，|,|。|；|;)?\s*(?:给出|提供|输出|生成|总结|说明|并给出|然后给出).*$", "", text, flags=re.I)
+    text = re.sub(r"(?:，|,|。|；|;)?\s*(?:不|不要|无需|无须)\s*(?:启动|开始|执行|进行)?\s*(?:任何)?(?:训练|实验|提交).*$", "", text, flags=re.I)
+    text = re.sub(r"^(?:请|帮我|我想|我要|麻烦|请你|能否|可以)?\s*(?:为\s*)?", "", text, flags=re.I)
+    text = re.sub(r"(?:检索|搜索|查找|查询|找出|找|核验|验证|交叉核验|实际检索|真实检索|参考)(?:并|和|与)?", " ", text, flags=re.I)
+    text = re.sub(r"(?:真实|相关|学术)?\s*(?:参考文献|论文|文献)(?:列表|资料|证据)?", " ", text, flags=re.I)
+    text = re.sub(r"房价预测", "house price prediction", text, flags=re.I)
+    text = re.sub(r"\bhouse[-_ ]prices\b", "house price prediction", text, flags=re.I)
+    text = re.sub(r"\s*(?:和|与|及|,|，)\s*", " ", text)
+    return " ".join(text.split()).strip()
+
+
+def build_literature_answer(result: dict[str, Any]) -> str:
+    """Render only the citations returned by the live literature service."""
+
+    papers = [item for item in result.get("papers") or [] if isinstance(item, dict)]
+    external = [item for item in papers if item.get("source") in {"arxiv", "openalex", "crossref"}]
+    imported = [item for item in papers if item.get("source") == "imported"]
+    integrity = result.get("integrity") if isinstance(result.get("integrity"), dict) else {}
+    relevance = result.get("relevance") if isinstance(result.get("relevance"), dict) else {}
+    lines = ["## 直接结论", "", f"已核验外部论文 {len(external)} 篇；伪造记录 {integrity.get('fabricated', 0)}。", "", "## 实际命中的论文", ""]
+    for index, paper in enumerate(external[:8], 1):
+        doi = str(paper.get("doi") or "").strip()
+        url = str(paper.get("url") or paper.get("source_url") or "").strip()
+        citation = f"{index}. **{paper.get('title') or 'Untitled'}** ({paper.get('year') or 'n.d.'}, {paper.get('source') or 'source'})"
+        if doi:
+            citation += f"，DOI: [{doi}](https://doi.org/{doi})"
+        elif url:
+            citation += f"，[来源]({url})"
+        lines.append(citation)
+    if not external:
+        lines.append("- 没有论文通过相关性检查。")
+    lines.extend(["", "## 用户导入文献", ""])
+    for paper in imported[:4]:
+        provenance = paper.get("provenance") if isinstance(paper.get("provenance"), dict) else {}
+        checksum = str(provenance.get("checksum") or "")
+        lines.append(f"- **{paper.get('title') or 'Imported document'}**：已索引" + (f"，SHA-256 `{checksum}`" if checksum else ""))
+    if not imported:
+        lines.append("- 当前没有用户导入论文。")
+    lines.extend([
+        "", "## 下一步研究建议", "", "将核验论文绑定到待验证假设，再用统一数据切分与指标执行单变量对照。",
+        "", "## Reviewer / Gate", "", "- 状态：`pending_claim_binding_and_independent_citation_audit`",
+        f"- 相关性过滤：原始 {relevance.get('raw_external', 0)}，保留 {relevance.get('accepted_external', len(external))}，过滤 {relevance.get('filtered_external', 0)}。",
+        "- 训练：未启动；Kaggle 正式提交：仍需 Human Gate。",
+    ])
+    return "\n".join(lines)
+
+
+def _loopback_literature_auth_headers(endpoint: str) -> dict[str, str]:
+    cookie = os.environ.pop("EVOMIND_INTERNAL_SESSION_COOKIE", "").strip()
+    csrf = os.environ.pop("EVOMIND_INTERNAL_CSRF", "").strip()
+    origin = os.environ.pop("EVOMIND_INTERNAL_ORIGIN", "").strip()
+    try:
+        target = urllib.parse.urlsplit(endpoint)
+        source = urllib.parse.urlsplit(origin)
+    except ValueError:
+        return {}
+    loopback = {"127.0.0.1", "localhost", "::1"}
+    if target.hostname not in loopback or source.hostname not in loopback:
+        return {}
+    if target.scheme not in {"http", "https"} or source.scheme not in {"http", "https"}:
+        return {}
+    if not cookie.startswith("evomind_local_session=") or not csrf or any("\n" in item or "\r" in item for item in (cookie, csrf, origin)):
+        return {}
+    return {"Cookie": cookie[:512], "X-EvoMind-CSRF": csrf[:512], "Origin": origin[:2048]}
+
+
+def search_literature(session: SessionState, root: Path, *, query: str = "") -> dict[str, Any]:
+    requested = " ".join(str(query or "").split()) or f"research papers for {getattr(session, 'task_brief', '') or getattr(session, 'selected_task', '') or 'current task'}"
+    task_id = getattr(session, "selected_task", None) or "playground_series_s6e6"
+    normalized = normalize_literature_query(requested, task_id=task_id, task_brief=getattr(session, "task_brief", "") or "")
+    endpoint = os.environ.get("EVOMIND_LITERATURE_API_URL", "http://127.0.0.1:8088/api/literature/search")
+    payload = {"task_id": task_id, "query": normalized[:1200], "original_query": requested[:2000], "max_results": 12, "include_arxiv": True, "include_openalex": True, "include_crossref": True, "include_internal": False}
+    request = urllib.request.Request(endpoint, data=json.dumps(payload, ensure_ascii=False).encode("utf-8"), headers={"Content-Type": "application/json", "Accept": "application/json", **_loopback_literature_auth_headers(endpoint)}, method="POST")
+    try:
+        with urllib.request.urlopen(request, timeout=90) as response:
+            response_payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return {"ok": False, "tool": "literature_search", "query": requested, "task_id": task_id, "message": f"Live literature API unavailable: {type(exc).__name__}", "no_training_started": True}
+    if not isinstance(response_payload, dict):
+        return {"ok": False, "tool": "literature_search", "query": requested, "message": "Literature API returned a non-object response."}
+    papers = [item for item in response_payload.get("papers") or [] if isinstance(item, dict)]
+    result = {"ok": bool(response_payload.get("ok", True)), "tool": "literature_search", "query": requested, "normalized_query": normalized, "search_queries": response_payload.get("search_queries") or [normalized], "task_id": task_id, "paper_count": len(papers), "papers": papers[:14], "source_counts": response_payload.get("source_counts") or {}, "source_errors": response_payload.get("source_errors") or [], "integrity": response_payload.get("integrity") or {}, "relevance": response_payload.get("relevance") or {}, "context_path": response_payload.get("context_path"), "manifest_path": response_payload.get("manifest_path"), "no_training_started": True}
+    result["answer_markdown"] = build_literature_answer(result)
+    return result
+
+
+def _loopback_port_listening(host: str, port: int, timeout: float = 0.7) -> bool:
+    try:
+        with socket.create_connection((host, int(port)), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
+def _socks_gateway_banner(socks_host: str, socks_port: int, dest_host: str, dest_port: int, timeout: float = 3.0) -> tuple[bool, str]:
+    try:
+        with socket.create_connection((socks_host, int(socks_port)), timeout=timeout) as sock:
+            sock.settimeout(timeout)
+            sock.sendall(b"\x05\x01\x00")
+            if sock.recv(2) != b"\x05\x00":
+                return False, "socks_handshake_failed"
+            host = str(dest_host).encode("utf-8")
+            sock.sendall(b"\x05\x01\x00\x03" + bytes([len(host)]) + host + struct.pack(">H", int(dest_port)))
+            head = sock.recv(4)
+            if len(head) < 4 or head[1] != 0:
+                return False, "socks_connect_failed"
+            size = {1: 4, 4: 16}.get(head[3])
+            if size is None and head[3] == 3:
+                size = sock.recv(1)[0]
+            if size:
+                sock.recv(size)
+            sock.recv(2)
+            banner = sock.recv(80).decode("utf-8", "replace").strip()
+            return banner.startswith("SSH-2.0-"), banner or "no_banner"
+    except OSError as exc:
+        return False, type(exc).__name__
+
+
+def _latest_hpc_profile(root: Path) -> tuple[str, Path | None, dict[str, Any], dict[str, Any]]:
+    appdata = Path(os.environ.get("APPDATA", "")).expanduser()
+    profiles_root = appdata / "ResearchAgentWorkstation" / "profiles"
+    candidates = sorted(profiles_root.glob("job*/hpc_ssh_metadata.json"), key=lambda item: item.stat().st_mtime_ns if item.exists() else 0, reverse=True)
+    for path in candidates:
+        try:
+            metadata = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        profile = str(metadata.get("credential_profile") or path.parent.name)
+        readiness_path = root / "workspace" / "hpc" / f"{profile}_profile_readiness_current.json"
+        try:
+            readiness = json.loads(readiness_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            readiness = {}
+        return profile, path, metadata, readiness
+    return "", None, {}, {}
+
+
+def _live_hpc_connection_probe(profile: str, job_id: int, *, sample_count: int = 5) -> dict[str, Any]:
+    expected = f"job{int(job_id)}" if int(job_id) > 0 else ""
+    if profile != expected or not 1 <= int(sample_count) <= 5:
+        return {"ok": False, "status": "profile_job_binding_invalid", "job_container_verified": False, "samples_requested": sample_count, "samples_passed": 0}
+    client = None
+    config_loaded = False
+    ever_connected = False
+    remote_commands_attempted = 0
+    connection_attempts = 0
+    transport_failures: list[str] = []
+    previous = os.environ.get("EVOMIND_HPC_CREDENTIAL_PROFILE")
+    previous_overrides: dict[str, str] = {}
+    try:
+        from research_agent_workstation.server.core.gpu_credentials import (
+            STRICT_NAMED_PROFILE_OVERRIDE_KEYS,
+            RetryableTransportError,
+            connect_ssh,
+            load_gpu_ssh_config,
+            verify_job_container_identity,
+        )
+        # The assistant process can inherit legacy GPU_SSH_* variables from the
+        # dashboard launcher.  A named profile must use DPAPI metadata exclusively,
+        # so isolate this probe from those variables and restore them afterwards.
+        for name in STRICT_NAMED_PROFILE_OVERRIDE_KEYS:
+            if name in os.environ:
+                previous_overrides[name] = os.environ.pop(name)
+        os.environ["EVOMIND_HPC_CREDENTIAL_PROFILE"] = profile
+        config = load_gpu_ssh_config(strict_named_profile=True)
+        config_loaded = True
+        for attempt in range(1, 4):
+            connection_attempts = attempt
+            samples = []
+            client = None
+            try:
+                client = connect_ssh(config, timeout=30)
+                ever_connected = True
+                for index in range(sample_count):
+                    remote_commands_attempted += 1
+                    evidence = verify_job_container_identity(
+                        client,
+                        config,
+                        expected_job_id=job_id,
+                    )
+                    samples.append({"sample_index": index + 1, "job_container_verified": evidence.get("job_container_verified") is True, "gpu_name": str(evidence.get("gpu_name") or ""), "gpu_memory_total_mib": int(evidence.get("gpu_memory_total_mib") or 0), "read_only": evidence.get("read_only") is True})
+                verified = len(samples) == sample_count and all(
+                    item["job_container_verified"] for item in samples
+                )
+                return {"ok": verified, "status": "job_container_verified" if verified else "job_container_identity_failed", "job_container_verified": verified, "samples_requested": sample_count, "samples_passed": sum(item["job_container_verified"] for item in samples), "samples": samples, "dpapi_decrypted": True, "ssh_connected": True, "remote_commands_attempted": remote_commands_attempted, "connection_attempts": connection_attempts, "transport_retries": len(transport_failures), "read_only": True, "signals_sent": 0, "other_processes_modified": False}
+            except Exception as exc:
+                retryable = isinstance(
+                    exc,
+                    (EOFError, ConnectionError, TimeoutError, socket.timeout, RetryableTransportError),
+                ) or type(exc).__name__ in {"SSHException", "NoValidConnectionsError"}
+                if not retryable or attempt >= 3:
+                    raise
+                transport_failures.append(type(exc).__name__)
+            finally:
+                if client is not None:
+                    try:
+                        client.close()
+                    except Exception:
+                        pass
+                    client = None
+            time.sleep(float(attempt))
+    except Exception as exc:
+        return {"ok": False, "status": "job_container_channel_closed", "job_container_verified": False, "samples_requested": sample_count, "samples_passed": 0, "dpapi_decrypted": config_loaded, "ssh_connected": ever_connected, "remote_commands_attempted": remote_commands_attempted, "connection_attempts": connection_attempts, "transport_retries": len(transport_failures), "transport_failure_types": transport_failures, "read_only": True, "signals_sent": 0, "other_processes_modified": False, "error_type": type(exc).__name__, "reason": str(exc)[:240]}
+    finally:
+        if previous is None:
+            os.environ.pop("EVOMIND_HPC_CREDENTIAL_PROFILE", None)
+        else:
+            os.environ["EVOMIND_HPC_CREDENTIAL_PROFILE"] = previous
+        os.environ.update(previous_overrides)
+
+
+def inspect_hpc_connection_status(session: SessionState, root: Path) -> dict[str, Any]:
+    profile, metadata_path, metadata, readiness = _latest_hpc_profile(root)
+    if not profile:
+        return {"ok": False, "tool": "hpc_connection_status", "status": "no_profile", "message": "No named job profile is enrolled."}
+    details = readiness.get("details") if isinstance(readiness.get("details"), dict) else {}
+    socks_host = str(metadata.get("socks_host") or details.get("socks_host") or "127.0.0.1")
+    socks_port = int(metadata.get("socks_port") or details.get("socks_port") or 7890)
+    gateway_host = str(metadata.get("host") or details.get("gateway_host") or "")
+    gateway_port = int(metadata.get("port") or details.get("gateway_port") or 0)
+    bridge = _loopback_port_listening(socks_host, socks_port)
+    banner_ok, banner = _socks_gateway_banner(socks_host, socks_port, gateway_host, gateway_port) if bridge and gateway_host and gateway_port else (False, "gateway_not_configured")
+    failed_checks = [str(item) for item in readiness.get("failed_checks") or []]
+    local_ready = readiness.get("status") == "ready" and metadata.get("profile_state") == "active" and bridge and banner_ok and not failed_checks
+    job_id = int(metadata.get("job_id") or 0)
+    live = _live_hpc_connection_probe(profile, job_id, sample_count=5) if local_ready else {"ok": False, "status": "local_preflight_blocked", "job_container_verified": False, "samples_passed": 0, "remote_commands_attempted": 0, "dpapi_decrypted": False, "ssh_connected": False}
+    ready = local_ready and live.get("job_container_verified") is True
+    next_action = "current job container passed five read-only identity samples" if ready else "the bound allocation container did not pass the live session/identity probe"
+    gpu_uuid = str(metadata.get("expected_gpu_uuid") or "")
+    return {"ok": ready, "tool": "hpc_connection_status", "status": "ready" if ready else "blocked", "profile": profile, "job_id": job_id, "profile_state": str(metadata.get("profile_state") or "unknown"), "readiness_status": str(readiness.get("status") or "missing"), "local_preflight_ready": local_ready, "live_status": str(live.get("status") or "unknown"), "job_container_verified": live.get("job_container_verified") is True, "samples_passed": int(live.get("samples_passed") or 0), "failed_checks": failed_checks, "socks_bridge": {"host": socks_host, "port": socks_port, "listening": bridge, "gateway_banner_ok": banner_ok, "gateway_banner": "SSH-2.0-*" if banner_ok else banner}, "identity_binding": {"host_uuid_present": bool(metadata.get("expected_host_uuid")), "gpu_uuid_suffix": gpu_uuid[-12:] if gpu_uuid else "", "remote_root": str(metadata.get("remote_workspace") or details.get("remote_workspace") or ""), "container_binding_sha256_present": bool(metadata.get("container_binding_sha256"))}, "live_connection": live, "boundaries": {"dpapi_decrypted": live.get("dpapi_decrypted") is True, "ssh_connections": 1 if live.get("ssh_connected") is True else 0, "remote_commands": int(live.get("remote_commands_attempted") or 0), "training_started": False, "grader_calls": 0, "kaggle_submissions": 0, "signals_sent": 0, "other_processes_modified": False, "secrets_returned": False}, "readiness_artifact": str(metadata_path or ""), "safe_next_action": next_action, "message": f"{profile} is live: {next_action}; no training started." if ready else f"{profile} is blocked: {next_action}"}
 
 
 def _redact_url(url: str) -> str:
@@ -49,17 +289,15 @@ def get_model_status(session: SessionState, root: Path) -> dict[str, Any]:
     model = str(cfg.get("llm.model") or "")
     if not model:
         family = str(cfg.get("llm.provider") or "").lower()
-        model = (
-            os.environ.get("CLAUDE_CODE_MODEL")
-            if family == "anthropic"
-            else os.environ.get("OPENAI_MODEL")
-            if family == "openai"
-            else os.environ.get("DEEPSEEK_MODEL")
-        ) or "(provider default)"
+        model = {
+            "anthropic": os.environ.get("CLAUDE_CODE_MODEL"),
+            "deepseek": os.environ.get("DEEPSEEK_MODEL"),
+            "openai": os.environ.get("OPENAI_MODEL"),
+        }.get(family) or "(provider default)"
     family = str(cfg.get("llm.provider") or "").lower()
     base_url = cfg.get(f"llm.{family}_base_url") or "(provider default)"
 
-    supports_tool_use = family in ("anthropic", "deepseek", "openai")
+    supports_tool_use = family in {"anthropic", "deepseek", "openai"}
     supports_streaming = True  # the gateway supports streaming for both families
 
     return {
@@ -84,6 +322,7 @@ def get_system_status(session: SessionState, root: Path) -> dict[str, Any]:
         "llm_provider": session.llm_provider,
         "kaggle_ready": session.kaggle_ready,
         "compute_backend": session.compute_backend,
+        "hpc_policy_compliant": str(session.compute_backend or "gpu").strip().lower() == "gpu",
         "gpu_configured": session.gpu_ready,
         "gpu_blocked": session.gpu_blocked,
         "gpu_status": session.gpu_status or "(not declared)",
@@ -220,402 +459,83 @@ def inspect_recent_run(session: SessionState, root: Path) -> dict[str, Any]:
     }
 
 
+def _strict_hpc_release_snapshot(root: Path) -> dict[str, Any]:
+    """Return current strict-HPC release evidence without opening an SSH session."""
+
+    report_path = root / "docs" / "launch_resource_readiness.json"
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    resources = report.get("external_resources") if isinstance(report.get("external_resources"), dict) else {}
+    strict = resources.get("hpc_gpu_strict_runtime") if isinstance(resources.get("hpc_gpu_strict_runtime"), dict) else {}
+    profile_evidence = strict.get("profile") if isinstance(strict.get("profile"), dict) else {}
+    live = strict.get("live_probe") if isinstance(strict.get("live_probe"), dict) else {}
+    smoke = strict.get("bounded_smoke") if isinstance(strict.get("bounded_smoke"), dict) else {}
+    current_profile, _metadata_path, metadata, _readiness = _latest_hpc_profile(root)
+    socks_host = str(metadata.get("socks_host") or "127.0.0.1")
+    socks_port = int(metadata.get("socks_port") or 7890)
+    bridge_listening = _loopback_port_listening(socks_host, socks_port)
+    expected_profile = str(profile_evidence.get("profile") or "")
+    expected_job = int(profile_evidence.get("job_id") or 0)
+    current_job = int(metadata.get("job_id") or 0)
+    identity_matches = bool(
+        current_profile
+        and current_profile == expected_profile
+        and current_job > 0
+        and current_job == expected_job
+        and metadata.get("profile_state") == "active"
+    )
+    ready = bool(
+        report.get("strict_hpc_runtime_status") == "ready"
+        and strict.get("state") == "strict_hpc_runtime_verified"
+        and live.get("job_container_verified") is True
+        and int(live.get("samples_passed") or 0) >= 5
+        and smoke.get("status") == "passed"
+        and identity_matches
+        and bridge_listening
+    )
+    return {
+        "ready": ready,
+        "status": "strict_hpc_runtime_verified" if ready else "strict_hpc_runtime_not_current",
+        "profile": current_profile,
+        "job_id": current_job,
+        "samples_passed": int(live.get("samples_passed") or 0),
+        "bounded_smoke": str(smoke.get("status") or "missing"),
+        "bridge_listening": bridge_listening,
+        "gpu_name": str((live.get("samples") or [{}])[0].get("gpu_name") or "") if isinstance(live.get("samples"), list) and live.get("samples") else "",
+        "report_path": str(report_path),
+    }
+
+
 def inspect_gpu_status(session: SessionState, root: Path) -> dict[str, Any]:
     """GPU configuration and manifest blocker status.  Never prints keys or passwords."""
     cfg = load_config(root)
     host = cfg.get("gpu_ssh.host") or ""
     # Redact: never show the real hostname in full.
     host_display = (host[:4] + "..." if len(host) > 4 else host) if host else "(not configured)"
+    strict = _strict_hpc_release_snapshot(root)
+    strict_ready = strict.get("ready") is True
+    configured = bool(session.gpu_ready or strict.get("profile"))
+    blocked = bool(session.gpu_blocked and not strict_ready)
+    manifest_status = str(strict.get("status") or session.gpu_status or "(not declared)")
     return {
         "ok": True,
         "tool": "gpu_status",
-        "configured": session.gpu_ready,
-        "blocked": session.gpu_blocked,
-        "manifest_status": session.gpu_status or "(not declared)",
-        "blocker": session.gpu_blocker or "",
+        "configured": configured,
+        "blocked": blocked,
+        "manifest_status": manifest_status,
+        "blocker": "" if strict_ready else session.gpu_blocker or "",
         "host": host_display,
         "compute_backend": session.compute_backend,
-        "can_execute_gpu": session.gpu_ready and not session.gpu_blocked,
+        "can_execute_gpu": strict_ready or (session.gpu_ready and not session.gpu_blocked),
+        "strict_hpc_evidence": strict,
         "suggestion": (
             "GPU blocked — run a fresh GPU smoke test to unblock."
-            if session.gpu_blocked
+            if blocked
             else "GPU ready."
-            if session.gpu_ready
+            if strict_ready or session.gpu_ready
             else "GPU not configured. Use `evomind setup` to add SSH/HPC details."
-        ),
-    }
-
-
-def _read_json(path: Path) -> dict[str, Any]:
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        return payload if isinstance(payload, dict) else {}
-    except (FileNotFoundError, json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return {}
-
-
-def _profile_base_dir() -> Path:
-    appdata = os.environ.get("APPDATA") or ""
-    if appdata:
-        return Path(appdata) / "ResearchAgentWorkstation" / "profiles"
-    return Path.home() / "AppData" / "Roaming" / "ResearchAgentWorkstation" / "profiles"
-
-
-def _safe_profile_name(value: str) -> str:
-    value = str(value or "").strip()
-    return value if re.fullmatch(r"job\d{3,12}", value) else ""
-
-
-def _latest_hpc_profile(root: Path) -> tuple[str, Path | None, dict[str, Any], dict[str, Any]]:
-    """Return the best current job profile without decrypting credentials."""
-
-    env_profile = _safe_profile_name(os.environ.get("EVOMIND_HPC_CREDENTIAL_PROFILE", ""))
-    profile_root = _profile_base_dir()
-    candidates: list[tuple[float, str, Path, dict[str, Any]]] = []
-    if env_profile:
-        metadata_path = profile_root / env_profile / "hpc_ssh_metadata.json"
-        candidates.append((metadata_path.stat().st_mtime if metadata_path.exists() else 0.0, env_profile, metadata_path, _read_json(metadata_path)))
-    if profile_root.exists():
-        for item in profile_root.iterdir():
-            if not item.is_dir() or not _safe_profile_name(item.name):
-                continue
-            metadata_path = item / "hpc_ssh_metadata.json"
-            metadata = _read_json(metadata_path)
-            if metadata:
-                try:
-                    mtime = metadata_path.stat().st_mtime
-                except OSError:
-                    mtime = 0.0
-                candidates.append((mtime, item.name, metadata_path, metadata))
-    if not candidates:
-        return "", None, {}, {}
-    candidates.sort(key=lambda item: (item[1] == env_profile, item[3].get("profile_state") == "active", item[0]), reverse=True)
-    _, profile, metadata_path, metadata = candidates[0]
-    readiness = _read_json(root / "workspace" / "hpc" / f"{profile}_profile_readiness_current.json")
-    return profile, metadata_path, metadata, readiness
-
-
-def _loopback_port_listening(host: str, port: int, timeout: float = 0.7) -> bool:
-    try:
-        with socket.create_connection((host, int(port)), timeout=timeout):
-            return True
-    except OSError:
-        return False
-
-
-def _socks_gateway_banner(socks_host: str, socks_port: int, dest_host: str, dest_port: int, timeout: float = 3.0) -> tuple[bool, str]:
-    """Check only the SSH gateway banner through the configured SOCKS bridge."""
-
-    try:
-        with socket.create_connection((socks_host, int(socks_port)), timeout=timeout) as sock:
-            sock.settimeout(timeout)
-            sock.sendall(b"\x05\x01\x00")
-            if sock.recv(2) != b"\x05\x00":
-                return False, "socks_handshake_failed"
-            host = str(dest_host).encode("utf-8")
-            sock.sendall(
-                b"\x05\x01\x00\x03"
-                + bytes([len(host)])
-                + host
-                + struct.pack(">H", int(dest_port))
-            )
-            head = sock.recv(4)
-            if len(head) < 4 or head[1] != 0:
-                return False, f"socks_connect_failed:{head.hex()}"
-            atyp = head[3]
-            if atyp == 1:
-                sock.recv(4)
-            elif atyp == 3:
-                sock.recv(sock.recv(1)[0])
-            elif atyp == 4:
-                sock.recv(16)
-            sock.recv(2)
-            banner = sock.recv(80).decode("utf-8", "replace").strip()
-            return bool(banner.startswith("SSH-2.0-")), banner or "no_banner"
-    except OSError as exc:
-        return False, type(exc).__name__
-
-
-def _live_hpc_connection_probe(
-    profile: str,
-    job_id: int,
-    *,
-    sample_count: int = 5,
-) -> dict[str, Any]:
-    """Verify the currently routed job container without starting work.
-
-    Local metadata, a listening SOCKS bridge, and an SSH gateway banner only
-    prove that the route *towards* HPC exists.  They do not prove that the
-    allocation role still enters the bound job container.  This probe therefore
-    loads exactly one named DPAPI profile, uses the pinned-host-key SSH path,
-    and runs the existing read-only Host/GPU/root identity verifier repeatedly.
-
-    The helper returns only redacted evidence.  Passwords, usernames, full Host
-    UUIDs, and full GPU UUIDs never leave ``gpu_credentials``.
-    """
-
-    selected = _safe_profile_name(profile)
-    expected_profile = f"job{int(job_id)}" if int(job_id) > 0 else ""
-    if not selected or selected != expected_profile:
-        return {
-            "ok": False,
-            "status": "profile_job_binding_invalid",
-            "job_container_verified": False,
-            "samples_requested": int(sample_count),
-            "samples_passed": 0,
-            "dpapi_decrypted": False,
-            "ssh_connected": False,
-            "remote_commands_attempted": 0,
-            "error_type": "ProfileBindingError",
-            "reason": "the selected profile is not bound to the requested job",
-        }
-    if not 1 <= int(sample_count) <= 5:
-        raise ValueError("HPC live probe sample_count must be between 1 and 5")
-
-    from research_agent_workstation.server.core.gpu_credentials import (
-        STRICT_NAMED_PROFILE_OVERRIDE_KEYS,
-        connect_ssh,
-        load_gpu_ssh_config,
-        verify_job_container_identity,
-    )
-
-    profile_env = "EVOMIND_HPC_CREDENTIAL_PROFILE"
-    previous_profile_present = profile_env in os.environ
-    previous_profile = os.environ.get(profile_env, "")
-    previous_overrides = {
-        name: os.environ[name]
-        for name in STRICT_NAMED_PROFILE_OVERRIDE_KEYS
-        if name in os.environ
-    }
-    client = None
-    stage = "profile_load"
-    dpapi_decrypted = False
-    ssh_connected = False
-    attempted = 0
-    started_at = datetime.now(timezone.utc)
-    try:
-        os.environ[profile_env] = selected
-        for name in STRICT_NAMED_PROFILE_OVERRIDE_KEYS:
-            os.environ.pop(name, None)
-
-        config = load_gpu_ssh_config(strict_named_profile=True)
-        dpapi_decrypted = True
-        stage = "ssh_connect"
-        client = connect_ssh(config, timeout=30)
-        ssh_connected = True
-        stage = "job_container_identity"
-
-        samples: list[dict[str, Any]] = []
-        for index in range(int(sample_count)):
-            attempted += 1
-            evidence = verify_job_container_identity(
-                client,
-                config,
-                expected_job_id=int(job_id),
-            )
-            samples.append({
-                "sample_index": index + 1,
-                "job_container_verified": evidence.get("job_container_verified") is True,
-                "host_uuid_match": True,
-                "gpu_uuid_match": True,
-                "gpu_name": str(evidence.get("gpu_name") or ""),
-                "gpu_memory_total_mib": int(evidence.get("gpu_memory_total_mib") or 0),
-                "remote_root_match": True,
-                "read_only": evidence.get("read_only") is True,
-                "signals_sent": int(evidence.get("signals_sent") or 0),
-                "other_processes_modified": evidence.get("other_processes_modified") is True,
-            })
-
-        finished_at = datetime.now(timezone.utc)
-        return {
-            "ok": len(samples) == int(sample_count),
-            "status": "job_container_verified",
-            "job_container_verified": True,
-            "samples_requested": int(sample_count),
-            "samples_passed": len(samples),
-            "samples": samples,
-            "dpapi_decrypted": dpapi_decrypted,
-            "ssh_connected": ssh_connected,
-            "remote_commands_attempted": attempted,
-            "read_only": True,
-            "signals_sent": 0,
-            "other_processes_modified": False,
-            "started_at": started_at.isoformat(timespec="seconds"),
-            "finished_at": finished_at.isoformat(timespec="seconds"),
-        }
-    except Exception as exc:  # noqa: BLE001 - converted to a fixed, redacted status contract
-        error_type = type(exc).__name__
-        controlled_message = str(exc)
-        if error_type == "EOFError":
-            error_code = "job_container_channel_closed"
-            reason = "SSH authentication completed, but the allocation container closed the session channel"
-        elif "Host UUID mismatch" in controlled_message:
-            error_code = "host_uuid_mismatch"
-            reason = "the routed container Host UUID no longer matches this profile"
-        elif "GPU UUID mismatch" in controlled_message:
-            error_code = "gpu_uuid_mismatch"
-            reason = "the routed container GPU UUID no longer matches this profile"
-        elif "GPU model mismatch" in controlled_message or "GPU memory mismatch" in controlled_message:
-            error_code = "gpu_identity_mismatch"
-            reason = "the routed GPU model or memory no longer matches the A800 binding"
-        elif stage == "profile_load":
-            error_code = "profile_load_failed"
-            reason = "the active named DPAPI profile failed strict validation"
-        elif stage == "ssh_connect":
-            error_code = "ssh_connect_failed"
-            reason = "the strict proxy and pinned-host-key SSH connection did not complete"
-        else:
-            error_code = "job_container_identity_failed"
-            reason = "the live Host/GPU/root identity probe did not complete"
-        return {
-            "ok": False,
-            "status": error_code,
-            "job_container_verified": False,
-            "samples_requested": int(sample_count),
-            "samples_passed": 0,
-            "dpapi_decrypted": dpapi_decrypted,
-            "ssh_connected": ssh_connected,
-            "remote_commands_attempted": attempted,
-            "read_only": True,
-            "signals_sent": 0,
-            "other_processes_modified": False,
-            "failed_stage": stage,
-            "error_type": error_type,
-            "reason": reason,
-            "started_at": started_at.isoformat(timespec="seconds"),
-            "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        }
-    finally:
-        if client is not None:
-            try:
-                client.close()
-            except Exception:
-                pass
-        for name in STRICT_NAMED_PROFILE_OVERRIDE_KEYS:
-            os.environ.pop(name, None)
-        os.environ.update(previous_overrides)
-        if previous_profile_present:
-            os.environ[profile_env] = previous_profile
-        else:
-            os.environ.pop(profile_env, None)
-
-
-def inspect_hpc_connection_status(session: SessionState, root: Path) -> dict[str, Any]:
-    """Read-only live HPC connection status with no credential disclosure."""
-
-    profile, metadata_path, metadata, readiness = _latest_hpc_profile(root)
-    if not profile:
-        return {
-            "ok": False,
-            "tool": "hpc_connection_status",
-            "status": "no_profile",
-            "message": "No named job profile is enrolled. Enroll a job<id> profile before GPU work.",
-            "safe_next_action": "install a named job profile, then bootstrap identity and verify readiness",
-        }
-
-    checks = readiness.get("checks") if isinstance(readiness.get("checks"), dict) else {}
-    details = readiness.get("details") if isinstance(readiness.get("details"), dict) else {}
-    socks_host = str(metadata.get("socks_host") or details.get("socks_host") or "127.0.0.1")
-    socks_port = int(metadata.get("socks_port") or details.get("socks_port") or 7890)
-    gateway_host = str(metadata.get("host") or details.get("gateway_host") or "")
-    gateway_port = int(metadata.get("port") or details.get("gateway_port") or 0)
-    bridge_listening = _loopback_port_listening(socks_host, socks_port)
-    banner_ok, banner = (False, "gateway_not_configured")
-    if bridge_listening and gateway_host and gateway_port:
-        banner_ok, banner = _socks_gateway_banner(socks_host, socks_port, gateway_host, gateway_port)
-
-    gpu_uuid = str(metadata.get("expected_gpu_uuid") or "")
-    host_uuid = str(metadata.get("expected_host_uuid") or "")
-    failed_checks = [str(item) for item in readiness.get("failed_checks") or []]
-    local_ready = (
-        readiness.get("status") == "ready"
-        and metadata.get("profile_state") == "active"
-        and bridge_listening
-        and banner_ok
-        and not failed_checks
-    )
-    job_id = int(metadata.get("job_id") or 0)
-    live = (
-        _live_hpc_connection_probe(profile, job_id, sample_count=5)
-        if local_ready
-        else {
-            "ok": False,
-            "status": "local_preflight_blocked",
-            "job_container_verified": False,
-            "samples_requested": 5,
-            "samples_passed": 0,
-            "dpapi_decrypted": False,
-            "ssh_connected": False,
-            "remote_commands_attempted": 0,
-            "read_only": True,
-            "signals_sent": 0,
-            "other_processes_modified": False,
-            "reason": "local profile, proxy, or gateway preflight did not pass",
-        }
-    )
-    ready = local_ready and live.get("job_container_verified") is True
-    if ready:
-        safe_next_action = "current job container passed five read-only identity samples; task-specific gates are still required before training"
-    elif not bridge_listening:
-        safe_next_action = f"start the managed SOCKS bridge on {socks_host}:{socks_port}, then re-check hpc_connection_status"
-    elif metadata.get("profile_state") != "active":
-        safe_next_action = "run identity bootstrap for the provisioning profile, then verify profile readiness"
-    elif failed_checks:
-        safe_next_action = "repair failed readiness checks before any GPU action: " + ", ".join(failed_checks[:5])
-    elif not banner_ok:
-        safe_next_action = "repair the SOCKS-to-gateway route; gateway banner is not reachable through the configured bridge"
-    elif not live.get("job_container_verified"):
-        safe_next_action = (
-            "the proxy and SSH gateway are reachable, but the bound allocation container did not pass the live session/identity probe; "
-            "confirm this allocation is still running, and if it was reclaimed freeze this profile and securely enroll a new job-scoped profile"
-        )
-    else:
-        safe_next_action = "re-run profile readiness verification"
-
-    return {
-        "ok": ready,
-        "tool": "hpc_connection_status",
-        "status": "ready" if ready else "blocked",
-        "profile": profile,
-        "job_id": job_id,
-        "profile_state": str(metadata.get("profile_state") or "unknown"),
-        "allocation_generation": int(metadata.get("allocation_generation") or 0),
-        "readiness_status": str(readiness.get("status") or "missing"),
-        "local_preflight_ready": local_ready,
-        "live_status": str(live.get("status") or "unknown"),
-        "job_container_verified": live.get("job_container_verified") is True,
-        "samples_passed": int(live.get("samples_passed") or 0),
-        "failed_checks": failed_checks,
-        "socks_bridge": {
-            "host": socks_host,
-            "port": socks_port,
-            "listening": bridge_listening,
-            "gateway_banner_ok": banner_ok,
-            "gateway_banner": "SSH-2.0-*" if banner_ok else banner,
-        },
-        "identity_binding": {
-            "host_uuid_present": bool(host_uuid),
-            "gpu_uuid_suffix": gpu_uuid[-12:] if gpu_uuid else "",
-            "remote_root": str(metadata.get("remote_workspace") or details.get("remote_workspace") or ""),
-            "container_binding_sha256_present": bool(metadata.get("container_binding_sha256")),
-        },
-        "live_connection": live,
-        "boundaries": {
-            "dpapi_decrypted": live.get("dpapi_decrypted") is True,
-            "ssh_connections": 1 if live.get("ssh_connected") is True else 0,
-            "remote_commands": int(live.get("remote_commands_attempted") or 0),
-            "training_started": False,
-            "grader_calls": 0,
-            "kaggle_submissions": 0,
-            "signals_sent": 0,
-            "other_processes_modified": False,
-            "secrets_returned": False,
-        },
-        "readiness_artifact": f"workspace/hpc/{profile}_profile_readiness_current.json",
-        "safe_next_action": safe_next_action,
-        "message": (
-            f"{profile} is live: the bound job container passed five read-only identity samples; no training started."
-            if ready else f"{profile} is blocked: {safe_next_action}"
         ),
     }
 
@@ -642,329 +562,13 @@ def inspect_kaggle_status(session: SessionState, root: Path) -> dict[str, Any]:
     }
 
 
-_LITERATURE_DOMAIN_REWRITES: tuple[tuple[str, str], ...] = (
-    (r"(?:房价|房屋价格|住宅价格|房地产价格)(?:预测|估值)?", "house price prediction"),
-    (r"乳腺癌(?:诊断|预测|分类)?", "breast cancer classification"),
-    (r"时间序列(?:预测|建模)?", "time series forecasting"),
-    (r"图像(?:识别|分类)?", "image classification"),
-    (r"文本(?:识别|分类)?", "text classification"),
-    (r"表格(?:数据|建模)?", "tabular machine learning"),
-    (r"生存分析", "survival analysis"),
-    (r"异常检测", "anomaly detection"),
-    (r"推荐系统", "recommender systems"),
-)
-
-
-def normalize_literature_query(query: str, *, task_id: str = "", task_brief: str = "") -> str:
-    """Turn a natural-language research command into an index-friendly topic.
-
-    The untouched user turn remains in the terminal receipt.  This function is
-    deliberately deterministic: it removes command/control clauses, expands a
-    small set of common Chinese research domains, and preserves model names,
-    paper titles, metrics, and other technical terms.
-    """
-    requested = " ".join(str(query or "").split())
-    if not requested:
-        requested = "research papers for " + (task_brief or task_id or "the current research task")
-
-    topic = requested
-    if task_id:
-        task_pattern = re.escape(str(task_id)).replace("_", r"[-_ ]").replace(r"\-", r"[-_ ]")
-        topic = re.sub(
-            rf"^(?:请|帮我|我想|我要|麻烦|请你)?\s*为\s*{task_pattern}\s*",
-            "",
-            topic,
-            flags=re.IGNORECASE,
-        )
-    for pattern, replacement in _LITERATURE_DOMAIN_REWRITES:
-        topic = re.sub(pattern, replacement, topic, flags=re.IGNORECASE)
-
-    topic = re.sub(r"\bhouse(?:[-_]prices| prices)\b", "house price prediction", topic, flags=re.IGNORECASE)
-    topic = re.sub(r"\bhouse_prices\b", "house price prediction", topic, flags=re.IGNORECASE)
-    topic = re.sub(
-        r"(?:，|,|。|；|;)?\s*(?:请)?(?:给出|提供|输出|生成|总结|说明|并给出|然后给出).*$",
-        "",
-        topic,
-        flags=re.IGNORECASE,
-    )
-    topic = re.sub(
-        r"(?:，|,|。|；|;)?\s*(?:不|不要|无需|无须|禁止)\s*(?:启动|开始|执行|进行)?\s*(?:任何)?(?:训练|实验|提交).*$",
-        "",
-        topic,
-        flags=re.IGNORECASE,
-    )
-    topic = re.sub(r"^(?:请|帮我|我想|我要|麻烦|请你|能否|可以)?\s*(?:为\s*)?", "", topic, flags=re.IGNORECASE)
-    topic = re.sub(
-        r"(?:检索|搜索|查找|查询|找出|找|核验|验证|交叉核验|实际检索|真实检索|参考)(?:并|和|与)?",
-        " ",
-        topic,
-        flags=re.IGNORECASE,
-    )
-    topic = re.sub(r"(?:真实|相关|学术)?\s*(?:参考文献|论文|文献)(?:列表|资料|证据)?", " ", topic, flags=re.IGNORECASE)
-    topic = re.sub(r"^(?:关于|有关|针对)\s*", "", topic, flags=re.IGNORECASE)
-    topic = re.sub(r"(?<=[A-Za-z0-9])\s*(?:和|与|以及|及)\s*(?=[A-Za-z0-9])", " ", topic)
-    topic = re.sub(r"[：:，,。.!！?？；;、]+", " ", topic)
-    topic = " ".join(topic.split()).strip()
-
-    selected = str(task_id or "").lower().replace("_", "-")
-    if selected == "house-prices" and not re.search(r"\bhouse\s+price\b", topic, flags=re.IGNORECASE):
-        topic = f"{topic} house price prediction".strip()
-    if len(topic) < 3:
-        topic = requested
-    return topic[:480]
-
-
-def build_literature_answer(result: dict[str, Any]) -> str:
-    """Build a user-facing answer from the exact papers returned by the API."""
-    papers = [paper for paper in (result.get("papers") or []) if isinstance(paper, dict)]
-    external = [paper for paper in papers if paper.get("source") in {"arxiv", "openalex", "crossref"}]
-    imported = [paper for paper in papers if paper.get("source") == "imported"]
-    integrity = result.get("integrity") if isinstance(result.get("integrity"), dict) else {}
-    relevance = result.get("relevance") if isinstance(result.get("relevance"), dict) else {}
-    source_errors = result.get("source_errors") if isinstance(result.get("source_errors"), list) else []
-
-    if external:
-        conclusion = (
-            f"已从真实学术索引筛选出 {len(external)} 篇与主题同时相关的论文；"
-            f"外部可核验记录为 {integrity.get('external_verified', len(external))}，伪造记录为 {integrity.get('fabricated', 0)}。"
-        )
-    else:
-        conclusion = (
-            "本次外部索引请求没有留下通过主题相关性检查的论文。"
-            "系统已保留检索和过滤证据，不会把无关结果当作参考文献。"
-        )
-
-    lines = ["## 直接结论", "", conclusion]
-    queries = [str(item) for item in (result.get("search_queries") or []) if str(item)]
-    if queries:
-        lines.extend(["", "检索式：" + "；".join(f"`{item}`" for item in queries[:4])])
-
-    lines.extend(["", "## 实际命中的论文", ""])
-    if external:
-        for index, paper in enumerate(external[:8], start=1):
-            title = str(paper.get("title") or "Untitled")
-            year = str(paper.get("year") or "n.d.")
-            source = str(paper.get("source") or "source")
-            doi = str(paper.get("doi") or "").strip()
-            url = str(paper.get("url") or paper.get("source_url") or "").strip()
-            link = f"https://doi.org/{doi}" if doi else url
-            citation = f"{index}. **{title}** ({year}, {source})"
-            if doi:
-                citation += f"，DOI: [{doi}]({link})"
-            elif link:
-                citation += f"，[来源]({link})"
-            lines.append(citation)
-    else:
-        lines.append("- 没有论文通过方法词与研究领域的联合相关性检查。")
-
-    lines.extend(["", "## 用户导入文献", ""])
-    if imported:
-        for paper in imported[:4]:
-            provenance = paper.get("provenance") if isinstance(paper.get("provenance"), dict) else {}
-            checksum = str(provenance.get("checksum") or "")
-            checksum_note = f"，SHA-256 `{checksum}`" if checksum else ""
-            lines.append(f"- **{paper.get('title') or 'Imported document'}**：已索引{checksum_note}；是否支持当前结论仍需 Reviewer 逐条绑定引用。")
-    else:
-        lines.append("- 当前任务没有用户导入论文；可在文献页上传 PDF，系统会保存原文件、提取文本和校验和 provenance。")
-
-    methods: list[str] = []
-    for paper in external:
-        for method in paper.get("methods") or []:
-            value = str(method)
-            if value and value not in methods:
-                methods.append(value)
-    if {"CatBoost", "LightGBM"}.issubset(set(methods)):
-        next_step = (
-            "在同一数据切分、特征处理和评价指标下建立 CatBoost 与 LightGBM 对照，"
-            "保存各折 OOF 预测并做残差分组审计；只有独立 Reviewer 核对指标、产物和引用后，才进入后续实验 Gate。"
-        )
-    else:
-        next_step = (
-            "先把上面的真实论文分别绑定到待验证假设，再用统一数据切分和指标设计一个单变量对照；"
-            "Reviewer 核对论文相关性、实验产物和结论边界后再决定是否进入执行 Gate。"
-        )
-    lines.extend(["", "## 下一步研究建议", "", next_step])
-
-    reviewer_status = str(result.get("reviewer_status") or "pending_claim_binding_and_independent_citation_audit")
-    lines.extend([
-        "",
-        "## Reviewer / Gate",
-        "",
-        f"- 状态：`{reviewer_status}`",
-        f"- 相关性过滤：原始外部结果 {relevance.get('raw_external', 0)}，保留 {relevance.get('accepted_external', len(external))}，过滤 {relevance.get('filtered_external', 0)}。",
-        f"- 外部源错误：{len(source_errors)}；训练：未启动；Kaggle 正式提交：仍需 Human Gate。",
-    ])
-    return "\n".join(lines)
-
-
-def _loopback_literature_auth_headers(endpoint: str) -> dict[str, str]:
-    """Consume per-request browser auth and attach it only to loopback calls."""
-    cookie = os.environ.pop("EVOMIND_INTERNAL_SESSION_COOKIE", "").strip()
-    csrf = os.environ.pop("EVOMIND_INTERNAL_CSRF", "").strip()
-    origin = os.environ.pop("EVOMIND_INTERNAL_ORIGIN", "").strip()
-    try:
-        target = urllib.parse.urlsplit(endpoint)
-        source = urllib.parse.urlsplit(origin)
-    except ValueError:
-        return {}
-    loopback_hosts = {"127.0.0.1", "localhost", "::1"}
-    if (
-        target.scheme not in {"http", "https"}
-        or target.hostname not in loopback_hosts
-        or target.username is not None
-        or target.password is not None
-        or source.scheme not in {"http", "https"}
-        or source.hostname not in loopback_hosts
-        or source.username is not None
-        or source.password is not None
-    ):
-        return {}
-    if not cookie.startswith("evomind_local_session=") or not csrf or not origin:
-        return {}
-    if any("\r" in value or "\n" in value for value in (cookie, csrf, origin)):
-        return {}
-    return {
-        "Cookie": cookie[:512],
-        "X-EvoMind-CSRF": csrf[:512],
-        "Origin": origin[:2048],
-    }
-
-
-def search_literature(session: SessionState, root: Path, *, query: str = "") -> dict[str, Any]:
-    """Search the live workstation literature API and persist a compact receipt.
-
-    The terminal and browser intentionally share one implementation so every
-    paper carries the same external provenance, source errors, and RAG paths.
-    This tool is read-only and never includes internal seed papers.
-    """
-    requested = " ".join(str(query or "").split())
-    if not requested:
-        requested = "research papers for " + (session.task_brief or session.selected_task or "the current research task")
-    task_id = session.selected_task or "playground_series_s6e6"
-    normalized_query = normalize_literature_query(
-        requested,
-        task_id=task_id,
-        task_brief=session.task_brief or "",
-    )
-    endpoint = os.environ.get("EVOMIND_LITERATURE_API_URL", "http://127.0.0.1:8088/api/literature/search")
-    payload = {
-        "task_id": task_id,
-        "query": normalized_query[:1200],
-        "original_query": requested[:2000],
-        "max_results": 12,
-        "include_arxiv": True,
-        "include_openalex": True,
-        "include_crossref": True,
-        "include_internal": False,
-    }
-    headers = {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": "EvoMind-terminal/1.0",
-        **_loopback_literature_auth_headers(endpoint),
-    }
-    request = urllib.request.Request(
-        endpoint,
-        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        headers=headers,
-        method="POST",
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=90) as response:
-            response_payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
-        return {
-            "ok": False,
-            "tool": "literature_search",
-            "query": requested,
-            "task_id": task_id,
-            "message": f"Live literature API unavailable: {type(exc).__name__}",
-            "endpoint": endpoint.split("?")[0],
-            "source_errors": [{"source": "workstation_api", "error": str(exc)[:240], "retryable": True}],
-            "integrity": {"external_verified": 0, "imported": 0, "internal_context": 0, "fabricated": 0},
-            "no_training_started": True,
-        }
-    if not isinstance(response_payload, dict):
-        return {"ok": False, "tool": "literature_search", "query": requested, "message": "Literature API returned a non-object response."}
-
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    receipt_path = root / ".xsci" / f"literature_search_{timestamp}.json"
-    receipt = {
-        "schema": "evomind.terminal.literature_search.v1",
-        "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "tool": "literature_search",
-        "query": requested,
-        "normalized_query": normalized_query,
-        "task_id": task_id,
-        "source": "workstation_api",
-        "response": response_payload,
-        "no_training_started": True,
-        "official_submit": "blocked_until_explicit_human_approval",
-    }
-    try:
-        receipt_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = receipt_path.with_suffix(".json.tmp")
-        temporary.write_text(json.dumps(receipt, ensure_ascii=False, indent=2), encoding="utf-8")
-        temporary.replace(receipt_path)
-    except OSError as exc:
-        response_payload.setdefault("source_errors", []).append({"source": "terminal_receipt", "error": str(exc), "retryable": False})
-
-    papers = response_payload.get("papers") if isinstance(response_payload.get("papers"), list) else []
-    compact_papers = []
-    external_papers = [paper for paper in papers if isinstance(paper, dict) and paper.get("source") in {"arxiv", "openalex", "crossref"}]
-    imported_papers = [paper for paper in papers if isinstance(paper, dict) and paper.get("source") == "imported"]
-    other_papers = [
-        paper for paper in papers
-        if isinstance(paper, dict) and paper not in external_papers and paper not in imported_papers
-    ]
-    selected_papers = [*external_papers[:8], *imported_papers[:4], *other_papers[:2]]
-    for paper in selected_papers:
-        if not isinstance(paper, dict):
-            continue
-        compact_papers.append({
-            "title": str(paper.get("title") or ""),
-            "year": str(paper.get("year") or ""),
-            "source": str(paper.get("source") or ""),
-            "doi": paper.get("doi"),
-            "authors": list(paper.get("authors") or [])[:4],
-            "url": paper.get("url") or paper.get("source_url"),
-            "provenance": paper.get("provenance"),
-            "methods": list(paper.get("methods") or [])[:6],
-            "score": paper.get("score"),
-            "status": paper.get("status"),
-        })
-    terminal_result = {
-        "ok": bool(response_payload.get("ok", True)),
-        "tool": "literature_search",
-        "query": requested,
-        "normalized_query": normalized_query,
-        "search_queries": response_payload.get("search_queries") or [normalized_query],
-        "task_id": task_id,
-        "paper_count": len(papers),
-        "papers": compact_papers,
-        "source_counts": response_payload.get("source_counts") or {},
-        "source_errors": response_payload.get("source_errors") or [],
-        "integrity": response_payload.get("integrity") or {},
-        "relevance": response_payload.get("relevance") or {},
-        "reviewer_status": "pending_claim_binding_and_independent_citation_audit",
-        "context_path": response_payload.get("context_path"),
-        "manifest_path": response_payload.get("manifest_path"),
-        "receipt_path": str(receipt_path),
-        "message": response_payload.get("error") or f"Real literature search returned {len(papers)} papers.",
-        "no_training_started": True,
-        "official_submit": "blocked_until_explicit_human_approval",
-    }
-    terminal_result["answer_markdown"] = build_literature_answer(terminal_result)
-    return terminal_result
-
-
 def open_dashboard_url(session: SessionState, root: Path) -> dict[str, Any]:
     """Return the workstation dashboard URL."""
     cfg = load_config(root)
     url = str(
         cfg.get("workstation.dashboard_url")
         or cfg.get("dashboard.url")
-        or "http://127.0.0.1:8088/?page=assistant"
+        or "http://127.0.0.1:8088/?page=control"
     )
     return {
         "ok": True,
@@ -1163,6 +767,140 @@ def _read_json_artifact(path: Path) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _agentic_benchmark_runtime_contract() -> dict[str, Any]:
+    """Return the exact runtime and case-set identity a benchmark must match."""
+
+    from .agentic_capability_benchmark import (
+        BENCHMARK_VERSION,
+        _runtime_source_provenance,
+        build_benchmark_cases,
+    )
+
+    cases = build_benchmark_cases()
+    return {
+        "benchmark_version": BENCHMARK_VERSION,
+        "case_categories": {case.case_id: case.category for case in cases},
+        **_runtime_source_provenance(),
+    }
+
+
+def _validate_agentic_benchmark_report(report: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Fail closed unless a complete report is bound to this exact runtime."""
+
+    failures: list[str] = []
+    if not isinstance(report, dict) or not report:
+        return False, ["report_missing"]
+
+    try:
+        contract = _agentic_benchmark_runtime_contract()
+    except Exception as exc:  # pragma: no cover - runtime provenance is defensive
+        return False, [f"runtime_contract_unavailable:{type(exc).__name__}"]
+
+    expected_categories = contract.get("case_categories")
+    if not isinstance(expected_categories, dict) or not expected_categories:
+        return False, ["runtime_case_contract_invalid"]
+    expected_case_ids = list(expected_categories)
+
+    def require(condition: bool, reason: str) -> None:
+        if not condition:
+            failures.append(reason)
+
+    def strict_int(value: Any) -> bool:
+        return isinstance(value, int) and not isinstance(value, bool)
+
+    require(report.get("benchmark") == "evomind_agentic_capability", "benchmark_identity_mismatch")
+    require(report.get("benchmark_version") == contract.get("benchmark_version"), "benchmark_version_mismatch")
+    require(report.get("adapter") == "workspace_agent_subprocess_v1", "adapter_mismatch")
+    require(str(report.get("execution_status") or "").strip().lower() == "completed", "execution_not_completed")
+    require(str(report.get("provider") or "").strip().lower() in {"anthropic", "deepseek", "openai"}, "provider_invalid")
+
+    for field in (
+        "runtime_package_version",
+        "runtime_source_digest_sha256",
+        "runtime_source_file_count",
+        "runtime_git_commit",
+    ):
+        require(report.get(field) == contract.get(field), f"{field}_mismatch")
+
+    current_dirty = contract.get("runtime_git_dirty")
+    reported_dirty = report.get("runtime_git_dirty")
+    if current_dirty is True:
+        dirty_ok = reported_dirty is True
+    elif current_dirty is False:
+        dirty_ok = reported_dirty is False or reported_dirty is True
+    else:
+        dirty_ok = reported_dirty is None or reported_dirty is True
+    require(dirty_ok, "runtime_git_dirty_underreported")
+
+    total_cases = report.get("total_cases")
+    cases_run = report.get("cases_run")
+    selected_case_ids = report.get("selected_case_ids")
+    case_results = report.get("case_results")
+    require(strict_int(total_cases) and total_cases == len(expected_case_ids), "total_cases_mismatch")
+    require(strict_int(cases_run) and cases_run == len(expected_case_ids), "incomplete_case_count")
+    require(selected_case_ids == expected_case_ids, "selected_case_ids_mismatch")
+    require(isinstance(case_results, list) and len(case_results) == len(expected_case_ids), "case_results_incomplete")
+
+    valid_results = isinstance(case_results, list) and len(case_results) == len(expected_case_ids)
+    if valid_results:
+        result_ids = [item.get("case_id") if isinstance(item, dict) else None for item in case_results]
+        require(result_ids == expected_case_ids, "case_result_ids_mismatch")
+        for index, item in enumerate(case_results):
+            if not isinstance(item, dict):
+                failures.append(f"case_result_{index}_invalid")
+                continue
+            case_id = expected_case_ids[index]
+            require(item.get("category") == expected_categories[case_id], f"case_result_{case_id}_category_mismatch")
+            for field in ("passed", "oracle_passed", "timed_out", "scope_violation", "unsupported_claim"):
+                require(isinstance(item.get(field), bool), f"case_result_{case_id}_{field}_invalid")
+            paths = item.get("scope_violation_paths")
+            require(isinstance(paths, list), f"case_result_{case_id}_scope_paths_invalid")
+            if isinstance(paths, list) and isinstance(item.get("scope_violation"), bool):
+                require(bool(paths) is item.get("scope_violation"), f"case_result_{case_id}_scope_summary_mismatch")
+            if item.get("passed") is True:
+                require(item.get("oracle_passed") is True, f"case_result_{case_id}_passed_without_oracle")
+                require(item.get("timed_out") is False, f"case_result_{case_id}_passed_after_timeout")
+                require(item.get("scope_violation") is False, f"case_result_{case_id}_passed_with_scope_violation")
+                require(item.get("unsupported_claim") is False, f"case_result_{case_id}_passed_with_unsupported_claim")
+
+        passed_cases = sum(item.get("passed") is True for item in case_results if isinstance(item, dict))
+        scope_violations = sum(item.get("scope_violation") is True for item in case_results if isinstance(item, dict))
+        unsupported_claims = sum(item.get("unsupported_claim") is True for item in case_results if isinstance(item, dict))
+        timed_out_cases = sum(item.get("timed_out") is True for item in case_results if isinstance(item, dict))
+        expected_rate = round(passed_cases / len(expected_case_ids), 6)
+        reported_rate = report.get("task_success_rate")
+
+        require(strict_int(report.get("passed_cases")) and report.get("passed_cases") == passed_cases, "passed_cases_mismatch")
+        require(
+            strict_int(report.get("failed_cases"))
+            and report.get("failed_cases") == len(expected_case_ids) - passed_cases,
+            "failed_cases_mismatch",
+        )
+        require(
+            isinstance(reported_rate, (int, float))
+            and not isinstance(reported_rate, bool)
+            and abs(float(reported_rate) - expected_rate) <= 1e-9,
+            "task_success_rate_mismatch",
+        )
+        require(
+            strict_int(report.get("scope_violations")) and report.get("scope_violations") == scope_violations,
+            "scope_violations_mismatch",
+        )
+        require(
+            strict_int(report.get("unsupported_claims")) and report.get("unsupported_claims") == unsupported_claims,
+            "unsupported_claims_mismatch",
+        )
+        require(
+            strict_int(report.get("timed_out_cases")) and report.get("timed_out_cases") == timed_out_cases,
+            "timed_out_cases_mismatch",
+        )
+        require(scope_violations == 0, "scope_violations_present")
+        require(unsupported_claims == 0, "unsupported_claims_present")
+        require(timed_out_cases == 0, "timed_out_cases_present")
+
+    return not failures, list(dict.fromkeys(failures))
 
 
 def _read_jsonl_tail(path: Path, *, limit: int = 50) -> list[dict[str, Any]]:
@@ -2785,9 +2523,11 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
     branch = str(selected.get("branch_type") or decision.get("selected_branch") or "baseline")
     code_mode = str(selected.get("code_generation_mode") or decision.get("code_generation_mode") or "Stepwise")
     strategy = str(selected.get("strategy_name") or selected.get("hypothesis_id") or "unreviewed_hypothesis")
-    resource_mode = str(getattr(session, "current_compute_override", None) or session.compute_backend or "local")
+    resource_mode = str(getattr(session, "current_compute_override", None) or session.compute_backend or "gpu")
     go_no_go = str(contract.get("go_no_go") or "no_go") if isinstance(contract, dict) else "no_go"
     blockers = list(selected.get("blockers") or []) if isinstance(selected.get("blockers"), list) else []
+    if resource_mode.strip().lower() != "gpu":
+        blockers.append("blocked_local_training_disabled")
     if isinstance(contract, dict):
         blockers.extend(
             str(x) for x in (contract.get("root_causes") or [])
@@ -2802,7 +2542,7 @@ def get_scientist_experiment_blueprint(session: SessionState, root: Path) -> dic
         else "blocked_stale_lineage" if selected and not lineage_matches
         else "blocked_until_gates_clear"
     )
-    expected_delta = decision.get("expected_delta") or review.get("expected_delta") or "evidence_bound_local_delta_required"
+    expected_delta = decision.get("expected_delta") or review.get("expected_delta") or "evidence_bound_hpc_delta_required"
     rollback_condition = str(
         (contract.get("rollback_condition") if isinstance(contract, dict) else "")
         or decision.get("rollback_condition")
@@ -3292,13 +3032,20 @@ def get_scientist_situation_model(session: SessionState, root: Path) -> dict[str
     blocker_model = [_classify_scientist_blocker(item) for item in blockers]
 
     data_ready = bool(data.get("train_csv") and data.get("test_csv")) or str(contract.get("data_contract_status") or "").startswith("remote")
-    setup_ready = bool(session.selected_task) and bool(session.llm_ready)
+    hpc_ready = (
+        str(session.compute_backend or "gpu").strip().lower() == "gpu"
+        and bool(session.gpu_ready)
+        and not bool(session.gpu_blocked)
+    )
+    setup_ready = bool(session.selected_task) and bool(session.llm_ready) and hpc_ready
     gates_ready = bool(gate.get("can_execute")) and str(contract.get("go_no_go") or "") != "no_go" and not blockers
     blueprint_ready = bool(experiment_blueprint.get("blueprint_id"))
     readiness_checks = {
         "task_selected": bool(session.selected_task),
         "llm_ready": bool(session.llm_ready),
         "kaggle_ready": bool(session.kaggle_ready),
+        "hpc_compute_backend": str(session.compute_backend or "gpu").strip().lower() == "gpu",
+        "hpc_runtime_ready": hpc_ready,
         "data_ready": bool(data_ready),
         "memory_available": bool(memory.get("records", 0) or tracker.get("lessons_recorded", 0)),
         "hypothesis_reviewed": bool(selected_hypothesis),
@@ -3314,7 +3061,7 @@ def get_scientist_situation_model(session: SessionState, root: Path) -> dict[str
     if not data_ready:
         uncertainties.append("Training/test data availability or remote data contract is not proven.")
     if not recent.get("run_id") or recent.get("run_id") == "(none)":
-        uncertainties.append("No recent run evidence; local score trend is unknown.")
+        uncertainties.append("No recent run evidence; HPC/GPU score trend is unknown.")
     if not memory.get("records", 0):
         uncertainties.append("Retrospective memory has no reusable records for cross-run learning.")
     if not selected_hypothesis:
@@ -3559,6 +3306,20 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         system = get_system_status(session, root)
     except Exception as exc:  # pragma: no cover - defensive only
         system = {"ok": False, "tool": "system_status", "message": type(exc).__name__, "blockers": []}
+    try:
+        from .scientist_release_evidence import read_research_parity_gate
+        from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
+
+        research_parity_gate = read_research_parity_gate(resolve_upgrade_evidence_root(root))
+    except Exception as exc:  # pragma: no cover - defensive only
+        research_parity_gate = {
+            "tool": "research_parity_gate",
+            "status": "blocked",
+            "parity_claim_allowed": False,
+            "score_cap": 84,
+            "blockers": ["research_parity_gate_error"],
+            "reason": type(exc).__name__,
+        }
 
     action_items = action_queue.get("actions") if isinstance(action_queue, dict) else []
     if not isinstance(action_items, list):
@@ -3837,15 +3598,20 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     behavior_adapter = str(behavior_benchmark.get("adapter") or "").strip()
     behavior_execution_status = str(behavior_benchmark.get("execution_status") or "").strip().lower()
     behavior_provider = str(behavior_benchmark.get("provider") or "").strip()
-    behavior_evidence_trusted = bool(
-        behavior_adapter == "workspace_agent_subprocess_v1"
-        and behavior_execution_status == "completed"
-        and behavior_provider
-    )
-    behavior_reported_cases = int(behavior_benchmark.get("cases_run") or 0)
-    behavior_reported_success_rate = float(behavior_benchmark.get("task_success_rate") or 0.0)
-    behavior_reported_scope_violations = int(behavior_benchmark.get("scope_violations") or 0)
-    behavior_reported_unsupported_claims = int(behavior_benchmark.get("unsupported_claims") or 0)
+    behavior_evidence_trusted, behavior_trust_failures = _validate_agentic_benchmark_report(behavior_benchmark)
+
+    def benchmark_int(name: str) -> int:
+        value = behavior_benchmark.get(name)
+        return value if isinstance(value, int) and not isinstance(value, bool) else 0
+
+    def benchmark_float(name: str) -> float:
+        value = behavior_benchmark.get(name)
+        return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
+
+    behavior_reported_cases = benchmark_int("cases_run")
+    behavior_reported_success_rate = benchmark_float("task_success_rate")
+    behavior_reported_scope_violations = benchmark_int("scope_violations")
+    behavior_reported_unsupported_claims = benchmark_int("unsupported_claims")
     behavior_cases = behavior_reported_cases if behavior_evidence_trusted else 0
     behavior_success_rate = behavior_reported_success_rate if behavior_evidence_trusted else 0.0
     behavior_scope_violations = behavior_reported_scope_violations if behavior_evidence_trusted else 0
@@ -3865,6 +3631,14 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     else:
         behavior_score_cap = 59
         behavior_status = "not_measured"
+    external_parity_certified = research_parity_gate.get("parity_claim_allowed") is True
+    if external_parity_certified:
+        behavior_score_cap = 100
+        behavior_status = "externally_certified_named_baseline_noninferiority"
+    else:
+        parity_cap = research_parity_gate.get("score_cap")
+        if isinstance(parity_cap, int) and not isinstance(parity_cap, bool):
+            behavior_score_cap = min(behavior_score_cap, parity_cap)
     overall_score = min(structural_score, behavior_score_cap)
 
     gaps: list[dict[str, Any]] = []
@@ -3998,6 +3772,31 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "evomind autopilot",
             [".xsci/terminal_events.jsonl", ".xsci/scientist_turns.jsonl"],
         )
+    parity_blockers = research_parity_gate.get("blockers")
+    if isinstance(parity_blockers, list) and "external_capability_certification_not_verified" in parity_blockers:
+        add_backlog(
+            "external_capability_certification",
+            "Pass an independently anchored hidden-suite certification against Codex and Claude Code",
+            "P0",
+            "Local structure and proxy tasks do not establish frontier-agent non-inferiority.",
+            "evomind certification-status",
+            [
+                ".xsci/capability_certification_result.json",
+                "external report, suite, evaluator, raw results, and artifact SHA-256 anchors",
+            ],
+        )
+    if isinstance(parity_blockers, list) and "active_self_upgrade_campaign_not_verified" in parity_blockers:
+        add_backlog(
+            "verified_self_upgrade_campaign",
+            "Activate a strict-improvement upgrade campaign with canary and rollback evidence",
+            "P0",
+            "Self-evolution requires frozen evaluation, multiple immutable candidates, CAS promotion, and tested rollback.",
+            "evomind upgrade-campaign status",
+            [
+                ".xsci/scientist_upgrade_campaign.json",
+                ".xsci/upgrade_campaigns/<campaign_id>/self_upgrade_campaign_evidence.json",
+            ],
+        )
 
     evidence_sources = {
         "autopilot": {
@@ -4077,6 +3876,12 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "present": bool(behavior_benchmark),
             "status": behavior_status,
             "trusted_evidence": behavior_evidence_trusted,
+            "trust_failures": behavior_trust_failures if behavior_benchmark else [],
+            "benchmark_version": behavior_benchmark.get("benchmark_version"),
+            "runtime_package_version": behavior_benchmark.get("runtime_package_version"),
+            "runtime_source_digest_sha256": behavior_benchmark.get("runtime_source_digest_sha256"),
+            "runtime_git_commit": behavior_benchmark.get("runtime_git_commit"),
+            "runtime_git_dirty": behavior_benchmark.get("runtime_git_dirty"),
             "adapter": behavior_adapter,
             "execution_status": behavior_execution_status,
             "provider": behavior_provider,
@@ -4092,6 +3897,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             "behavior_score_cap": behavior_score_cap,
             "effective_score": overall_score,
         },
+        "research_parity_gate": research_parity_gate,
     }
     next_safe_commands = [
         "evomind self-audit",
@@ -4100,14 +3906,16 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "evomind recovery",
         "evomind loop",
         "evomind autopilot",
+        "evomind certification-status",
+        "evomind upgrade-campaign status",
     ]
     capability_readiness = (
-        "strong_local_agent_ready" if overall_score >= 85 else
+        "externally_certified_research_agent_ready" if overall_score >= 85 and external_parity_certified else
         "usable_but_needs_agent_upgrades" if overall_score >= 70 else
         "not_ready_for_strong_ai_scientist_demo"
     )
     launch_readiness = (
-        "strong_local_agent_ready"
+        "hpc_gated_agent_ready"
         if overall_score >= 85 and runtime_execution_ready
         else "capability_ready_but_execution_blocked"
         if overall_score >= 85
@@ -4117,7 +3925,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
     )
     claim_readiness = {
         "capability_claim": (
-            "strong_local_agent_capability_supported"
+            "strong_agent_capability_supported"
             if overall_score >= 85
             else "partial_capability_supported"
             if overall_score >= 70
@@ -4129,16 +3937,19 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
             else "blocked_by_external_resource_or_data_gate"
         ),
         "ai_scientist_parity_claim": (
-            "blocked_without_end_to_end_training_and_recovery_evidence"
-            if not runtime_execution_ready
-            else "local_agent_parity_proxy_only_requires_more_tasks"
+            "externally_certified_noninferiority_against_named_codex_and_claude_baselines"
+            if external_parity_certified
+            else "blocked_without_external_hidden_suite_certification_and_active_upgrade_campaign"
         ),
         "rank_or_medal_claim": "blocked_without_kaggle_response_artifact",
         "official_submit_claim": "blocked_until_explicit_human_approval",
         "reason": (
+            "External hidden-suite certification and an active verified upgrade campaign support the bounded parity claim."
+            if external_parity_certified
+            else
             "Capability score is separated from execution readiness; blocked compute/data gates prevent broad launch or benchmark claims."
             if not runtime_execution_ready
-            else "Execution gate is currently clear, but official submit/rank/medal claims still require human approval and Kaggle response artifacts."
+            else "Execution may be ready, but research parity remains blocked until external certification and an active verified upgrade campaign both pass."
         ),
         "no_training_started": True,
         "official_submit": "blocked_until_explicit_human_approval",
@@ -4170,6 +3981,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "structural_score": structural_score,
         "behavior_score_cap": behavior_score_cap,
         "behavior_benchmark_status": behavior_status,
+        "research_parity_gate": research_parity_gate,
         "previous_score": previous_score if isinstance(previous_score, int) else None,
         "score_delta": score_delta,
         "capability_readiness": capability_readiness,
@@ -4219,6 +4031,7 @@ def get_scientist_self_audit(session: SessionState, root: Path) -> dict[str, Any
         "capability_readiness": capability_readiness,
         "launch_readiness": launch_readiness,
         "claim_readiness": claim_readiness,
+        "research_parity_gate": research_parity_gate,
         "capabilities": capabilities,
         "gaps": gaps,
         "upgrade_backlog": backlog,
@@ -4379,7 +4192,7 @@ def _write_scientist_readiness_markdown(payload: dict[str, Any], path: Path) -> 
 def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[str, Any]:
     """Create one unified AI Scientist readiness report.
 
-    The report intentionally separates local agent capability from execution,
+    The report intentionally separates agent capability from gated HPC execution,
     official submission, rank, and medal claims. It refreshes read-only audit
     artifacts only; it never trains models, downloads data, or submits Kaggle.
     """
@@ -4410,6 +4223,13 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
 
     claim_readiness = self_audit.get("claim_readiness") if isinstance(self_audit.get("claim_readiness"), dict) else {}
     execution_readiness = self_audit.get("execution_readiness") if isinstance(self_audit.get("execution_readiness"), dict) else {}
+    research_parity_gate = self_audit.get("research_parity_gate") if isinstance(self_audit.get("research_parity_gate"), dict) else {}
+    parity_ready = research_parity_gate.get("parity_claim_allowed") is True
+    parity_blockers = [
+        _redacted_memory_text(item, limit=220)
+        for item in (research_parity_gate.get("blockers") if isinstance(research_parity_gate.get("blockers"), list) else [])
+        if _redacted_memory_text(item, limit=220)
+    ]
     memory = evolution.get("retrospective_memory", {}) if isinstance(evolution, dict) else {}
     memory_records = int(memory.get("records") or 0) if isinstance(memory, dict) else 0
     blockers = [
@@ -4455,6 +4275,12 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
             "evomind resume-continuation",
         ),
         _readiness_gate_status(
+            "research_parity_certification",
+            parity_ready,
+            str(research_parity_gate.get("claim") or "research parity is not externally certified"),
+            "evomind parity-status",
+        ),
+        _readiness_gate_status(
             "rank_medal_claim_gate",
             False,
             "Kaggle rank/medal claims require official response artifacts.",
@@ -4475,6 +4301,8 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         recommended_next_commands.append("evomind resume-continuation")
     if not memory_records:
         recommended_next_commands.append("evomind memory-consolidate")
+    if not parity_ready:
+        recommended_next_commands.extend(["evomind certification-status", "evomind upgrade-campaign status"])
     recommended_next_commands.extend([
         "evomind self-audit",
         "evomind upgrade-plan",
@@ -4487,6 +4315,8 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         {"name": "upgrade_backlog", "path": self_audit.get("backlog_artifact_path") or str(xsci / "scientist_upgrade_backlog.json"), "present": (xsci / "scientist_upgrade_backlog.json").exists()},
         {"name": "capability_trend", "path": (self_audit.get("capability_trend") or {}).get("path") if isinstance(self_audit.get("capability_trend"), dict) else str(xsci / "scientist_capability_trend.jsonl"), "present": (xsci / "scientist_capability_trend.jsonl").exists()},
         {"name": "continuation_status", "path": continuation_status.get("artifact_path") or str(xsci / "scientist_continuation_status.json"), "present": (xsci / "scientist_continuation_status.json").exists()},
+        {"name": "capability_certification", "path": str(xsci / "capability_certification_result.json"), "present": (xsci / "capability_certification_result.json").exists()},
+        {"name": "upgrade_campaign", "path": str(xsci / "scientist_upgrade_campaign.json"), "present": (xsci / "scientist_upgrade_campaign.json").exists()},
         {"name": "readiness_report", "path": str(artifact_path), "present": True},
         {"name": "readiness_markdown", "path": str(markdown_path), "present": True},
     ]
@@ -4503,7 +4333,7 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
         "claim_readiness": claim_readiness,
         "execution_readiness": execution_readiness,
         "readiness_matrix": readiness_matrix,
-        "blocking_reasons": blockers[:8],
+        "blocking_reasons": list(dict.fromkeys(blockers + parity_blockers))[:10],
         "recommended_next_commands": recommended_next_commands,
         "artifact_evidence": artifact_evidence,
         "source_artifacts": {
@@ -4533,7 +4363,9 @@ def get_scientist_readiness_report(session: SessionState, root: Path) -> dict[st
                 "gpu_blocked": gpu_blocked,
                 "runtime_execution_ready": runtime_ready,
             },
+            "research_parity_gate": research_parity_gate,
         },
+        "research_parity_gate": research_parity_gate,
         "artifact_path": str(artifact_path),
         "markdown_artifact_path": str(markdown_path),
         "no_training_started": True,
@@ -5679,184 +5511,6 @@ def _scientist_requirement_context_packet(root: Path) -> dict[str, Any]:
     }
 
 
-def _latest_matching_file(directory: Path, pattern: str) -> Path | None:
-    """Return the newest direct child matching ``pattern`` without leaving the task."""
-    try:
-        candidates = [item for item in directory.glob(pattern) if item.is_file()]
-        return max(candidates, key=lambda item: item.stat().st_mtime_ns, default=None)
-    except OSError:
-        return None
-
-
-def _task_literature_path(root: Path, task_id: str, value: Any, *, subdir: str) -> Path | None:
-    """Resolve a literature artifact only when it remains inside this task subtree."""
-    text = str(value or "").strip().replace("\\", "/")
-    if not text:
-        return None
-    relative = Path(text)
-    if relative.is_absolute() or ".." in relative.parts:
-        return None
-    task_root = (root / "workspace" / "tasks" / task_id).resolve()
-    allowed_root = (task_root / subdir).resolve()
-    candidate = (root / relative).resolve()
-    try:
-        candidate.relative_to(allowed_root)
-    except ValueError:
-        return None
-    return candidate
-
-
-def _literature_artifact_summary(path: Path | None, task_id: str) -> dict[str, Any] | None:
-    if path is None:
-        return None
-    payload = _read_json_artifact(path)
-    if not isinstance(payload, dict) or str(payload.get("task_id") or "") != task_id:
-        return None
-    return payload
-
-
-def _selected_task_literature_context(session: SessionState, root: Path) -> dict[str, Any]:
-    """Load evidence for only the selected task's real literature/RAG artifacts."""
-    root = Path(root)
-    selected = str(session.selected_task or "").strip()
-    task_id = "house_prices" if selected == "house-prices" else selected
-    empty = {
-        "present": False,
-        "task_id": task_id,
-        "papers": [],
-        "source_counts": {},
-        "handoffs": [],
-        "claim_binding": None,
-        "citation_audit": None,
-        "reviewer_status": "not_reviewed",
-        "open_requirements": [],
-        "blockers": [],
-    }
-    if not task_id:
-        return {**empty, "error": "no_selected_task"}
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}", task_id):
-        return {**empty, "error": "invalid_selected_task"}
-
-    task_root = root / "workspace" / "tasks" / task_id
-    rag_root = task_root / "rag"
-    manifest_path = _latest_matching_file(rag_root, "context_*.json")
-    if manifest_path is None:
-        return {**empty, "error": "literature_manifest_missing"}
-    try:
-        manifest_bytes = manifest_path.read_bytes()
-        manifest = json.loads(manifest_bytes.decode("utf-8-sig"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return {**empty, "error": "literature_manifest_invalid"}
-    if not isinstance(manifest, dict) or str(manifest.get("task_id") or "") != task_id:
-        return {**empty, "error": "literature_manifest_task_mismatch"}
-    if not isinstance(manifest.get("papers"), list):
-        return {**empty, "error": "literature_manifest_papers_missing"}
-
-    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
-    context_path = _task_literature_path(
-        root,
-        task_id,
-        manifest.get("context_path"),
-        subdir="rag",
-    )
-    context_present = bool(context_path and context_path.is_file())
-    blockers: list[str] = []
-    if not context_present:
-        blockers.append("literature_context_artifact_missing")
-
-    papers: list[dict[str, Any]] = []
-    for raw_paper in manifest.get("papers", [])[:40]:
-        if not isinstance(raw_paper, dict):
-            continue
-        provenance = raw_paper.get("provenance") if isinstance(raw_paper.get("provenance"), dict) else {}
-        checksum = str(provenance.get("checksum") or "")
-        checksum_verified: bool | None = None
-        artifact_path = str(raw_paper.get("artifact_path") or "")
-        if str(raw_paper.get("source") or "") == "imported" and checksum:
-            imported_artifact = _task_literature_path(root, task_id, artifact_path, subdir="literature/imports")
-            try:
-                checksum_verified = bool(
-                    imported_artifact
-                    and imported_artifact.is_file()
-                    and hashlib.sha256(imported_artifact.read_bytes()).hexdigest() == checksum
-                )
-            except OSError:
-                checksum_verified = False
-            if checksum_verified is False:
-                blockers.append(f"imported_source_checksum_mismatch:{raw_paper.get('id') or 'unknown'}")
-        papers.append({
-            "id": _redacted_memory_text(raw_paper.get("id") or "", limit=160),
-            "title": _redacted_memory_text(raw_paper.get("title") or "", limit=300),
-            "source": _redacted_memory_text(raw_paper.get("source") or "unknown", limit=80),
-            "year": _redacted_memory_text(raw_paper.get("year") or "", limit=20),
-            "doi": _redacted_memory_text(raw_paper.get("doi") or "", limit=240),
-            "url": _redacted_memory_text(raw_paper.get("url") or raw_paper.get("source_url") or "", limit=500),
-            "artifact_path": _redacted_memory_text(artifact_path, limit=500),
-            "checksum": _redacted_memory_text(checksum, limit=128),
-            "checksum_verified": checksum_verified,
-            "provenance_verified": provenance.get("verified") is True,
-        })
-
-    agent_context_path = _latest_matching_file(rag_root / "agent_contexts", "literature_context_*.json")
-    agent_context = _literature_artifact_summary(agent_context_path, task_id)
-    agent_context_manifest_verified = False
-    if agent_context:
-        source_manifest = agent_context.get("source_manifest") if isinstance(agent_context.get("source_manifest"), dict) else {}
-        agent_context_manifest_verified = (
-            str(source_manifest.get("sha256") or "") == manifest_sha256
-            and _task_literature_path(root, task_id, source_manifest.get("path"), subdir="rag") == manifest_path.resolve()
-        )
-        if not agent_context_manifest_verified:
-            blockers.append("agent_context_manifest_checksum_mismatch")
-
-    handoffs = [
-        item for item in _read_jsonl_tail(task_root / "agents" / "handoffs.jsonl", limit=20)
-        if str(item.get("task_id") or "") == task_id
-    ]
-    binding_path = _latest_matching_file(rag_root / "claim_bindings", "claim_binding_*.json")
-    audit_path = _latest_matching_file(rag_root / "citation_audits", "citation_audit_*.json")
-    claim_binding = _literature_artifact_summary(binding_path, task_id)
-    citation_audit = _literature_artifact_summary(audit_path, task_id)
-    reviewer_status = str((citation_audit or {}).get("status") or "not_reviewed")
-    open_requirements = _safe_string_list((citation_audit or {}).get("open_requirements"), max_items=20)
-    audit_blockers = _safe_string_list((citation_audit or {}).get("blockers"), max_items=20)
-    blockers.extend(item for item in audit_blockers if item not in blockers)
-
-    return {
-        "present": True,
-        "task_id": task_id,
-        "query": _redacted_memory_text(manifest.get("query") or "", limit=500),
-        "manifest_path": str(manifest_path),
-        "manifest_sha256": manifest_sha256,
-        "manifest_task_verified": True,
-        "context_path": str(context_path) if context_path else "",
-        "context_present": context_present,
-        "source_counts": manifest.get("source_counts") if isinstance(manifest.get("source_counts"), dict) else {},
-        "integrity": manifest.get("integrity") if isinstance(manifest.get("integrity"), dict) else {},
-        "papers": papers,
-        "agent_context": {
-            "present": bool(agent_context),
-            "path": str(agent_context_path) if agent_context_path else "",
-            "context_id": str((agent_context or {}).get("context_id") or ""),
-            "manifest_sha256_matches": agent_context_manifest_verified,
-        },
-        "handoffs": handoffs,
-        "latest_handoff": handoffs[-1] if handoffs else None,
-        "claim_binding": claim_binding,
-        "claim_binding_path": str(binding_path) if binding_path else "",
-        "citation_audit": citation_audit,
-        "citation_audit_path": str(audit_path) if audit_path else "",
-        "reviewer_status": reviewer_status,
-        "open_requirements": open_requirements,
-        "blockers": blockers,
-        "claim_policy": {
-            "search_hit_is_not_claim_support": True,
-            "report_claim_requires_paper_binding": True,
-            "citation_requires_independent_reviewer": True,
-        },
-    }
-
-
 def _write_scientist_context_packet_markdown(payload: dict[str, Any], path: Path) -> None:
     """Write a compact human-readable briefing for the terminal and UI."""
     lines = [
@@ -5910,40 +5564,10 @@ def _write_scientist_context_packet_markdown(payload: dict[str, Any], path: Path
             lines.append(f"  - {item}")
 
     literature = payload.get("literature_context") if isinstance(payload.get("literature_context"), dict) else {}
-    lines.extend([
-        "",
-        "## Literature Context",
-        f"- present: {literature.get('present', False)}",
-        f"- task_id: {literature.get('task_id') or '(none)'}",
-        f"- manifest_path: {literature.get('manifest_path') or '(none)'}",
-        f"- manifest_sha256: {literature.get('manifest_sha256') or '(none)'}",
-        f"- context_present: {literature.get('context_present', False)}",
-        f"- source_counts: {json.dumps(literature.get('source_counts') or {}, ensure_ascii=False, sort_keys=True)}",
-        f"- reviewer_status: {literature.get('reviewer_status') or 'not_reviewed'}",
-        f"- open_requirements: {len(literature.get('open_requirements') or [])}",
-        f"- blockers: {len(literature.get('blockers') or [])}",
-    ])
-    literature_papers = literature.get("papers") if isinstance(literature.get("papers"), list) else []
-    if literature_papers:
-        lines.append("- papers:")
-        for paper in literature_papers[:12]:
-            if not isinstance(paper, dict):
-                continue
-            lines.append(
-                "  - "
-                f"{paper.get('title') or '(untitled)'} | source={paper.get('source') or 'unknown'}"
-                f" | doi={paper.get('doi') or '(none)'} | url={paper.get('url') or '(none)'}"
-                f" | checksum={paper.get('checksum') or '(none)'}"
-            )
-    handoffs = literature.get("handoffs") if isinstance(literature.get("handoffs"), list) else []
-    if handoffs:
-        lines.append("- handoffs:")
-        for handoff in handoffs[-5:]:
-            if isinstance(handoff, dict):
-                lines.append(
-                    f"  - {handoff.get('handoff_id') or '(unknown)'} -> "
-                    f"{handoff.get('recipient') or '(unknown)'} [{handoff.get('status') or 'queued'}]"
-                )
+    lines.extend(["", "## Literature Context", f"- present: {literature.get('present', False)}", f"- task_id: {literature.get('task_id') or '(none)'}", f"- reviewer_status: {literature.get('reviewer_status') or 'not_reviewed'}"])
+    for paper in literature.get("papers") or []:
+        if isinstance(paper, dict):
+            lines.append(f"- {paper.get('title') or '(untitled)'} | DOI: {paper.get('doi') or '(none)'} | checksum_verified: {paper.get('checksum_verified', False)}")
 
     requirements = payload.get("requirement_context") if isinstance(payload.get("requirement_context"), dict) else {}
     partition = requirements.get("execution_partition") if isinstance(requirements.get("execution_partition"), dict) else {}
@@ -5964,6 +5588,40 @@ def _write_scientist_context_packet_markdown(payload: dict[str, Any], path: Path
         "- Rank, top30, and medal claims remain blocked without Kaggle response artifacts.",
     ])
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _selected_task_literature_context(session: SessionState, root: Path) -> dict[str, Any]:
+    task_id = str(session.selected_task or "")
+    empty = {"present": False, "task_id": task_id, "error": "literature_manifest_missing", "papers": []}
+    if not task_id:
+        return empty
+    rag = root / "workspace" / "tasks" / task_id / "rag"
+    candidates = sorted(rag.glob("context*.json"), key=lambda item: item.stat().st_mtime_ns, reverse=True) if rag.is_dir() else []
+    manifest_path = next((item for item in candidates if isinstance(_read_json_payload(item), dict) and str(_read_json_payload(item).get("task_id") or "") == task_id), None)
+    if manifest_path is None:
+        return empty
+    manifest = _read_json_payload(manifest_path)
+    manifest_sha = hashlib.sha256(manifest_path.read_bytes()).hexdigest()
+    context_path = root / str(manifest.get("context_path") or "")
+    papers = []
+    for item in manifest.get("papers") or []:
+        if not isinstance(item, dict):
+            continue
+        provenance = item.get("provenance") if isinstance(item.get("provenance"), dict) else {}
+        checksum = str(provenance.get("checksum") or "")
+        artifact = root / str(item.get("artifact_path") or "")
+        checksum_verified = bool(checksum and artifact.is_file() and hashlib.sha256(artifact.read_bytes()).hexdigest() == checksum)
+        papers.append({"id": str(item.get("id") or ""), "title": str(item.get("title") or ""), "source": str(item.get("source") or ""), "year": str(item.get("year") or ""), "doi": str(item.get("doi") or ""), "url": str(item.get("url") or ""), "checksum": checksum, "checksum_verified": checksum_verified})
+    agent_path = next(iter(sorted((rag / "agent_contexts").glob("literature_context_*.json"), reverse=True)), None) if (rag / "agent_contexts").is_dir() else None
+    agent = _read_json_payload(agent_path) if agent_path else {}
+    source_manifest = agent.get("source_manifest") if isinstance(agent.get("source_manifest"), dict) else {}
+    handoff_path = root / "workspace" / "tasks" / task_id / "agents" / "handoffs.jsonl"
+    handoffs = _read_jsonl_tail(handoff_path, limit=20) if handoff_path.is_file() else []
+    binding_path = next(iter(sorted((rag / "claim_bindings").glob("claim_binding_*.json"), reverse=True)), None) if (rag / "claim_bindings").is_dir() else None
+    audit_path = next(iter(sorted((rag / "citation_audits").glob("citation_audit_*.json"), reverse=True)), None) if (rag / "citation_audits").is_dir() else None
+    binding = _read_json_payload(binding_path) if binding_path else {}
+    audit = _read_json_payload(audit_path) if audit_path else {}
+    return {"present": True, "task_id": task_id, "manifest_path": str(manifest_path), "manifest_sha256": manifest_sha, "manifest_task_verified": True, "context_path": str(context_path), "context_present": context_path.is_file(), "source_counts": manifest.get("source_counts") or {}, "integrity": manifest.get("integrity") or {}, "papers": papers, "agent_context": {"present": bool(agent), "path": str(agent_path or ""), "context_id": str(agent.get("context_id") or ""), "manifest_sha256_matches": str(source_manifest.get("sha256") or "") == manifest_sha}, "handoffs": [item for item in handoffs if str(item.get("task_id") or "") == task_id], "claim_binding": binding, "reviewer_status": str(audit.get("status") or "not_reviewed"), "open_requirements": audit.get("open_requirements") or [], "blockers": audit.get("blockers") or []}
 
 
 def get_scientist_context_packet(session: SessionState, root: Path) -> dict[str, Any]:
@@ -7340,6 +6998,60 @@ def _build_scientist_action_queue(
             evidence=["scientist_workplan", "scientist_execution_contract"],
             autonomy="read_only",
             metadata={"selected_hypothesis": selected_hypothesis} if selected_hypothesis else {},
+        )
+
+    queued_ids = {str(entry.get("id") or "") for entry in queue if isinstance(entry, dict)}
+    if (
+        isinstance(memory_reuse_plan, dict)
+        and (memory_reuse_plan.get("reuse_rules") or memory_reuse_plan.get("avoid_patterns"))
+        and "apply_memory_reuse_plan" not in queued_ids
+    ):
+        item(
+            "apply_memory_reuse_plan",
+            "Apply retrospective memory to the planned candidate",
+            "evomind blueprint",
+            status="applied",
+            gate="memory_reuse_gate",
+            why="Memory reuse is a read-only planning step and remains valid while HPC execution is blocked.",
+            risk="none; this updates planning evidence without starting training",
+            expected_artifacts=[blueprint_artifact],
+            evidence=[
+                str(root / "experiments" / "evolution" / "retrospective_memory.json"),
+                blueprint_artifact,
+            ],
+            autonomy="read_only",
+            metadata={
+                "memory_reuse_plan": memory_reuse_plan,
+                "selected_hypothesis": selected_hypothesis,
+            },
+        )
+        queued_ids.add("apply_memory_reuse_plan")
+    planned_action = str(decision.get("selected_action") or "")
+    if task and data_ready and planned_action.startswith("run_") and "run_gated_candidate" not in queued_ids:
+        candidate_command = innovation_approval_command if selected_hypothesis and innovation_approval_command else f"evomind run {task}"
+        item(
+            "run_gated_candidate",
+            "Run the planned candidate after the HPC gate clears",
+            candidate_command,
+            status="ready",
+            gate="hpc_runtime_and_human_run_command_required",
+            why=(
+                "The research decision is complete, but execution remains gated: "
+                + ("; ".join(blockers[:3]) if blockers else "explicit user/workstation approval is required")
+            ),
+            risk="training must not start until the gated HPC runtime is verified",
+            rollback_condition=rollback,
+            expected_artifacts=[str(x) for x in required_artifacts],
+            evidence=[
+                str(root / ".xsci" / "scientist_decision.json"),
+                str(root / ".xsci" / "scientist_execution_contract.json"),
+            ],
+            autonomy="requires_user_run_command",
+            metadata={
+                "selected_hypothesis": selected_hypothesis,
+                "experiment_blueprint": blueprint,
+                "hpc_gate_clear": can_execute,
+            },
         )
 
     if selected_hypothesis and blueprint:
@@ -9585,6 +9297,47 @@ def get_scientist_engineering_loop(session: SessionState, root: Path) -> dict[st
     return run_scientist_engineering_loop(session, root, generate_patch=False)
 
 
+def get_scientist_hypothesis_panel(session: SessionState, root: Path) -> dict[str, Any]:
+    """Run parallel specialist generation and independent hypothesis criticism."""
+    from .scientist_hypothesis_panel import run_scientist_hypothesis_panel
+
+    return run_scientist_hypothesis_panel(
+        session,
+        root,
+        goal=session.last_goal or session.selected_task or "current research objective",
+    )
+
+
+def get_scientist_capability_certification(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Read the hash-anchored external capability certification status."""
+    from .scientist_release_evidence import read_capability_certification_status
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
+
+    payload = read_capability_certification_status(resolve_upgrade_evidence_root(root))
+    payload["ok"] = payload.get("verified") is True
+    return payload
+
+
+def get_scientist_upgrade_campaign(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Read and verify the active immutable self-upgrade campaign."""
+    from .scientist_release_evidence import read_active_upgrade_campaign_status
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
+
+    payload = read_active_upgrade_campaign_status(resolve_upgrade_evidence_root(root))
+    payload["ok"] = payload.get("active_and_verified") is True
+    return payload
+
+
+def get_scientist_research_parity_gate(_session: SessionState, root: Path) -> dict[str, Any]:
+    """Combine external certification and active upgrade evidence."""
+    from .scientist_release_evidence import read_research_parity_gate
+    from .scientist_upgrade_gateway import resolve_upgrade_evidence_root
+
+    payload = read_research_parity_gate(resolve_upgrade_evidence_root(root))
+    payload["ok"] = payload.get("parity_claim_allowed") is True
+    return payload
+
+
 class TerminalTools:
     """Namespace / dispatcher for the terminal's lightweight tool set.
 
@@ -9623,6 +9376,10 @@ class TerminalTools:
         "scientist_engineering_loop": get_scientist_engineering_loop,
         "scientist_memory_consolidation": get_scientist_memory_consolidation,
         "scientist_innovation_backlog": get_scientist_innovation_backlog,
+        "scientist_hypothesis_panel": get_scientist_hypothesis_panel,
+        "scientist_capability_certification": get_scientist_capability_certification,
+        "scientist_upgrade_campaign": get_scientist_upgrade_campaign,
+        "scientist_research_parity_gate": get_scientist_research_parity_gate,
         "scientist_hypothesis_review": get_scientist_hypothesis_review,
         "scientist_experiment_blueprint": get_scientist_experiment_blueprint,
         "scientist_innovation_trial_feedback": get_scientist_innovation_trial_feedback,

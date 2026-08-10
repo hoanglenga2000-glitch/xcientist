@@ -406,9 +406,13 @@ def profile_lifecycle_lock(profile_dir: Path):
                     if time.monotonic() >= deadline:
                         raise
                     time.sleep(0.05)
+    except OSError as exc:
+        handle.close()
+        raise CredentialError("named HPC profile lifecycle lock failed") from exc
+    try:
+        yield
+    finally:
         try:
-            yield
-        finally:
             handle.seek(0)
             if os.name == "nt":
                 import msvcrt
@@ -418,10 +422,10 @@ def profile_lifecycle_lock(profile_dir: Path):
                 import fcntl
 
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    except OSError as exc:
-        raise CredentialError("named HPC profile lifecycle lock failed") from exc
-    finally:
-        handle.close()
+        except OSError as exc:
+            raise CredentialError("named HPC profile lifecycle unlock failed") from exc
+        finally:
+            handle.close()
 
 
 def _validate_profile_instance_id(value: object) -> str:

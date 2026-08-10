@@ -21,6 +21,10 @@ for import_root in (PROJECT_ROOT, PROJECT_ROOT / "src"):
         sys.path.insert(0, str(import_root))
 
 from scripts import mlebench_remote_ops as ops  # noqa: E402
+from scripts.pinned_source_identity import (  # noqa: E402
+    PinnedPathError,
+    resolve_pinned_project_path,
+)
 
 DEFAULT_PLAN = (
     PROJECT_ROOT
@@ -69,6 +73,15 @@ def sha256_file(path: Path) -> str:
         for block in iter(lambda: handle.read(8 * 1024 * 1024), b""):
             digest.update(block)
     return digest.hexdigest()
+
+
+def canonical_source_bytes(path: Path) -> bytes:
+    """Return repository text bytes independent of Git's CRLF checkout mode."""
+    return Path(path).read_bytes().replace(b"\r\n", b"\n")
+
+
+def sha256_source_file(path: Path) -> str:
+    return hashlib.sha256(canonical_source_bytes(path)).hexdigest()
 
 
 def write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
@@ -154,7 +167,14 @@ def validate_execution_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
         and contract.get("other_processes_may_be_modified") is False,
         "May queue execution contract changed",
     )
-    parent = Path(str((payload.get("parent_plan") or {}).get("path", ""))).resolve()
+    try:
+        parent = resolve_pinned_project_path(
+            payload.get("parent_plan") or {},
+            PROJECT_ROOT,
+            label="May queue parent plan",
+        )
+    except PinnedPathError as exc:
+        raise MayQueueError(str(exc)) from exc
     _require(parent.is_file(), "May queue parent plan is missing")
     parent_hash = sha256_file(parent)
     _require(
@@ -165,15 +185,18 @@ def validate_execution_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
     source_records = payload.get("source_identity") or []
     _require(len(source_records) >= 7, "May queue source identity is incomplete")
     for record in source_records:
-        local_path = Path(str(record.get("path", ""))).resolve()
         try:
-            local_path.relative_to(PROJECT_ROOT.resolve())
-        except ValueError as exc:
-            raise MayQueueError("May queue source escaped the project root") from exc
+            local_path = resolve_pinned_project_path(
+                record,
+                PROJECT_ROOT,
+                label="May queue source",
+            )
+        except PinnedPathError as exc:
+            raise MayQueueError(str(exc)) from exc
         _require(local_path.is_file(), "May queue source is missing")
         _require(
-            local_path.stat().st_size == int(record.get("bytes", -1))
-            and sha256_file(local_path) == record.get("sha256"),
+            len(canonical_source_bytes(local_path)) == int(record.get("bytes", -1))
+            and sha256_source_file(local_path) == record.get("sha256"),
             f"May queue source hash drifted: {record.get('relative_path')}",
         )
     cache = payload.get("public_precomputed_cache") or {}

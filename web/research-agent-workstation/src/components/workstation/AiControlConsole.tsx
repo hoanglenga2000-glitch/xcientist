@@ -1210,6 +1210,16 @@ type ScientistExecutionContractView = {
   claim_boundary?: string;
 };
 
+type ScientistUpgradeCampaignView = {
+  ok?: boolean;
+  status?: string;
+  action?: string;
+  promotion_approved?: boolean;
+  parity_claim_allowed?: boolean;
+  score_cap?: number;
+  blockers?: string[];
+};
+
 type ScreenProps = {
   selectedTask: string;
   locale?: Locale;
@@ -1812,6 +1822,7 @@ export function AiControlConsole({
   const [scientistStream, setScientistStream] = useState<ScientistStreamView | null>(null);
   const [scientistStreamUpdatedAt, setScientistStreamUpdatedAt] = useState<number | null>(null);
   const [scientistStreamTransport, setScientistStreamTransport] = useState<ScientistStreamTransportMode>("connecting");
+  const [scientistUpgradeCampaign, setScientistUpgradeCampaign] = useState<ScientistUpgradeCampaignView | null>(null);
   const scientistStreamTransportRef = useRef<ScientistStreamTransportMode>("connecting");
   const [autopilotBusy, setAutopilotBusy] = useState(false);
   const [scientistContinuationBusy, setScientistContinuationBusy] = useState(false);
@@ -1959,6 +1970,13 @@ export function AiControlConsole({
       })
       .catch(() => {
         if (alive) setScientistSelfUpgradeLoop(null);
+      });
+    api.getScientistUpgradeCampaign()
+      .then((payload) => {
+        if (alive) setScientistUpgradeCampaign(payload.scientist_upgrade_campaign ?? null);
+      })
+      .catch(() => {
+        if (alive) setScientistUpgradeCampaign(null);
       });
     api.getScientistPatchWorkOrder()
       .then((payload) => {
@@ -2822,6 +2840,8 @@ export function AiControlConsole({
   const turnPlanClaimBoundaries = Array.isArray(turnPlanCritique?.claim_boundaries) ? turnPlanCritique.claim_boundaries : [];
   const turnPlanUncertainty = Array.isArray(turnPlanCritique?.uncertainty_drivers) ? turnPlanCritique.uncertainty_drivers : [];
   const scientistParityLifecycle = scientistTerminalTurn?.parity_lifecycle ?? scientistTurnPlan?.parity_lifecycle ?? null;
+  const scientistPromotionApproved = scientistUpgradeCampaign?.promotion_approved === true;
+  const scientistParityCertified = scientistUpgradeCampaign?.parity_claim_allowed === true;
   const scientistParityPhases: ScientistParityPhaseView[] = Array.isArray(scientistParityLifecycle?.phases) && scientistParityLifecycle.phases.length
     ? scientistParityLifecycle.phases
     : (["observe", "plan", "act", "reflect", "improve"] as const).map((phase) => ({
@@ -3065,8 +3085,8 @@ export function AiControlConsole({
               <CardDescription>
                 {tx(
                   locale,
-                  "Authoritative state from workspace/current_run.json. Historical Scientist turns cannot replace it.",
-                  "权威状态来自 workspace/current_run.json，历史 Scientist 回合不会覆盖当前运行。",
+                  "Authoritative state from the Run Ledger. Historical Scientist turns cannot replace it.",
+                  "权威状态来自 Run Ledger，历史 Scientist 回合不会覆盖当前运行。",
                 )}
               </CardDescription>
             </div>
@@ -3189,6 +3209,41 @@ export function AiControlConsole({
           ) : (
             <div className="text-xs text-ink-muted">{tx(locale, "No pointer-backed run is active yet.", "尚未创建指针绑定的运行。")}</div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{tx(locale, "Verified Upgrade Campaign", "经验证的升级活动")}</CardTitle>
+          <CardDescription>
+            {tx(
+              locale,
+              "External certification and explicit promotion approval remain fail-closed. Local artifacts never certify research parity.",
+              "外部能力认证与显式晋级审批保持默认关闭；本地证据不会认证研究能力对等。"
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
+            <Row
+              label={tx(locale, "Parity Gate", "对等能力门禁")}
+              value={<StatusBadge tone={scientistParityCertified ? "green" : "red"}>{scientistParityCertified ? "certified" : "blocked"}</StatusBadge>}
+            />
+            <Row label={tx(locale, "Campaign Status", "活动状态")} value={scientistUpgradeCampaign?.status ?? "not_run"} />
+            <Row label={tx(locale, "Promotion Approved", "晋级已审批")} value={scientistPromotionApproved ? "yes" : "no"} />
+            <Row label={tx(locale, "Score Cap", "分数上限")} value={scientistUpgradeCampaign?.score_cap ?? 84} />
+          </div>
+          <div className="rounded-md border border-edge bg-surface-raised p-3">
+            <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Certification Blockers", "认证阻断项")}</div>
+            <div className="space-y-2">
+              {(scientistUpgradeCampaign?.blockers ?? []).length === 0 ? (
+                <div className="text-xs text-ink-muted">{tx(locale, "No blockers reported.", "当前未报告阻断项。")}</div>
+              ) : null}
+              {(scientistUpgradeCampaign?.blockers ?? []).map((blocker, index) => (
+                <div key={`${blocker}-${index}`} className="break-all rounded border border-danger/30 bg-danger-light px-2 py-1.5 font-mono text-[11px] text-danger-text">{blocker}</div>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 

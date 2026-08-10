@@ -1,0 +1,360 @@
+{
+  "schema": "evomind.mlebench_lite.dog_breed_gpt56_audit.v1",
+  "created_at": "2026-07-26T13:16:25.783928+00:00",
+  "planner": {
+    "provider": "openai",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "latency_ms": 249016.5,
+    "usage": {
+      "completion_tokens": 13240,
+      "total_tokens": 26573,
+      "prompt_tokens": 13333,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 8109
+      }
+    },
+    "reasoning_effort_requested": "high",
+    "json_mode_requested": true
+  },
+  "inputs": {
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\dog_breed_imagenet_head_recovery_current.json",
+      "sha256": "5d196db2a043b3086e262e44bc939b3142941bebd6d12d2e4c2077947400a7e8"
+    },
+    "probe": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\dog_breed_imagenet_head_runtime_probe_current.json",
+      "sha256": "5c71014548a176ef39743edb001a4346636ecb13e7a7334cd55f3ba7cb58d051"
+    },
+    "progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_progress\\lite11_current.json",
+      "sha256": "f9bb37fd63b28f5345ea45c575f8e9125df060da4d2489f09c96607fc12d0a8a"
+    },
+    "active_log": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_dog_breed_imagenethead_s42_20260726_201211\\full.log",
+      "sha256": "2a38fd27b6f4d6794b2839640452caff445f0e8a24d49aa46744282148f2c152",
+      "epoch_records": 20,
+      "latest": {
+        "fold": 5,
+        "folds": 5,
+        "epoch": 4,
+        "cv_log_loss": 0.178577,
+        "images_per_second": 59.1
+      },
+      "best_observed_epoch": {
+        "fold": 1,
+        "folds": 5,
+        "epoch": 1,
+        "cv_log_loss": 0.156226,
+        "images_per_second": 46.5
+      },
+      "latest_by_fold": {
+        "1": {
+          "fold": 1,
+          "folds": 5,
+          "epoch": 3,
+          "cv_log_loss": 0.161611,
+          "images_per_second": 59.1
+        },
+        "2": {
+          "fold": 2,
+          "folds": 5,
+          "epoch": 5,
+          "cv_log_loss": 0.199585,
+          "images_per_second": 59.2
+        },
+        "3": {
+          "fold": 3,
+          "folds": 5,
+          "epoch": 3,
+          "cv_log_loss": 0.189893,
+          "images_per_second": 58.9
+        },
+        "4": {
+          "fold": 4,
+          "folds": 5,
+          "epoch": 5,
+          "cv_log_loss": 0.195227,
+          "images_per_second": 58.7
+        },
+        "5": {
+          "fold": 5,
+          "folds": 5,
+          "epoch": 4,
+          "cv_log_loss": 0.178577,
+          "images_per_second": 59.1
+        }
+      },
+      "terminal_summary_present": false
+    },
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "sha256": "b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc"
+    }
+  },
+  "prompt": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\dog_breed_gpt56_audit_prompt_current.txt",
+    "sha256": "1319d680884c1b23a91b2c0a6e9afdedb9255718e6b4202cc5670e26e79c78e4"
+  },
+  "response_sha256": "143a0ba1f3f567e7dcc1d67a839e13ab0e28e6e42694ec009f6689e7bf07430d",
+  "parse_ok": true,
+  "audit": {
+    "truth_boundary_acknowledgement": {
+      "official_grader_only": true,
+      "oof_not_official": true,
+      "private_labels_unused": true,
+      "dog_medal_not_campaign_completion": true
+    },
+    "source_findings": [
+      {
+        "finding": "The supplied active-old and queued-revision source identities are byte-identical, so the evidence does not establish that a distinct revised implementation remains to be launched. It also does not prove which bytes the already-running Python process loaded at startup.",
+        "evidence": [
+          "active_old_revision_source_sha256=b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+          "revised_source_sha256=b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+          "queued_revision.adapter_sha256=b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+          "The active log has no terminal summary or emitted per-fold pretrained-weight identities."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The 120-way classifier initialization is correctly implemented as an exact, ordered selection of unique rows and biases from the pinned 1000-way ImageNet classifier.",
+        "evidence": [
+          "initialize_classifier_from_imagenet_rows validates output length, uniqueness, and source-index bounds before index_select and copy_.",
+          "runtime_classifier_initialization reports output_count=120, source_output_count=1000, unique_source_rows=true, weights_copied=true, and bias_copied=true.",
+          "production_classifier_execution reports max_weight_abs_delta=0.0, max_bias_abs_delta=0.0, full_classifier_logit_max_abs_delta=0.0, and full_classifier_probability_max_abs_delta=0.0.",
+          "runtime_probe_contract_passed=true",
+          "pinned_weight_sha256=0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a"
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The Dog Breed to ImageNet mapping is complete, ordered in sample-submission class order, unique, and unambiguous in the supplied runtime evidence.",
+        "evidence": [
+          "build_dog_breed_imagenet_mapping iterates over the supplied classes and rejects missing, ambiguous, or duplicate mappings.",
+          "production_mapping.coverage_count=120",
+          "production_mapping.class_count=120",
+          "production_mapping.coverage_fraction=1.0",
+          "production_mapping.missing_classes=[]",
+          "production_mapping.ambiguous_classes={}",
+          "runtime_probe sample class_order_sha256=29feb0ef1092a4b5b1b4a693c0004854d9042a5f5cc3d4cf0ef5f6bd026adca3"
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The differential optimizer contract is implemented correctly as written: every parameter under model.classifier, including ConvNeXt classifier LayerNorm parameters, receives the 1.0x learning rate; all remaining parameters receive 0.1x.",
+        "evidence": [
+          "_run_vision lines 1769-1788 construct disjoint classifier and backbone parameter groups by object identity.",
+          "runtime differential_optimizer_contract reports backbone_parameter_tensors=340 and classifier_parameter_tensors=4.",
+          "classifier_parameter_names are classifier.0.weight, classifier.0.bias, classifier.2.weight, and classifier.2.bias.",
+          "groups_disjoint=true and groups_cover_all_trainable_parameters=true",
+          "AdamW applies weight_decay=2e-4 without separate no-decay groups for normalization parameters or biases."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The cross-fitted blend predictions are leakage-safe with respect to each outer validation fold: blend family, weight, and temperature are fitted only on rows outside that fold.",
+        "evidence": [
+          "cross_fit_dog_breed_probability_blend sets validation=fold_values==fold and fitting=~validation.",
+          "select_dog_breed_probability_blend is called only with fine_tuned[fitting], teacher[fitting], and truth[fitting].",
+          "The fitted parameters are then applied to validation rows without their labels.",
+          "The final test parameters are fitted from public training OOF probabilities and public training labels, not private labels.",
+          "private_labels_used=false in the teacher and runtime contracts."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The advertised no-degradation fallback is incomplete: a teacher blend is compared only with raw fine-tuned OOF probabilities, not necessarily with the already-selected calibrated probability candidate.",
+        "evidence": [
+          "_run_vision line 2050 computes fine_tuned_log_loss from oof_probability.",
+          "Lines 2053-2060 select the blend when fine_tuned_log_loss-cross_fitted_blend_log_loss is at least minimum_teacher_blend_improvement.",
+          "When selected, lines 2062-2069 overwrite selected_oof_probability and selected_test_probability.",
+          "The preceding source window already contains selected_probability_mode, fold_calibrations, and final_calibration, but the blend comparison does not score selected_oof_probability.",
+          "Therefore, the blend can improve raw oof_probability by 0.0005 while degrading a better previously selected calibration."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The currently observed training trajectory is far above the requested 0.040 gate, and no complete OOF score can be reconstructed from the partial log.",
+        "evidence": [
+          "active log epoch_records=20",
+          "terminal_summary_present=false",
+          "best observed epoch log loss=0.156226",
+          "latest fold values range from 0.161611 to 0.199585",
+          "The best observed value is 3.90565 times the 0.040 target.",
+          "Per-fold best checkpoints, full OOF predictions, cross-fitted calibration output, and final promotion checks are not yet supplied."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The frozen teacher is useful as a prior but is not close enough to justify promotion by itself, despite its high top-1 accuracy.",
+        "evidence": [
+          "teacher train log loss=0.18795286176572076",
+          "teacher top1_accuracy=0.9616262637243178",
+          "teacher top5_accuracy=0.9988042178497663",
+          "Required absolute reduction=0.14795286176572076",
+          "Required relative reduction=0.7871806812398571"
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "Duplicate grouping is wired into the five-fold split and duplicate overrides are passed to the vision runner, but complete leakage-safety cannot be certified until terminal evidence reports zero group overlap for every fold.",
+        "evidence": [
+          "run_dog_breed builds train_hashes, test_overrides, and duplicate_contract using exact image SHA256 groups.",
+          "group_values=train_hashes is passed into _run_vision.",
+          "promotion_evidence includes group_overlap_by_fold.",
+          "No terminal group_overlap_by_fold values were supplied."
+        ],
+        "confidence": "high"
+      },
+      {
+        "finding": "The supplied source windows do not include the complete promotion contract or the official-grader invocation, so enforcement of the exact 0.040 threshold and all official-grader preconditions cannot be independently audited yet.",
+        "evidence": [
+          "run_dog_breed passes promotion_contract=WAVE2_PROMOTION_CONTRACTS[cid].",
+          "The definition of WAVE2_PROMOTION_CONTRACTS and the private-grader call site were not supplied.",
+          "The active run has no terminal summary."
+        ],
+        "confidence": "high"
+      }
+    ],
+    "risk_assessment": {
+      "target_feasibility": "low",
+      "estimated_probability_of_complete_leakage_safe_oof_at_or_below_0_040_with_the_bounded_sequence": {
+        "low": 0.01,
+        "high": 0.08
+      },
+      "largest_generalization_risks": [
+        "The best partial validation loss is 0.156226, leaving a 0.116226 absolute gap even from the best observed epoch rather than only a small calibration gap.",
+        "The active-old and revised source hashes are identical, so blindly launching the queued revision could repeat the same implementation and consume GPU time without introducing the claimed treatment change.",
+        "A three-parameter global blend cannot repair class-specific bias or severe wrong-class confidence across 120 visually similar breeds.",
+        "The current blend fallback can replace a better pre-existing calibrated candidate because it compares only against raw fine-tuned OOF probabilities.",
+        "Classifier LayerNorm parameters receive the full classifier learning rate and weight decay, which may disturb pretrained feature scaling; the observed epoch-one optimum is consistent with, but does not prove, early optimization damage.",
+        "Repeatedly selecting increasingly flexible calibration methods from the same OOF labels can make the reported OOF estimate optimistic even when each candidate's predictions are cross-fitted.",
+        "Fold-to-fold blend-family or temperature instability could make the all-OOF final parameters less representative of private-test behavior.",
+        "Exact ImageNet-pretraining overlap with Stanford Dogs/Kaggle images was not audited. No private labels were used, but external pretraining provenance remains a separate generalization and competition-policy consideration.",
+        "The duplicate contract has not yet emitted terminal zero-overlap evidence for every fold.",
+        "Private-set distribution and official medal thresholds are unavailable; passing an internal OOF gate would still not guarantee an official medal."
+      ],
+      "why_teacher_0_18795_is_not_enough": "The teacher must improve from 0.1879528618 to 0.0400000000, an absolute reduction of 0.1479528618 and a relative reduction of 78.7181%. Its loss is 4.6988 times the target. Top-1 accuracy does not control probability quality: with error rate 1-0.9616262637=0.0383737363, every strict top-1 error has true-class probability below 0.5 and contributes more than ln(2). This alone gives an approximate lower bound of 0.0383737363*ln(2)=0.02660 before accounting for any loss on correct rows or severely wrong predictions. Reaching 0.040 would leave only about 0.01340 average-loss headroom beyond that optimistic error-bound contribution, whereas the measured teacher loss is 0.18795."
+    },
+    "bounded_experiments": [
+      {
+        "id": "DB-TERM",
+        "hypothesis": "The already-running parent may produce a materially better complete cross-fitted selected OOF loss than its raw per-epoch fold losses because checkpoint selection, teacher blending, temperature fitting, and TTA occur at terminalization.",
+        "exact_source_changes": [
+          "Make no source or configuration changes to the active process.",
+          "After the parent exits, freeze and hash its launch source snapshot, full.log, OOF probability file, fold assignment, teacher contract, blend report, duplicate report, promotion evidence, and terminal summary.",
+          "Recompute complete selected OOF multiclass log loss independently from saved row-aligned probabilities and labels.",
+          "Record raw fine-tuned loss, prior calibrated loss, cross-fitted blend loss, OOF top-1 accuracy, true-class probability quantiles, every fold score, and every group_overlap_by_fold value."
+        ],
+        "resource_budget": "Zero additional GPU-hours; allow only the existing RTX 4060 parent to finish. Post-run verification is bounded to 15 CPU minutes.",
+        "acceptance_oof_log_loss": 0.04,
+        "early_checkpoint_rule": "Do not infer success from an epoch record. Evaluate only after all five folds have OOF coverage exactly once and the terminal cross-fitted candidate has been materialized.",
+        "stop_rule": "Do not launch another training process while the parent is alive. After exit, stop DB-TERM immediately if any OOF row is missing or duplicated, any fold has group overlap, any probability is non-finite or not normalized, private_labels_used is not false, or independently recomputed selected OOF loss differs from the report by more than 1e-8.",
+        "rollback": "There is no mutation to roll back. If complete selected OOF loss is above 0.040 or any promotion check fails, retain artifacts for diagnosis and do not call the official private grader."
+      },
+      {
+        "id": "DB-CALSAFE",
+        "hypothesis": "A single pre-registered, nested cross-fitted class-bias calibration can improve probability quality beyond the current scalar blend without using an outer fold's labels, while a corrected incumbent comparison prevents degradation.",
+        "exact_source_changes": [
+          "Create a new child revision only after DB-TERM; never edit the source file loaded by the parent.",
+          "In the Dog Breed block around _run_vision lines 2039-2069, compute incumbent_oof_log_loss from selected_oof_probability and require every replacement to improve that incumbent by at least 0.0005.",
+          "Add cross_fit_dog_breed_class_bias_calibration that transforms a pre-registered blend as softmax(log(p)+b), constrains sum(b)=0, and fits b only on non-outer-fold rows.",
+          "Select the L2 penalty only inside each outer fitting partition from the fixed grid [1.0, 10.0, 100.0]; do not inspect the held-out outer fold during fitting or penalty selection.",
+          "Fit final deployment parameters on all public-training OOF rows only after the cross-fitted candidate is complete.",
+          "Emit per-fold fitting rows, validation rows, penalty, bias norm, incumbent loss, candidate loss, and private_labels_used=false.",
+          "Add unit tests proving each outer prediction is invariant to perturbing labels inside that outer fold and proving fallback preserves the incumbent bit-for-bit when the improvement threshold is not met."
+        ],
+        "resource_budget": "At most 30 CPU minutes and 8 GB system RAM; no new GPU training and no official-grader query.",
+        "acceptance_oof_log_loss": 0.04,
+        "early_checkpoint_rule": "After the first two outer folds, continue only if the weighted candidate loss is at most 0.060 and improves the matching incumbent rows by at least 0.005 without degrading either fold by more than 0.002.",
+        "stop_rule": "Evaluate only the fixed penalty grid and one class-bias family. Stop after five outer folds or 30 CPU minutes. Do not add further calibration families in response to the resulting OOF score.",
+        "rollback": "Select the exact incumbent probabilities if aggregate improvement is below 0.0005, any fold degrades by more than 0.003, the fitted parameters are unstable or non-finite, or the leakage-invariance test fails."
+      },
+      {
+        "id": "DB-STAB1",
+        "hypothesis": "Moving ConvNeXt classifier LayerNorm into the low-rate/no-decay group and using warmup plus cosine decay will prevent early damage to pretrained probability geometry and reduce the matched first-fold best loss from at least 0.156226 to at most 0.055.",
+        "exact_source_changes": [
+          "Branch from the frozen audited base revision after the parent exits.",
+          "In _run_vision optimizer construction, define only model.classifier[2].weight and model.classifier[2].bias as the 1.0x task-head group; place classifier.0 LayerNorm with the pretrained backbone at 0.1x.",
+          "Split AdamW groups so biases and normalization parameters use weight_decay=0.0 while convolutional and linear weights retain weight_decay=2e-4.",
+          "Add a per-update scheduler with 10% linear warmup followed by cosine decay to 5% of each group's initial learning rate.",
+          "Add an audited fold_limit diagnostic option that executes only the pre-existing fold zero assignment and cannot produce a submission or invoke the official grader.",
+          "Preserve exact ImageNet row initialization, 384-pixel transforms, horizontal-flip TTA, duplicate groups, teacher cache, and seed-derived split.",
+          "Regenerate the optimizer runtime probe and require disjoint complete parameter coverage before training."
+        ],
+        "resource_budget": "One RTX 4060 8 GB diagnostic, batch size 8, one fixed fold, at most 4 epochs, 90 wall-clock minutes, and no submission generation.",
+        "acceptance_oof_log_loss": 0.04,
+        "early_checkpoint_rule": "After epoch 1, terminate if matched fold-zero log loss is above 0.090 or improves less than 25% relative to the parent fold-zero epoch-one value. Continue only while validation loss improves by at least 0.002 per epoch.",
+        "stop_rule": "Hard stop after 4 epochs, 90 minutes, CUDA out-of-memory, a non-finite loss, or two consecutive non-improving epochs. Do not run the other folds unless best fold-zero loss is at most 0.055 and top-1 accuracy improves by at least 0.5 percentage points.",
+        "rollback": "Discard the stability revision if its best matched-fold loss exceeds 0.055, its calibration error worsens, its runtime contract fails, or exact row-initialized logits differ from the pinned probe before the first optimizer step."
+      },
+      {
+        "id": "DB-STAB5",
+        "hypothesis": "If DB-STAB1 reaches at most 0.055 on the matched fold, the same fixed stability treatment across all five grouped folds plus DB-CALSAFE can produce complete leakage-safe selected OOF loss at or below 0.040.",
+        "exact_source_changes": [
+          "Use exactly the DB-STAB1 optimizer, scheduler, initialization, augmentation, and calibration code without retuning from later fold results.",
+          "Disable fold_limit and execute the original five grouped folds.",
+          "Save the best validation-loss checkpoint independently for each fold and generate each row's OOF probability only from a model that excluded its duplicate group.",
+          "Apply DB-CALSAFE to complete OOF predictions and preserve the incumbent unless the pre-registered improvement rule passes.",
+          "Write immutable source, weight, cache, class-order, split, OOF, and submission hashes into the terminal contract."
+        ],
+        "resource_budget": "One RTX 4060 8 GB run, batch size 8, at most 4 epochs per fold, and a hard limit of 6 GPU-hours; an A800 is acceptable only to reduce wall time while preserving effective batch size and optimizer-update count.",
+        "acceptance_oof_log_loss": 0.04,
+        "early_checkpoint_rule": "After each fold's epoch 1, abort the full treatment if that fold exceeds 0.090. After two completed folds, abort if their row-weighted best-checkpoint loss exceeds 0.060.",
+        "stop_rule": "Hard stop at five folds, four epochs per fold, six GPU-hours, any non-finite probability, any group overlap, or any mismatch in the pinned classifier initialization contract.",
+        "rollback": "Retain the parent incumbent if complete cross-fitted selected OOF loss is not at least 0.0005 better, if any required promotion check fails, or if the complete OOF loss remains above 0.040."
+      },
+      {
+        "id": "DB-SEED2",
+        "hypothesis": "When DB-STAB5 narrowly misses the gate, averaging a second independently seeded but identically specified leakage-safe five-fold model can reduce variance enough to cross 0.040.",
+        "exact_source_changes": [
+          "Run no new architecture or calibration search; change only seed from 42 to 1045.",
+          "Reuse the same duplicate groups, fold-generation algorithm, optimizer treatment, epoch cap, transforms, and pinned weights.",
+          "Persist second-seed OOF probabilities and verify that every constituent prediction for a row came from training data excluding that row's exact-image group.",
+          "Average first-seed and second-seed OOF probabilities arithmetically before the one pre-registered DB-CALSAFE pass.",
+          "Generate test probabilities only if the complete two-seed OOF ensemble satisfies every promotion condition."
+        ],
+        "resource_budget": "One additional RTX 4060 8 GB run capped at 6 GPU-hours; use an A800 only with identical effective batch size and update count.",
+        "acceptance_oof_log_loss": 0.04,
+        "early_checkpoint_rule": "Run only when DB-STAB5 complete selected OOF loss is greater than 0.040 and at most 0.052. After two second-seed folds, stop unless the matched-row ensemble improves the first-seed probabilities by at least 0.002.",
+        "stop_rule": "Do not run if DB-STAB5 exceeds 0.052. Hard stop after five folds, four epochs per fold, six GPU-hours, or any provenance, normalization, overlap, or numerical failure.",
+        "rollback": "Use the single-seed DB-STAB5 candidate if the complete two-seed cross-fitted ensemble fails to improve it by at least 0.0005 or worsens any fold by more than 0.003; call no grader unless the retained complete candidate is at most 0.040."
+      }
+    ],
+    "recommended_next_run": {
+      "implementation_verdict": "NO-GO",
+      "base_revision": "b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+      "cli_arguments": [
+        "launch_new_process=false",
+        "wait_for_parent_exit=true",
+        "mutate_active_source=false",
+        "official_private_grader=false"
+      ],
+      "expected_oof_log_loss_low": 0.1,
+      "expected_oof_log_loss_high": 0.19,
+      "promotion_gate_log_loss": 0.04,
+      "resource_fit": "RTX 4060 8GB: no additional training should be launched now. The existing process is already running at approximately 59 images/second, and terminal calibration requires negligible GPU work. An A800 is not justified until DB-STAB1 passes its first-fold continuation threshold.",
+      "stop_rules": [
+        "Do not mutate or relaunch the active process.",
+        "Do not treat any epoch-level cv_log_loss, teacher loss, fold score, or internal OOF score as an official result.",
+        "After the parent exits, independently require exactly five completed folds, full one-time OOF row coverage, normalized finite probabilities, zero duplicate-group overlap in every fold, exact pinned initialization in every fold, private_labels_used=false, and complete selected OOF multiclass log loss at or below 0.040.",
+        "Also require the actual promotion contract to pass; the supplied source window is insufficient to waive any additional fold-level or artifact checks.",
+        "If and only if all gates pass, permit exactly one official MLE-Bench private-grader invocation using the immutable gated submission.",
+        "If the gate fails, do not query the private grader for feedback; execute the bounded sequence conditionally and stop at its first failed continuation rule.",
+        "Do not launch a nominal queued revision with the same SHA256 unless an immutable launch snapshot proves that its treatment differs from the bytes loaded by the parent."
+      ]
+    },
+    "campaign_impact": {
+      "official_medal_if_passed": 1,
+      "medals_still_needed_after_dog": 4,
+      "next_competitions_after_dog": [
+        "UNRESOLVED_RANK_1: no other competition identifiers or ranking evidence were supplied"
+      ]
+    }
+  },
+  "secret_policy": "API key came from the DPAPI-backed child environment and is absent from artifacts.",
+  "ok": true
+}

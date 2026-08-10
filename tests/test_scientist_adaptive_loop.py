@@ -125,7 +125,7 @@ def test_adaptive_loop_blocks_unknown_and_duplicate_tools(tmp_path: Path):
 
     def dispatch(name, session, root):
         executed.append(name)
-        return {"ok": True, "tool": name, "message": "ready", "api_key": "must-not-persist"}
+        return {"ok": True, "tool": name, "message": "ready", "api_key": "test-must-not-persist"}
 
     result = run_adaptive_scientist_tool_loop(
         SimpleNamespace(selected_task="house-prices"),

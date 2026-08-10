@@ -16,7 +16,7 @@ test("summary projection removes nested infrastructure and credential identities
       gpu_uuid: "GPU-private-id",
       profile_name: "job-private-profile",
       credential_status: "configured_dpapi",
-      access_token: "top-secret",
+      access_token: "test-top-secret",
       artifact_path: "workspace/evomind_runs/demo/artifact_manifest.json",
     },
   }) as Record<string, unknown>;

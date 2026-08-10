@@ -4,6 +4,11 @@ import paramiko
 import sys
 import time
 
+try:
+    from scripts.hpc_connect import secure_ssh_client
+except ModuleNotFoundError:  # direct script execution
+    from hpc_connect import secure_ssh_client
+
 
 def ssh_via_socks5(host, port, user, password, command, timeout=60):
     """Execute command on remote host via SOCKS5 proxy."""
@@ -12,17 +17,24 @@ def ssh_via_socks5(host, port, user, password, command, timeout=60):
     sock.settimeout(timeout)
     sock.connect((host, port))
 
-    transport = paramiko.Transport(sock)
+    client = secure_ssh_client()
     try:
-        transport.connect(username=user, password=password)
+        client.connect(
+            host, port=port, username=user, password=password, sock=sock,
+            allow_agent=False, look_for_keys=False, timeout=timeout,
+            banner_timeout=timeout, auth_timeout=timeout,
+        )
     except paramiko.AuthenticationException:
-        transport.close()
+        client.close()
         return -1, "", "AUTH FAILED"
     except Exception as e:
-        transport.close()
+        client.close()
         return -2, "", f"CONNECT FAILED: {e}"
 
     try:
+        transport = client.get_transport()
+        if transport is None or not transport.is_authenticated():
+            return -2, "", "CONNECT FAILED: authenticated transport unavailable"
         session = transport.open_session()
         session.setblocking(True)
         session.exec_command(command)
@@ -49,7 +61,7 @@ def ssh_via_socks5(host, port, user, password, command, timeout=60):
 
         exit_code = session.recv_exit_status()
     finally:
-        transport.close()
+        client.close()
 
     return exit_code, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
 
@@ -61,41 +73,52 @@ def upload_via_socks5(host, port, user, password, local_path, remote_path, timeo
     sock.settimeout(timeout)
     sock.connect((host, port))
 
-    transport = paramiko.Transport(sock)
+    client = secure_ssh_client()
     try:
-        transport.connect(username=user, password=password)
+        client.connect(
+            host, port=port, username=user, password=password, sock=sock,
+            allow_agent=False, look_for_keys=False, timeout=timeout,
+            banner_timeout=timeout, auth_timeout=timeout,
+        )
     except paramiko.AuthenticationException:
-        transport.close()
+        client.close()
         return -1, "AUTH FAILED"
     except Exception as e:
-        transport.close()
+        client.close()
         return -2, f"CONNECT FAILED: {e}"
 
     try:
-        sftp = paramiko.SFTPClient.from_transport(transport)
+        sftp = client.open_sftp()
         sftp.put(local_path, remote_path)
         sftp.close()
         return 0, f"Uploaded {local_path} -> {remote_path}"
     finally:
-        transport.close()
+        client.close()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 6:
-        print("Usage: python ssh_proxy_helper.py <host> <port> <user> <password> <command>")
-        print("       python ssh_proxy_helper.py upload <host> <port> <user> <password> <local> <remote>")
+    if len(sys.argv) < 5:
+        print("Usage: secret-on-stdin | python ssh_proxy_helper.py <host> <port> <user> <command>")
+        print("       secret-on-stdin | python ssh_proxy_helper.py upload <host> <port> <user> <local> <remote>")
         sys.exit(1)
 
+    secret = sys.stdin.readline().rstrip("\r\n")
+    if not secret:
+        print("SSH secret must be supplied on stdin", file=sys.stderr)
+        sys.exit(2)
+
     if sys.argv[1] == "upload":
-        _, host, port, user, password, local, remote = sys.argv
+        if len(sys.argv) != 7:
+            sys.exit(1)
+        _, _, host, port, user, local, remote = sys.argv
         port = int(port)
-        code, msg = upload_via_socks5(host, port, user, password, local, remote)
+        code, msg = upload_via_socks5(host, port, user, secret, local, remote)
         print(msg)
         sys.exit(code)
     else:
-        host, port, user, password = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-        command = sys.argv[5]
-        exit_code, stdout, stderr = ssh_via_socks5(host, port, user, password, command)
+        host, port, user = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+        command = sys.argv[4]
+        exit_code, stdout, stderr = ssh_via_socks5(host, port, user, secret, command)
         print(stdout)
         if stderr:
             print(f"STDERR: {stderr}", file=sys.stderr)

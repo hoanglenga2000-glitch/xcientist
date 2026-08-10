@@ -1,5 +1,9 @@
 function Assert-EvoMindWindowsDpapi {
-  if ($env:OS -ne "Windows_NT") {
+  # `$env:OS` is optional and is absent in some clean launchers/CI profiles.
+  # Bind the gate to the runtime platform instead of inherited shell state.
+  if (-not [System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform(
+      [System.Runtime.InteropServices.OSPlatform]::Windows
+    )) {
     throw [System.PlatformNotSupportedException]::new("Windows DPAPI is required.")
   }
 }

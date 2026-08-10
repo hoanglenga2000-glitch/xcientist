@@ -5,6 +5,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { promisify } from "node:util";
 import { resolveWorkspacePath, toRelativePath, workspaceRoot } from "@/lib/server/paths";
+import { reviewedExistingReportEligible } from "@/lib/server/reviewed-existing-report";
 import { classifyMissingScientificReport } from "@/lib/server/scientific-report-state";
 
 const execFileAsync = promisify(execFile);
@@ -497,6 +498,98 @@ async function buildSiimExistingReport(taskId: string, runId: string): Promise<S
   };
 }
 
+async function buildReviewedExistingReport(taskId: string, runId: string): Promise<ScientificReportPackage | null> {
+  assertSafeId(taskId, "task_id");
+  assertSafeId(runId, "run_id");
+  const runDir = assertInsideWorkspace(resolveWorkspacePath(path.join("workspace", "evomind_runs", runId)));
+  const [run, metrics, review, artifactManifest, pointer, dataAudit, researchContext, hpcReceipt] = await Promise.all([
+    readJson(path.join(runDir, "run.json")),
+    readJson(path.join(runDir, "metrics.json")),
+    readJson(path.join(runDir, "review.json")),
+    readJson(path.join(runDir, "artifact_manifest.json")),
+    readJson(resolveWorkspacePath("workspace/current_run.json")),
+    readJson(path.join(runDir, "data_audit.json")),
+    readJson(path.join(runDir, "research_context.json")),
+    readJson(path.join(runDir, "hpc_job_receipt.json")),
+  ]);
+  if (!reviewedExistingReportEligible({ taskId, runId, run, review, artifactManifest, pointer })) return null;
+  try {
+    await verifyArtifactManifest(runDir, artifactManifest, [
+      "research_report.md",
+      "metrics.json",
+      "review.json",
+      "submission.csv",
+      "hpc_job_receipt.json",
+    ]);
+  } catch {
+    return null;
+  }
+
+  const selectedSolution = text(artifactManifest.selected_solution) || text(metrics.selected_solution);
+  const version = `Reviewed-${selectedSolution || "run"}`;
+  const base = `workspace/evomind_runs/${runId}`;
+  const artifacts = await Promise.all([
+    artifactFromWorkspacePath("report-html", "research_report", "Reviewed Research Report", "Markdown", version, `${base}/research_report.md`, { previewable: true, downloadable: false }),
+    artifactFromWorkspacePath("metrics", "research_report", "Aggregate Metrics", "JSON", version, `${base}/metrics.json`, { previewable: true }),
+    artifactFromWorkspacePath("submission", "research_report", "Candidate Submission", "CSV", version, `${base}/submission.csv`),
+    artifactFromWorkspacePath("artifact-manifest", "audit", "Artifact Manifest", "JSON", version, `${base}/artifact_manifest.json`, { previewable: true }),
+    artifactFromWorkspacePath("review", "audit", "Independent Review and Claim Audit", "JSON", version, `${base}/review.json`, { previewable: true }),
+    artifactFromWorkspacePath("hpc-receipt", "reproducibility", "HPC Job Receipt", "JSON", version, `${base}/hpc_job_receipt.json`, { previewable: true }),
+  ]);
+  const reportArtifact = artifacts.find((item) => item.id === "report-html");
+  if (reportArtifact?.status !== "ready" || !reportArtifact.path) return null;
+
+  const candidates = Array.isArray(metrics.candidates) ? metrics.candidates.map(record) : [];
+  const selectedScore = number(metrics.cv_score);
+  const baselineScore = number(candidates[0]?.cv_score);
+  const before = baselineScore === null ? null : baselineScore * 100;
+  const after = selectedScore === null ? null : selectedScore * 100;
+  const claimAudit = record(review.claim_audit);
+  return {
+    schema: "evomind.scientific_report_package.v1",
+    task_id: taskId,
+    run_id: runId,
+    version,
+    parent_run_id: null,
+    status: "ready",
+    renderer: "EvoMind Nature Skills",
+    generated_at: text(review.generated_at) || new Date().toISOString(),
+    source_evidence: [
+      `${base}/research_report.md`,
+      `${base}/metrics.json`,
+      `${base}/review.json`,
+      `${base}/artifact_manifest.json`,
+      `${base}/hpc_job_receipt.json`,
+    ],
+    metrics: {
+      before,
+      after,
+      improvement_pp: before === null || after === null ? null : after - before,
+      train_steps: null,
+      train_loss: null,
+      max_gpu_memory_mb: null,
+    },
+    dataset: { ...dataAudit, task_id: taskId },
+    method: {
+      ...researchContext,
+      metric: text(metrics.metric),
+      selected_solution: selectedSolution,
+      candidates,
+      hpc_job: hpcReceipt,
+      official_kaggle_score: metrics.official_kaggle_score ?? null,
+    },
+    reviewer: { ...review, status: "passed" },
+    claim_audit: claimAudit,
+    version_comparison: null,
+    figures: [],
+    artifacts,
+    report_html_path: reportArtifact.path,
+    report_pdf_path: null,
+    bundle_path: null,
+    manifest_path: `${base}/artifact_manifest.json`,
+  };
+}
+
 function resolveRunArtifact(runDir: string, relativePath: string) {
   if (!relativePath || path.isAbsolute(relativePath) || relativePath.split(/[\\/]+/).includes("..")) {
     throw new Error(`artifact manifest contains an unsafe path: ${relativePath || "<empty>"}`);
@@ -509,7 +602,7 @@ function resolveRunArtifact(runDir: string, relativePath: string) {
   return target;
 }
 
-async function verifySourceArtifactManifest(runDir: string, manifest: JsonRecord) {
+async function verifyArtifactManifest(runDir: string, manifest: JsonRecord, requiredPaths: string[]) {
   const rawArtifacts = manifest.artifacts;
   if (!Array.isArray(rawArtifacts) || !rawArtifacts.length) {
     throw new Error("source artifact manifest has no artifacts");
@@ -527,22 +620,6 @@ async function verifySourceArtifactManifest(runDir: string, manifest: JsonRecord
   const uniquePaths = new Set(entries.map((entry) => entry.relativePath));
   if (uniquePaths.size !== entries.length) throw new Error("source artifact manifest contains duplicate paths");
 
-  const requiredPaths = [
-    "claim_audit.json",
-    "data/dataset_manifest.json",
-    "evaluation_summary.json",
-    "llm_output/adapter/adapter_config.json",
-    "llm_output/adapter/adapter_model.safetensors",
-    "llm_output/adapter_reload.json",
-    "llm_output/environment.json",
-    "llm_output/metrics.json",
-    "llm_output/telemetry.jsonl",
-    "model_card.md",
-    "qlora_config.json",
-    "review.json"
-  ];
-  // The source manifest cannot hash itself without becoming recursive; its
-  // presence was checked before verifying every artifact it declares.
   for (const required of requiredPaths) {
     if (!uniquePaths.has(required)) throw new Error(`source artifact manifest is missing ${required}`);
   }
@@ -563,6 +640,25 @@ async function verifySourceArtifactManifest(runDir: string, manifest: JsonRecord
     }
   }
   return entries;
+}
+
+async function verifySourceArtifactManifest(runDir: string, manifest: JsonRecord) {
+  return verifyArtifactManifest(runDir, manifest, [
+    "claim_audit.json",
+    "data/dataset_manifest.json",
+    "evaluation_summary.json",
+    "llm_output/adapter/adapter_config.json",
+    "llm_output/adapter/adapter_model.safetensors",
+    "llm_output/adapter_reload.json",
+    "llm_output/environment.json",
+    "llm_output/metrics.json",
+    "llm_output/telemetry.jsonl",
+    "model_card.md",
+    "qlora_config.json",
+    "review.json"
+  ]);
+  // The source manifest cannot hash itself without becoming recursive; its
+  // presence was checked before verifying every artifact it declares.
 }
 
 async function validateEvidence(runId: string, runDir: string, taskId: string): Promise<RunEvidence> {
@@ -1517,10 +1613,18 @@ export async function lookupScientificReport(taskId: string, requestedRunId?: st
   if (raw.status !== "known") return raw;
 
   const generationPath = generationStatusPath(safeTaskId, safeRunId);
-  const [generation, generationStat] = await Promise.all([
+  const manifestPath = reportManifestPath(safeTaskId, safeRunId);
+  const [generation, generationStat, manifestStat] = await Promise.all([
     readScientificReportGenerationStatus(safeTaskId, safeRunId),
     fs.stat(generationPath).catch(() => null),
+    fs.stat(manifestPath).catch(() => null),
   ]);
+  if (!manifestStat?.isFile()) {
+    const existingSiimReport = await buildSiimExistingReport(safeTaskId, safeRunId);
+    if (existingSiimReport) return { status: "ready", report: existingSiimReport };
+    const existingReviewedReport = await buildReviewedExistingReport(safeTaskId, safeRunId);
+    if (existingReviewedReport) return { status: "ready", report: existingReviewedReport };
+  }
   if (generationStat?.isFile() && !generation) {
     return { status: "integrity_failed", error: "scientific report generation ledger is malformed" };
   }
@@ -1532,12 +1636,7 @@ export async function lookupScientificReport(taskId: string, requestedRunId?: st
       generation,
     };
   }
-
-  const manifestPath = reportManifestPath(safeTaskId, safeRunId);
-  const manifestStat = await fs.stat(manifestPath).catch(() => null);
   if (!manifestStat?.isFile()) {
-    const existingSiimReport = await buildSiimExistingReport(safeTaskId, safeRunId);
-    if (existingSiimReport) return { status: "ready", report: existingSiimReport };
     const state = classifyMissingScientificReport(raw.runStatus, generation?.status ?? null);
     if (state === "pending") return { status: "pending_report", runStatus: raw.runStatus, generation };
     if (state === "generation_failed") {

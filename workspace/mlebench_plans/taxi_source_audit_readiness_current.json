@@ -1,0 +1,141 @@
+{
+  "schema": "evomind.mlebench.taxi_source_audit_readiness.v1",
+  "created_at": "2026-08-06T22:07:59.876631+08:00",
+  "status": "source_ready_candidate_execution_pending",
+  "passed": true,
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "ready_for_candidate_execution": true,
+  "candidate_metric_available": false,
+  "external_seed_results_available": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "private_labels_used": false,
+  "checks": {
+    "frozen_plan_and_bundle_binding": {
+      "passed": true,
+      "plan_sha256": "bb7457379ae22acc6b42a77fa52adb10fc349eba0b7dff33de3d13c8975e0ddc",
+      "bundle_sha256": "5c09e4a9875654e3401d2a205dee43349a71cacca9e6c396766ba7b9bd08e9ec",
+      "runner_sha256": "1277e1d79146b6e73cdeba5c00372e9c869cb777d185f1f797ae73cf6a138670",
+      "source_identity_count": 8,
+      "bundle_bound_source_count": 5,
+      "source_identity_mismatches": [],
+      "bundle_source_mismatches": []
+    },
+    "duplicate_safe_oof": {
+      "passed": true,
+      "retained_rows": 3,
+      "duplicate_audit": {
+        "schema": "evomind.mlebench_lite.taxi_duplicate_audit.v1",
+        "input_rows": 5,
+        "retained_rows": 3,
+        "quarantined_rows": 2,
+        "conflicting_trip_signatures": 1,
+        "conflicting_keys": 1,
+        "duplicate_signature_rows_retained": 2,
+        "duplicate_key_rows_retained": 0,
+        "exact_trip_signature_columns": [
+          "pickup_datetime",
+          "pickup_longitude",
+          "pickup_latitude",
+          "dropoff_longitude",
+          "dropoff_latitude",
+          "passenger_count"
+        ]
+      }
+    },
+    "conflicting_targets_quarantined": {
+      "passed": true,
+      "quarantined_rows": 2
+    },
+    "fold_local_route_statistics": {
+      "passed": true,
+      "validation_target_rows_used": 0,
+      "columns": [
+        "route_stat_route_cell",
+        "route_stat_route_hour",
+        "route_stat_airport_route",
+        "route_stat_borough_route"
+      ]
+    },
+    "key_and_submission_alignment": {
+      "passed": true,
+      "one_to_one_join": true
+    },
+    "geographic_stress_split": {
+      "passed": true,
+      "evidence": {
+        "holdout_fraction": 0.2,
+        "fit_rows": 24,
+        "validation_rows": 6,
+        "fit_pickup_cells": 8,
+        "validation_pickup_cells": 2,
+        "seed": 42
+      }
+    },
+    "full_refit_and_stress_contract": {
+      "passed": true,
+      "missing_tokens": [],
+      "iteration_budget_uses_oof_only": true,
+      "test_targets_used": false
+    },
+    "verified_public_precomputed_cache": {
+      "passed": true,
+      "manifest_sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d",
+      "train_rows": 5000000,
+      "feature_count": 72,
+      "build_seconds": 599.3799366829917,
+      "cache_seed": 42,
+      "collection": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_public_cache\\collection_current.json",
+        "relative_path": "workspace/hpc/job89941_taxi_public_cache/collection_current.json",
+        "bytes": 15883,
+        "sha256": "6a22058b9ca2594b344aff09295806680353c877fbbebe8993041488b677d99f"
+      }
+    },
+    "verified_route_stat_sidecar": {
+      "passed": true,
+      "manifest_sha256": "2b63f41ba58923f44f789e8ab7df55f96e2f770dd2cb94012f2f251994a746b6",
+      "remote_cache": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/route_stats",
+      "cache_seed": 42,
+      "folds": 3,
+      "train_rows": 5000000,
+      "base_cache_manifest_sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d",
+      "algorithm_source_sha256": "3ed99ec69b4071498b14493b41044ff7430e02fca5a7c376fa2792c7f38bb7e4",
+      "artifact_count": 10,
+      "validation_targets_used": 0,
+      "private_labels_used": false,
+      "gpu_used": false,
+      "manifest": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_route_stats\\collected\\taxi_route_stats_s42_v1_20260728\\route_stat_manifest.json",
+        "relative_path": "workspace/hpc/job89941_taxi_route_stats/collected/taxi_route_stats_s42_v1_20260728/route_stat_manifest.json",
+        "bytes": 3268,
+        "sha256": "2b63f41ba58923f44f789e8ab7df55f96e2f770dd2cb94012f2f251994a746b6"
+      },
+      "collection": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_route_stats\\collection_current.json",
+        "relative_path": "workspace/hpc/job89941_taxi_route_stats/collection_current.json",
+        "bytes": 812,
+        "sha256": "a31211c8f1ba0bd9103817c449f4869028a39bdc530056a2a5bdd318af78b713"
+      }
+    }
+  },
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+    "relative_path": "scripts/run_mlebench_lite_full.py",
+    "bytes": 149240,
+    "sha256": "1277e1d79146b6e73cdeba5c00372e9c869cb777d185f1f797ae73cf6a138670"
+  },
+  "tests": {
+    "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_mlebench_lite_full.py",
+    "relative_path": "tests/test_mlebench_lite_full.py",
+    "bytes": 117428,
+    "sha256": "17e22fba0bb2d85fd38a6722fe3d73bee3c4b49135921bb6953537501e714d81"
+  },
+  "plan": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_nested_selection_execution_multiseed_hpc88240_v8_cache_taxi_route_20260728.json",
+    "relative_path": "workspace/mlebench_plans/may2022_nested_selection_execution_multiseed_hpc88240_v8_cache_taxi_route_20260728.json",
+    "bytes": 16672,
+    "sha256": "bb7457379ae22acc6b42a77fa52adb10fc349eba0b7dff33de3d13c8975e0ddc"
+  },
+  "claim_boundary": "Source readiness permits a bounded candidate run; it is not a candidate score, official grade, medal, or leaderboard result."
+}

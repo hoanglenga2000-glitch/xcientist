@@ -823,6 +823,10 @@ def write_markdown_report(
 
 
 def run(config: dict[str, Any], output_base: Path, random_state: int) -> dict[str, Any]:
+    from research_os.hpc_policy import HPCPolicyError
+    raise HPCPolicyError("blocked_local_training_disabled: Local training is disabled by release policy")
+
+    # Retained implementation below is not reachable from the public package.
     data_cfg = config["data"]
     task = config["task"]
     paths = {
@@ -896,11 +900,8 @@ def run(config: dict[str, Any], output_base: Path, random_state: int) -> dict[st
 
 
 def main() -> None:
-    args = parse_args()
-    config = load_yaml(Path(args.config))
-    output_base = Path(args.output_dir) if args.output_dir else Path("experiments")
-    summary = run(config, output_base, args.random_state)
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps({"status": "blocked_local_training_disabled", "training_started": False}, ensure_ascii=False))
+    raise SystemExit(2)
 
 
 if __name__ == "__main__":

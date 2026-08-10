@@ -1,0 +1,93 @@
+{
+  "schema": "evomind.leaf.multibackbone_preflight.v1",
+  "created_at": "2026-07-27T01:39:52.531877+08:00",
+  "status": "passed",
+  "competition_id": "leaf-classification",
+  "device": "cpu_preflight_only",
+  "requested_model": "gpt-5.6-sol",
+  "served_model": "gpt-5.6-sol",
+  "worker_spawn": {
+    "num_workers": 2,
+    "batches": 2,
+    "rows": 4,
+    "indices": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "tensor_shape": [
+      4,
+      3,
+      64,
+      64
+    ],
+    "finite": true,
+    "module_level_dataset": true,
+    "passed": true
+  },
+  "backbones": {
+    "convnext_small": {
+      "pretrained": true,
+      "weight_path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\convnext_small-0c510722.pth",
+      "weight_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+      "expected_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+      "weight_verified": true,
+      "embedding_width": 768,
+      "output_shape": [
+        1,
+        768
+      ],
+      "output_finite": true,
+      "all_parameters_cpu": true,
+      "identity": {
+        "backbone": "convnext_small",
+        "enum": "ConvNeXt_Small_Weights.IMAGENET1K_V1",
+        "filename": "convnext_small-0c510722.pth",
+        "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\convnext_small-0c510722.pth",
+        "sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+        "expected_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a"
+      }
+    },
+    "efficientnet_v2_s": {
+      "pretrained": true,
+      "weight_path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\efficientnet_v2_s-dd5fe13b.pth",
+      "weight_sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+      "expected_sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+      "weight_verified": true,
+      "embedding_width": 1280,
+      "output_shape": [
+        1,
+        1280
+      ],
+      "output_finite": true,
+      "all_parameters_cpu": true,
+      "identity": {
+        "backbone": "efficientnet_v2_s",
+        "enum": "EfficientNet_V2_S_Weights.IMAGENET1K_V1",
+        "filename": "efficientnet_v2_s-dd5fe13b.pth",
+        "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\efficientnet_v2_s-dd5fe13b.pth",
+        "sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+        "expected_sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74"
+      }
+    }
+  },
+  "runner_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_leaf_multibackbone_oof.py",
+    "sha256": "a7d602eee5a5feee739faabd2385645b213e04fb67d2ab7d6220947d4b02da16"
+  },
+  "checks": {
+    "windows_spawn_picklable_dataset": true,
+    "two_distinct_backbones": true,
+    "both_weight_hashes_verified": true,
+    "both_forward_outputs_finite": true,
+    "private_labels_unused": true,
+    "official_grader_not_executed": true,
+    "kaggle_submission_not_executed": true
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "claim_boundary": "CPU-only implementation preflight; not a Leaf OOF score or medal."
+}

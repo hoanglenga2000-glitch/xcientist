@@ -1,0 +1,72 @@
+{
+  "schema": "evomind.spooky.cross_run_xgb_confirmation_plan.v1",
+  "created_at": "2026-07-27T12:14:54.686468+08:00",
+  "status": "frozen_before_aggregation",
+  "competition_id": "spooky-author-identification",
+  "objective": "Confirm the public-OOF XGBoost cross-run candidate across model seeds 40, 41, and 42 and produce one withheld probability-mean candidate.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "decision": "Require all three predeclared confirmation seeds and the probability-mean ensemble to remain at or below the original 0.292 public OOF threshold."
+  },
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\aggregate_spooky_cross_run_xgb_confirmation.py",
+    "bytes": 12008,
+    "sha256": "71c48c919baf33eb1444ac2ef2baa8ae491aadbe8f54383d08f16c54bf008608"
+  },
+  "sample_submission": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\sample_submission.csv",
+    "bytes": 121411,
+    "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+  },
+  "seed_results": [
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s40_confirm_20260727\\cross_run_xgb_result.json",
+      "bytes": 28567,
+      "sha256": "69271da4f9a6ece05f5c6424e4dd7971a597a9148aa333d754aeebce130572ae",
+      "model_seed": 40
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s41_confirm_20260727\\cross_run_xgb_result.json",
+      "bytes": 28558,
+      "sha256": "5e94a8166a96bfdbeb7bf374652fa9a80a677a97e2ea6461d10eb5c795807e22",
+      "model_seed": 41
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb\\runs\\local4060_spooky_crossrun_xgb_s42_20260727_0839\\cross_run_xgb_result.json",
+      "bytes": 28532,
+      "sha256": "b03b088a40d19914eaeacc615aca18f85e0947241ca916bad9973b59f9bf61b6",
+      "model_seed": 42
+    }
+  ],
+  "aggregation": {
+    "method": "arithmetic_mean_probability",
+    "model_seeds": [
+      40,
+      41,
+      42
+    ],
+    "same_truth_fold_and_id_arrays_required": true
+  },
+  "confirmation_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "maximum_log_loss": 0.292,
+    "all_three_seed_gates_required": true,
+    "ensemble_gate_required": true,
+    "official_medal_claim_requires_human_gated_private_evaluation": true
+  },
+  "output": {
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation",
+    "result": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\spooky_cross_run_xgb_confirmation_result.json",
+    "submission_disposition": "withheld_human_gate"
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "Public OOF confirmation plan only; no official score or medal is claimed."
+}

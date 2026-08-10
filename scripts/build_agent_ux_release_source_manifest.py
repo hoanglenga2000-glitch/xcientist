@@ -40,12 +40,17 @@ PURPOSE_BY_PATH = {
     "src/xsci/assistant_behavior_distillation.py": "Defines novice-facing behavior contracts, visible response audit, and deterministic repairs.",
     "src/xsci/kaggle_conversation.py": "Implements browser/terminal Agent routing, LLM-first tool loop, safe context, and fallback behavior.",
     "scripts/verify_new_user_release_readiness.py": "Verifies new-user local gateway readiness and novice quality gate freshness.",
+    "scripts/verify_backend_resource_status.py": "Checks the canonical Connector Registry state and raw connector provenance.",
+    "tests/test_backend_resource_status.py": "Prevents canonical connector-state and authoritative GPU-gate regressions.",
     "scripts/manage_hpc_proxy_bridge.ps1": "Starts the local HPC SOCKS bridge through the designated upstream proxy by default.",
     "tests/test_hpc_connection_memory_core.py": "Prevents direct-route defaults and HPC proxy/container identity contract regressions.",
     "scripts/manage_workstation_dashboard.py": "Binds the novice-facing dashboard to the installed interactive OpenAI performance profile.",
     "tests/test_dashboard_build_transaction.py": "Prevents dashboard lifecycle, build transaction, and interactive gateway profile regressions.",
     "web/research-agent-workstation/src/app/api/assistant/stream/route.ts": "Authenticates and streams browser assistant requests through the Python Agent subprocess.",
     "web/research-agent-workstation/src/components/workstation/screens/AssistantScreen.tsx": "Browser-facing chat UI, stream error handling, and visible Agent status.",
+    "web/research-agent-workstation/src/lib/server/scientific-report.ts": "Projects reviewed Run evidence into the Report Studio without bypassing review or hash gates.",
+    "web/research-agent-workstation/src/lib/server/reviewed-existing-report.ts": "Fails closed unless a completed Run has task binding, Reviewer, Claim Audit, and artifact provenance.",
+    "web/research-agent-workstation/src/lib/server/reviewed-existing-report.test.ts": "Prevents reviewed-report task, gate, and manifest binding regressions.",
 }
 
 SECRET_PATTERNS = (

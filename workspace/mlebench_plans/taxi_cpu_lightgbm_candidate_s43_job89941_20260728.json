@@ -1,0 +1,67 @@
+{
+  "schema": "evomind.hpc.job89941_taxi_cpu_candidate_plan.v1",
+  "created_at": "2026-07-28T06:02:23.133837+08:00",
+  "status": "approved_candidate_only",
+  "job_id": 89941,
+  "profile": "job89941_cpu",
+  "run_id": "taxi_cpu_lgbm_s43_v1_20260728",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "candidate_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\diagnose_taxi_cpu_candidate.py",
+    "relative_path": "scripts/diagnose_taxi_cpu_candidate.py",
+    "bytes": 17107,
+    "sha256": "9355bfe2e1e07716dfa00927fbe3027e143970ec28ca367fe28e8ca69b0ca016"
+  },
+  "deployment_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\deploy_job89941_taxi_cpu_candidate.py",
+    "relative_path": "scripts/deploy_job89941_taxi_cpu_candidate.py",
+    "bytes": 13613,
+    "sha256": "a3ab67b021542ba35e3c3081bb8faf0e974ccb1903de0cb11298742155fd415a"
+  },
+  "base_cache": {
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json",
+    "local_evidence_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_public_cache\\collected\\job89941_taxi_public_cache_s42_v1_20260728\\cache_manifest.json",
+    "bytes": 8528,
+    "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+  },
+  "route_stat_cache": {
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/route_stats/route_stat_manifest.json",
+    "local_evidence_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_taxi_route_stats\\collected\\taxi_route_stats_s42_v1_20260728\\route_stat_manifest.json",
+    "bytes": 3268,
+    "sha256": "2b63f41ba58923f44f789e8ab7df55f96e2f770dd2cb94012f2f251994a746b6"
+  },
+  "remote_run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728",
+  "remote_source": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728/frozen_source/diagnose_taxi_cpu_candidate.py",
+  "remote_plan": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728/plans/taxi_cpu_lightgbm_candidate_s43_job89941_20260728.json",
+  "remote_state": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728/state.json",
+  "remote_log": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728/logs/train.log",
+  "remote_output_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v1_20260728/candidate",
+  "runtime": {
+    "seed": 43,
+    "iterations": 1400,
+    "threads": 60,
+    "cuda_visible_devices": "",
+    "exclusive_state_required": true,
+    "start_new_session": true
+  },
+  "validation_contract": {
+    "duplicate_safe_oof": true,
+    "folds": 3,
+    "random_oof_rmse_maximum": 2.85,
+    "temporal_rmse_maximum": 3.1,
+    "geographic_rmse_maximum": 3.35,
+    "full_refit_required": true,
+    "route_validation_targets_used": 0
+  },
+  "boundary": {
+    "visibility_mode": "PUBLIC_ONLY",
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false
+  },
+  "claim_boundary": "A passing CPU OOF gate is a Human Gate candidate, not an official score or medal."
+}

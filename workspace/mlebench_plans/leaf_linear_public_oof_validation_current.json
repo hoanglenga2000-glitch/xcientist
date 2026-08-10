@@ -1,0 +1,668 @@
+{
+  "schema": "evomind.mlebench.leaf_linear_public_oof_validation.v1",
+  "created_at": "2026-07-25T03:50:57.100832+00:00",
+  "competition_id": "leaf-classification",
+  "dataset": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public",
+  "access_mode": "remote_read_only_cpu_probe_single_thread_nice15",
+  "path_scope_verified": true,
+  "remote_stderr_type": "nonempty",
+  "production_adapter_sha256": "5fd65488e8ae7f0f100b6daed2a20ceabf30afb10d0c2455619377393ca90369",
+  "remote_source_sha256": "bb8dc63c8046aab25ccec4ef510129a2ca20fda963a51ea8979a8f2d25441199",
+  "bronze_threshold": 0.01526,
+  "target_threshold": 0.013,
+  "class_count": 99,
+  "confirmation_seeds": [
+    43,
+    44
+  ],
+  "confirmations": [
+    {
+      "c_value": 3.0,
+      "cross_fitted_calibrated_log_loss": 0.04088817015277659,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.053794776378901454,
+          "temperature": 0.47546795773833417
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.04651953728847654,
+          "temperature": 0.5036412054367682
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.026938040879417764,
+          "temperature": 0.5334838230116767
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.0403474570607315,
+          "temperature": 0.5334838230116767
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.03676853013261342,
+          "temperature": 0.5334838230116767
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.07102151085562733,
+        0.08623963469062011,
+        0.08047073892318565,
+        0.09311170610292015,
+        0.08728968838834106
+      ],
+      "raw_oof_log_loss": 0.08361250860365793,
+      "seed": 43
+    },
+    {
+      "c_value": 3.0,
+      "cross_fitted_calibrated_log_loss": 0.034128282427415876,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.0067426940975601,
+          "temperature": 0.5036412054367682
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.06919668198729484,
+          "temperature": 0.44887069682833003
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.045722562959903366,
+          "temperature": 0.47546795773833417
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.02753570621853285,
+          "temperature": 0.47546795773833417
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.021597618493618867,
+          "temperature": 0.5036412054367682
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.04518632664011611,
+        0.11232255480995844,
+        0.08919937207130166,
+        0.07139317912082738,
+        0.07257364891975206
+      ],
+      "raw_oof_log_loss": 0.07809803686270284,
+      "seed": 44
+    }
+  ],
+  "development_grid": [
+    {
+      "c_value": 0.3,
+      "cross_fitted_calibrated_log_loss": 0.04538835981663864,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.030538492954182834,
+          "temperature": 0.42376126338682635
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.02388364155652369,
+          "temperature": 0.44887069682833003
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.06298454564472437,
+          "temperature": 0.4000564296489971
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.0429171937040471,
+          "temperature": 0.4000564296489971
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.06670135144204359,
+          "temperature": 0.4000564296489971
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.19740565264146584,
+        0.18693618951975235,
+        0.19997973621760926,
+        0.19635639534908023,
+        0.19697672905896715
+      ],
+      "raw_oof_log_loss": 0.1955330446113414,
+      "seed": 42
+    },
+    {
+      "c_value": 1.0,
+      "cross_fitted_calibrated_log_loss": 0.04179135617533482,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.027783441176808667,
+          "temperature": 0.5036412054367682
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.01994115245913505,
+          "temperature": 0.5036412054367682
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.057492361590527306,
+          "temperature": 0.47546795773833417
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.041589433113702286,
+          "temperature": 0.47546795773833417
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.06222908868817792,
+          "temperature": 0.47546795773833417
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.11322491049538444,
+        0.10674643442219697,
+        0.12255220956053388,
+        0.1168585447087046,
+        0.12178625988852593
+      ],
+      "raw_oof_log_loss": 0.11623029497857121,
+      "seed": 42
+    },
+    {
+      "c_value": 3.0,
+      "cross_fitted_calibrated_log_loss": 0.03931331754972213,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.026079186580438694,
+          "temperature": 0.5650947268469403
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.018925980971918315,
+          "temperature": 0.5650947268469403
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.051736405188426475,
+          "temperature": 0.5334838230116767
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.03808604391664491,
+          "temperature": 0.5334838230116767
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.061813320141571496,
+          "temperature": 0.5334838230116767
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.07401807623576763,
+        0.06836652063975028,
+        0.08465786484540974,
+        0.07897079621076072,
+        0.09034917526150225
+      ],
+      "raw_oof_log_loss": 0.07926658943279877,
+      "seed": 42
+    },
+    {
+      "c_value": 10.0,
+      "cross_fitted_calibrated_log_loss": 0.04161657880412226,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.029736418965883624,
+          "temperature": 0.6340467119509942
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.018577967289315336,
+          "temperature": 0.6716163415705019
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.054679664674069504,
+          "temperature": 0.5985786944906638
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.04310133398218757,
+          "temperature": 0.6340467119509942
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.062054251580156636,
+          "temperature": 0.5985786944906638
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.05312220946503524,
+        0.044672819170704786,
+        0.06499124616896135,
+        0.05972920121878919,
+        0.07139533862885715
+      ],
+      "raw_oof_log_loss": 0.0587758105696778,
+      "seed": 42
+    },
+    {
+      "c_value": 30.0,
+      "cross_fitted_calibrated_log_loss": 0.05572602211924565,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.04162024023931677,
+          "temperature": 0.7982175179396429
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.025695828053607775,
+          "temperature": 0.8455148793793363
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.07575781015890877,
+          "temperature": 0.7535659294528742
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.06775826338925965,
+          "temperature": 0.7535659294528742
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.06787721472075285,
+          "temperature": 0.7535659294528742
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.05030440804519942,
+        0.03665242793829901,
+        0.07430806588470809,
+        0.06980514931783911,
+        0.06755290781392764
+      ],
+      "raw_oof_log_loss": 0.05971401920318793,
+      "seed": 42
+    },
+    {
+      "c_value": 100.0,
+      "cross_fitted_calibrated_log_loss": 0.059639297662565746,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.03638885381996211,
+          "temperature": 0.9486832980505137
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.029085038848566582,
+          "temperature": 0.9486832980505137
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.0885365966491152,
+          "temperature": 0.8455148793793363
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.07316302483830511,
+          "temperature": 0.895614785675388
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.07115359462790556,
+          "temperature": 0.8455148793793363
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.03841530864760008,
+        0.031232625776561468,
+        0.0829228404997154,
+        0.07379714605355957,
+        0.0691888024679375
+      ],
+      "raw_oof_log_loss": 0.05908811681472971,
+      "seed": 42
+    },
+    {
+      "c_value": 300.0,
+      "cross_fitted_calibrated_log_loss": 0.06111341985775179,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.036353969773918075,
+          "temperature": 1.004896317473483
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.03006030919114043,
+          "temperature": 1.004896317473483
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.09276057760178984,
+          "temperature": 0.8455148793793363
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.07501539299545802,
+          "temperature": 0.9486832980505137
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.07151594776063146,
+          "temperature": 0.895614785675388
+        }
+      ],
+      "family": "logistic",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.03616785543537009,
+        0.029884351827789965,
+        0.08539102500240253,
+        0.07511114452690171,
+        0.06962239827681495
+      ],
+      "raw_oof_log_loss": 0.059209465564272805,
+      "seed": 42
+    },
+    {
+      "c_value": 0.003,
+      "cross_fitted_calibrated_log_loss": 0.3107847307399509,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.2644244357643734,
+          "temperature": 0.3776776235382502
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.22872340770124022,
+          "temperature": 0.4000564296489971
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.4487145087825953,
+          "temperature": 0.3776776235382502
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.2385024182727375,
+          "temperature": 0.3776776235382502
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.3738193342741767,
+          "temperature": 0.3565506682311054
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.5118854268946906,
+        0.5008970345384212,
+        0.6432966905180099,
+        0.5052939136600015,
+        0.5510880575708578
+      ],
+      "raw_oof_log_loss": 0.542457873572713,
+      "seed": 42
+    },
+    {
+      "c_value": 0.01,
+      "cross_fitted_calibrated_log_loss": 0.1254042312654047,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.13117734527728486,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.023919728934876133,
+          "temperature": 0.2524185424935585
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.24866997436345836,
+          "temperature": 0.2524185424935585
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.06264489836055678,
+          "temperature": 0.2524185424935585
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.16057677616606164,
+          "temperature": 0.22496826279973672
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.45882367902103605,
+        0.43947224329235884,
+        0.5927491856231234,
+        0.45029412088933457,
+        0.46550001393147783
+      ],
+      "raw_oof_log_loss": 0.4813425464532277,
+      "seed": 42
+    },
+    {
+      "c_value": 0.03,
+      "cross_fitted_calibrated_log_loss": 0.11178108753952422,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.08423023623135506,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.03775345302022934,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.23980403133919537,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.06146284316111866,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.13580965400925177,
+          "temperature": 0.22496826279973672
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.44559011006098814,
+        0.44068277851007615,
+        0.5841502251951101,
+        0.4480401642721175,
+        0.46225484569266395
+      ],
+      "raw_oof_log_loss": 0.47610933348391826,
+      "seed": 42
+    },
+    {
+      "c_value": 0.1,
+      "cross_fitted_calibrated_log_loss": 0.1070516785562028,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.08535652414080085,
+          "temperature": 0.22496826279973672
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.03783268326778416,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.23988609076625939,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.0614628483000115,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.1108421291961323,
+          "temperature": 0.22496826279973672
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.44554664824748114,
+        0.4411629289069583,
+        0.5848719147778616,
+        0.4480664679953141,
+        0.45663720422823106
+      ],
+      "raw_oof_log_loss": 0.47522368784285984,
+      "seed": 42
+    },
+    {
+      "c_value": 0.3,
+      "cross_fitted_calibrated_log_loss": 0.1070516785562028,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.08535652414080085,
+          "temperature": 0.22496826279973672
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.03783268326778416,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.23988609076625939,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.0614628483000115,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.1108421291961323,
+          "temperature": 0.22496826279973672
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.44554664824748114,
+        0.4411629289069583,
+        0.5848719147778616,
+        0.4480664679953141,
+        0.45663720422823106
+      ],
+      "raw_oof_log_loss": 0.47522368784285984,
+      "seed": 42
+    },
+    {
+      "c_value": 1.0,
+      "cross_fitted_calibrated_log_loss": 0.1070516785562028,
+      "crossfit_temperature_records": [
+        {
+          "fold": 0,
+          "outer_log_loss": 0.08535652414080085,
+          "temperature": 0.22496826279973672
+        },
+        {
+          "fold": 1,
+          "outer_log_loss": 0.03783268326778416,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 2,
+          "outer_log_loss": 0.23988609076625939,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 3,
+          "outer_log_loss": 0.0614628483000115,
+          "temperature": 0.23829847041728444
+        },
+        {
+          "fold": 4,
+          "outer_log_loss": 0.1108421291961323,
+          "temperature": 0.22496826279973672
+        }
+      ],
+      "family": "linear_svc",
+      "fold_assignment_complete": true,
+      "raw_fold_log_loss": [
+        0.44554664824748114,
+        0.4411629289069583,
+        0.5848719147778616,
+        0.4480664679953141,
+        0.45663720422823106
+      ],
+      "raw_oof_log_loss": 0.47522368784285984,
+      "seed": 42
+    }
+  ],
+  "development_seed": 42,
+  "feature_count": 192,
+  "folds": 5,
+  "rows": 891,
+  "selected": {
+    "c_value": 3.0,
+    "development_cross_fitted_calibrated_log_loss": 0.03931331754972213,
+    "family": "logistic"
+  },
+  "confirmation_scores": [
+    0.04088817015277659,
+    0.034128282427415876
+  ],
+  "bronze_oriented_gate_passed": false,
+  "target_passed": false,
+  "selection_boundary": "Seed 42 selected one fixed family and C. Seeds 43 and 44 are untouched confirmations. Every temperature is selected without its outer fold. Internal OOF is not an official medal."
+}

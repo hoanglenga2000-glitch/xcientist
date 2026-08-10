@@ -1,0 +1,158 @@
+{
+  "task": {
+    "name": "telco_churn",
+    "competition": "Telco Customer Churn",
+    "type": "binary_classification",
+    "target": "Churn",
+    "metric": "accuracy",
+    "id_column": "customerID",
+    "prediction_column": "Churn"
+  },
+  "experiment_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853",
+  "workflow_version": "v3_generic_tabular",
+  "local_only": true,
+  "server_private_templates_modified": false,
+  "kaggle_api_submission": false,
+  "stages": [
+    {
+      "stage": "task_understanding",
+      "owner_role": "Orchestrator/Planner",
+      "status": "passed",
+      "evidence": [
+        "tasks/telco_churn/overview.txt",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json"
+      ],
+      "checks": {
+        "task_name": "telco_churn",
+        "target": "Churn",
+        "metric": "accuracy",
+        "server_templates_read_only": true
+      }
+    },
+    {
+      "stage": "preliminary_eda",
+      "owner_role": "Analyst",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json"
+      ],
+      "checks": {
+        "train_rows": 5634,
+        "test_rows": 1409,
+        "target_summary_recorded": true,
+        "missing_values_recorded": true
+      }
+    },
+    {
+      "stage": "data_quality_check",
+      "owner_role": "Reviewer/Gate",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json"
+      ],
+      "checks": {
+        "train_test_feature_columns_match": true,
+        "sample_submission_rows": 1409,
+        "sample_submission_columns": [
+          "customerID",
+          "Churn"
+        ]
+      }
+    },
+    {
+      "stage": "feature_engineering",
+      "owner_role": "Developer",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json"
+      ],
+      "checks": {
+        "preset": "telco_churn_basic",
+        "feature_plan_recorded": true,
+        "target_transform": null
+      }
+    },
+    {
+      "stage": "model_validation",
+      "owner_role": "Developer/Reviewer",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json"
+      ],
+      "checks": {
+        "best_model": "gradient_boosting",
+        "best_metrics": {
+          "cv_accuracy_mean": 0.807773,
+          "cv_accuracy_std": 0.007051,
+          "holdout_accuracy": 0.809228,
+          "holdout_macro_f1": 0.739197,
+          "seconds": 3.9265
+        },
+        "thresholds": {
+          "min_validation_accuracy": 0.78,
+          "require_submission_schema_valid": true,
+          "require_no_missing_predictions": true,
+          "require_train_test_features_match": true,
+          "expected_submission_rows": 1409,
+          "expected_submission_columns": [
+            "customerID",
+            "Churn"
+          ],
+          "allowed_prediction_values": [
+            "No",
+            "Yes"
+          ]
+        },
+        "candidate_model_count": 4
+      }
+    },
+    {
+      "stage": "submission_generation",
+      "owner_role": "Developer/Reviewer",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv"
+      ],
+      "checks": {
+        "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+        "rows_match": true,
+        "columns_match": true,
+        "missing_predictions": 0,
+        "prediction_columns": [
+          "Churn"
+        ],
+        "valid": true,
+        "allowed_values": [
+          "No",
+          "Yes"
+        ],
+        "allowed_values_only": true,
+        "prediction_distribution": {
+          "No": 1118,
+          "Yes": 291
+        }
+      }
+    },
+    {
+      "stage": "report_and_review",
+      "owner_role": "Evidence/Summarizer",
+      "status": "passed",
+      "evidence": [
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx"
+      ],
+      "checks": {
+        "report_grounded_in_outputs": true,
+        "post_scaffold_written": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+        "local_gate_expected": true
+      }
+    }
+  ],
+  "all_stages_passed": true,
+  "failed_stages": [],
+  "next_actions": [
+    "Configure Kaggle API token before official download/submission.",
+    "Use this generic workflow as the baseline for additional teacher-provided tabular datasets.",
+    "Keep GPU/server work disabled until a task has a clear compute benefit."
+  ]
+}

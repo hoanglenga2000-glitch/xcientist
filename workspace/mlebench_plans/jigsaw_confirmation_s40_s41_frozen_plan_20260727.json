@@ -1,0 +1,170 @@
+{
+  "schema": "evomind.jigsaw.confirmation_queue_frozen_plan.v1",
+  "created_at": "2026-07-27T07:57:48.664206+08:00",
+  "status": "frozen_waiting_leaf",
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "objective": "Confirm the seed42 public OOF candidate with model seeds 40 and 41 while preserving the exact seed42 outer folds.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "decision": "run strict serial three-seed reproducibility confirmation after higher-priority near-term conversion jobs",
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_gpt56_audit_current.json",
+      "sha256": "9ad605287679e02b3267cda0291019efac92971c4772304bbf31322ea6b43b81"
+    }
+  },
+  "source": {
+    "runner": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_jigsaw_transformer_oof.py",
+      "sha256": "3b5dfbc0bb2e92ff038e048823ba9b93a90c87d40936a4c8dc9b2d3c7ba515fd"
+    },
+    "verifier": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_jigsaw_transformer_oof_run.py",
+      "sha256": "8e73bbbdd16645ff60e22789e4a6c4806a18d94606ccf4123073aea6f0a38d00"
+    },
+    "queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_jigsaw_confirmation_after_leaf.py",
+      "sha256": "1c77e8e4192dfe2f6ae944e928f892106b539d28debbdcb347bbab28d6660a6e"
+    },
+    "idle_gate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\local_rtx4060_idle_gate.py",
+      "sha256": "ee9fef46a5fdfebf4b135bb80314a270d6043a808a7811b949298c621f495f37"
+    },
+    "idle_gate_policy": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1"
+    }
+  },
+  "inputs": {
+    "public_train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\train.csv",
+      "sha256": "36e730b9b0852edced41616b0fb53962939d678ac54f170f6d5b1a6a35af1bfd"
+    },
+    "public_test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\test.csv",
+      "sha256": "c31ef2c52864c3305e3dd82b7ac643b90b5d2f4c39a041480c3835379e93101d"
+    },
+    "public_sample": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\sample_submission.csv",
+      "sha256": "81dc6e1f9eeb89ebb9e651a9ea6a3c971980ae9d12e29c687adcadfe610813b5"
+    },
+    "sparse_bundle": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_transformer_assets\\jigsaw_sparse_oof_and_test_seed42.npz",
+      "sha256": "857bec2eea7d57557afbee407f4987ca94446d527aabd05bcd1421bb5791810a"
+    }
+  },
+  "token_cache": {
+    "train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\token_cache\\train_l192.npz",
+      "sha256": "c0cd1d4effa68ebb42f0ad6e608ebac70117c950648b21ca3e3dacdfa279d8dc"
+    },
+    "train_manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\token_cache\\train_l192.manifest.json",
+      "sha256": "061a0b4cf69b0c62dffc90773f6738ab0a6fdbafd256303ba4970af36d8e39b6"
+    },
+    "test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\token_cache\\test_l192.npz",
+      "sha256": "529a864e9d0534c6db2537d797a3a9469f953bed1212fc603a60a06b04d8f654"
+    },
+    "test_manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\token_cache\\test_l192.manifest.json",
+      "sha256": "311e093a13fc73682daf469ee7c80a7f58d3b3241bb8e4dfe3c7ebb4500a9e11"
+    }
+  },
+  "seed42_evidence": {
+    "audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_candidate_audit_current.json",
+      "sha256": "f0c0f1fe6fe6b96c23124e67f791b55c201749a70e91e97730c1f052d2661677"
+    },
+    "summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\summary.json",
+      "sha256": "d9570d189126f4d446ceabab12dfe4ab99d58d1be26ef0ebe68cb6aeddf8336c"
+    },
+    "independent_verification": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\independent_verification.json",
+      "sha256": "4f58684b540b0e34fec07d84ee36d8131bbf0089d000a70c223897c851378071"
+    }
+  },
+  "serial_dependency": {
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_frozen_plan.json",
+      "sha256": "70697c60f5e4e0b6c48f21b3ebf9faddc3de37eddfdb8f0d4b0d314ea928e03e"
+    },
+    "watcher_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_independent_verification_watcher_calibrated.json",
+    "watcher_schema": "evomind.local_candidate_verification_watcher.v1",
+    "run_id": "local4060_leaf_dualbb_s404142_20260727_0154",
+    "terminal_statuses": [
+      "verification_passed"
+    ],
+    "proceed_when_candidate_gate_failed_but_verification_passed": true
+  },
+  "confirmation_runs": [
+    {
+      "model_seed": 40,
+      "run_id": "local4060_jigsaw_xfmr1_s40_confirm_20260727",
+      "plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_s40_frozen_plan.json",
+        "sha256": "2cffbc2aa8c10cb7ee716ec9dc94cfaad1f46cf09fa6b0f2027d78fef3abd273"
+      }
+    },
+    {
+      "model_seed": 41,
+      "run_id": "local4060_jigsaw_xfmr1_s41_confirm_20260727",
+      "plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_s41_frozen_plan.json",
+        "sha256": "baea9bee680fbbb539642825edca299dfb14b98a0fc72a2e14f07a8d081ce243"
+      }
+    }
+  ],
+  "execution": {
+    "training_python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "verification_python": "D:\\桌面\\codex\\科研港科技\\workspace\\release-venv\\Scripts\\python.exe",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs",
+    "hf_cache": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\model_cache\\huggingface\\hub",
+    "strict_order": [
+      40,
+      41
+    ],
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false
+  },
+  "launch_contract": {
+    "gpu_idle_gate_mode": "calibrated_wddm_multimetric_v1",
+    "idle_gate_policy": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1"
+    },
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_minimum_check_interval_seconds": 10,
+    "strict_single_gpu_serial": true,
+    "preemption_allowed": false,
+    "process_signals_allowed": false
+  },
+  "confirmation_gate": {
+    "metric": "mean_columnwise_roc_auc",
+    "minimum_seed_auc": 0.987,
+    "minimum_mean_auc": 0.987,
+    "minimum_seed_gain": 0.0003,
+    "maximum_population_std": 0.0025,
+    "all_three_seed_promotion_gates_required": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "official_medal_claim_requires_human_gated_private_evaluation": true
+  },
+  "output": {
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_s40_s41",
+    "result": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_s40_s41\\jigsaw_multiseed_confirmation_result.json"
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "The queue can prove public OOF reproducibility only; official leaderboard evidence remains Human-Gated."
+}

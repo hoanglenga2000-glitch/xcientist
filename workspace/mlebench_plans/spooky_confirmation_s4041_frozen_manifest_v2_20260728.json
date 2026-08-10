@@ -1,0 +1,69 @@
+{
+  "schema": "evomind.spooky.confirmation_plans_manifest.v1",
+  "created_at": "2026-07-28T00:39:43.576176+08:00",
+  "status": "frozen_before_confirmation_training",
+  "requested_model": "gpt-5.6-sol",
+  "served_model": "gpt-5.6-sol",
+  "driver_audit_path": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+  "driver_audit_sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce",
+  "source_seed42_plan": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan_v2_20260728.json",
+  "source_seed42_plan_sha256": "3469ad1874ebbbba18b035b78aee9711784b50ad772365ace8cead600b1ef87f",
+  "confirmation_plans": [
+    {
+      "seed": 40,
+      "run_id": "local4060_spooky_xfmrbyte_s40_confirm_20260727_0459",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s40_confirmation_frozen_plan_v2_20260728.json",
+      "sha256": "d96a6fb135ee875dc5fdcc32073b7b0f528cb945ae1cce3d35b68afaa423247f",
+      "duplicate_group_report": {
+        "schema": "evomind.spooky.duplicate_groups.v1",
+        "normalization": "NFKC_lower_word_number_tokens_v1",
+        "rows": 17621,
+        "unique_groups": 17613,
+        "duplicate_groups": 8,
+        "duplicate_rows_beyond_first": 8,
+        "maximum_group_size": 2,
+        "conflicting_label_groups": 0,
+        "folds": 5,
+        "seed": 40,
+        "group_isolation": true
+      }
+    },
+    {
+      "seed": 41,
+      "run_id": "local4060_spooky_xfmrbyte_s41_confirm_20260727_0459",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s41_confirmation_frozen_plan_v2_20260728.json",
+      "sha256": "e555d0852694bb7d6026e8dd534535cab400ee8fc83dbfeb021357b6da8e5335",
+      "duplicate_group_report": {
+        "schema": "evomind.spooky.duplicate_groups.v1",
+        "normalization": "NFKC_lower_word_number_tokens_v1",
+        "rows": 17621,
+        "unique_groups": 17613,
+        "duplicate_groups": 8,
+        "duplicate_rows_beyond_first": 8,
+        "maximum_group_size": 2,
+        "conflicting_label_groups": 0,
+        "folds": 5,
+        "seed": 41,
+        "group_isolation": true
+      }
+    }
+  ],
+  "required_seeds": [
+    40,
+    41,
+    42
+  ],
+  "mean_seed_log_loss_threshold": 0.285,
+  "maximum_individual_seed_log_loss": 0.315,
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "supersession": {
+    "schema": "evomind.frozen_plan_supersession.v1",
+    "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_confirmation_s4041_frozen_manifest.json",
+    "predecessor_sha256": "9285bd62c29e53c3ab610e4e6e0cbd33024fe287f1dca78835ac48bbc08f87d1",
+    "reason": "Bind mutable live artifacts to content-addressed immutable snapshots after validated source evolution. No training, grading, submission, or process signal occurred.",
+    "pre_use_correction": true
+  }
+}

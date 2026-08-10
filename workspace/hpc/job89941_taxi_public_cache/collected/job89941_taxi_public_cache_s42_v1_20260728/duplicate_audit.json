@@ -1,0 +1,18 @@
+{
+  "schema": "evomind.mlebench_lite.taxi_duplicate_audit.v1",
+  "input_rows": 5000000,
+  "retained_rows": 5000000,
+  "quarantined_rows": 0,
+  "conflicting_trip_signatures": 0,
+  "conflicting_keys": 0,
+  "duplicate_signature_rows_retained": 2,
+  "duplicate_key_rows_retained": 0,
+  "exact_trip_signature_columns": [
+    "pickup_datetime",
+    "pickup_longitude",
+    "pickup_latitude",
+    "dropoff_longitude",
+    "dropoff_latitude",
+    "passenger_count"
+  ]
+}

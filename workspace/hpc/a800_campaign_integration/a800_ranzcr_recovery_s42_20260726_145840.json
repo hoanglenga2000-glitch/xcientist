@@ -1,0 +1,13 @@
+{
+  "schema": "evomind.mlebench_campaign.external_lane_integration.v1",
+  "created_at": "2026-08-09T17:42:34.532315+00:00",
+  "run_id": "a800_ranzcr_recovery_s42_20260726_145840",
+  "competition_id": "ranzcr-clip-catheter-line-classification",
+  "idempotent_reuse": false,
+  "official_grade_count": 1,
+  "score": 0.95889,
+  "any_medal": false,
+  "campaign_current_task_preserved": null,
+  "campaign_current_run_preserved": null,
+  "kaggle_submission_enabled": false
+}

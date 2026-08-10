@@ -429,12 +429,17 @@ def test_cli_dispatches_and_resumes_the_siim_workflow(tmp_path, monkeypatch):
                 "90353",
                 "--hpc-credential-profile",
                 "job90353",
+                "--hpc-resource-profile",
+                "aimslab_a800_80gb",
+                "--execution-backend",
+                "hpc",
             ]
         )
     assert exit_code == 0
     assert run_calls[0][1].task_type == "image_classification"
     assert run_calls[0][1].compute_policy.job_id == 90353
     assert run_calls[0][1].compute_policy.credential_profile == "job90353"
+    assert run_calls[0][1].compute_policy.resource_profile == "aimslab_a800_80gb"
     assert run_calls[0][1].compute_policy.backend == "hpc"
 
     run_id = "evomind_siim_cli_resume"

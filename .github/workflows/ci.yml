@@ -42,6 +42,15 @@ jobs:
           .\.release-smoke\Scripts\evomind.exe --help
           .\.release-smoke\Scripts\evomind.exe workspace --help
           .\.release-smoke\Scripts\evomind.exe benchmark-agent --help
+      - name: Validate installed wheel without packaging-tool leakage
+        shell: pwsh
+        run: |
+          python -m venv --without-pip .release-sbom
+          $wheel = Get-ChildItem dist\*.whl | Select-Object -First 1
+          python -m pip --python .\.release-sbom\Scripts\python.exe install $wheel.FullName
+          python -m pip --python .\.release-sbom\Scripts\python.exe check
+          .\.release-sbom\Scripts\python.exe -c "import xsci, research_os"
+          python -m pip --python .\.release-sbom\Scripts\python.exe uninstall --yes xcientist
 
   frontend-release:
     runs-on: windows-latest
@@ -109,6 +118,8 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
+      - name: Verify the fail-closed scientist upgrade campaign transport
+        run: npm run test:upgrade-campaign
       - name: Build workstation
         run: npm run build
       - name: Verify frontend API and navigation contracts
@@ -196,7 +207,7 @@ jobs:
           --json artifacts/ci-release/verification.json
       - name: Stage protected-tag release inputs
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: protected-tag-release-inputs
           if-no-files-found: error
@@ -206,9 +217,74 @@ jobs:
             ${{ steps.production-cli.outputs.tgz }}
             artifacts/ci-release/build-result.json
 
-  production-release-verification:
+  capability-certification:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: frontend-release
+    needs: [python-release, frontend-release]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    environment: production-release
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.13"
+      - name: Download the externally generated capability evidence bundle
+        shell: pwsh
+        env:
+          EVIDENCE_URL: ${{ secrets.EVOMIND_CAPABILITY_EVIDENCE_URL }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:EVIDENCE_URL)) {
+            throw "EVOMIND_CAPABILITY_EVIDENCE_URL is required for protected tags"
+          }
+          Invoke-WebRequest -Uri $env:EVIDENCE_URL -OutFile capability-evidence.zip
+      - name: Extract the immutable external evidence bundle
+        run: >-
+          python scripts/extract_capability_evidence_bundle.py
+          capability-evidence.zip capability-evidence
+          --expected-sha256 "${{ vars.EVOMIND_CAPABILITY_BUNDLE_SHA256 }}"
+      - name: Verify scope, exact source bytes, baselines, and frozen evaluator
+        shell: pwsh
+        env:
+          BASELINE_AGENTS: ${{ vars.EVOMIND_CAPABILITY_BASELINE_AGENTS }}
+        run: |
+          $baselines = @($env:BASELINE_AGENTS -split ',' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+          if ($baselines.Count -lt 2) { throw "At least two external baseline agents are required" }
+          $arguments = @(
+            'scripts/verify_capability_certification.py', 'capability-evidence/report.json',
+            '--repo-root', '.', '--artifact-root', 'capability-evidence',
+            '--expected-report-sha256', '${{ vars.EVOMIND_CAPABILITY_REPORT_SHA256 }}',
+            '--expected-suite-id', '${{ vars.EVOMIND_CAPABILITY_SUITE_ID }}',
+            '--expected-suite-sha256', '${{ vars.EVOMIND_CAPABILITY_SUITE_SHA256 }}',
+            '--expected-evaluator-id', '${{ vars.EVOMIND_CAPABILITY_EVALUATOR_ID }}',
+            '--expected-evaluator-sha256', '${{ vars.EVOMIND_CAPABILITY_EVALUATOR_SHA256 }}',
+            '--minimum-hidden-tasks', '100',
+            '--minimum-domains', '8',
+            '--minimum-tasks-per-domain', '3',
+            '--minimum-repeats', '3',
+            '--minimum-wilson-lower-bound', '0.75',
+            '--maximum-timeout-rate', '0',
+            '--minimum-upgrade-candidates', '2',
+            '--output', 'capability-certification-result.json'
+          )
+          foreach ($baseline in $baselines) { $arguments += @('--baseline-agent', $baseline) }
+          python @arguments
+          if ($LASTEXITCODE -ne 0) {
+            throw "Built workstation source bytes do not match externally certified source bytes or another certification check failed"
+          }
+      - name: Preserve the source-specific certification result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: capability-certification-result
+          if-no-files-found: error
+          retention-days: 7
+          path: capability-certification-result.json
+
+  release-artifacts:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [python-release, frontend-release, capability-certification]
     runs-on: windows-latest
     timeout-minutes: 45
     environment: production-release
@@ -222,10 +298,14 @@ jobs:
           python-version: "3.12.13"
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           name: protected-tag-release-inputs
           path: artifacts/protected-tag
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: capability-certification-result
+          path: artifacts/capability-certification
       - name: Materialize the protected production signing key
         id: production-key
         shell: pwsh

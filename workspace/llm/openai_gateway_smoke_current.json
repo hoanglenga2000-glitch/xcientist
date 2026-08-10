@@ -1,0 +1,68 @@
+{
+  "schema": "evomind.openai_gateway_smoke.v1",
+  "created_at": "2026-08-09T16:14:48.732199+00:00",
+  "provider": "openai",
+  "base_url": "http://127.0.0.1:65068/v1",
+  "requested_model": "gpt-5.6-sol",
+  "request_profile": {},
+  "secret_policy": "API key loaded from environment or DPAPI and never written to this report.",
+  "models": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 28.7,
+    "model_count": 10,
+    "requested_model_present": true
+  },
+  "nonstream": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 2553.2,
+    "served_model": "gpt-5.6-sol",
+    "content": "GATEWAY_OK",
+    "usage": {
+      "completion_tokens": 8,
+      "total_tokens": 3286,
+      "prompt_tokens": 3278,
+      "prompt_tokens_details": {
+        "cached_tokens": 2816
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    }
+  },
+  "stream": {
+    "ok": true,
+    "status": 200,
+    "first_delta_ms": 1133.6,
+    "total_ms": 1302.0,
+    "event_count": 3,
+    "content": "STREAM_OK",
+    "usage": {
+      "completion_tokens": 6,
+      "total_tokens": 3272,
+      "prompt_tokens": 3266,
+      "prompt_tokens_details": {
+        "cached_tokens": 2816
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    }
+  },
+  "tool_call": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 1929.2,
+    "tool_call_count": 1,
+    "first_tool": "report_probe"
+  },
+  "performance": {
+    "advisory_ok": true,
+    "nonstream_budget_ms": 3000,
+    "stream_first_delta_budget_ms": 3000,
+    "tool_call_budget_ms": 3000
+  },
+  "ok": true,
+  "status": "passed"
+}

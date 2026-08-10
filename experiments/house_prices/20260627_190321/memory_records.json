@@ -1,0 +1,26 @@
+{
+  "records": [
+    {
+      "record_id": "memory_2464475a87",
+      "task_type": "regression",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "gradient_boosting_log_target with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.12899,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "rmsle",
+        "house_prices"
+      ],
+      "evidence_refs": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "created_at": "2026-06-27T19:04:33"
+    }
+  ]
+}

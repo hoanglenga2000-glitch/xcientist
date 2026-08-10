@@ -1,0 +1,3122 @@
+{
+  "schema": "evomind.mlebench_lite_inventory.v1",
+  "created_at": "2026-07-25T14:11:31.687284+00:00",
+  "source": {
+    "repository": "https://github.com/openai/mle-bench",
+    "split": "experiments/splits/low.txt",
+    "competition_count": 22,
+    "declared_total_gb": 157.73277999999996,
+    "remote_repo_commit": "507f92e1138bb6e40dac5c6ee7a6758e6424bf97"
+  },
+  "remote": {
+    "root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "raw_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_raw_data",
+    "official_roots": [
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/.cache/mle-bench/data"
+    ],
+    "disk_total": 4338421627617280,
+    "disk_used": 4193494415441920,
+    "disk_free": 144927212175360
+  },
+  "summary": {
+    "official_prepared": 22,
+    "raw_present_unverified": 0,
+    "partial_by_size": 0,
+    "missing": 0,
+    "raw_bytes": 28983614289,
+    "expected_bytes": 157732780000
+  },
+  "competitions": [
+    {
+      "competition_id": "aerial-cactus-identification",
+      "expected_gb": 0.0254,
+      "expected_bytes": 25400000,
+      "raw": {
+        "exists": true,
+        "bytes": 23912190,
+        "files": 21505,
+        "largest": [
+          {
+            "bytes": 682514,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 164014,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 1309,
+            "path": "train/e5f42eeafbb9fbb955bd3303801b1f13.jpg"
+          },
+          {
+            "bytes": 1307,
+            "path": "train/506094596e43485ab7146c10d5938f01.jpg"
+          },
+          {
+            "bytes": 1303,
+            "path": "train/912661624e21b2f7a0319b801216ce3b.jpg"
+          },
+          {
+            "bytes": 1301,
+            "path": "train/722da3a4bffcdb1d1e54693d3661ad5a.jpg"
+          },
+          {
+            "bytes": 1299,
+            "path": "train/f63b4c02b47c6b197c85c1bf339326f6.jpg"
+          },
+          {
+            "bytes": 1298,
+            "path": "train/0ea47cf7a25cc8198e97094be7e8749f.jpg"
+          },
+          {
+            "bytes": 1298,
+            "path": "train/066032499352f32ce1b8353f66098b0b.jpg"
+          },
+          {
+            "bytes": 1296,
+            "path": "train/e1cb8b08e6159ffa2aff2d0e52b28a83.jpg"
+          },
+          {
+            "bytes": 1295,
+            "path": "train/327c79dee500ad2ccf3a56351cef42ac.jpg"
+          },
+          {
+            "bytes": 1294,
+            "path": "train/80d78e3885b23abe02202c7fcf12f878.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.9414,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/aerial-cactus-identification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 25403037,
+            "files": 4,
+            "largest": [
+              {
+                "bytes": 20148140,
+                "path": "train.zip"
+              },
+              {
+                "bytes": 4408369,
+                "path": "test.zip"
+              },
+              {
+                "bytes": 682514,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 164014,
+                "path": "sample_submission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 19359988,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 15009665,
+                "path": "public/train.zip"
+              },
+              {
+                "bytes": 3528345,
+                "path": "public/test.zip"
+              },
+              {
+                "bytes": 552839,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 136339,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 129689,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 3111,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "aptos2019-blindness-detection",
+      "expected_gb": 10.22,
+      "expected_bytes": 10220000000,
+      "raw": {
+        "exists": true,
+        "bytes": 10216919349,
+        "files": 5594,
+        "largest": [
+          {
+            "bytes": 7674292,
+            "path": "train_images/e265c870f9b3.png"
+          },
+          {
+            "bytes": 7599816,
+            "path": "train_images/d85a842d20bd.png"
+          },
+          {
+            "bytes": 7576023,
+            "path": "train_images/46f56c38051f.png"
+          },
+          {
+            "bytes": 7574524,
+            "path": "train_images/a150ff5dfe07.png"
+          },
+          {
+            "bytes": 7549287,
+            "path": "train_images/1fd5d860d4d7.png"
+          },
+          {
+            "bytes": 7540627,
+            "path": "train_images/272d9c043c81.png"
+          },
+          {
+            "bytes": 7539483,
+            "path": "train_images/d6228d951958.png"
+          },
+          {
+            "bytes": 7497017,
+            "path": "train_images/c3acf47700ea.png"
+          },
+          {
+            "bytes": 7492310,
+            "path": "train_images/2532613a584a.png"
+          },
+          {
+            "bytes": 7481208,
+            "path": "train_images/6d7d26025122.png"
+          },
+          {
+            "bytes": 7474651,
+            "path": "train_images/98f48850ebce.png"
+          },
+          {
+            "bytes": 7468102,
+            "path": "train_images/d48178e4a49b.png"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.9997,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/aptos2019-blindness-detection",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 10216919325,
+            "files": 5593,
+            "largest": [
+              {
+                "bytes": 7674292,
+                "path": "train_images/e265c870f9b3.png"
+              },
+              {
+                "bytes": 7599816,
+                "path": "train_images/d85a842d20bd.png"
+              },
+              {
+                "bytes": 7576023,
+                "path": "train_images/46f56c38051f.png"
+              },
+              {
+                "bytes": 7574524,
+                "path": "train_images/a150ff5dfe07.png"
+              },
+              {
+                "bytes": 7549287,
+                "path": "train_images/1fd5d860d4d7.png"
+              },
+              {
+                "bytes": 7540627,
+                "path": "train_images/272d9c043c81.png"
+              },
+              {
+                "bytes": 7539483,
+                "path": "train_images/d6228d951958.png"
+              },
+              {
+                "bytes": 7497017,
+                "path": "train_images/c3acf47700ea.png"
+              },
+              {
+                "bytes": 7492310,
+                "path": "train_images/2532613a584a.png"
+              },
+              {
+                "bytes": 7481208,
+                "path": "train_images/6d7d26025122.png"
+              },
+              {
+                "bytes": 7474651,
+                "path": "train_images/98f48850ebce.png"
+              },
+              {
+                "bytes": 7468102,
+                "path": "train_images/d48178e4a49b.png"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 8603138569,
+            "files": 3667,
+            "largest": [
+              {
+                "bytes": 7674292,
+                "path": "public/train_images/e265c870f9b3.png"
+              },
+              {
+                "bytes": 7599816,
+                "path": "public/train_images/d85a842d20bd.png"
+              },
+              {
+                "bytes": 7576023,
+                "path": "public/train_images/46f56c38051f.png"
+              },
+              {
+                "bytes": 7574524,
+                "path": "public/train_images/a150ff5dfe07.png"
+              },
+              {
+                "bytes": 7549287,
+                "path": "public/train_images/1fd5d860d4d7.png"
+              },
+              {
+                "bytes": 7540627,
+                "path": "public/train_images/272d9c043c81.png"
+              },
+              {
+                "bytes": 7539483,
+                "path": "public/test_images/d6228d951958.png"
+              },
+              {
+                "bytes": 7497017,
+                "path": "public/train_images/c3acf47700ea.png"
+              },
+              {
+                "bytes": 7492310,
+                "path": "public/train_images/2532613a584a.png"
+              },
+              {
+                "bytes": 7481208,
+                "path": "public/train_images/6d7d26025122.png"
+              },
+              {
+                "bytes": 7474651,
+                "path": "public/train_images/98f48850ebce.png"
+              },
+              {
+                "bytes": 7468102,
+                "path": "public/train_images/d48178e4a49b.png"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "denoising-dirty-documents",
+      "expected_gb": 0.06,
+      "expected_bytes": 60000000,
+      "raw": {
+        "exists": true,
+        "bytes": 222225762,
+        "files": 362,
+        "largest": [
+          {
+            "bytes": 186373233,
+            "path": "sampleSubmission.csv"
+          },
+          {
+            "bytes": 165134,
+            "path": "train/176.png"
+          },
+          {
+            "bytes": 164206,
+            "path": "train/152.png"
+          },
+          {
+            "bytes": 163954,
+            "path": "test/199.png"
+          },
+          {
+            "bytes": 163517,
+            "path": "test/151.png"
+          },
+          {
+            "bytes": 162685,
+            "path": "train/170.png"
+          },
+          {
+            "bytes": 162468,
+            "path": "test/145.png"
+          },
+          {
+            "bytes": 162427,
+            "path": "test/175.png"
+          },
+          {
+            "bytes": 162403,
+            "path": "test/193.png"
+          },
+          {
+            "bytes": 162318,
+            "path": "train/155.png"
+          },
+          {
+            "bytes": 162296,
+            "path": "train/156.png"
+          },
+          {
+            "bytes": 162238,
+            "path": "train/146.png"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 3.7038,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/denoising-dirty-documents",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 58812186,
+            "files": 4,
+            "largest": [
+              {
+                "bytes": 22954984,
+                "path": "sampleSubmission.csv.zip"
+              },
+              {
+                "bytes": 19407030,
+                "path": "train.zip"
+              },
+              {
+                "bytes": 9844186,
+                "path": "test.zip"
+              },
+              {
+                "bytes": 6605986,
+                "path": "train_cleaned.zip"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 212069935,
+            "files": 262,
+            "largest": [
+              {
+                "bytes": 111653215,
+                "path": "private/answers.csv"
+              },
+              {
+                "bytes": 75769353,
+                "path": "public/sampleSubmission.csv"
+              },
+              {
+                "bytes": 165134,
+                "path": "public/train/176.png"
+              },
+              {
+                "bytes": 164206,
+                "path": "public/train/152.png"
+              },
+              {
+                "bytes": 162685,
+                "path": "public/test/170.png"
+              },
+              {
+                "bytes": 162318,
+                "path": "public/test/155.png"
+              },
+              {
+                "bytes": 162296,
+                "path": "public/train/156.png"
+              },
+              {
+                "bytes": 162238,
+                "path": "public/test/146.png"
+              },
+              {
+                "bytes": 162079,
+                "path": "public/train/179.png"
+              },
+              {
+                "bytes": 161318,
+                "path": "public/test/180.png"
+              },
+              {
+                "bytes": 161023,
+                "path": "public/train/147.png"
+              },
+              {
+                "bytes": 160985,
+                "path": "public/train/171.png"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "detecting-insults-in-social-commentary",
+      "expected_gb": 0.002,
+      "expected_bytes": 2000000,
+      "raw": {
+        "exists": true,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.0,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/detecting-insults-in-social-commentary",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 3019551,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 850466,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 618051,
+                "path": "test_with_solutions.csv"
+              },
+              {
+                "bytes": 586943,
+                "path": "sample_submission_null.csv"
+              },
+              {
+                "bytes": 332543,
+                "path": "impermium_verification_labels.csv"
+              },
+              {
+                "bytes": 330308,
+                "path": "impermium_verification_set.csv"
+              },
+              {
+                "bytes": 301240,
+                "path": "test.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 3228278,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 850466,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 618051,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 584295,
+                "path": "public/sample_submission_null.csv"
+              },
+              {
+                "bytes": 584295,
+                "path": "private/gold_submission.csv"
+              },
+              {
+                "bytes": 578994,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 12177,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "dog-breed-identification",
+      "expected_gb": 0.75,
+      "expected_bytes": 750000000,
+      "raw": {
+        "exists": true,
+        "bytes": 750432102,
+        "files": 20582,
+        "largest": [
+          {
+            "bytes": 25200295,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 1095617,
+            "path": "train/bf6cf509b2ee89fcc7f1b627ee1ed7e7.jpg"
+          },
+          {
+            "bytes": 1028653,
+            "path": "test/736e52d28262c200c3853ae96fd3456f.jpg"
+          },
+          {
+            "bytes": 744427,
+            "path": "train/88fa6d0c6f8ce60ea125a86b183c5a15.jpg"
+          },
+          {
+            "bytes": 737829,
+            "path": "train/ee024b9ec41146caca0fd51b4acad8c0.jpg"
+          },
+          {
+            "bytes": 737567,
+            "path": "train/a7f9839ac0a874686eb418d317eae284.jpg"
+          },
+          {
+            "bytes": 715586,
+            "path": "test/92873769f75c070f4990d7a6a1d9ac54.jpg"
+          },
+          {
+            "bytes": 712593,
+            "path": "train/6887d854847cdc1bbbcc7529c0b93473.jpg"
+          },
+          {
+            "bytes": 699324,
+            "path": "test/72575cece5ba48295f85cebabe38acfe.jpg"
+          },
+          {
+            "bytes": 669111,
+            "path": "train/38aaabf7675b60b866cb632ac65f2061.jpg"
+          },
+          {
+            "bytes": 606868,
+            "path": "test/1ebed5934a1d00fa2c65605c7b84ddc3.jpg"
+          },
+          {
+            "bytes": 551292,
+            "path": "test/e806a67a05289ac6de6831001664b81b.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 1.0006,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 750432078,
+            "files": 20581,
+            "largest": [
+              {
+                "bytes": 25200295,
+                "path": "sample_submission.csv"
+              },
+              {
+                "bytes": 1095617,
+                "path": "train/bf6cf509b2ee89fcc7f1b627ee1ed7e7.jpg"
+              },
+              {
+                "bytes": 1028653,
+                "path": "test/736e52d28262c200c3853ae96fd3456f.jpg"
+              },
+              {
+                "bytes": 744427,
+                "path": "train/88fa6d0c6f8ce60ea125a86b183c5a15.jpg"
+              },
+              {
+                "bytes": 737829,
+                "path": "train/ee024b9ec41146caca0fd51b4acad8c0.jpg"
+              },
+              {
+                "bytes": 737567,
+                "path": "train/a7f9839ac0a874686eb418d317eae284.jpg"
+              },
+              {
+                "bytes": 715586,
+                "path": "test/92873769f75c070f4990d7a6a1d9ac54.jpg"
+              },
+              {
+                "bytes": 712593,
+                "path": "train/6887d854847cdc1bbbcc7529c0b93473.jpg"
+              },
+              {
+                "bytes": 699324,
+                "path": "test/72575cece5ba48295f85cebabe38acfe.jpg"
+              },
+              {
+                "bytes": 669111,
+                "path": "train/38aaabf7675b60b866cb632ac65f2061.jpg"
+              },
+              {
+                "bytes": 606868,
+                "path": "test/1ebed5934a1d00fa2c65605c7b84ddc3.jpg"
+              },
+              {
+                "bytes": 551292,
+                "path": "test/e806a67a05289ac6de6831001664b81b.jpg"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 365032556,
+            "files": 10226,
+            "largest": [
+              {
+                "bytes": 2613433,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 1095617,
+                "path": "public/train/bf6cf509b2ee89fcc7f1b627ee1ed7e7.jpg"
+              },
+              {
+                "bytes": 744427,
+                "path": "public/train/88fa6d0c6f8ce60ea125a86b183c5a15.jpg"
+              },
+              {
+                "bytes": 737829,
+                "path": "public/train/ee024b9ec41146caca0fd51b4acad8c0.jpg"
+              },
+              {
+                "bytes": 737567,
+                "path": "public/train/a7f9839ac0a874686eb418d317eae284.jpg"
+              },
+              {
+                "bytes": 712593,
+                "path": "public/train/6887d854847cdc1bbbcc7529c0b93473.jpg"
+              },
+              {
+                "bytes": 669111,
+                "path": "public/train/38aaabf7675b60b866cb632ac65f2061.jpg"
+              },
+              {
+                "bytes": 545667,
+                "path": "public/train/e3a5ce3bc399b7b6c68a29a9cc5600d4.jpg"
+              },
+              {
+                "bytes": 507820,
+                "path": "public/train/1bd64e555efe17f93bb21cbcd47bca02.jpg"
+              },
+              {
+                "bytes": 507232,
+                "path": "public/train/88c2229b86b2fecb775bd4a6b2c863d4.jpg"
+              },
+              {
+                "bytes": 506305,
+                "path": "public/train/3dff9244af2b9668a99c01f053b4d682.jpg"
+              },
+              {
+                "bytes": 504698,
+                "path": "public/test/8009cbb471a6107109af3166c03b6e83.jpg"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "dogs-vs-cats-redux-kernels-edition",
+      "expected_gb": 0.85,
+      "expected_bytes": 850000000,
+      "raw": {
+        "exists": true,
+        "bytes": 857596240,
+        "files": 37501,
+        "largest": [
+          {
+            "bytes": 113903,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 93323,
+            "path": "train/cat.835.jpg"
+          },
+          {
+            "bytes": 87382,
+            "path": "train/dog.3085.jpg"
+          },
+          {
+            "bytes": 86322,
+            "path": "test/7206.jpg"
+          },
+          {
+            "bytes": 85260,
+            "path": "test/11969.jpg"
+          },
+          {
+            "bytes": 83833,
+            "path": "test/10350.jpg"
+          },
+          {
+            "bytes": 81293,
+            "path": "train/dog.2274.jpg"
+          },
+          {
+            "bytes": 80685,
+            "path": "train/dog.10708.jpg"
+          },
+          {
+            "bytes": 80244,
+            "path": "test/5532.jpg"
+          },
+          {
+            "bytes": 78660,
+            "path": "test/1399.jpg"
+          },
+          {
+            "bytes": 78460,
+            "path": "train/dog.9452.jpg"
+          },
+          {
+            "bytes": 77978,
+            "path": "train/dog.11685.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 1.0089,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dogs-vs-cats-redux-kernels-edition",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 854511061,
+            "files": 3,
+            "largest": [
+              {
+                "bytes": 569918665,
+                "path": "train.zip"
+              },
+              {
+                "bytes": 284478493,
+                "path": "test.zip"
+              },
+              {
+                "bytes": 113903,
+                "path": "sample_submission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 1141499406,
+            "files": 25005,
+            "largest": [
+              {
+                "bytes": 512967605,
+                "path": "public/train.zip"
+              },
+              {
+                "bytes": 56575802,
+                "path": "public/test.zip"
+              },
+              {
+                "bytes": 93323,
+                "path": "public/train/cat.1440.jpg"
+              },
+              {
+                "bytes": 87382,
+                "path": "public/train/dog.3872.jpg"
+              },
+              {
+                "bytes": 81293,
+                "path": "public/train/dog.8081.jpg"
+              },
+              {
+                "bytes": 80685,
+                "path": "public/train/dog.6958.jpg"
+              },
+              {
+                "bytes": 78460,
+                "path": "public/train/dog.10707.jpg"
+              },
+              {
+                "bytes": 77978,
+                "path": "public/train/dog.2077.jpg"
+              },
+              {
+                "bytes": 76735,
+                "path": "public/train/dog.9789.jpg"
+              },
+              {
+                "bytes": 76059,
+                "path": "public/train/dog.6546.jpg"
+              },
+              {
+                "bytes": 75895,
+                "path": "public/train/dog.8952.jpg"
+              },
+              {
+                "bytes": 75240,
+                "path": "public/train/dog.6174.jpg"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "histopathologic-cancer-detection",
+      "expected_gb": 7.76,
+      "expected_bytes": 7760000000,
+      "raw": {
+        "exists": true,
+        "bytes": 7763419392,
+        "files": 277485,
+        "largest": [
+          {
+            "bytes": 9461084,
+            "path": "train_labels.csv"
+          },
+          {
+            "bytes": 2470703,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/ffffe55093358954f38bba4c35b6aa0ece86177c.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffeeb1297fd4e26f247af648a2a6f942dfa2e9d.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffeca85b16452a7709d163e05a70e646782b3cc.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffeb3f5361ea57e728fb689e6be34d07d16ca7e.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffe6c73afcf5f5da5818fb70cb723026b172eca.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffe5fb71a0b57f1c84bc35558e13778e94d1a69.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffd6aff0fc447323a2715d10bddaca7cc9efde1.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffcc2eda19d9927fb09a45d06bda4446754d0e6.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffc0fa85f1f2484ed205aa84e17be4c7a4d35d8.tif"
+          },
+          {
+            "bytes": 27935,
+            "path": "train/fffbf9ad8fa671ab389451431a9087fc51f731e6.tif"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 1.0004,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/histopathologic-cancer-detection",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 7763419392,
+            "files": 277485,
+            "largest": [
+              {
+                "bytes": 9461084,
+                "path": "train_labels.csv"
+              },
+              {
+                "bytes": 2470703,
+                "path": "sample_submission.csv"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/ffffe55093358954f38bba4c35b6aa0ece86177c.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffeeb1297fd4e26f247af648a2a6f942dfa2e9d.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffeca85b16452a7709d163e05a70e646782b3cc.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffeb3f5361ea57e728fb689e6be34d07d16ca7e.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffe6c73afcf5f5da5818fb70cb723026b172eca.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffe5fb71a0b57f1c84bc35558e13778e94d1a69.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffd6aff0fc447323a2715d10bddaca7cc9efde1.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffcc2eda19d9927fb09a45d06bda4446754d0e6.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffc0fa85f1f2484ed205aa84e17be4c7a4d35d8.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "train/fffbf9ad8fa671ab389451431a9087fc51f731e6.tif"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 6157822887,
+            "files": 220029,
+            "largest": [
+              {
+                "bytes": 7501961,
+                "path": "public/train_labels.csv"
+              },
+              {
+                "bytes": 1959132,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 1959132,
+                "path": "private/answers.csv"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffeeb1297fd4e26f247af648a2a6f942dfa2e9d.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffeca85b16452a7709d163e05a70e646782b3cc.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffeb3f5361ea57e728fb689e6be34d07d16ca7e.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffe6c73afcf5f5da5818fb70cb723026b172eca.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffe5fb71a0b57f1c84bc35558e13778e94d1a69.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffcc2eda19d9927fb09a45d06bda4446754d0e6.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffc0fa85f1f2484ed205aa84e17be4c7a4d35d8.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffbf9ad8fa671ab389451431a9087fc51f731e6.tif"
+              },
+              {
+                "bytes": 27935,
+                "path": "public/train/fffbb3a46420aa6b71fcc156c21be4fcb62d592f.tif"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "expected_gb": 0.06,
+      "expected_bytes": 60000000,
+      "raw": {
+        "exists": true,
+        "bytes": 140413960,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 68802655,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 60354593,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 6279782,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 4976930,
+            "path": "test_labels.csv"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 2.3402,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/jigsaw-toxic-comment-classification-challenge",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 195598452,
+            "files": 8,
+            "largest": [
+              {
+                "bytes": 68802655,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 60354593,
+                "path": "test.csv"
+              },
+              {
+                "bytes": 27619914,
+                "path": "train.csv.zip"
+              },
+              {
+                "bytes": 24577258,
+                "path": "test.csv.zip"
+              },
+              {
+                "bytes": 6279782,
+                "path": "sample_submission.csv"
+              },
+              {
+                "bytes": 4976930,
+                "path": "test_labels.csv"
+              },
+              {
+                "bytes": 1527605,
+                "path": "test_labels.csv.zip"
+              },
+              {
+                "bytes": 1459715,
+                "path": "sample_submission.csv.zip"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 139670081,
+            "files": 5,
+            "largest": [
+              {
+                "bytes": 68427961,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 59981181,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 6279782,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 4976930,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 4227,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "leaf-classification",
+      "expected_gb": 0.036,
+      "expected_bytes": 36000000,
+      "raw": {
+        "exists": true,
+        "bytes": 46607711,
+        "files": 1592,
+        "largest": [
+          {
+            "bytes": 1568525,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 1121622,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 932418,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 95972,
+            "path": "images/389.jpg"
+          },
+          {
+            "bytes": 90263,
+            "path": "images/593.jpg"
+          },
+          {
+            "bytes": 88108,
+            "path": "images/446.jpg"
+          },
+          {
+            "bytes": 86772,
+            "path": "images/864.jpg"
+          },
+          {
+            "bytes": 86705,
+            "path": "images/533.jpg"
+          },
+          {
+            "bytes": 85571,
+            "path": "images/734.jpg"
+          },
+          {
+            "bytes": 80866,
+            "path": "images/1432.jpg"
+          },
+          {
+            "bytes": 78032,
+            "path": "images/967.jpg"
+          },
+          {
+            "bytes": 77445,
+            "path": "images/1582.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": true,
+        "bytes": 1814690,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 1481500,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 166469,
+            "path": "test_private.csv"
+          },
+          {
+            "bytes": 164691,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 2030,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "raw_size_ratio": 1.2947,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 80607912,
+            "files": 1589,
+            "largest": [
+              {
+                "bytes": 35447698,
+                "path": "images.zip"
+              },
+              {
+                "bytes": 1568525,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 379936,
+                "path": "train.csv.zip"
+              },
+              {
+                "bytes": 220425,
+                "path": "test.csv.zip"
+              },
+              {
+                "bytes": 95972,
+                "path": "images/389.jpg"
+              },
+              {
+                "bytes": 90263,
+                "path": "images/593.jpg"
+              },
+              {
+                "bytes": 88108,
+                "path": "images/446.jpg"
+              },
+              {
+                "bytes": 86772,
+                "path": "images/864.jpg"
+              },
+              {
+                "bytes": 86705,
+                "path": "images/533.jpg"
+              },
+              {
+                "bytes": 85571,
+                "path": "images/734.jpg"
+              },
+              {
+                "bytes": 80866,
+                "path": "images/1432.jpg"
+              },
+              {
+                "bytes": 78032,
+                "path": "images/967.jpg"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 28638887,
+            "files": 995,
+            "largest": [
+              {
+                "bytes": 1481500,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 208005,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 164691,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 95972,
+                "path": "public/images/389.jpg"
+              },
+              {
+                "bytes": 90263,
+                "path": "public/images/593.jpg"
+              },
+              {
+                "bytes": 88108,
+                "path": "public/images/446.jpg"
+              },
+              {
+                "bytes": 86772,
+                "path": "public/images/864.jpg"
+              },
+              {
+                "bytes": 80866,
+                "path": "public/images/1432.jpg"
+              },
+              {
+                "bytes": 77445,
+                "path": "public/images/1582.jpg"
+              },
+              {
+                "bytes": 77046,
+                "path": "public/images/767.jpg"
+              },
+              {
+                "bytes": 76735,
+                "path": "public/images/564.jpg"
+              },
+              {
+                "bytes": 75483,
+                "path": "public/images/1391.jpg"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "mlsp-2013-birds",
+      "expected_gb": 0.5851,
+      "expected_bytes": 585100000,
+      "raw": {
+        "exists": true,
+        "bytes": 2616895,
+        "files": 3,
+        "largest": [
+          {
+            "bytes": 1307122,
+            "path": "mlsp13birdchallenge_documentation.pdf"
+          },
+          {
+            "bytes": 1300768,
+            "path": "mlsp13birdchallenge_documentation.pdf.pdf"
+          },
+          {
+            "bytes": 9005,
+            "path": "README.txt"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.0045,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/mlsp-2013-birds",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 1868917402,
+            "files": 5235,
+            "largest": [
+              {
+                "bytes": 582180851,
+                "path": "mlsp_contest_dataset.zip"
+              },
+              {
+                "bytes": 16108598,
+                "path": "mlsp_contest_dataset/supplemental_data/segment_clusters.bmp"
+              },
+              {
+                "bytes": 7287478,
+                "path": "mlsp_contest_dataset/supplemental_data/segment_mosaic.bmp"
+              },
+              {
+                "bytes": 1307122,
+                "path": "mlsp13birdchallenge_documentation.pdf"
+              },
+              {
+                "bytes": 1300768,
+                "path": "mlsp13birdchallenge_documentation.pdf.pdf"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC8_20100705_070000_0040.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC7_20100705_050000_0040.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC5_20100705_050002_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC5_20090606_050000_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC2_20090705_050000_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC2_20090606_070000_0010.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "mlsp_contest_dataset/supplemental_data/segmentation_examples/PC2_20090513_050000_0010.bmp"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 661125431,
+            "files": 1320,
+            "largest": [
+              {
+                "bytes": 16108598,
+                "path": "public/supplemental_data/segment_clusters.bmp"
+              },
+              {
+                "bytes": 7287478,
+                "path": "public/supplemental_data/segment_mosaic.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC8_20100705_070000_0040.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC7_20100705_050000_0040.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC5_20100705_050002_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC5_20090606_050000_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC2_20090705_050000_0030.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC2_20090606_070000_0010.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC2_20090513_050000_0010.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC1_20100804_070000_0010.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC1_20090606_070012_0040.bmp"
+              },
+              {
+                "bytes": 957496,
+                "path": "public/supplemental_data/segmentation_examples/PC18_20100705_050000_0010.bmp"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "new-york-city-taxi-fare-prediction",
+      "expected_gb": 5.7,
+      "expected_bytes": 5700000000,
+      "raw": {
+        "exists": true,
+        "bytes": 5698505099,
+        "files": 5,
+        "largest": [
+          {
+            "bytes": 5697178298,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 983020,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 343271,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 486,
+            "path": "GCP-Coupons-Instructions.rtf"
+          },
+          {
+            "bytes": 24,
+            "path": "new-york-city-taxi-fare-prediction.zip.extracted.ok"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": true,
+        "bytes": 115163282,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 91915968,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 10210891,
+            "path": "test_private.csv"
+          },
+          {
+            "bytes": 9768520,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 3267903,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "raw_size_ratio": 0.9997,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 5698505075,
+            "files": 4,
+            "largest": [
+              {
+                "bytes": 5697178298,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 983020,
+                "path": "test.csv"
+              },
+              {
+                "bytes": 343271,
+                "path": "sample_submission.csv"
+              },
+              {
+                "bytes": 486,
+                "path": "GCP-Coupons-Instructions.rtf"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 5664678894,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 5662345732,
+                "path": "public/labels.csv"
+              },
+              {
+                "bytes": 1012995,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 968912,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 343716,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 7053,
+                "path": "public/description.md"
+              },
+              {
+                "bytes": 486,
+                "path": "public/GCP-Coupons-Instructions.rtf"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "nomad2018-predict-transparent-conductors",
+      "expected_gb": 0.00624,
+      "expected_bytes": 6240000,
+      "raw": {
+        "exists": true,
+        "bytes": 13468896,
+        "files": 3012,
+        "largest": [
+          {
+            "bytes": 218636,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 47272,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 10739,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 6148,
+            "path": "test/.DS_Store"
+          },
+          {
+            "bytes": 5630,
+            "path": "train/415/geometry.xyz"
+          },
+          {
+            "bytes": 5630,
+            "path": "test/120/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/723/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/599/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/2099/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/1789/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/167/geometry.xyz"
+          },
+          {
+            "bytes": 5629,
+            "path": "train/1358/geometry.xyz"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": true,
+        "bytes": 240709,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 196810,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 22097,
+            "path": "test_private.csv"
+          },
+          {
+            "bytes": 18745,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 3057,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "raw_size_ratio": 2.1585,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/nomad2018-predict-transparent-conductors",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 19698114,
+            "files": 3010,
+            "largest": [
+              {
+                "bytes": 4933916,
+                "path": "train.zip"
+              },
+              {
+                "bytes": 1228663,
+                "path": "test.zip"
+              },
+              {
+                "bytes": 218636,
+                "path": "train.csv/train.csv"
+              },
+              {
+                "bytes": 63023,
+                "path": "train.csv.zip"
+              },
+              {
+                "bytes": 47272,
+                "path": "test.csv/test.csv"
+              },
+              {
+                "bytes": 12971,
+                "path": "test.csv.zip"
+              },
+              {
+                "bytes": 6148,
+                "path": "test/test/.DS_Store"
+              },
+              {
+                "bytes": 5630,
+                "path": "train/train/415/geometry.xyz"
+              },
+              {
+                "bytes": 5630,
+                "path": "test/test/120/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "train/train/723/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "train/train/599/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "train/train/2099/geometry.xyz"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 10791684,
+            "files": 2405,
+            "largest": [
+              {
+                "bytes": 196700,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 21859,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 18507,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 7681,
+                "path": "public/description.md"
+              },
+              {
+                "bytes": 5630,
+                "path": "public/test/79/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/680/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/558/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/2009/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/1560/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/1265/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/1200/geometry.xyz"
+              },
+              {
+                "bytes": 5629,
+                "path": "public/train/1074/geometry.xyz"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "plant-pathology-2020-fgvc7",
+      "expected_gb": 0.8,
+      "expected_bytes": 800000000,
+      "raw": {
+        "exists": true,
+        "bytes": 823792065,
+        "files": 3645,
+        "largest": [
+          {
+            "bytes": 525678,
+            "path": "images/Train_1616.jpg"
+          },
+          {
+            "bytes": 508169,
+            "path": "images/Train_1699.jpg"
+          },
+          {
+            "bytes": 499106,
+            "path": "images/Train_948.jpg"
+          },
+          {
+            "bytes": 497128,
+            "path": "images/Train_1356.jpg"
+          },
+          {
+            "bytes": 487448,
+            "path": "images/Test_698.jpg"
+          },
+          {
+            "bytes": 470547,
+            "path": "images/Train_1222.jpg"
+          },
+          {
+            "bytes": 464849,
+            "path": "images/Train_1372.jpg"
+          },
+          {
+            "bytes": 464339,
+            "path": "images/Train_254.jpg"
+          },
+          {
+            "bytes": 464258,
+            "path": "images/Train_1004.jpg"
+          },
+          {
+            "bytes": 460528,
+            "path": "images/Test_654.jpg"
+          },
+          {
+            "bytes": 460233,
+            "path": "images/Train_1147.jpg"
+          },
+          {
+            "bytes": 458783,
+            "path": "images/Test_1381.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 1.0297,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/plant-pathology-2020-fgvc7",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 823792065,
+            "files": 3645,
+            "largest": [
+              {
+                "bytes": 525678,
+                "path": "images/Train_1616.jpg"
+              },
+              {
+                "bytes": 508169,
+                "path": "images/Train_1699.jpg"
+              },
+              {
+                "bytes": 499106,
+                "path": "images/Train_948.jpg"
+              },
+              {
+                "bytes": 497128,
+                "path": "images/Train_1356.jpg"
+              },
+              {
+                "bytes": 487448,
+                "path": "images/Test_698.jpg"
+              },
+              {
+                "bytes": 470547,
+                "path": "images/Train_1222.jpg"
+              },
+              {
+                "bytes": 464849,
+                "path": "images/Train_1372.jpg"
+              },
+              {
+                "bytes": 464339,
+                "path": "images/Train_254.jpg"
+              },
+              {
+                "bytes": 464258,
+                "path": "images/Train_1004.jpg"
+              },
+              {
+                "bytes": 460528,
+                "path": "images/Test_654.jpg"
+              },
+              {
+                "bytes": 460233,
+                "path": "images/Train_1147.jpg"
+              },
+              {
+                "bytes": 458783,
+                "path": "images/Test_1381.jpg"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 401901785,
+            "files": 1826,
+            "largest": [
+              {
+                "bytes": 525678,
+                "path": "public/images/Test_136.jpg"
+              },
+              {
+                "bytes": 508169,
+                "path": "public/images/Train_1525.jpg"
+              },
+              {
+                "bytes": 499106,
+                "path": "public/images/Train_462.jpg"
+              },
+              {
+                "bytes": 497128,
+                "path": "public/images/Train_302.jpg"
+              },
+              {
+                "bytes": 470547,
+                "path": "public/images/Train_910.jpg"
+              },
+              {
+                "bytes": 464849,
+                "path": "public/images/Train_23.jpg"
+              },
+              {
+                "bytes": 464339,
+                "path": "public/images/Test_24.jpg"
+              },
+              {
+                "bytes": 464258,
+                "path": "public/images/Train_1448.jpg"
+              },
+              {
+                "bytes": 460233,
+                "path": "public/images/Train_526.jpg"
+              },
+              {
+                "bytes": 456693,
+                "path": "public/images/Train_1073.jpg"
+              },
+              {
+                "bytes": 452339,
+                "path": "public/images/Train_251.jpg"
+              },
+              {
+                "bytes": 448343,
+                "path": "public/images/Train_1124.jpg"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "random-acts-of-pizza",
+      "expected_gb": 0.003,
+      "expected_bytes": 3000000,
+      "raw": {
+        "exists": true,
+        "bytes": 15607569,
+        "files": 3,
+        "largest": [
+          {
+            "bytes": 12569177,
+            "path": "train.json"
+          },
+          {
+            "bytes": 3019717,
+            "path": "test.json"
+          },
+          {
+            "bytes": 18675,
+            "path": "sampleSubmission.csv"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 5.2025,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/random-acts-of-pizza",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 17967936,
+            "files": 5,
+            "largest": [
+              {
+                "bytes": 12569177,
+                "path": "train.json"
+              },
+              {
+                "bytes": 3019717,
+                "path": "test.json"
+              },
+              {
+                "bytes": 1782323,
+                "path": "train.json.zip"
+              },
+              {
+                "bytes": 578044,
+                "path": "test.json.zip"
+              },
+              {
+                "bytes": 18675,
+                "path": "sampleSubmission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 12749358,
+            "files": 7,
+            "largest": [
+              {
+                "bytes": 8780241,
+                "path": "public/train.json"
+              },
+              {
+                "bytes": 2144393,
+                "path": "public/test.json"
+              },
+              {
+                "bytes": 1347401,
+                "path": "public/train.zip"
+              },
+              {
+                "bytes": 443511,
+                "path": "public/test.zip"
+              },
+              {
+                "bytes": 13315,
+                "path": "public/sampleSubmission.csv"
+              },
+              {
+                "bytes": 13315,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 7182,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "ranzcr-clip-catheter-line-classification",
+      "expected_gb": 13.13,
+      "expected_bytes": 13130000000,
+      "raw": {
+        "exists": true,
+        "bytes": 163038184,
+        "files": 689,
+        "largest": [
+          {
+            "bytes": 389231,
+            "path": "test_1.2.826.0.1.3680043.8.498.11917644130208182659150748051634174498.jpg"
+          },
+          {
+            "bytes": 387137,
+            "path": "test_1.2.826.0.1.3680043.8.498.10740334203109409020275995372467732844.jpg"
+          },
+          {
+            "bytes": 377500,
+            "path": "test_1.2.826.0.1.3680043.8.498.10907519773056866390462278511137588344.jpg"
+          },
+          {
+            "bytes": 374899,
+            "path": "test_1.2.826.0.1.3680043.8.498.11369042710630997837002724442468309403.jpg"
+          },
+          {
+            "bytes": 373829,
+            "path": "test_1.2.826.0.1.3680043.8.498.11872568075839752416241555100052501240.jpg"
+          },
+          {
+            "bytes": 372830,
+            "path": "test_1.2.826.0.1.3680043.8.498.12146407494503723181868721397423552170.jpg"
+          },
+          {
+            "bytes": 371184,
+            "path": "test_1.2.826.0.1.3680043.8.498.11818719524358716948069878468841128681.jpg"
+          },
+          {
+            "bytes": 368513,
+            "path": "test_1.2.826.0.1.3680043.8.498.11211038478287147056041736480979699555.jpg"
+          },
+          {
+            "bytes": 367510,
+            "path": "test_1.2.826.0.1.3680043.8.498.10183031013575166111337678056696292985.jpg"
+          },
+          {
+            "bytes": 367194,
+            "path": "test_1.2.826.0.1.3680043.8.498.12064386561936976739655625825321061844.jpg"
+          },
+          {
+            "bytes": 366579,
+            "path": "test_1.2.826.0.1.3680043.8.498.10160190622509367121606142255052403493.jpg"
+          },
+          {
+            "bytes": 366049,
+            "path": "test_1.2.826.0.1.3680043.8.498.10885319635587798490631343165992467740.jpg"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.0124,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/ranzcr-clip-catheter-line-classification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 13131616969,
+            "files": 33700,
+            "largest": [
+              {
+                "bytes": 317016538,
+                "path": "train_tfrecords/04-1881.tfrec"
+              },
+              {
+                "bytes": 305775242,
+                "path": "train_tfrecords/05-1881.tfrec"
+              },
+              {
+                "bytes": 305126224,
+                "path": "train_tfrecords/01-1881.tfrec"
+              },
+              {
+                "bytes": 303650378,
+                "path": "train_tfrecords/11-1881.tfrec"
+              },
+              {
+                "bytes": 301434576,
+                "path": "train_tfrecords/03-1881.tfrec"
+              },
+              {
+                "bytes": 301133703,
+                "path": "train_tfrecords/02-1881.tfrec"
+              },
+              {
+                "bytes": 297874633,
+                "path": "train_tfrecords/09-1881.tfrec"
+              },
+              {
+                "bytes": 297465777,
+                "path": "train_tfrecords/06-1881.tfrec"
+              },
+              {
+                "bytes": 297238508,
+                "path": "train_tfrecords/08-1881.tfrec"
+              },
+              {
+                "bytes": 296396508,
+                "path": "train_tfrecords/10-1881.tfrec"
+              },
+              {
+                "bytes": 295743435,
+                "path": "train_tfrecords/07-1881.tfrec"
+              },
+              {
+                "bytes": 294899314,
+                "path": "train_tfrecords/00-1881.tfrec"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 6920272287,
+            "files": 30088,
+            "largest": [
+              {
+                "bytes": 4476635,
+                "path": "public/train_annotations.csv"
+              },
+              {
+                "bytes": 2626393,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 612810,
+                "path": "public/test/1.2.826.0.1.3680043.8.498.64613994016358304616355982682431169913.jpg"
+              },
+              {
+                "bytes": 594198,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.36829362216808454477220620886746624443.jpg"
+              },
+              {
+                "bytes": 588274,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.11557283828776447620173789727908833187.jpg"
+              },
+              {
+                "bytes": 532860,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.11430313193303730794604231234478077547.jpg"
+              },
+              {
+                "bytes": 480113,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.72500900215084784331052609095682338531.jpg"
+              },
+              {
+                "bytes": 475130,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.97792594657635773140967656588643683153.jpg"
+              },
+              {
+                "bytes": 470859,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.29064057050490867906578424107300822543.jpg"
+              },
+              {
+                "bytes": 420058,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.41844014331241345862002269946975803905.jpg"
+              },
+              {
+                "bytes": 417401,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.86991639327025246704072333506496990203.jpg"
+              },
+              {
+                "bytes": 411160,
+                "path": "public/train/1.2.826.0.1.3680043.8.498.12352491587636365860867242344268588840.jpg"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "siim-isic-melanoma-classification",
+      "expected_gb": 116.16,
+      "expected_bytes": 116160000000,
+      "raw": {
+        "exists": true,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.0,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/siim-isic-melanoma-classification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 116164285405,
+            "files": 88251,
+            "largest": [
+              {
+                "bytes": 591002131,
+                "path": "tfrecords/train07-2071.tfrec"
+              },
+              {
+                "bytes": 588710267,
+                "path": "tfrecords/train09-2071.tfrec"
+              },
+              {
+                "bytes": 585849525,
+                "path": "tfrecords/train04-2071.tfrec"
+              },
+              {
+                "bytes": 585565833,
+                "path": "tfrecords/train13-2071.tfrec"
+              },
+              {
+                "bytes": 585185652,
+                "path": "tfrecords/train10-2071.tfrec"
+              },
+              {
+                "bytes": 584435835,
+                "path": "tfrecords/train11-2071.tfrec"
+              },
+              {
+                "bytes": 584020838,
+                "path": "tfrecords/train05-2071.tfrec"
+              },
+              {
+                "bytes": 583517362,
+                "path": "tfrecords/train06-2071.tfrec"
+              },
+              {
+                "bytes": 583290780,
+                "path": "tfrecords/train12-2071.tfrec"
+              },
+              {
+                "bytes": 582478304,
+                "path": "tfrecords/train15-2061.tfrec"
+              },
+              {
+                "bytes": 582455093,
+                "path": "tfrecords/train01-2071.tfrec"
+              },
+              {
+                "bytes": 582419140,
+                "path": "tfrecords/train03-2071.tfrec"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 88694079049,
+            "files": 66273,
+            "largest": [
+              {
+                "bytes": 591002131,
+                "path": "public/tfrecords/train05-2071.tfrec"
+              },
+              {
+                "bytes": 588710267,
+                "path": "public/tfrecords/train07-2071.tfrec"
+              },
+              {
+                "bytes": 585849525,
+                "path": "public/tfrecords/train03-2071.tfrec"
+              },
+              {
+                "bytes": 585565833,
+                "path": "public/tfrecords/train11-2071.tfrec"
+              },
+              {
+                "bytes": 585185652,
+                "path": "public/tfrecords/train08-2071.tfrec"
+              },
+              {
+                "bytes": 584435835,
+                "path": "public/tfrecords/train09-2071.tfrec"
+              },
+              {
+                "bytes": 584020838,
+                "path": "public/tfrecords/train04-2071.tfrec"
+              },
+              {
+                "bytes": 583517362,
+                "path": "public/tfrecords/test01-2071.tfrec"
+              },
+              {
+                "bytes": 583290780,
+                "path": "public/tfrecords/train10-2071.tfrec"
+              },
+              {
+                "bytes": 582478304,
+                "path": "public/tfrecords/train13-2061.tfrec"
+              },
+              {
+                "bytes": 582455093,
+                "path": "public/tfrecords/train00-2071.tfrec"
+              },
+              {
+                "bytes": 582419140,
+                "path": "public/tfrecords/train02-2071.tfrec"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "spooky-author-identification",
+      "expected_gb": 0.0019,
+      "expected_bytes": 1900000,
+      "raw": {
+        "exists": true,
+        "bytes": 5183996,
+        "files": 3,
+        "largest": [
+          {
+            "bytes": 3295644,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 1351241,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 537111,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 2.7284,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/spooky-author-identification",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 5196163,
+            "files": 4,
+            "largest": [
+              {
+                "bytes": 3295644,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 1319237,
+                "path": "train.zip"
+              },
+              {
+                "bytes": 551200,
+                "path": "test.zip"
+              },
+              {
+                "bytes": 30082,
+                "path": "sample_submission.zip"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 3355941,
+            "files": 5,
+            "largest": [
+              {
+                "bytes": 2882346,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 318476,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 121411,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 27427,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 6281,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "tabular-playground-series-dec-2021",
+      "expected_gb": 0.7,
+      "expected_bytes": 700000000,
+      "raw": {
+        "exists": true,
+        "bytes": 693171576,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 547961749,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 135209789,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 10000014,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 24,
+            "path": "tabular-playground-series-dec-2021.zip.extracted.ok"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": true,
+        "bytes": 555451587,
+        "files": 3,
+        "largest": [
+          {
+            "bytes": 496766256,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 54396234,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 4289097,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "raw_size_ratio": 0.9902,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/tabular-playground-series-dec-2021",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 693171552,
+            "files": 3,
+            "largest": [
+              {
+                "bytes": 547961749,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 135209789,
+                "path": "test.csv"
+              },
+              {
+                "bytes": 10000014,
+                "path": "sample_submission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 605851731,
+            "files": 5,
+            "largest": [
+              {
+                "bytes": 493166255,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 54796244,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 53996233,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 3889096,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 3903,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "tabular-playground-series-may-2022",
+      "expected_gb": 0.57,
+      "expected_bytes": 570000000,
+      "raw": {
+        "exists": true,
+        "bytes": 574220462,
+        "files": 4,
+        "largest": [
+          {
+            "bytes": 318733334,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 247187094,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 8300010,
+            "path": "sample_submission.csv"
+          },
+          {
+            "bytes": 24,
+            "path": "tabular-playground-series-may-2022.zip.extracted.ok"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": true,
+        "bytes": 320633505,
+        "files": 3,
+        "largest": [
+          {
+            "bytes": 284103881,
+            "path": "train.csv"
+          },
+          {
+            "bytes": 35329613,
+            "path": "test.csv"
+          },
+          {
+            "bytes": 1200011,
+            "path": "sample_submission.csv"
+          }
+        ]
+      },
+      "raw_size_ratio": 1.0074,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/tabular-playground-series-may-2022",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 574220438,
+            "files": 3,
+            "largest": [
+              {
+                "bytes": 318733334,
+                "path": "train.csv"
+              },
+              {
+                "bytes": 247187094,
+                "path": "test.csv"
+              },
+              {
+                "bytes": 8300010,
+                "path": "sample_submission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 355967466,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 283303880,
+                "path": "public/train.csv"
+              },
+              {
+                "bytes": 35429619,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 35229612,
+                "path": "public/test.csv"
+              },
+              {
+                "bytes": 1100010,
+                "path": "public/sample_submission.csv"
+              },
+              {
+                "bytes": 900010,
+                "path": "private/gold_submission.csv"
+              },
+              {
+                "bytes": 4335,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "text-normalization-challenge-english-language",
+      "expected_gb": 0.01,
+      "expected_bytes": 10000000,
+      "raw": {
+        "exists": true,
+        "bytes": 392245129,
+        "files": 5,
+        "largest": [
+          {
+            "bytes": 324477257,
+            "path": "en_train.csv"
+          },
+          {
+            "bytes": 19125751,
+            "path": "en_sample_submission.csv"
+          },
+          {
+            "bytes": 16948644,
+            "path": "en_test.csv"
+          },
+          {
+            "bytes": 16802774,
+            "path": "en_sample_submission_2.csv"
+          },
+          {
+            "bytes": 14890703,
+            "path": "en_test_2.csv"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 39.2245,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/text-normalization-challenge-english-language",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 451681465,
+            "files": 8,
+            "largest": [
+              {
+                "bytes": 324477257,
+                "path": "en_train.csv"
+              },
+              {
+                "bytes": 73100944,
+                "path": "en_train.csv.zip"
+              },
+              {
+                "bytes": 16802774,
+                "path": "en_sample_submission_2.csv"
+              },
+              {
+                "bytes": 14890703,
+                "path": "en_test_2.csv"
+              },
+              {
+                "bytes": 5984125,
+                "path": "en_sample_submission.csv.zip"
+              },
+              {
+                "bytes": 5904898,
+                "path": "en_test.csv.zip"
+              },
+              {
+                "bytes": 5312065,
+                "path": "en_sample_submission_2.csv.zip"
+              },
+              {
+                "bytes": 5208699,
+                "path": "en_test_2.csv.zip"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 360331165,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 291826057,
+                "path": "public/en_train.csv.zip"
+              },
+              {
+                "bytes": 18145845,
+                "path": "private/answers.csv"
+              },
+              {
+                "bytes": 17447279,
+                "path": "public/en_sample_submission_2.csv.zip"
+              },
+              {
+                "bytes": 17447129,
+                "path": "private/sample_submission.csv"
+              },
+              {
+                "bytes": 15460344,
+                "path": "public/en_test_2.csv.zip"
+              },
+              {
+                "bytes": 4511,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "text-normalization-challenge-russian-language",
+      "expected_gb": 0.01,
+      "expected_bytes": 10000000,
+      "raw": {
+        "exists": true,
+        "bytes": 580237712,
+        "files": 5,
+        "largest": [
+          {
+            "bytes": 493182734,
+            "path": "ru_train.csv"
+          },
+          {
+            "bytes": 23690269,
+            "path": "ru_sample_submission.csv"
+          },
+          {
+            "bytes": 21901642,
+            "path": "ru_sample_submission_2.csv"
+          },
+          {
+            "bytes": 21541164,
+            "path": "ru_test.csv"
+          },
+          {
+            "bytes": 19921903,
+            "path": "ru_test_2.csv"
+          }
+        ]
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 58.0238,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/text-normalization-challenge-russian-language",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 660879239,
+            "files": 8,
+            "largest": [
+              {
+                "bytes": 493182734,
+                "path": "ru_train.csv"
+              },
+              {
+                "bytes": 99578062,
+                "path": "ru_train.csv.zip"
+              },
+              {
+                "bytes": 21901642,
+                "path": "ru_sample_submission_2.csv"
+              },
+              {
+                "bytes": 19921903,
+                "path": "ru_test_2.csv"
+              },
+              {
+                "bytes": 6885753,
+                "path": "ru_sample_submission.csv.zip"
+              },
+              {
+                "bytes": 6776793,
+                "path": "ru_test.csv.zip"
+              },
+              {
+                "bytes": 6368197,
+                "path": "ru_sample_submission_2.csv.zip"
+              },
+              {
+                "bytes": 6264155,
+                "path": "ru_test_2.csv.zip"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 541915889,
+            "files": 6,
+            "largest": [
+              {
+                "bytes": 443635723,
+                "path": "public/ru_train.csv.zip"
+              },
+              {
+                "bytes": 28714555,
+                "path": "private/answers.csv"
+              },
+              {
+                "bytes": 23892951,
+                "path": "public/ru_sample_submission_2.csv.zip"
+              },
+              {
+                "bytes": 23892801,
+                "path": "private/sample_submission.csv"
+              },
+              {
+                "bytes": 21774564,
+                "path": "public/ru_test_2.csv.zip"
+              },
+              {
+                "bytes": 5295,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    },
+    {
+      "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+      "expected_gb": 0.29314,
+      "expected_bytes": 293140000,
+      "raw": {
+        "exists": true,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "legacy_prepared": {
+        "exists": false,
+        "bytes": 0,
+        "files": 0,
+        "largest": []
+      },
+      "raw_size_ratio": 0.0,
+      "official": [
+        {
+          "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/the-icml-2013-whale-challenge-right-whale-redux",
+          "public_nonempty": true,
+          "private_nonempty": true,
+          "raw": {
+            "exists": true,
+            "bytes": 293144548,
+            "files": 3,
+            "largest": [
+              {
+                "bytes": 194851396,
+                "path": "train2.zip"
+              },
+              {
+                "bytes": 97237635,
+                "path": "test2.zip"
+              },
+              {
+                "bytes": 1055517,
+                "path": "sampleSubmission.csv"
+              }
+            ]
+          },
+          "prepared": {
+            "exists": true,
+            "bytes": 204620198,
+            "files": 5,
+            "largest": [
+              {
+                "bytes": 107255638,
+                "path": "public/test2.zip"
+              },
+              {
+                "bytes": 95277487,
+                "path": "public/train2.zip"
+              },
+              {
+                "bytes": 1041610,
+                "path": "public/sampleSubmission.csv"
+              },
+              {
+                "bytes": 1041610,
+                "path": "private/test.csv"
+              },
+              {
+                "bytes": 3853,
+                "path": "public/description.md"
+              }
+            ]
+          }
+        }
+      ],
+      "official_prepared": true,
+      "status": "official_prepared"
+    }
+  ],
+  "local": {
+    "auditor_sha256": "d968017ca586a8eb72782569be1ec4afe9812c2049d43dd8dcf147039a0fca21"
+  }
+}

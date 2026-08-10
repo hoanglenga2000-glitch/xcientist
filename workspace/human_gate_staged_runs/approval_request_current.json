@@ -1,0 +1,68 @@
+{
+  "schema": "evomind.mlebench_lite.human_gate_approval_request.v1",
+  "created_at": "2026-07-28T05:21:06.523817+08:00",
+  "status": "awaiting_explicit_human_approval",
+  "requested_action": "one_shot_official_mlebench_private_grade",
+  "candidates": [
+    {
+      "run_id": "hg_jigsaw_multiseed_v3_20260727",
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "candidate_manifest": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_jigsaw_multiseed_v3_20260727\\jigsaw-toxic-comment-classification-challenge\\frozen_candidate_manifest.json",
+        "bytes": 6305,
+        "sha256": "38e83cd739e04706f5aff413b3e3fea5f107a5a07814805a7efbe9707bf5b1c2"
+      },
+      "submission": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_jigsaw_multiseed_v3_20260727\\jigsaw-toxic-comment-classification-challenge\\submission.csv",
+        "bytes": 20461042,
+        "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43"
+      },
+      "staging_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_jigsaw_multiseed_v3_20260727\\verification.json",
+        "bytes": 9126,
+        "sha256": "653daf5a3ba83a39057cd31cdb43c0682e931a60900056e77ee36e33f2d994f1"
+      },
+      "approval_template": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_jigsaw_multiseed_v3_20260727\\approvals\\jigsaw-toxic-comment-classification-challenge.approval_template.json",
+        "bytes": 913,
+        "sha256": "00f8e3abc4c89610f96b136213cf9c7a3f681c7607c75bcd228a4e122b539bae"
+      },
+      "approved": false,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false
+    },
+    {
+      "run_id": "hg_spooky_crossrun_xgb_v1_20260727",
+      "competition_id": "spooky-author-identification",
+      "candidate_manifest": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_spooky_crossrun_xgb_v1_20260727\\spooky-author-identification\\frozen_candidate_manifest.json",
+        "bytes": 5398,
+        "sha256": "e60b5f0f1eba02d98568d9882bab8f6adfdfada8fbd801cf337406d5a11c783a"
+      },
+      "submission": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_spooky_crossrun_xgb_v1_20260727\\spooky-author-identification\\submission.csv",
+        "bytes": 136216,
+        "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+      },
+      "staging_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_spooky_crossrun_xgb_v1_20260727\\verification.json",
+        "bytes": 7833,
+        "sha256": "09a68ea320ef9c4ed20c4bae0f65ba96662c5e1a9b3cbffd1e5c33d3fac5ec74"
+      },
+      "approval_template": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\hg_spooky_crossrun_xgb_v1_20260727\\approvals\\spooky-author-identification.approval_template.json",
+        "bytes": 882,
+        "sha256": "49cd1666bdaf846af9fe13a3210befd4f7af222ffe552c72ac47640c37ea2f27"
+      },
+      "approved": false,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false
+    }
+  ],
+  "exact_approval_phrase": "批准执行一次 MLE-Bench 官方 private grader：jigsaw-toxic-comment-classification-challenge + spooky-author-identification；仅使用冻结候选；不提交 Kaggle。",
+  "on_approval": "Create new approval records from the frozen templates, bind manifest and submission SHA256, then execute each one-shot grader exactly once.",
+  "automatic_approval": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "claim_boundary": "These are verified candidate-only packages, not official scores or medals."
+}

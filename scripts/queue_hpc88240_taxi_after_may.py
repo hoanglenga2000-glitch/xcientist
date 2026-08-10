@@ -18,6 +18,10 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from scripts import mlebench_remote_ops as ops  # noqa: E402
+from scripts.pinned_source_identity import (  # noqa: E402
+    PinnedPathError,
+    resolve_pinned_project_path,
+)
 
 DEFAULT_PLAN = (
     PROJECT_ROOT
@@ -71,6 +75,13 @@ def _require(condition: bool, message: str) -> None:
         raise TaxiQueueError(message)
 
 
+def _local_record_path(record: dict[str, Any], label: str) -> Path:
+    try:
+        return resolve_pinned_project_path(record, PROJECT_ROOT, label=label)
+    except PinnedPathError as exc:
+        raise TaxiQueueError(str(exc)) from exc
+
+
 def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
     resolved = Path(path).resolve()
     plan = json.loads(resolved.read_text(encoding="utf-8"))
@@ -96,7 +107,7 @@ def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
     )
     for name in ("source_readiness", "runner_source", "tests_source"):
         item = plan.get(name) or {}
-        source = Path(str(item.get("path") or "")).resolve()
+        source = _local_record_path(item, f"Taxi queue {name}")
         _require(source.is_file(), f"Taxi queue {name} is missing")
         _require(
             source.stat().st_size == int(item.get("bytes", -1))
@@ -105,7 +116,10 @@ def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
         )
     dependency = plan.get("serial_dependency") or {}
     dependency_plan = dependency.get("plan") or {}
-    dependency_path = Path(str(dependency_plan.get("path") or "")).resolve()
+    dependency_path = _local_record_path(
+        dependency_plan,
+        "Taxi queue May dependency plan",
+    )
     _require(
         dependency_path.is_file()
         and dependency_path.stat().st_size == int(dependency_plan.get("bytes", -1))
@@ -113,8 +127,16 @@ def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
         "Taxi queue May dependency plan drifted",
     )
     bundle = plan.get("bundle") or {}
-    bundle_path = Path(str(bundle.get("path") or "")).resolve()
-    _require(bundle_path == ops.DEFAULT_BUNDLE.resolve(), "Taxi queue bundle path changed")
+    bundle_path = ops.DEFAULT_BUNDLE.resolve()
+    recorded_bundle_name = (
+        str(bundle.get("path") or "").replace("\\", "/").rsplit("/", 1)[-1]
+    )
+    _require(
+        recorded_bundle_name == bundle_path.name
+        and bundle_path.is_file()
+        and bundle_path.stat().st_size == int(bundle.get("bytes", -1)),
+        "Taxi queue bundle path changed",
+    )
     verified = ops.verify_local_bundle(bundle_path)
     _require(verified["sha256"] == bundle.get("sha256"), "Taxi queue bundle hash drifted")
     cache = plan.get("public_precomputed_cache") or {}
@@ -133,7 +155,10 @@ def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
         "Taxi queue cache path changed",
     )
     collection = cache.get("collection_evidence") or {}
-    collection_path = Path(str(collection.get("path") or "")).resolve()
+    collection_path = _local_record_path(
+        collection,
+        "Taxi queue cache collection evidence",
+    )
     _require(
         collection_path.is_file()
         and collection_path.stat().st_size == int(collection.get("bytes", -1))
@@ -164,7 +189,7 @@ def validate_plan(path: Path = DEFAULT_PLAN) -> dict[str, Any]:
     _require(route_path == expected_route_path, "Taxi queue route-stat path changed")
     for name in ("manifest", "collection_evidence"):
         item = route.get(name) or {}
-        path = Path(str(item.get("path") or "")).resolve()
+        path = _local_record_path(item, f"Taxi queue route-stat {name} evidence")
         _require(
             path.is_file()
             and path.stat().st_size == int(item.get("bytes", -1))

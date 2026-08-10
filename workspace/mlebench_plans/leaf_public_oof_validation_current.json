@@ -1,0 +1,568 @@
+{
+  "schema": "evomind.mlebench.leaf_public_oof_validation.v1",
+  "created_at": "2026-07-25T03:48:42.439446+00:00",
+  "competition_id": "leaf-classification",
+  "dataset": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public",
+  "access_mode": "remote_read_only_cpu_probe_single_thread_nice15",
+  "path_scope_verified": true,
+  "remote_stderr_type": "nonempty",
+  "production_adapter_sha256": "5fd65488e8ae7f0f100b6daed2a20ceabf30afb10d0c2455619377393ca90369",
+  "production_helper_source_sha256": "520e6f024637b06b76134b1e6ebe32d23d039ad4268ecda2d9618b84b0287bbe",
+  "remote_source_sha256": "fcc5a385e6ffa2e633bc2552e646a185564a9a43e660986a827279c6b63d2680",
+  "bronze_threshold": 0.01526,
+  "target_threshold": 0.013,
+  "class_count": 99,
+  "confirmation_seeds": [
+    43,
+    44
+  ],
+  "confirmations": [
+    {
+      "cross_fitted_blend_log_loss": 0.03872737088625026,
+      "cross_fitted_meta_validation": true,
+      "crossfit_records": [
+        {
+          "fold": 0,
+          "meta_fit_log_loss": 0.03425989310506043,
+          "outer_log_loss": 0.05353768536913371,
+          "temperature": 0.5928434264154138,
+          "weights": [
+            0.0,
+            0.2,
+            0.8
+          ]
+        },
+        {
+          "fold": 1,
+          "meta_fit_log_loss": 0.03451580913615517,
+          "outer_log_loss": 0.05178375342269063,
+          "temperature": 0.627971607877395,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        },
+        {
+          "fold": 2,
+          "meta_fit_log_loss": 0.04182140754541671,
+          "outer_log_loss": 0.022517885026882612,
+          "temperature": 0.6651812649497024,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        },
+        {
+          "fold": 3,
+          "meta_fit_log_loss": 0.03810895426964713,
+          "outer_log_loss": 0.03738855460903831,
+          "temperature": 0.6651812649497024,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        },
+        {
+          "fold": 4,
+          "meta_fit_log_loss": 0.0403714722307518,
+          "outer_log_loss": 0.028325771989557234,
+          "temperature": 0.6651812649497024,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        }
+      ],
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.421345823598838
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.432105272183302
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.4558002316311747
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.425697500210335
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4459531014909164
+        }
+      ],
+      "lda_oof_log_loss": 0.25166598239580806,
+      "logistic_oof_log_loss": 0.06305115275057853,
+      "seed": 43,
+      "svc_c": 100.0,
+      "svc_gamma": 0.001,
+      "svc_oof_log_loss": 2.436163736482594
+    },
+    {
+      "cross_fitted_blend_log_loss": 0.028059589159378878,
+      "cross_fitted_meta_validation": true,
+      "crossfit_records": [
+        {
+          "fold": 0,
+          "meta_fit_log_loss": 0.033127201179193065,
+          "outer_log_loss": 0.004560813922067828,
+          "temperature": 0.5928434264154138,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        },
+        {
+          "fold": 1,
+          "meta_fit_log_loss": 0.02024753959855836,
+          "outer_log_loss": 0.05643069605937168,
+          "temperature": 0.5928434264154138,
+          "weights": [
+            0.0,
+            0.35000000000000003,
+            0.6499999999999999
+          ]
+        },
+        {
+          "fold": 2,
+          "meta_fit_log_loss": 0.025291527064965763,
+          "outer_log_loss": 0.035787045698398974,
+          "temperature": 0.5928434264154138,
+          "weights": [
+            0.0,
+            0.25,
+            0.75
+          ]
+        },
+        {
+          "fold": 3,
+          "meta_fit_log_loss": 0.027346375318830895,
+          "outer_log_loss": 0.027631653398789008,
+          "temperature": 0.559680284642085,
+          "weights": [
+            0.0,
+            0.30000000000000004,
+            0.7
+          ]
+        },
+        {
+          "fold": 4,
+          "meta_fit_log_loss": 0.030240592383009243,
+          "outer_log_loss": 0.016019752309487774,
+          "temperature": 0.627971607877395,
+          "weights": [
+            0.0,
+            0.30000000000000004,
+            0.7
+          ]
+        }
+      ],
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4099011382489706
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4670369627464193
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.427738117297971
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.4246875088722954
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4419343384582692
+        }
+      ],
+      "lda_oof_log_loss": 0.20107129332095058,
+      "logistic_oof_log_loss": 0.05628969710389355,
+      "seed": 44,
+      "svc_c": 100.0,
+      "svc_gamma": 0.001,
+      "svc_oof_log_loss": 2.4342322747691445
+    }
+  ],
+  "development_grid": [
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4880909416759445
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4650053871826008
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.489042569581395
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.481979832856059
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4276151013599705
+        }
+      ],
+      "seed": 42,
+      "svc_c": 10.0,
+      "svc_gamma": "scale",
+      "svc_oof_log_loss": 2.470366681430346
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4480978456729883
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4209037144110104
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.4440961772007865
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.423558169274226
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4283103619474993
+        }
+      ],
+      "seed": 42,
+      "svc_c": 10.0,
+      "svc_gamma": 0.001,
+      "svc_oof_log_loss": 2.4330102061053105
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4818936866024246
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4553995125399037
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.479676036665983
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.467867502385261
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.435312060056753
+        }
+      ],
+      "seed": 42,
+      "svc_c": 10.0,
+      "svc_gamma": 0.003,
+      "svc_oof_log_loss": 2.464049808950797
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4587910904351125
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.440289831647648
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.465609047593211
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.475968648199908
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.387503268046252
+        }
+      ],
+      "seed": 42,
+      "svc_c": 10.0,
+      "svc_gamma": 0.01,
+      "svc_oof_log_loss": 2.4456471456617
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4880909416759445
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4650053871826008
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.489042569581395
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.481979832856059
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4276151013599705
+        }
+      ],
+      "seed": 42,
+      "svc_c": 30.0,
+      "svc_gamma": "scale",
+      "svc_oof_log_loss": 2.470366681430346
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4476931267691584
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4208317793784513
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.443919000395751
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.4234210230875273
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4281240296711517
+        }
+      ],
+      "seed": 42,
+      "svc_c": 30.0,
+      "svc_gamma": 0.001,
+      "svc_oof_log_loss": 2.4328145094080047
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4817213033730394
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.455395964850371
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.479666143546829
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.4678672426052555
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.435317993002079
+        }
+      ],
+      "seed": 42,
+      "svc_c": 30.0,
+      "svc_gamma": 0.003,
+      "svc_oof_log_loss": 2.464013625742516
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4587910904351125
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.440289831647648
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.465609047593211
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.475968648199908
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.387503268046252
+        }
+      ],
+      "seed": 42,
+      "svc_c": 30.0,
+      "svc_gamma": 0.01,
+      "svc_oof_log_loss": 2.4456471456617
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4880909416759445
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.4650053871826008
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.489042569581395
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.481979832856059
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.4276151013599705
+        }
+      ],
+      "seed": 42,
+      "svc_c": 100.0,
+      "svc_gamma": "scale",
+      "svc_oof_log_loss": 2.470366681430346
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4475449818058315
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.420831750143899
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.443913558902308
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.4234210230875273
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.42812578645177
+        }
+      ],
+      "seed": 42,
+      "svc_c": 100.0,
+      "svc_gamma": 0.001,
+      "svc_oof_log_loss": 2.432784005444965
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4817213033730394
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.455395964850371
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.479666143546829
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.4678672426052555
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.435317993002079
+        }
+      ],
+      "seed": 42,
+      "svc_c": 100.0,
+      "svc_gamma": 0.003,
+      "svc_oof_log_loss": 2.464013625742516
+    },
+    {
+      "fold_assignment_complete": true,
+      "fold_records": [
+        {
+          "fold": 0,
+          "svc_log_loss": 2.4587910904351125
+        },
+        {
+          "fold": 1,
+          "svc_log_loss": 2.440289831647648
+        },
+        {
+          "fold": 2,
+          "svc_log_loss": 2.465609047593211
+        },
+        {
+          "fold": 3,
+          "svc_log_loss": 2.475968648199908
+        },
+        {
+          "fold": 4,
+          "svc_log_loss": 2.387503268046252
+        }
+      ],
+      "seed": 42,
+      "svc_c": 100.0,
+      "svc_gamma": 0.01,
+      "svc_oof_log_loss": 2.4456471456617
+    }
+  ],
+  "development_seed": 42,
+  "feature_count": 192,
+  "folds": 5,
+  "rows": 891,
+  "selected": {
+    "development_svc_oof_log_loss": 2.432784005444965,
+    "svc_c": 100.0,
+    "svc_gamma": 0.001
+  },
+  "test_rows": 99,
+  "confirmation_scores": [
+    0.03872737088625026,
+    0.028059589159378878
+  ],
+  "bronze_oriented_gate_passed": false,
+  "target_passed": false,
+  "selection_boundary": "The first seed selected one SVC configuration; only later seeds count as confirmations. Internal OOF is not an official medal."
+}

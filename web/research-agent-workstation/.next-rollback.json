@@ -1,8 +1,8 @@
 {
-  "activated_at": "2026-08-04T18:20:01Z",
-  "active_build_id": "c6_VxUhwq2ZjjYs1eUFQp",
+  "activated_at": "2026-08-09T16:14:45Z",
+  "active_build_id": "yt6LooL6LDh6hxCLOPe6r",
   "active_dir": ".next",
-  "rollback_build_id": "As6b4Oau9aUC6uepM2X2C",
-  "rollback_dir": ".next-rollback-20260805_022001-e898aa25",
+  "rollback_build_id": "nMH6cea9JbcNcXOqKMsRl",
+  "rollback_dir": ".next-rollback-20260810_001445-a2d01576",
   "schema": "evomind.next.rollback.v1"
 }

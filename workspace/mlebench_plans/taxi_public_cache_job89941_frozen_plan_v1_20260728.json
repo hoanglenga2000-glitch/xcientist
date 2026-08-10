@@ -1,0 +1,119 @@
+{
+  "schema": "evomind.mlebench.taxi_public_cache_plan.v1",
+  "created_at": "2026-07-28T03:32:52.518957+08:00",
+  "status": "frozen",
+  "job_id": 89941,
+  "cluster": "AI-X86_NVIDIA",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "resource_mode": "cpu_only",
+  "visibility_mode": "PUBLIC_ONLY",
+  "run_id": "job89941_taxi_public_cache_s42_v1_20260728",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+  "cache_output": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+  "seed": 42,
+  "folds": 3,
+  "threads": 48,
+  "max_rows": 5000000,
+  "chunk_rows": 250000,
+  "holdout_fraction": 0.05,
+  "inputs": [
+    {
+      "bytes": 5662345732,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/labels.csv",
+      "relative_path": "prepared/public/labels.csv",
+      "sha256": "20497ff0e594e99e2a7f3b35c41e5aba6137e3ce7e43b327ee3553c961912321"
+    },
+    {
+      "bytes": 968912,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/test.csv",
+      "relative_path": "prepared/public/test.csv",
+      "sha256": "e24e2939ee49d07407562c4e672e2964403d2f86fe882c4b9eaed95c6ef770b0"
+    },
+    {
+      "bytes": 343716,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/sample_submission.csv",
+      "relative_path": "prepared/public/sample_submission.csv",
+      "sha256": "2ffb30d6529752503276f5a67e33c052e659967bfd96c8551748c3fa43c64ff4"
+    }
+  ],
+  "sources": [
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\precompute_taxi_public_cache.py",
+      "relative_path": "scripts/precompute_taxi_public_cache.py",
+      "bytes": 3628,
+      "sha256": "61b2562bcdb0961c9bf9a98f29a7a714447d9416ed7cff760e47f581a49586a3"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+      "relative_path": "scripts/run_mlebench_lite_full.py",
+      "bytes": 129979,
+      "sha256": "ec95620c2a0826997e557809ff287d0a38cb0eaa6e382d5d9e1db109ba6a30d8"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 383917,
+      "sha256": "b6f99eee719c6e5af0a230137ec47c19b80d96d42f90fc46591bf15166956882"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "relative_path": "scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\russian_transliteration.py",
+      "relative_path": "scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+      "relative_path": "scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43703,
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+      "relative_path": "src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  ],
+  "authorization": {
+    "source": "active_thread_goal_user_provided",
+    "candidate_generation_approved": true,
+    "official_private_grader_approved": false,
+    "kaggle_submission_approved": false
+  },
+  "performance_contract": {
+    "logical_cpus_available": 64,
+    "threads_reserved_for_cache_build": 48,
+    "shared_across_external_model_seeds": [
+      43,
+      44,
+      45
+    ],
+    "before_after_measurement_required": true
+  },
+  "contracts": {
+    "largest_predeclared_sample_rows": 5000000,
+    "public_files_read": [
+      "labels.csv",
+      "test.csv",
+      "sample_submission.csv"
+    ],
+    "private_files_read": [],
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "gpu_used": false,
+    "cuda_visible_devices": "",
+    "cache_manifest_written_last": true,
+    "writes_confined_to_remote_root": true
+  },
+  "claim_boundary": "A verified public feature cache improves throughput but is not a score or medal."
+}

@@ -1,0 +1,118 @@
+{
+  "schema": "evomind.mlebench.text_normalization_public_oof_validation.v1",
+  "dataset": "text-normalization-challenge-english-language",
+  "path_scope_verified": true,
+  "access_mode": "remote_read_only_cpu_probe",
+  "split_strategy": "dependency_free_groupkfold_compatible_greedy_balance",
+  "rows": 500000,
+  "sentences": 40005,
+  "folds": 5,
+  "fold_sizes": [
+    100000,
+    100000,
+    100000,
+    100000,
+    100000
+  ],
+  "mapping_entries_by_fold": [
+    11088,
+    11055,
+    11111,
+    11165,
+    11158
+  ],
+  "changed_fraction": 0.070386,
+  "inferred_class_overall_accuracy": 0.992608,
+  "oracle_class_overall_accuracy": 0.995398,
+  "identity_accuracy": 0.9978571751286017,
+  "changed_token_accuracy": 0.9232801977666013,
+  "bronze_threshold": 0.99038,
+  "target_accuracy": 0.992,
+  "threshold_passed": true,
+  "target_passed": true,
+  "class_metrics": {
+    "ADDRESS": {
+      "rows": 26,
+      "accuracy": 0.11538461538461539,
+      "oracle_accuracy": 0.11538461538461539
+    },
+    "CARDINAL": {
+      "rows": 6823,
+      "accuracy": 0.9611607797156676,
+      "oracle_accuracy": 0.967902682104646
+    },
+    "DATE": {
+      "rows": 15031,
+      "accuracy": 0.9874259862949903,
+      "oracle_accuracy": 0.9874925154680327
+    },
+    "DECIMAL": {
+      "rows": 541,
+      "accuracy": 0.9057301293900185,
+      "oracle_accuracy": 0.9131238447319778
+    },
+    "DIGIT": {
+      "rows": 286,
+      "accuracy": 0.6118881118881119,
+      "oracle_accuracy": 0.7412587412587412
+    },
+    "ELECTRONIC": {
+      "rows": 221,
+      "accuracy": 0.7601809954751131,
+      "oracle_accuracy": 0.6923076923076923
+    },
+    "FRACTION": {
+      "rows": 53,
+      "accuracy": 0.7924528301886793,
+      "oracle_accuracy": 0.8113207547169812
+    },
+    "LETTERS": {
+      "rows": 7588,
+      "accuracy": 0.8981286241433843,
+      "oracle_accuracy": 0.9392461781760675
+    },
+    "MEASURE": {
+      "rows": 785,
+      "accuracy": 0.821656050955414,
+      "oracle_accuracy": 0.821656050955414
+    },
+    "MONEY": {
+      "rows": 309,
+      "accuracy": 0.8705501618122977,
+      "oracle_accuracy": 0.8705501618122977
+    },
+    "ORDINAL": {
+      "rows": 624,
+      "accuracy": 0.8653846153846154,
+      "oracle_accuracy": 0.8717948717948718
+    },
+    "PLAIN": {
+      "rows": 367079,
+      "accuracy": 0.9952217370102894,
+      "oracle_accuracy": 0.9978996346835423
+    },
+    "PUNCT": {
+      "rows": 96230,
+      "accuracy": 1.0,
+      "oracle_accuracy": 1.0
+    },
+    "TELEPHONE": {
+      "rows": 192,
+      "accuracy": 0.828125,
+      "oracle_accuracy": 0.9270833333333334
+    },
+    "TIME": {
+      "rows": 64,
+      "accuracy": 0.484375,
+      "oracle_accuracy": 0.53125
+    },
+    "VERBATIM": {
+      "rows": 4148,
+      "accuracy": 0.9672131147540983,
+      "oracle_accuracy": 0.9672131147540983
+    }
+  },
+  "created_at": "2026-07-25T00:32:00.595063+00:00",
+  "local_source_sha256": "4e56f39ea5a74ee4bd11be5cbd1546eed294dac48b99bc3f44eb5e9375edee49",
+  "remote_stderr_type": "empty"
+}

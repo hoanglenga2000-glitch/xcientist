@@ -168,7 +168,7 @@ await responseJson(await fetch(bootstrapEndpoint, {
 record("bootstrap_body_limit_enforced");
 
 await responseJson(await fetch(bootstrapEndpoint, {
-  method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ token: "invalid-bootstrap-token-value-000000000000" }),
+  method: "POST", headers: { "Content-Type": "application/json", Origin: origin }, body: JSON.stringify({ token: "test-invalid-bootstrap-token-value-000000000000" }),
 }), 401, "invalid_bootstrap");
 record("invalid_bootstrap_token_rejected_without_consuming_real_token");
 

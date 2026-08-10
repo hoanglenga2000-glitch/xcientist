@@ -1,0 +1,132 @@
+{
+  "task_id": "house_prices",
+  "run_id": "20260627_190321",
+  "artifacts": [
+    {
+      "evidence_id": "ev_359b622590",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_ac61306425",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_6adc01b67c",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_8710fbbc29",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_e1c2db9ac1",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_2feb9a2839",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_caf9683964",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_71aae6afe9",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_2570f05ebf",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_831cd90dfa",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+      "artifact_type": "csv",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_3c53eb3a29",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_9e66224cb2",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_f8a1e1f4d0",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_b091a3de33",
+      "task_id": "house_prices",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    }
+  ]
+}

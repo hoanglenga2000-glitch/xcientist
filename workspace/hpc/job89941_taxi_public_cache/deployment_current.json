@@ -1,0 +1,246 @@
+{
+  "schema": "evomind.hpc.job89941_taxi_public_cache_deployment.v1",
+  "created_at": "2026-07-28T03:34:05.554480+08:00",
+  "job_id": 89941,
+  "run_id": "job89941_taxi_public_cache_s42_v1_20260728",
+  "plan": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+    "bytes": 4964,
+    "sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165"
+  },
+  "layout": {
+    "root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "base": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728",
+    "staged_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source",
+    "plan": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/plans/taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+    "cache": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+    "log": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/logs/job89941_taxi_public_cache_s42_v1_20260728.log",
+    "state": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/state/job89941_taxi_public_cache_s42_v1_20260728.json",
+    "tmp": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/tmp"
+  },
+  "preflight": {
+    "errors": [],
+    "inputs": [
+      {
+        "bytes": 5662345732,
+        "matches": true,
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/labels.csv",
+        "relative_path": "prepared/public/labels.csv",
+        "sha256": "20497ff0e594e99e2a7f3b35c41e5aba6137e3ce7e43b327ee3553c961912321"
+      },
+      {
+        "bytes": 968912,
+        "matches": true,
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/test.csv",
+        "relative_path": "prepared/public/test.csv",
+        "sha256": "e24e2939ee49d07407562c4e672e2964403d2f86fe882c4b9eaed95c6ef770b0"
+      },
+      {
+        "bytes": 343716,
+        "matches": true,
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/sample_submission.csv",
+        "relative_path": "prepared/public/sample_submission.csv",
+        "sha256": "2ffb30d6529752503276f5a67e33c052e659967bfd96c8551748c3fa43c64ff4"
+      }
+    ],
+    "passed": true,
+    "private_paths_read": [],
+    "root_ok": true,
+    "schema": "evomind.hpc.job89941_taxi_public_cache_preflight.v1"
+  },
+  "staging": {
+    "files": [
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+        "relative_path": "plans/taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/plans/taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+        "bytes": 4964,
+        "sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\precompute_taxi_public_cache.py",
+        "relative_path": "scripts/precompute_taxi_public_cache.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/precompute_taxi_public_cache.py",
+        "bytes": 3628,
+        "sha256": "61b2562bcdb0961c9bf9a98f29a7a714447d9416ed7cff760e47f581a49586a3",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+        "relative_path": "scripts/run_mlebench_lite_full.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/run_mlebench_lite_full.py",
+        "bytes": 129979,
+        "sha256": "ec95620c2a0826997e557809ff287d0a38cb0eaa6e382d5d9e1db109ba6a30d8",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+        "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/mlebench_medal_recovery_adapters.py",
+        "bytes": 383917,
+        "sha256": "b6f99eee719c6e5af0a230137ec47c19b80d96d42f90fc46591bf15166956882",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+        "relative_path": "scripts/mlebench_wave2_adapters.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/mlebench_wave2_adapters.py",
+        "bytes": 358066,
+        "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\russian_transliteration.py",
+        "relative_path": "scripts/russian_transliteration.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/russian_transliteration.py",
+        "bytes": 11016,
+        "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+        "relative_path": "scripts/run_mlebench_lite_wave0.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/run_mlebench_lite_wave0.py",
+        "bytes": 43703,
+        "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f",
+        "action": "uploaded"
+      },
+      {
+        "local_path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+        "relative_path": "src/research_os/mlebench_phase_a.py",
+        "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/src/research_os/mlebench_phase_a.py",
+        "bytes": 35480,
+        "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772",
+        "action": "uploaded"
+      }
+    ],
+    "verification": {
+      "checks": [
+        {
+          "bytes": 4964,
+          "matches": true,
+          "relative_path": "plans/taxi_public_cache_job89941_frozen_plan_v1_20260728.json",
+          "sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165"
+        },
+        {
+          "bytes": 3628,
+          "matches": true,
+          "relative_path": "scripts/precompute_taxi_public_cache.py",
+          "sha256": "61b2562bcdb0961c9bf9a98f29a7a714447d9416ed7cff760e47f581a49586a3"
+        },
+        {
+          "bytes": 129979,
+          "matches": true,
+          "relative_path": "scripts/run_mlebench_lite_full.py",
+          "sha256": "ec95620c2a0826997e557809ff287d0a38cb0eaa6e382d5d9e1db109ba6a30d8"
+        },
+        {
+          "bytes": 383917,
+          "matches": true,
+          "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+          "sha256": "b6f99eee719c6e5af0a230137ec47c19b80d96d42f90fc46591bf15166956882"
+        },
+        {
+          "bytes": 358066,
+          "matches": true,
+          "relative_path": "scripts/mlebench_wave2_adapters.py",
+          "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+        },
+        {
+          "bytes": 11016,
+          "matches": true,
+          "relative_path": "scripts/russian_transliteration.py",
+          "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+        },
+        {
+          "bytes": 43703,
+          "matches": true,
+          "relative_path": "scripts/run_mlebench_lite_wave0.py",
+          "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+        },
+        {
+          "bytes": 35480,
+          "matches": true,
+          "relative_path": "src/research_os/mlebench_phase_a.py",
+          "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+        }
+      ],
+      "passed": true,
+      "schema": "evomind.hpc.job89941_taxi_public_cache_staging.v1"
+    },
+    "import_smoke": {
+      "cache_schema": "evomind.mlebench.taxi_public_feature_cache.v1",
+      "cuda_visible_devices": "",
+      "passed": true,
+      "runner": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/precompute_taxi_public_cache.py",
+      "schema": "evomind.hpc.job89941_taxi_public_cache_import_smoke.v1"
+    },
+    "passed": true
+  },
+  "launch": {
+    "action": "launched",
+    "duplicate_processes_started": 0,
+    "pid": 378665,
+    "status": "running"
+  },
+  "status": {
+    "log": {
+      "bytes": 0,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/logs/job89941_taxi_public_cache_s42_v1_20260728.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "log_tail": "",
+    "manifest": null,
+    "other_processes_modified": false,
+    "process": {
+      "cmdline_matches": true,
+      "pid": 378665,
+      "running": true
+    },
+    "process_signals_sent": 0,
+    "schema": "evomind.hpc.job89941_taxi_public_cache_status.v1",
+    "state": {
+      "argv": [
+        "python3",
+        "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/precompute_taxi_public_cache.py",
+        "--data-root",
+        "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+        "--output-dir",
+        "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+        "--allowed-root",
+        "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+        "--max-rows",
+        "5000000",
+        "--chunk-rows",
+        "250000",
+        "--cache-seed",
+        "42",
+        "--folds",
+        "3",
+        "--holdout-fraction",
+        "0.05"
+      ],
+      "created_at_epoch": 1785180845.420266,
+      "launched_at_epoch": 1785180845.4225519,
+      "other_processes_modified": false,
+      "pid": 378665,
+      "plan_sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165",
+      "process_signals_sent": 0,
+      "schema": "evomind.hpc.job89941_taxi_public_cache_state.v1",
+      "status": "running"
+    },
+    "state_errors": [],
+    "status": "running",
+    "cache_verification": null,
+    "observed_at": "2026-07-28T03:34:05.551808+08:00",
+    "job_id": 89941,
+    "run_id": "job89941_taxi_public_cache_s42_v1_20260728",
+    "plan_sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165",
+    "profile": "job89941_cpu"
+  },
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

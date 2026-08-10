@@ -1,0 +1,132 @@
+{
+  "task_id": "telco_churn",
+  "run_id": "20260623_160853",
+  "artifacts": [
+    {
+      "evidence_id": "ev_8e2e94a6f7",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_ff5341106d",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_f13008e49b",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_c512960238",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_a7769da0d2",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_2b0ecd7dbf",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_0618470956",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_c9901c917b",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+      "artifact_type": "csv",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_544534e9bc",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_6caabeb28e",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_0bb5a87560",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_6f1ecadfd3",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_b0ce9288e3",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_049ec3a5ee",
+      "task_id": "telco_churn",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    }
+  ]
+}

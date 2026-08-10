@@ -1,0 +1,85 @@
+{
+  "schema": "evomind.hpc.job89771_taxi_weighted_midhaul_plan.v1",
+  "created_at": "2026-07-28T12:07:00+08:00",
+  "status": "approved_final_bounded_candidate_diagnostic",
+  "job_id": 89771,
+  "profile": "job89771_cpu_nested",
+  "run_id": "taxi_weighted_midhaul_s51_v6_20260728",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "sources": [
+    {
+      "relative_path": "scripts/diagnose_taxi_cpu_weighted_midhaul_expert.py",
+      "remote_name": "diagnose_taxi_cpu_weighted_midhaul_expert.py",
+      "bytes": 11617,
+      "sha256": "83fa97f81457943668f0703882da924fdf0d5010f13301870afe2a0091d2b2cf"
+    },
+    {
+      "relative_path": "scripts/diagnose_taxi_cpu_longhaul_expert.py",
+      "remote_name": "diagnose_taxi_cpu_longhaul_expert.py",
+      "bytes": 16782,
+      "sha256": "ecdd25f389d354ede3ef2380dabff189a60718e0100ea0f81851dee6049d4286"
+    }
+  ],
+  "inputs": {
+    "cache_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+    "cache_manifest": {
+      "bytes": 8528,
+      "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+    },
+    "candidate_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_cpu_candidate/taxi_cpu_lgbm_s43_v3_20260728/candidate",
+    "candidate_result": {
+      "bytes": 3817,
+      "sha256": "7992e6e6fc369d5ca80b7d1463e39b3a5ea848e0882ae3593ee0f8b572db9799"
+    },
+    "candidate_bundle": {
+      "bytes": 26143591,
+      "sha256": "d58b41a118ed06ea86f5a1d61570864a4725a90b3b3c5b715e70a05b18c82842"
+    }
+  },
+  "remote": {
+    "root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728",
+    "source_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/frozen_source",
+    "source": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/frozen_source/diagnose_taxi_cpu_weighted_midhaul_expert.py",
+    "plan": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/plans/taxi_cpu_weighted_midhaul_job89771_s51_20260728.json",
+    "output_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/diagnostic",
+    "log": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/logs/train.log",
+    "state": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/state.json",
+    "launch_claim": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_weighted_midhaul_s51_v6_20260728/launch_claim.json"
+  },
+  "runtime": {
+    "seed": 51,
+    "iterations": 700,
+    "threads": 60,
+    "distance_threshold_km": 3.0,
+    "weight_pivot_fare": 20.0,
+    "maximum_fare_weight": 4.0,
+    "high_fare_threshold": 50.0,
+    "maximum_successor_rmse": 2.85,
+    "minimum_overall_improvement": 1.65,
+    "minimum_high_fare_relative_improvement": 0.05,
+    "cuda_visible_devices": "",
+    "pythonpath": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/.deps:/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runtime/unified-py310-sklearn1.7.2/site-packages",
+    "start_new_session": true
+  },
+  "validation_contract": {
+    "cross_fitted_outer_folds": 3,
+    "expert_selection_uses_inference_features_only": true,
+    "fixed_iterations": true,
+    "base_candidate_immutable": true,
+    "diagnostic_only": true,
+    "stop_after_failure": true
+  },
+  "boundary": {
+    "visibility_mode": "PUBLIC_ONLY",
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "dedicated_remote_root_only": true
+  },
+  "claim_boundary": "One final bounded weighted diagnostic; it is not an official score or medal."
+}

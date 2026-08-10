@@ -1,0 +1,35 @@
+{
+  "schema": "evomind.human_gate.package_verification.v1",
+  "created_at": "2026-07-27T12:23:44.648164+08:00",
+  "status": "verified",
+  "files": [
+    {
+      "name": "candidate_submission_withheld.csv",
+      "bytes": 136216,
+      "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    },
+    {
+      "name": "frozen_plan.json",
+      "bytes": 3307,
+      "sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1"
+    },
+    {
+      "name": "independent_verification.json",
+      "bytes": 1203,
+      "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed"
+    },
+    {
+      "name": "README.md",
+      "bytes": 545,
+      "sha256": "2e087b27446fbb65dd604142383b366a1e3df8f9039ad671554ef45ffd51a922"
+    },
+    {
+      "name": "spooky_cross_run_xgb_confirmation_result.json",
+      "bytes": 4988,
+      "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742"
+    }
+  ],
+  "candidate_csv_present": true,
+  "independent_verification_passed": true,
+  "automatic_submission": false
+}

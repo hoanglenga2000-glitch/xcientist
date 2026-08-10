@@ -1,0 +1,507 @@
+{
+  "task": {
+    "name": "house_prices",
+    "competition": "House Prices - Advanced Regression Techniques",
+    "type": "regression",
+    "target": "SalePrice",
+    "metric": "rmsle",
+    "id_column": "Id",
+    "prediction_column": "SalePrice"
+  },
+  "data_quality": {
+    "train_rows": 1460,
+    "train_columns": 81,
+    "test_rows": 1459,
+    "test_columns": 80,
+    "sample_submission_rows": 1459,
+    "sample_submission_columns": [
+      "Id",
+      "SalePrice"
+    ],
+    "target": "SalePrice",
+    "task_type": "regression",
+    "target_summary": {
+      "summary": {
+        "count": 1460.0,
+        "mean": 180921.1959,
+        "std": 79442.5029,
+        "min": 34900.0,
+        "25%": 129975.0,
+        "50%": 163000.0,
+        "75%": 214000.0,
+        "max": 755000.0
+      },
+      "skew": 1.882876
+    },
+    "duplicate_train_rows": 0,
+    "train_test_feature_columns_match": true,
+    "missing_train_top20": {
+      "PoolQC": 0.9952,
+      "MiscFeature": 0.963,
+      "Alley": 0.9377,
+      "Fence": 0.8075,
+      "MasVnrType": 0.5973,
+      "FireplaceQu": 0.4726,
+      "LotFrontage": 0.1774,
+      "GarageQual": 0.0555,
+      "GarageFinish": 0.0555,
+      "GarageType": 0.0555,
+      "GarageYrBlt": 0.0555,
+      "GarageCond": 0.0555,
+      "BsmtFinType2": 0.026,
+      "BsmtExposure": 0.026,
+      "BsmtCond": 0.0253,
+      "BsmtQual": 0.0253,
+      "BsmtFinType1": 0.0253,
+      "MasVnrArea": 0.0055,
+      "Electrical": 0.0007,
+      "Condition2": 0.0
+    },
+    "missing_test_top20": {
+      "PoolQC": 0.9979,
+      "MiscFeature": 0.965,
+      "Alley": 0.9267,
+      "Fence": 0.8012,
+      "MasVnrType": 0.6127,
+      "FireplaceQu": 0.5003,
+      "LotFrontage": 0.1556,
+      "GarageYrBlt": 0.0535,
+      "GarageCond": 0.0535,
+      "GarageFinish": 0.0535,
+      "GarageQual": 0.0535,
+      "GarageType": 0.0521,
+      "BsmtCond": 0.0308,
+      "BsmtQual": 0.0302,
+      "BsmtExposure": 0.0302,
+      "BsmtFinType1": 0.0288,
+      "BsmtFinType2": 0.0288,
+      "MasVnrArea": 0.0103,
+      "MSZoning": 0.0027,
+      "BsmtHalfBath": 0.0014
+    }
+  },
+  "evaluation": {
+    "metric": "rmsle",
+    "best_model": "gradient_boosting_log_target",
+    "selection_direction": "minimize",
+    "model_results": {
+      "ridge_log_target": {
+        "cv_rmsle_mean": 0.144948,
+        "cv_rmsle_std": 0.04029,
+        "holdout_rmsle": 0.136907,
+        "holdout_mae": 16213.414375,
+        "seconds": 0.2625
+      },
+      "random_forest_log_target": {
+        "cv_rmsle_mean": 0.142487,
+        "cv_rmsle_std": 0.018454,
+        "holdout_rmsle": 0.147242,
+        "holdout_mae": 17369.02039,
+        "seconds": 4.219
+      },
+      "extra_trees_log_target": {
+        "cv_rmsle_mean": 0.138377,
+        "cv_rmsle_std": 0.014014,
+        "holdout_rmsle": 0.147231,
+        "holdout_mae": 16555.736827,
+        "seconds": 4.8327
+      },
+      "gradient_boosting_log_target": {
+        "cv_rmsle_mean": 0.12899,
+        "cv_rmsle_std": 0.020176,
+        "holdout_rmsle": 0.129797,
+        "holdout_mae": 15187.626782,
+        "seconds": 50.5501
+      }
+    }
+  },
+  "submission_check": {
+    "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+    "rows_match": true,
+    "columns_match": true,
+    "missing_predictions": 0,
+    "prediction_columns": [
+      "SalePrice"
+    ],
+    "valid": true,
+    "positive_predictions": true,
+    "prediction_min": 37013.758431,
+    "prediction_max": 616964.81093,
+    "prediction_mean": 178044.941512
+  },
+  "task_scaffold": {
+    "task": {
+      "name": "house_prices",
+      "competition": "House Prices - Advanced Regression Techniques",
+      "type": "regression",
+      "target": "SalePrice",
+      "metric": "rmsle",
+      "id_column": "Id",
+      "prediction_column": "SalePrice"
+    },
+    "inputs": {
+      "overview": "tasks/house_prices/overview.txt",
+      "train": "tasks/house_prices/data/train.csv",
+      "test": "tasks/house_prices/data/test.csv",
+      "sample_submission": "tasks/house_prices/data/sample_submission.csv"
+    },
+    "agent_template_mapping": {
+      "orchestrator_planner": {
+        "server_template_id": 16,
+        "server_template_name": "多 Agent 调度主管",
+        "local_role": "Orchestrator/Planner",
+        "workstation_responsibility": [
+          "task_decomposition",
+          "acceptance_criteria",
+          "risk_management",
+          "stage_coordination"
+        ],
+        "prompt_template_summary": "把目标拆解为子任务，指定 Agent 角色，定义验收标准、依赖关系和风险处理方式。"
+      },
+      "analyst": {
+        "server_template_id": 13,
+        "server_template_name": "高级数据分析 Agent",
+        "local_role": "Analyst",
+        "workstation_responsibility": [
+          "tabular_eda",
+          "anomaly_detection",
+          "trend_hypothesis",
+          "validation_plan"
+        ],
+        "prompt_template_summary": "用业务语言解释数据，识别趋势和异常，给出可能原因、置信度和下一步验证方案。"
+      },
+      "developer": {
+        "server_template_id": 14,
+        "server_template_name": "代码开发 Agent",
+        "local_role": "Developer",
+        "workstation_responsibility": [
+          "implementation_plan",
+          "model_training_code",
+          "test_plan",
+          "implementation_risk"
+        ],
+        "prompt_template_summary": "先理解需求和约束，再给出实现方案、关键代码思路、测试点和风险。"
+      },
+      "evidence_summarizer": {
+        "server_template_id": 15,
+        "server_template_name": "知识库 RAG Agent",
+        "local_role": "Evidence/Summarizer",
+        "workstation_responsibility": [
+          "evidence_tracking",
+          "report_grounding",
+          "uncertainty_statement",
+          "context_memory"
+        ],
+        "prompt_template_summary": "优先基于上下文回答，列出依据；没有依据时说明无法确认。"
+      },
+      "reviewer_gate": {
+        "server_template_id": 18,
+        "server_template_name": "流程自动化 Agent",
+        "local_role": "Reviewer/Gate",
+        "workstation_responsibility": [
+          "stage_gate",
+          "approval_points",
+          "exception_handling",
+          "automation_checklist"
+        ],
+        "prompt_template_summary": "整理触发条件、输入输出、执行步骤、审批节点、异常处理和可自动化环节。"
+      }
+    },
+    "server_template_policy": {
+      "public_url": "https://ai.zhjjq.tech/agents",
+      "public_market_api": "https://ai.zhjjq.tech/api/market/agents",
+      "access_policy": "read_only_public_templates",
+      "private_agents_policy": "do_not_read_or_modify_without_login_authorization"
+    },
+    "data_snapshot": {
+      "train_rows": 1460,
+      "test_rows": 1459,
+      "sample_submission_rows": 1459,
+      "target_summary": {
+        "summary": {
+          "count": 1460.0,
+          "mean": 180921.1959,
+          "std": 79442.5029,
+          "min": 34900.0,
+          "25%": 129975.0,
+          "50%": 163000.0,
+          "75%": 214000.0,
+          "max": 755000.0
+        },
+        "skew": 1.882876
+      },
+      "missing_train_top20": {
+        "PoolQC": 0.9952,
+        "MiscFeature": 0.963,
+        "Alley": 0.9377,
+        "Fence": 0.8075,
+        "MasVnrType": 0.5973,
+        "FireplaceQu": 0.4726,
+        "LotFrontage": 0.1774,
+        "GarageQual": 0.0555,
+        "GarageFinish": 0.0555,
+        "GarageType": 0.0555,
+        "GarageYrBlt": 0.0555,
+        "GarageCond": 0.0555,
+        "BsmtFinType2": 0.026,
+        "BsmtExposure": 0.026,
+        "BsmtCond": 0.0253,
+        "BsmtQual": 0.0253,
+        "BsmtFinType1": 0.0253,
+        "MasVnrArea": 0.0055,
+        "Electrical": 0.0007,
+        "Condition2": 0.0
+      },
+      "missing_test_top20": {
+        "PoolQC": 0.9979,
+        "MiscFeature": 0.965,
+        "Alley": 0.9267,
+        "Fence": 0.8012,
+        "MasVnrType": 0.6127,
+        "FireplaceQu": 0.5003,
+        "LotFrontage": 0.1556,
+        "GarageYrBlt": 0.0535,
+        "GarageCond": 0.0535,
+        "GarageFinish": 0.0535,
+        "GarageQual": 0.0535,
+        "GarageType": 0.0521,
+        "BsmtCond": 0.0308,
+        "BsmtQual": 0.0302,
+        "BsmtExposure": 0.0302,
+        "BsmtFinType1": 0.0288,
+        "BsmtFinType2": 0.0288,
+        "MasVnrArea": 0.0103,
+        "MSZoning": 0.0027,
+        "BsmtHalfBath": 0.0014
+      }
+    },
+    "validation_strategy": "5-fold KFold cross-validation on log1p target plus holdout validation",
+    "time_budget_minutes": 15,
+    "candidate_models": [
+      "ridge_log_target",
+      "random_forest_log_target",
+      "extra_trees_log_target",
+      "gradient_boosting_log_target"
+    ],
+    "feature_plan": [
+      "Train regression models on log1p(SalePrice) to match RMSLE behavior.",
+      "Create TotalSF from basement and floor area fields.",
+      "Create TotalBath from full/half bathroom fields.",
+      "Create house age and remodel age from sale/build/remodel years.",
+      "Create binary indicators for garage, basement, fireplace, and pool presence.",
+      "Use median imputation for numeric features and most-frequent imputation plus one-hot encoding for categorical features."
+    ],
+    "risk_points": [
+      "SalePrice is skewed, so the local model trains on log1p(SalePrice).",
+      "Many categorical missing values use NA-like markers in the original Kaggle data.",
+      "Train/test feature columns must stay aligned after dropping SalePrice.",
+      "Submission must keep Id and SalePrice columns with positive predictions.",
+      "Local validation is only a proxy before official Kaggle leaderboard submission."
+    ],
+    "stage_plan": [
+      "task_understanding",
+      "preliminary_eda",
+      "data_quality_check",
+      "feature_engineering",
+      "model_validation",
+      "submission_generation",
+      "report_and_review"
+    ]
+  },
+  "post_scaffold_improvement": {
+    "task": "house_prices",
+    "decision": "stop_after_local_gate",
+    "rationale": "Local metric thresholds and submission checks passed. Continue only if official Kaggle submission or stronger model comparison is required.",
+    "best_model": "gradient_boosting_log_target",
+    "best_metrics": {
+      "cv_rmsle_mean": 0.12899,
+      "cv_rmsle_std": 0.020176,
+      "holdout_rmsle": 0.129797,
+      "holdout_mae": 15187.626782,
+      "seconds": 50.5501
+    },
+    "submission_valid": true,
+    "next_iteration_candidates": [
+      "Review high-missing categorical columns and decide whether missing should be a category instead of imputed.",
+      "Add task-specific feature interactions only if they can be explained in the report.",
+      "Add LightGBM/XGBoost/CatBoost after the sklearn baseline remains stable.",
+      "Switch to official Kaggle API submission after credentials are configured."
+    ]
+  },
+  "stage_audit": {
+    "task": {
+      "name": "house_prices",
+      "competition": "House Prices - Advanced Regression Techniques",
+      "type": "regression",
+      "target": "SalePrice",
+      "metric": "rmsle",
+      "id_column": "Id",
+      "prediction_column": "SalePrice"
+    },
+    "experiment_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321",
+    "workflow_version": "v3_generic_tabular",
+    "local_only": true,
+    "server_private_templates_modified": false,
+    "kaggle_api_submission": false,
+    "stages": [
+      {
+        "stage": "task_understanding",
+        "owner_role": "Orchestrator/Planner",
+        "status": "passed",
+        "evidence": [
+          "tasks/house_prices/overview.txt",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json"
+        ],
+        "checks": {
+          "task_name": "house_prices",
+          "target": "SalePrice",
+          "metric": "rmsle",
+          "server_templates_read_only": true
+        }
+      },
+      {
+        "stage": "preliminary_eda",
+        "owner_role": "Analyst",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json"
+        ],
+        "checks": {
+          "train_rows": 1460,
+          "test_rows": 1459,
+          "target_summary_recorded": true,
+          "missing_values_recorded": true
+        }
+      },
+      {
+        "stage": "data_quality_check",
+        "owner_role": "Reviewer/Gate",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json"
+        ],
+        "checks": {
+          "train_test_feature_columns_match": true,
+          "sample_submission_rows": 1459,
+          "sample_submission_columns": [
+            "Id",
+            "SalePrice"
+          ]
+        }
+      },
+      {
+        "stage": "feature_engineering",
+        "owner_role": "Developer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json"
+        ],
+        "checks": {
+          "preset": "house_prices_basic",
+          "feature_plan_recorded": true,
+          "target_transform": "log1p"
+        }
+      },
+      {
+        "stage": "model_validation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json"
+        ],
+        "checks": {
+          "best_model": "gradient_boosting_log_target",
+          "best_metrics": {
+            "cv_rmsle_mean": 0.12899,
+            "cv_rmsle_std": 0.020176,
+            "holdout_rmsle": 0.129797,
+            "holdout_mae": 15187.626782,
+            "seconds": 50.5501
+          },
+          "thresholds": {
+            "max_cv_rmsle": 0.18,
+            "max_holdout_rmsle": 0.2,
+            "require_submission_schema_valid": true,
+            "require_no_missing_predictions": true,
+            "require_train_test_features_match": true,
+            "require_positive_predictions": true,
+            "expected_submission_rows": 1459,
+            "expected_submission_columns": [
+              "Id",
+              "SalePrice"
+            ]
+          },
+          "candidate_model_count": 4
+        }
+      },
+      {
+        "stage": "submission_generation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv"
+        ],
+        "checks": {
+          "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+          "rows_match": true,
+          "columns_match": true,
+          "missing_predictions": 0,
+          "prediction_columns": [
+            "SalePrice"
+          ],
+          "valid": true,
+          "positive_predictions": true,
+          "prediction_min": 37013.758431,
+          "prediction_max": 616964.81093,
+          "prediction_mean": 178044.941512
+        }
+      },
+      {
+        "stage": "report_and_review",
+        "owner_role": "Evidence/Summarizer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx"
+        ],
+        "checks": {
+          "report_grounded_in_outputs": true,
+          "post_scaffold_written": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+          "local_gate_expected": true
+        }
+      }
+    ],
+    "all_stages_passed": true,
+    "failed_stages": [],
+    "next_actions": [
+      "Configure Kaggle API token before official download/submission.",
+      "Use this generic workflow as the baseline for additional teacher-provided tabular datasets.",
+      "Keep GPU/server work disabled until a task has a clear compute benefit."
+    ]
+  },
+  "accepted": true,
+  "thresholds": {
+    "max_cv_rmsle": 0.18,
+    "max_holdout_rmsle": 0.2,
+    "require_submission_schema_valid": true,
+    "require_no_missing_predictions": true,
+    "require_train_test_features_match": true,
+    "require_positive_predictions": true,
+    "expected_submission_rows": 1459,
+    "expected_submission_columns": [
+      "Id",
+      "SalePrice"
+    ]
+  },
+  "outputs": {
+    "submission": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+    "scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+    "scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+    "post_scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+    "post_scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+    "report": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+    "report_docx": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+    "stage_audit": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+    "stage_audit_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md"
+  }
+}

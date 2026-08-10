@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import inspect
+import importlib.util
 import json
 import subprocess
 import sys
@@ -275,18 +276,10 @@ def test_source_local_training_commands_fail_closed(
     assert not (tmp_path / "never-created").exists()
 
 
-@pytest.mark.parametrize(
-    "relative",
-    [
-        "scripts/verify_launch_resource_readiness.py",
-        "scripts/verify_training_optimization_readiness.py",
-        "scripts/verify_final_two_resource_blockers.py",
-    ],
-)
-def test_legacy_local_readiness_commands_cannot_pass_release_gate(relative: str) -> None:
+def test_training_readiness_reports_local_evidence_without_claiming_release() -> None:
     root = Path(__file__).resolve().parents[1]
     completed = subprocess.run(
-        [sys.executable, str(root / relative)],
+        [sys.executable, str(root / "scripts/verify_training_optimization_readiness.py")],
         cwd=root,
         text=True,
         capture_output=True,
@@ -294,9 +287,208 @@ def test_legacy_local_readiness_commands_cannot_pass_release_gate(relative: str)
     )
 
     payload = json.loads(completed.stdout)
-    assert completed.returncode == 1
-    assert payload["overall_status"] == "blocked_hpc_runtime_verification_required"
-    assert payload["legacy_local_evidence"] == "not_release_readiness"
+    assert completed.returncode == 0
+    assert payload["overall_status"] == "passed"
+    assert payload["completion_rate_percent"] == 100.0
+    assert payload["ready_task_count"] == payload["required_task_count"] == 3
+    assert "release" not in payload
+
+
+def test_final_two_resource_gate_accepts_strict_hpc_evidence() -> None:
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "verify_final_two_resource_blockers_contract",
+        root / "scripts/verify_final_two_resource_blockers.py",
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    launch = {
+        "external_resources": {
+            "code_agent": {"configured": True, "missing_keys": []},
+            "gpu_ssh_gateway": {"configured": False, "missing_keys": []},
+            "hpc_gpu_strict_runtime": {
+                "configured": True,
+                "state": "strict_hpc_runtime_verified",
+                "missing_keys": [],
+            },
+            "kaggle_official_api_optional": {"missing_keys": []},
+        }
+    }
+    assert module.blocker_groups_from_launch(launch) == []
+
+
+def _load_launch_resource_module(root: Path):
+    spec = importlib.util.spec_from_file_location(
+        "verify_launch_resource_readiness",
+        root / "scripts" / "verify_launch_resource_readiness.py",
+    )
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_job90948_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, tamper_smoke: bool = False, direct_gateway: bool = False) -> Path:
+    root = tmp_path / "repo"
+    hpc = root / "workspace" / "hpc"
+    hpc.mkdir(parents=True)
+    appdata = tmp_path / "appdata"
+    profile_dir = appdata / "ResearchAgentWorkstation" / "profiles" / "job90948"
+    profile_dir.mkdir(parents=True)
+    monkeypatch.setenv("APPDATA", str(appdata))
+    monkeypatch.setenv("EVOMIND_HPC_CREDENTIAL_PROFILE", "job90948")
+
+    metadata = {
+        "schema": "evomind.hpc.dpapi_profile.v2",
+        "credential_profile": "job90948",
+        "profile_state": "active",
+        "job_id": 90948,
+        "host": "10.120.18.240" if direct_gateway else "100.85.169.63",
+        "port": 6988 if direct_gateway else 1235,
+        "socks_host": "127.0.0.1",
+        "socks_port": 7890,
+        "remote_workspace": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+        "expected_host_uuid": "c5a13e3d9f534a35b7964f28501a404f",
+        "expected_gpu_uuid": "GPU-acca073d-419d-3cc8-d15f-9d8fd72e6a96",
+        "container_binding_sha256": "fixture-binding",
+        "allocation_inner_endpoint": "10.120.18.240:6988",
+    }
+    (profile_dir / "hpc_ssh_metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    readiness = {
+        "schema": "evomind.hpc.profile_readiness.v1",
+        "profile": "job90948",
+        "status": "ready",
+        "failed_checks": [],
+        "details": {
+            "profile": "job90948",
+            "job_id": 90948,
+            "gateway_host": "100.85.169.63",
+            "gateway_port": 1235,
+            "socks_host": "127.0.0.1",
+            "socks_port": 7890,
+            "remote_workspace": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+        },
+    }
+    (hpc / "job90948_profile_readiness_current.json").write_text(json.dumps(readiness), encoding="utf-8")
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    collection = {
+        "profile": "job90948",
+        "job_id": 90948,
+        "run_id": "job90948-driver-test",
+        "remote_run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_job90948_smoke/job90948-driver-test",
+        "identity_gate": {
+            "job_id": 90948,
+            "credential_profile": "job90948",
+            "host_uuid": "c5a13e3d9f534a35b7964f28501a404f",
+            "gpu_uuids": ["GPU-acca073d-419d-3cc8-d15f-9d8fd72e6a96"],
+            "gpu_name": "NVIDIA A800-SXM4-80GB",
+            "gpu_memory_total_mib": 81920,
+            "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+            "designated_proxy_path_verified": True,
+            "pinned_host_key_verified": True,
+            "job_container_verified": True,
+        },
+        "gpu_smoke": {
+            "status": "passed",
+            "job_id": 90948,
+            "credential_profile": "job90948",
+            "device_name": "NVIDIA A800-SXM4-80GB",
+            "gpu_uuid": "GPU-acca073d-419d-3cc8-d15f-9d8fd72e6a96",
+            "remote_write_boundary_ok": True,
+            "residual_running_processes": 0,
+            "training_started": tamper_smoke,
+            "signals_sent": 0,
+            "other_processes_modified": False,
+            "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_job90948_smoke/job90948-driver-test",
+        },
+        "signals_sent": 0,
+        "other_processes_modified": False,
+    }
+    collection_path = evidence / "collection.json"
+    collection_path.write_text(json.dumps(collection), encoding="utf-8")
+    for name in ("gpu_smoke.json", "container_identity.json"):
+        (evidence / name).write_text(json.dumps({"ok": True}), encoding="utf-8")
+    (evidence / "nvidia_smi_samples.jsonl").write_text("{}\n{}\n{}\n{}\n{}\n", encoding="utf-8")
+
+    import hashlib
+
+    def digest(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
+    pointer = {
+        "schema": "evomind.hpc.bounded_smoke_pointer.v1",
+        "profile": "job90948",
+        "job_id": 90948,
+        "evidence_root": str(evidence),
+        "collection_path": str(collection_path),
+        "collection_sha256": digest(collection_path),
+        "required_files": {
+            "gpu_smoke.json": digest(evidence / "gpu_smoke.json"),
+            "nvidia_smi_samples.jsonl": digest(evidence / "nvidia_smi_samples.jsonl"),
+            "container_identity.json": digest(evidence / "container_identity.json"),
+        },
+    }
+    (hpc / "job90948_bounded_smoke_current.json").write_text(json.dumps(pointer), encoding="utf-8")
+    return root
+
+
+def test_launch_resource_strict_hpc_runtime_accepts_profile_probe_and_bounded_smoke(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    module = _load_launch_resource_module(repo_root)
+    fixture_root = _write_job90948_fixture(tmp_path, monkeypatch)
+
+    status = module.strict_hpc_runtime_status(
+        fixture_root,
+        live_probe=lambda profile, job_id, samples: {
+            "ok": True,
+            "status": "job_container_verified",
+            "job_container_verified": True,
+            "samples_passed": 5,
+            "signals_sent": 0,
+            "other_processes_modified": False,
+        },
+    )
+
+    assert status["configured"] is True
+    assert status["bounded_smoke"]["status"] == "passed"
+
+
+@pytest.mark.parametrize("case", ["tampered_smoke", "direct_gateway", "legacy_only"])
+def test_launch_resource_strict_hpc_runtime_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str) -> None:
+    repo_root = Path(__file__).resolve().parents[1]
+    module = _load_launch_resource_module(repo_root)
+    if case == "legacy_only":
+        fixture_root = tmp_path / "repo"
+        (fixture_root / "workspace" / "hpc").mkdir(parents=True)
+        (fixture_root / "workspace" / "hpc" / "web_terminal_probe.txt").write_text("NVIDIA A800 " * 4, encoding="utf-8")
+        monkeypatch.setenv("APPDATA", str(tmp_path / "missing-appdata"))
+    else:
+        fixture_root = _write_job90948_fixture(
+            tmp_path,
+            monkeypatch,
+            tamper_smoke=case == "tampered_smoke",
+            direct_gateway=case == "direct_gateway",
+        )
+
+    status = module.strict_hpc_runtime_status(
+        fixture_root,
+        live_probe=lambda profile, job_id, samples: {
+            "ok": True,
+            "status": "job_container_verified",
+            "job_container_verified": True,
+            "samples_passed": 5,
+            "signals_sent": 0,
+            "other_processes_modified": False,
+        },
+    )
+
+    assert status["configured"] is False
+    assert status["state"] == "blocked_hpc_runtime_verification_required" or status["state"] == "no_active_named_dpapi_profile"
+    assert status.get("secrets_returned") is not True
 
 
 def test_built_wheel_public_surfaces_cannot_execute_local_training(tmp_path: Path) -> None:

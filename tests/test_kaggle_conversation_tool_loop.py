@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 
 from research_os.agent import messaging
 from xsci import kaggle_conversation
@@ -19,6 +20,8 @@ def _openai_only(monkeypatch) -> None:
         "DEEPSEEK_API_KEY",
         "DEEPSEEK_API_KEY_FILE",
         "OPENAI_API_KEY_FILE",
+        "OPENAI_SERVICE_TIER",
+        "OPENAI_REASONING_EFFORT",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("OPENAI_API_KEY", "gateway-test-key-not-logged")
@@ -319,6 +322,175 @@ def test_hpc_connection_status_blocks_gateway_only_false_positive(monkeypatch, t
     assert result["boundaries"]["signals_sent"] == 0
 
 
+def test_live_hpc_probe_isolates_named_profile_from_legacy_env(monkeypatch):
+    from research_agent_workstation.server.core import gpu_credentials
+
+    observed = {}
+
+    class FakeClient:
+        def close(self):
+            observed["closed"] = True
+
+    def fake_load(*, strict_named_profile=False):
+        observed["strict"] = strict_named_profile
+        observed["profile"] = os.environ.get("EVOMIND_HPC_CREDENTIAL_PROFILE")
+        observed["legacy_present"] = any(
+            name in os.environ for name in gpu_credentials.STRICT_NAMED_PROFILE_OVERRIDE_KEYS
+        )
+        return object()
+
+    monkeypatch.setattr(gpu_credentials, "load_gpu_ssh_config", fake_load)
+    monkeypatch.setattr(gpu_credentials, "connect_ssh", lambda config, timeout=30: FakeClient())
+    monkeypatch.setattr(gpu_credentials, "verify_job_container_identity", lambda client, config, expected_job_id: {
+        "job_container_verified": True,
+        "gpu_name": "fixture-gpu",
+        "gpu_memory_total_mib": 81920,
+        "read_only": True,
+    })
+    monkeypatch.setenv("EVOMIND_HPC_CREDENTIAL_PROFILE", "previous-profile")
+    monkeypatch.setenv("GPU_SSH_HOST", "legacy.example")
+    monkeypatch.setenv("GPU_SSH_PASSWORD", "legacy-secret")
+
+    result = terminal_tools._live_hpc_connection_probe("job90948", 90948, sample_count=2)
+
+    assert result["ok"] is True
+    assert result["samples_passed"] == 2
+    assert observed == {
+        "strict": True,
+        "profile": "job90948",
+        "legacy_present": False,
+        "closed": True,
+    }
+    assert os.environ["EVOMIND_HPC_CREDENTIAL_PROFILE"] == "previous-profile"
+    assert os.environ["GPU_SSH_HOST"] == "legacy.example"
+    assert os.environ["GPU_SSH_PASSWORD"] == "legacy-secret"
+
+
+def test_live_hpc_probe_reconnects_after_transient_eof(monkeypatch):
+    from research_agent_workstation.server.core import gpu_credentials
+
+    connect_calls = []
+    closed = []
+    sleeps = []
+
+    class FakeClient:
+        def __init__(self, attempt):
+            self.attempt = attempt
+
+        def close(self):
+            closed.append(self.attempt)
+
+    def fake_connect(config, timeout=30):
+        attempt = len(connect_calls) + 1
+        connect_calls.append(attempt)
+        return FakeClient(attempt)
+
+    def fake_verify(client, config, expected_job_id):
+        if client.attempt == 1:
+            raise EOFError()
+        return {
+            "job_container_verified": True,
+            "gpu_name": "fixture-gpu",
+            "gpu_memory_total_mib": 81920,
+            "read_only": True,
+        }
+
+    monkeypatch.setattr(gpu_credentials, "load_gpu_ssh_config", lambda **kwargs: object())
+    monkeypatch.setattr(gpu_credentials, "connect_ssh", fake_connect)
+    monkeypatch.setattr(gpu_credentials, "verify_job_container_identity", fake_verify)
+    monkeypatch.setattr(terminal_tools.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    result = terminal_tools._live_hpc_connection_probe("job90948", 90948, sample_count=2)
+
+    assert result["ok"] is True
+    assert result["samples_passed"] == 2
+    assert result["connection_attempts"] == 2
+    assert result["transport_retries"] == 1
+    assert result["remote_commands_attempted"] == 3
+    assert connect_calls == [1, 2]
+    assert closed == [1, 2]
+    assert sleeps == [1.0]
+
+
+def test_live_hpc_probe_does_not_retry_identity_failure(monkeypatch):
+    from research_agent_workstation.server.core import gpu_credentials
+
+    connect_calls = []
+    sleeps = []
+
+    class FakeClient:
+        def close(self):
+            pass
+
+    def fake_connect(config, timeout=30):
+        connect_calls.append(True)
+        return FakeClient()
+
+    def fail_identity(client, config, expected_job_id):
+        raise gpu_credentials.CredentialError("job-container GPU UUID mismatch")
+
+    monkeypatch.setattr(gpu_credentials, "load_gpu_ssh_config", lambda **kwargs: object())
+    monkeypatch.setattr(gpu_credentials, "connect_ssh", fake_connect)
+    monkeypatch.setattr(gpu_credentials, "verify_job_container_identity", fail_identity)
+    monkeypatch.setattr(terminal_tools.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    result = terminal_tools._live_hpc_connection_probe("job90948", 90948, sample_count=1)
+
+    assert result["ok"] is False
+    assert result["connection_attempts"] == 1
+    assert result["transport_retries"] == 0
+    assert result["error_type"] == "CredentialError"
+    assert connect_calls == [True]
+    assert sleeps == []
+
+
+def test_gpu_status_prefers_matching_strict_release_evidence(monkeypatch, tmp_path):
+    appdata = tmp_path / "AppData"
+    profile_dir = appdata / "ResearchAgentWorkstation" / "profiles" / "job90948"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "hpc_ssh_metadata.json").write_text(json.dumps({
+        "credential_profile": "job90948",
+        "job_id": 90948,
+        "profile_state": "active",
+        "socks_host": "127.0.0.1",
+        "socks_port": 7890,
+    }), encoding="utf-8")
+    report_dir = tmp_path / "docs"
+    report_dir.mkdir()
+    (report_dir / "launch_resource_readiness.json").write_text(json.dumps({
+        "strict_hpc_runtime_status": "ready",
+        "external_resources": {
+            "hpc_gpu_strict_runtime": {
+                "state": "strict_hpc_runtime_verified",
+                "profile": {"profile": "job90948", "job_id": 90948},
+                "live_probe": {
+                    "job_container_verified": True,
+                    "samples_passed": 5,
+                    "samples": [{"gpu_name": "fixture-gpu"}],
+                },
+                "bounded_smoke": {"status": "passed"},
+            }
+        },
+    }), encoding="utf-8")
+    monkeypatch.setenv("APPDATA", str(appdata))
+    monkeypatch.setattr(terminal_tools, "_loopback_port_listening", lambda host, port: True)
+    session = SessionState(
+        workspace_root=str(tmp_path),
+        gpu_ready=True,
+        gpu_status="configured_channels_closed",
+        gpu_blocker="legacy blocker",
+        gpu_blocked=True,
+    )
+
+    result = terminal_tools.inspect_gpu_status(session, tmp_path)
+
+    assert result["blocked"] is False
+    assert result["can_execute_gpu"] is True
+    assert result["manifest_status"] == "strict_hpc_runtime_verified"
+    assert result["strict_hpc_evidence"]["profile"] == "job90948"
+    assert result["strict_hpc_evidence"]["samples_passed"] == 5
+
+
 def test_verified_context_tool_returns_hashed_current_run_deliverables(tmp_path):
     run_id = "evomind_siim_isic_a800_job90353_20260730_095826"
     run_dir = tmp_path / "workspace" / "evomind_runs" / run_id
@@ -419,6 +591,164 @@ def test_verified_context_tool_returns_hashed_current_run_deliverables(tmp_path)
     assert projected["deliverables"][0]["sha256"] == digest
 
 
+def test_verified_context_does_not_mix_current_run_from_another_task(tmp_path):
+    run_id = "siim_run"
+    run_dir = tmp_path / "workspace" / "evomind_runs" / run_id
+    run_dir.mkdir(parents=True)
+    (tmp_path / "workspace" / "current_run.json").write_text(json.dumps({
+        "schema": "evomind.current_run.v1",
+        "task_id": "siim-isic-melanoma-classification",
+        "run_id": run_id,
+        "run_dir": f"workspace/evomind_runs/{run_id}",
+        "status": "completed",
+    }), encoding="utf-8")
+    (run_dir / "run.json").write_text(json.dumps({
+        "run_id": run_id,
+        "task_id": "siim-isic-melanoma-classification",
+        "status": "completed",
+        "tasks": {},
+        "gates": {},
+    }), encoding="utf-8")
+    session = SessionState(
+        workspace_root=str(tmp_path),
+        selected_task="tabular-playground-series-dec-2021",
+    )
+
+    summary_result, summary_ok = kaggle_conversation._execute_agent_tool_call(
+        "verified_context", {"section": "summary"}, session, web_safe=True,
+    )
+    summary = json.loads(summary_result)
+    metrics_result, metrics_ok = kaggle_conversation._execute_agent_tool_call(
+        "verified_context", {"section": "metrics"}, session, web_safe=True,
+    )
+    metrics = json.loads(metrics_result)
+
+    assert summary_ok is True
+    assert summary["selected_task"] == "tabular-playground-series-dec-2021"
+    assert summary["run_id"] is None
+    assert summary["data"]["task_label"] == "tabular-playground-series-dec-2021"
+    assert summary["data"]["current_run_matches_selected_task"] is False
+    assert metrics_ok is True
+    assert metrics["run_id"] is None
+    assert metrics["data"]["available"] is False
+    assert metrics["data"]["reason"] == "no_metrics_for_selected_task_in_current_run"
+
+
+def test_verified_context_resolves_task_bound_historical_run_and_literature(tmp_path):
+    current_id = "wr_titanic_current"
+    current_dir = tmp_path / "workspace" / "evomind_runs" / current_id
+    current_dir.mkdir(parents=True)
+    (tmp_path / "workspace" / "current_run.json").write_text(json.dumps({
+        "schema": "evomind.current_run.v1",
+        "task_id": "titanic",
+        "run_id": current_id,
+        "run_dir": f"workspace/evomind_runs/{current_id}",
+        "status": "COMPLETED",
+    }), encoding="utf-8")
+    (current_dir / "run.json").write_text(json.dumps({
+        "run_id": current_id,
+        "task_id": "titanic",
+        "status": "COMPLETED",
+        "tasks": {},
+        "gates": {},
+    }), encoding="utf-8")
+
+    task_id = "siim-isic-melanoma-classification"
+    historical_id = "evomind_siim_isic_a800_job90353_20260730_095826"
+    historical_dir = tmp_path / "workspace" / "evomind_runs" / historical_id
+    historical_dir.mkdir(parents=True)
+    (historical_dir / "run.json").write_text(json.dumps({
+        "run_id": historical_id,
+        "status": "completed",
+        "tasks": {},
+        "gates": {},
+    }), encoding="utf-8")
+    (historical_dir / "artifact_manifest.json").write_text(json.dumps({
+        "schema": "evomind.siim.artifact_manifest.v1",
+        "run_id": historical_id,
+        "task_id": task_id,
+        "status": "verified",
+        "artifacts": [],
+    }), encoding="utf-8")
+    (historical_dir / "metrics.json").write_text(json.dumps({
+        "roc_auc": 0.9225357247684676,
+        "pr_auc": 0.23970933285011597,
+        "brier": 0.29524735217259324,
+    }), encoding="utf-8")
+    rag_dir = tmp_path / "workspace" / "tasks" / task_id / "rag"
+    rag_dir.mkdir(parents=True)
+    (rag_dir / "context_2026-08-06T05-43-56-445Z.json").write_text(json.dumps({
+        "task_id": task_id,
+        "query": "SIIM ISIC melanoma",
+        "integrity": {"external_verified": 2, "fabricated": 0},
+        "papers": [
+            {
+                "title": "Patient-contextual melanoma diagnosis",
+                "year": "2024",
+                "source": "crossref",
+                "doi": "10.1111/jdv.20479",
+                "url": "https://doi.org/10.1111/jdv.20479",
+            },
+            {
+                "title": "Deep learning in medical image analysis",
+                "year": "2021",
+                "source": "crossref",
+                "doi": "10.1016/j.media.2021.102305",
+                "url": "https://doi.org/10.1016/j.media.2021.102305",
+            },
+        ],
+    }), encoding="utf-8")
+    session = SessionState(workspace_root=str(tmp_path), selected_task=task_id)
+
+    metrics_result, metrics_ok = kaggle_conversation._execute_agent_tool_call(
+        "verified_context", {"section": "metrics"}, session, web_safe=True,
+    )
+    literature_result, literature_ok = kaggle_conversation._execute_agent_tool_call(
+        "verified_context", {"section": "literature"}, session, web_safe=True,
+    )
+    metrics = json.loads(metrics_result)
+    literature = json.loads(literature_result)
+
+    assert metrics_ok is True
+    assert metrics["run_id"] == historical_id
+    assert metrics["run_status"] == "completed"
+    assert metrics["data"]["metrics"]["roc_auc"] == 0.9225357247684676
+    assert metrics["data"]["metrics"]["pr_auc"] == 0.23970933285011597
+    assert metrics["data"]["metrics"]["brier"] == 0.29524735217259324
+    assert literature_ok is True
+    assert literature["run_id"] == historical_id
+    assert [item["doi"] for item in literature["data"]["literature"]["papers"]] == [
+        "10.1111/jdv.20479",
+        "10.1016/j.media.2021.102305",
+    ]
+
+
+def test_runtime_tool_paths_resolve_from_active_project_inside_wider_root(tmp_path):
+    agent_root = tmp_path / "desktop"
+    project_root = agent_root / "codex" / "科研港科技"
+    report = project_root / "video-production" / "report.json"
+    report.parent.mkdir(parents=True)
+    report.write_text("{}", encoding="utf-8")
+
+    resolved = kaggle_conversation._project_relative_runtime_tool_input(
+        {
+            "path": "video-production/report.json",
+            "source": "video-production/report.json",
+            "destination": "video-production/report-copy.json",
+            "cwd": "video-production",
+        },
+        agent_root=agent_root,
+        project_root=project_root,
+    )
+
+    assert resolved == {
+        "path": "codex/科研港科技/video-production/report.json",
+        "source": "codex/科研港科技/video-production/report.json",
+        "destination": "codex/科研港科技/video-production/report-copy.json",
+        "cwd": "codex/科研港科技/video-production",
+    }
+
+
 def test_scientist_turn_artifact_persists_native_llm_evidence(tmp_path):
     evidence = {
         "native_tool_loop": True,
@@ -474,7 +804,9 @@ def test_web_agent_system_prompt_uses_novice_codex_style_protocol(monkeypatch, t
         assert "house_prices" not in wire
         assert "SalePrice" not in wire
         if len(payloads) == 1:
-            assert {tool["function"]["name"] for tool in payload["tools"]} == {"verified_context"}
+            assert {tool["function"]["name"] for tool in payload["tools"]} == (
+                set(kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES) | {"verified_context"}
+            )
             assert "[RESPONSE COMPLETION CONTRACT]" in wire
             assert "[WEB REQUEST COMPILER" in wire
             assert "[DISTILLED INTERACTION BEHAVIOURS" in wire
@@ -538,7 +870,9 @@ def test_web_agent_orchestrator_prefetches_required_evidence_before_llm(monkeypa
         wire = json.dumps(payload, ensure_ascii=False)
         assert "[ORCHESTRATED VERIFIED CONTEXT" in wire
         assert "verified_run" in wire
-        assert payload["tools"] == []
+        assert {tool["function"]["name"] for tool in payload["tools"]} == set(
+            kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES
+        )
         return {
             "model": "gpt-5.6-sol",
             "choices": [{
@@ -643,30 +977,19 @@ def test_web_request_compiler_marks_followup_and_only_expands_explicit_artifacts
     assert "evomind-siim-isic-report.pdf" in artifact_payload["requested_outputs"]
 
 
-def test_web_tool_specs_are_narrowed_by_current_user_intent():
+def test_web_tool_specs_keep_core_agent_tools_and_focus_research_tools():
     specs = kaggle_conversation._terminal_tool_specs()
     select = kaggle_conversation._web_tool_specs_for_user
+    core = set(kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES) | {"verified_context"}
 
-    assert {item.name for item in select("解释上次 SIIM 结果", specs)} == {"verified_context"}
-    assert {item.name for item in select("这些结果参考了哪些论文 DOI？", specs)} == {
-        "verified_context",
-        "literature_search",
+    assert {item.name for item in select("解释上次 SIIM 结果", specs)} == core
+    assert {item.name for item in select("这些结果参考了哪些论文 DOI？", specs)} == core | {"literature_search"}
+    assert {item.name for item in select("检查 GPU 和系统状态", specs)} == core | {"gpu_status", "system_status"}
+    assert {item.name for item in select("job90948 链接了吗？", specs)} == core | {"hpc_connection_status"}
+    assert {item.name for item in select("给我创新假设和下一步", specs)} == core | {
+        "scientist_innovation_backlog", "scientist_hypothesis_review", "scientist_experiment_blueprint",
     }
-    assert {item.name for item in select("检查 GPU 和系统状态", specs)} == {
-        "verified_context",
-        "gpu_status",
-        "system_status",
-    }
-    assert {item.name for item in select("给我创新假设和下一步", specs)} == {
-        "verified_context",
-        "scientist_innovation_backlog",
-        "scientist_hypothesis_review",
-        "scientist_experiment_blueprint",
-    }
-    assert {item.name for item in select("系统当前阻塞和下一安全动作是什么？", specs)} == {
-        "verified_context",
-        "next_steps",
-    }
+    assert {item.name for item in select("系统当前阻塞和下一安全动作是什么？", specs)} == core | {"next_steps"}
     preferred = kaggle_conversation._preferred_verified_context_section
     assert preferred("解释上次实验结果和 ROC-AUC") == "metrics"
     assert preferred("上次 SIIM 实验能说明什么，有哪些真实证据？") == "metrics"

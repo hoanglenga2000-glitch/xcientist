@@ -1,0 +1,171 @@
+{
+  "schema": "evomind.spooky.deberta_oof_frozen_plan.v2",
+  "created_at": "2026-07-27T06:36:24.436960+08:00",
+  "status": "superseded_before_training",
+  "competition_id": "spooky-author-identification",
+  "driver": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "research_plan": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_deberta_oof_recovery_research_20260727.json",
+    "research_plan_sha256": "0617113f3552b021f5a6d43ee08ab9f3af2b4b588f730326f6ec195afdfd5d46"
+  },
+  "public_data_only": true,
+  "private_labels_used": false,
+  "official_grader_feedback_allowed": false,
+  "source": {
+    "runner": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_deberta_oof_v2.py",
+      "sha256": "24fd7297b8c9aeef520a4487bff1d25a86f4407c8d8ef76a29cbbe55917b1f41"
+    },
+    "verifier": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_spooky_deberta_oof_v2.py",
+      "sha256": "2f9379c39ac8f9f9977ccdcd713cbc6c667629655c1c7200ca9c99f5017b106a"
+    },
+    "transformer_helper": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_transformer_oof.py",
+      "sha256": "cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22"
+    },
+    "style_features": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_style_features.py",
+      "sha256": "a977f1a5581c28e1658799987f4a8308293ecee717b7619b29d3a24d32f9a47e"
+    },
+    "leakage_free_meta": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_leakage_free_meta.py",
+      "sha256": "063651234a02cad8d60394209ab6de76b775f706cad97c8f5267ec19889609b4"
+    }
+  },
+  "inputs": {
+    "public_train_sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf",
+    "public_test_sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5",
+    "public_sample_submission_sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6",
+    "train_rows": 17621,
+    "test_rows": 1958,
+    "class_order": [
+      "EAP",
+      "HPL",
+      "MWS"
+    ],
+    "duplicate_group_report": {
+      "schema": "evomind.spooky.duplicate_groups.v1",
+      "normalization": "NFKC_lower_word_number_tokens_v1",
+      "rows": 17621,
+      "unique_groups": 17613,
+      "duplicate_groups": 8,
+      "duplicate_rows_beyond_first": 8,
+      "maximum_group_size": 2,
+      "conflicting_label_groups": 0,
+      "folds": 5,
+      "seed": 42,
+      "group_isolation": true
+    }
+  },
+  "model": {
+    "repo_id": "microsoft/deberta-v3-base",
+    "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+    "license": "MIT",
+    "generic_pretrained": true,
+    "task_specific_checkpoint": false,
+    "num_labels": 3,
+    "problem_type": "single_label_classification",
+    "dropout": 0.2
+  },
+  "training": {
+    "seed": 42,
+    "folds": 5,
+    "epochs_per_fold": 3,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "max_length": 320,
+    "train_batch_size": 2,
+    "eval_batch_size": 16,
+    "gradient_accumulation_steps": 16,
+    "effective_batch_size": 32,
+    "learning_rate": 2e-05,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "schedule": "cosine",
+    "gradient_checkpointing": true,
+    "mixed_precision": "bf16",
+    "max_grad_norm": 1.0,
+    "num_workers": 0,
+    "tf32": true,
+    "checkpoint_selection_uses_outer_fold": false
+  },
+  "sparse_channel": {
+    "model": "fold_local_joint_word_char_style_multinomial_logistic",
+    "word_ngram_range": [
+      1,
+      3
+    ],
+    "char_analyzer": "char",
+    "char_ngram_range": [
+      2,
+      6
+    ],
+    "min_df": 2,
+    "max_df": 0.995,
+    "word_max_features": 60000,
+    "char_max_features": 120000,
+    "style_features": 28,
+    "style_scaler_fit_scope": "outer_fit_rows_only",
+    "c_value": 4.0,
+    "max_iter": 800,
+    "fit_scope": "outer_fit_rows_only"
+  },
+  "meta": {
+    "model": "cross_fit_regularized_multinomial_logistic_regression",
+    "components": [
+      "transformer",
+      "sparse"
+    ],
+    "raw_style_features": 28,
+    "c_value": 0.3,
+    "max_iter": 2000,
+    "fit_scope": "all_other_oof_folds_only",
+    "score_scope": "held_outer_fold_only",
+    "test_aggregation": "corresponding_fold_base_features_then_average",
+    "exact_once_oof_required": true
+  },
+  "promotion_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "bronze_threshold_reference": 0.29381,
+    "single_seed_log_loss_threshold": 0.292,
+    "single_seed_only_is_not_promotable": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "three_seed_mean_threshold": 0.285,
+    "maximum_individual_seed_log_loss": 0.315,
+    "official_medal_claim_requires_private_grader": true
+  },
+  "execution": {
+    "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "platform_mode": "Windows_WDDM",
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_deberta_oof_v2.py",
+    "verifier": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_spooky_deberta_oof_v2.py",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_v2\\runs",
+    "run_id": "local4060_spooky_deberta_v2_s42_20260727_0636",
+    "hf_cache": "D:\\EvoMindCache\\huggingface\\hub",
+    "save_fold_models": false,
+    "idle_gate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1"
+    },
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_minimum_interval_seconds": 10,
+    "single_gpu_strict_serial": true,
+    "preemption_allowed": false,
+    "process_signals_allowed": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "coordination": "existing SIIM/Leaf/May queues must observe Python CUDA and remain waiting while this run is active"
+  },
+  "claim_boundary": "Frozen public-data five-fold candidate plan. CV/OOF is not an official MLE-Bench score or medal; official grader and Kaggle submission remain behind the human gate.",
+  "superseded_at": "2026-07-27T06:42:18.664561+08:00",
+  "superseded_reason": "Slow SentencePiece byte-fallback tokenizer fixed before any production execution."
+}

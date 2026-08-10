@@ -1,0 +1,72 @@
+{
+  "train_rows": 1460,
+  "train_columns": 81,
+  "test_rows": 1459,
+  "test_columns": 80,
+  "sample_submission_rows": 1459,
+  "sample_submission_columns": [
+    "Id",
+    "SalePrice"
+  ],
+  "target": "SalePrice",
+  "task_type": "regression",
+  "target_summary": {
+    "summary": {
+      "count": 1460.0,
+      "mean": 180921.1959,
+      "std": 79442.5029,
+      "min": 34900.0,
+      "25%": 129975.0,
+      "50%": 163000.0,
+      "75%": 214000.0,
+      "max": 755000.0
+    },
+    "skew": 1.882876
+  },
+  "duplicate_train_rows": 0,
+  "train_test_feature_columns_match": true,
+  "missing_train_top20": {
+    "PoolQC": 0.9952,
+    "MiscFeature": 0.963,
+    "Alley": 0.9377,
+    "Fence": 0.8075,
+    "MasVnrType": 0.5973,
+    "FireplaceQu": 0.4726,
+    "LotFrontage": 0.1774,
+    "GarageQual": 0.0555,
+    "GarageFinish": 0.0555,
+    "GarageType": 0.0555,
+    "GarageYrBlt": 0.0555,
+    "GarageCond": 0.0555,
+    "BsmtFinType2": 0.026,
+    "BsmtExposure": 0.026,
+    "BsmtCond": 0.0253,
+    "BsmtQual": 0.0253,
+    "BsmtFinType1": 0.0253,
+    "MasVnrArea": 0.0055,
+    "Electrical": 0.0007,
+    "Condition2": 0.0
+  },
+  "missing_test_top20": {
+    "PoolQC": 0.9979,
+    "MiscFeature": 0.965,
+    "Alley": 0.9267,
+    "Fence": 0.8012,
+    "MasVnrType": 0.6127,
+    "FireplaceQu": 0.5003,
+    "LotFrontage": 0.1556,
+    "GarageYrBlt": 0.0535,
+    "GarageCond": 0.0535,
+    "GarageFinish": 0.0535,
+    "GarageQual": 0.0535,
+    "GarageType": 0.0521,
+    "BsmtCond": 0.0308,
+    "BsmtQual": 0.0302,
+    "BsmtExposure": 0.0302,
+    "BsmtFinType1": 0.0288,
+    "BsmtFinType2": 0.0288,
+    "MasVnrArea": 0.0103,
+    "MSZoning": 0.0027,
+    "BsmtHalfBath": 0.0014
+  }
+}

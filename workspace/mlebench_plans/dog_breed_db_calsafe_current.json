@@ -1,0 +1,93 @@
+{
+  "schema": "evomind.dog_breed.db_calsafe_implementation.v1",
+  "created_at": "2026-07-26T21:36:25.982067+08:00",
+  "competition_id": "dog-breed-identification",
+  "status": "verified_fallback_db_stab1_withheld",
+  "deployment_verdict": "NO-GO",
+  "deployment_reason": "DB-CALSAFE two-fold continuation gate failed; the incumbent OOF remains 0.1217518853 and no GPU follow-up is permitted by the pre-registered sequence.",
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+    "sha256": "46414ea83d42d4d9b11ac1d2640298f0047e596c79992f9c7e4c64577fada660",
+    "bytes": 340965
+  },
+  "tests": {
+    "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_mlebench_wave2_adapters.py",
+    "sha256": "58540d1cd288614656e7b6a8d018cd007c41e4db43c957576910b0437bbe96ac",
+    "bytes": 86298
+  },
+  "backup": {
+    "directory": "D:\\桌面\\codex\\科研港科技\\backups\\dog-db-calsafe-20260726-212755",
+    "manifest_path": "D:\\桌面\\codex\\科研港科技\\backups\\dog-db-calsafe-20260726-212755\\backup_manifest.json",
+    "manifest_sha256": "c649caf21a7e61db763a30bd77e5016fcdf3c317ca028751df1b2e6649acb78a"
+  },
+  "implementation_contracts": {
+    "incumbent_safe_teacher_blend": true,
+    "class_bias_family": "softmax(log(p)+b)",
+    "class_bias_sum_zero": true,
+    "fixed_l2_grid": [
+      1.0,
+      10.0,
+      100.0
+    ],
+    "l2_selected_inside_outer_fitting_partition": true,
+    "outer_labels_used_for_outer_fit_or_penalty_selection": false,
+    "final_deployment_parameters_fit_only_after_complete_crossfit": true,
+    "fallback_preserves_incumbent_bit_for_bit": true,
+    "private_labels_used": false
+  },
+  "evaluation": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\db_calsafe\\dog_breed_s42_20260726_213302\\db_calsafe_report.json",
+    "sha256": "bea67fedd85bddc4be8c8388aeb9ce0d1a2985aec18f34a7ac9a6b088a5e20c9",
+    "bytes": 10390,
+    "runtime_seconds": 3.205017100000987,
+    "incumbent_oof_log_loss": 0.12175188531885912,
+    "selected_oof_log_loss": 0.12175188531885912,
+    "selected_equals_incumbent_bit_for_bit": true,
+    "continuation_gate": {
+      "weighted_candidate_log_loss_threshold": 0.06,
+      "minimum_weighted_improvement": 0.005,
+      "maximum_per_fold_degradation": 0.002,
+      "weighted_candidate_log_loss": 0.12017527871630025,
+      "weighted_improvement": 0.0010161039645941589,
+      "observed_maximum_fold_degradation": 0.0005534171608505695,
+      "passed": false
+    },
+    "next_gpu_action": "db_stab1_withheld",
+    "official_grader_executed": false
+  },
+  "validation": {
+    "py_compile": "passed",
+    "ruff": "passed",
+    "focused_dog_tests": {
+      "passed": 8,
+      "failed": 0
+    },
+    "wave2_suite": {
+      "status": "passed",
+      "skipped_without_torch": 4
+    },
+    "full_ci": {
+      "status": "passed",
+      "gates": "4/4",
+      "tests_collected": 1069,
+      "imports_clean": 155,
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\dog_db_calsafe_full_ci_20260726_213341.log",
+      "sha256": "eb99273dd42cd5cc3b5f6780b5dc31ee3c401d65568199d215b27b665fe98fa2",
+      "bytes": 888,
+      "process_priority": "BelowNormal"
+    }
+  },
+  "resource_state": {
+    "local_rtx4060_training_started": false,
+    "process_signals_sent": false,
+    "a800_lane_untouched": true
+  },
+  "official_ledger": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_progress\\lite11_current.json",
+    "sha256": "f9bb37fd63b28f5345ea45c575f8e9125df060da4d2489f09c96607fc12d0a8a",
+    "official_scored": 20,
+    "official_medals": 13,
+    "target_medals": 18,
+    "medal_deficit": 5
+  }
+}

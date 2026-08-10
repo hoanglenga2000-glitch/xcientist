@@ -1,0 +1,182 @@
+{
+  "approved": false,
+  "automatic_approval": false,
+  "checks": {
+    "approval_template_unapproved": true,
+    "candidate_csv_hash_verified": true,
+    "candidate_result_matches_regrade_contract": true,
+    "frozen_candidate_manifest_bound": true,
+    "independent_verification_hash_verified": true,
+    "independent_verification_passed": true,
+    "package_manifest_hashes_verified": true,
+    "package_verification_hashes_verified": true,
+    "public_submission_schema_and_ids_valid": true,
+    "source_confirmation_gate_passed": true
+  },
+  "competition_id": "spooky-author-identification",
+  "created_at": "2026-07-27T23:43:14.973390+08:00",
+  "kaggle_submission_executed": false,
+  "network_accessed": false,
+  "official_grader_executed": false,
+  "private_labels_used": false,
+  "process_signals_sent": 0,
+  "public_submission_validation": {
+    "candidate": {
+      "bytes": 136216,
+      "name": "candidate_submission_withheld.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\candidate_submission_withheld.csv",
+      "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    },
+    "columns": [
+      "id",
+      "EAP",
+      "HPL",
+      "MWS"
+    ],
+    "errors": [],
+    "maximum_probability": 0.9984319312916726,
+    "minimum_probability": 0.0006927938288761264,
+    "prediction_columns": 3,
+    "private_labels_used": false,
+    "rows": 1958,
+    "sample_submission": {
+      "bytes": 121411,
+      "name": "sample_submission.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\sample_submission.csv",
+      "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+    },
+    "schema": "evomind.mlebench_lite.public_submission_validation.v1",
+    "valid": true
+  },
+  "run_id": "hg_spooky_crossrun_xgb_v1_20260727",
+  "schema": "evomind.mlebench_lite.human_gate_staging_verification.v1",
+  "source_package": {
+    "files": [
+      {
+        "bytes": 545,
+        "copied_as_submission": false,
+        "name": "README.md",
+        "sha256": "2e087b27446fbb65dd604142383b366a1e3df8f9039ad671554ef45ffd51a922",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\README.md",
+        "staged_path": "spooky-author-identification/source_package/README.md"
+      },
+      {
+        "bytes": 136216,
+        "copied_as_submission": true,
+        "name": "candidate_submission_withheld.csv",
+        "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\candidate_submission_withheld.csv",
+        "staged_path": "spooky-author-identification/submission.csv"
+      },
+      {
+        "bytes": 3307,
+        "copied_as_submission": false,
+        "name": "frozen_plan.json",
+        "sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\frozen_plan.json",
+        "staged_path": "spooky-author-identification/source_package/frozen_plan.json"
+      },
+      {
+        "bytes": 1203,
+        "copied_as_submission": false,
+        "name": "independent_verification.json",
+        "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\independent_verification.json",
+        "staged_path": "spooky-author-identification/source_package/independent_verification.json"
+      },
+      {
+        "bytes": 2649,
+        "copied_as_submission": false,
+        "name": "manifest.json",
+        "sha256": "f59b15cb7674391668e9e5a548893bee07292296b0c796b06594df8968b28057",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\manifest.json",
+        "staged_path": "spooky-author-identification/source_package/manifest.json"
+      },
+      {
+        "bytes": 1106,
+        "copied_as_submission": false,
+        "name": "package_verification.json",
+        "sha256": "fd82525cf8dac993723c4943f4236ceea0a8537b3bbe86a4572715aff2024b85",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\package_verification.json",
+        "staged_path": "spooky-author-identification/source_package/package_verification.json"
+      },
+      {
+        "bytes": 4988,
+        "copied_as_submission": false,
+        "name": "spooky_cross_run_xgb_confirmation_result.json",
+        "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\spooky_cross_run_xgb_confirmation_result.json",
+        "staged_path": "spooky-author-identification/source_package/spooky_cross_run_xgb_confirmation_result.json"
+      }
+    ],
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727"
+  },
+  "staged_files": [
+    {
+      "bytes": 882,
+      "path": "approvals/spooky-author-identification.approval_template.json",
+      "sha256": "49cd1666bdaf846af9fe13a3210befd4f7af222ffe552c72ac47640c37ea2f27"
+    },
+    {
+      "bytes": 467,
+      "path": "checkpoint.json",
+      "sha256": "287a1ce1b1c458dc1b9366da4505d9b5c6e26453869c7d23192076adeee5432f"
+    },
+    {
+      "bytes": 767,
+      "path": "results_current.json",
+      "sha256": "63f4de4877423c3a0e4c855020fb98fe067b2aed47c97d60a3022fbbaa33cf29"
+    },
+    {
+      "bytes": 5398,
+      "path": "spooky-author-identification/frozen_candidate_manifest.json",
+      "sha256": "e60b5f0f1eba02d98568d9882bab8f6adfdfada8fbd801cf337406d5a11c783a"
+    },
+    {
+      "bytes": 3482,
+      "path": "spooky-author-identification/result.json",
+      "sha256": "161a21130ce023c6e8d01c8f000d1f8bee7bbad2a3ebb520493cd4acef514833"
+    },
+    {
+      "bytes": 545,
+      "path": "spooky-author-identification/source_package/README.md",
+      "sha256": "2e087b27446fbb65dd604142383b366a1e3df8f9039ad671554ef45ffd51a922"
+    },
+    {
+      "bytes": 3307,
+      "path": "spooky-author-identification/source_package/frozen_plan.json",
+      "sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1"
+    },
+    {
+      "bytes": 1203,
+      "path": "spooky-author-identification/source_package/independent_verification.json",
+      "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed"
+    },
+    {
+      "bytes": 2649,
+      "path": "spooky-author-identification/source_package/manifest.json",
+      "sha256": "f59b15cb7674391668e9e5a548893bee07292296b0c796b06594df8968b28057"
+    },
+    {
+      "bytes": 1106,
+      "path": "spooky-author-identification/source_package/package_verification.json",
+      "sha256": "fd82525cf8dac993723c4943f4236ceea0a8537b3bbe86a4572715aff2024b85"
+    },
+    {
+      "bytes": 4988,
+      "path": "spooky-author-identification/source_package/spooky_cross_run_xgb_confirmation_result.json",
+      "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742"
+    },
+    {
+      "bytes": 136216,
+      "path": "spooky-author-identification/submission.csv",
+      "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    },
+    {
+      "bytes": 1061,
+      "path": "summary.json",
+      "sha256": "8b7709766e51473c30fa782124eb0550764f0cf871b3e71f739b88eaa6b80af5"
+    }
+  ],
+  "status": "verified_human_approval_pending"
+}

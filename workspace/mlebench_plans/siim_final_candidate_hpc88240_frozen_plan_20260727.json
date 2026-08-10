@@ -1,0 +1,190 @@
+{
+  "schema": "evomind.siim.final_candidate_frozen_plan.v1",
+  "created_at": "2026-07-27T14:11:43.553370+08:00",
+  "status": "frozen_waiting_prerequisites",
+  "competition_id": "siim-isic-melanoma-classification",
+  "objective": {
+    "official_metric": "roc_auc",
+    "historical_official_score": 0.92165,
+    "bronze_threshold": 0.937,
+    "promotion_auc": 0.942,
+    "official_score_claimed": false,
+    "target_role": "fifth additional medal candidate required for 18/22"
+  },
+  "planner": {
+    "provider": "openai_compatible_local_gateway",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "evidence": {
+      "execution_plan": {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/plans/medal_recovery_gpt56_current.json",
+        "bytes": 12961,
+        "sha256": "6ddf45d8a594cdd5df77e011032369b5f74e57405ff6f09cd59633e1ed65e226"
+      }
+    }
+  },
+  "serial_dependency": {
+    "plan": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/plans/siim_preprocessing_ablation_hpc88240_frozen_plan_20260727.json",
+      "bytes": 5479,
+      "sha256": "340b330f04d999c9427818811fc78ffead39bacd4a56e5796ee3f7a2359cabc3"
+    },
+    "report": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/siim_preprocessing_ablation/runs/hpc88240_siim_preproc5_s42_20260727/siim_preprocessing_ablation.json",
+    "run_id": "hpc88240_siim_preproc5_s42_20260727",
+    "evaluation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "folds": 3,
+    "profiles": [
+      "raw_multiview_v1",
+      "border_multiview_v1",
+      "color_multiview_v1",
+      "hair_multiview_v1",
+      "robust_multiview_v1"
+    ],
+    "selected_profile_source": "verified_ablation_report_only"
+  },
+  "resource": {
+    "expected_gpu_name": "NVIDIA A40",
+    "observed_memory_total_mib": 46068,
+    "single_gpu_serial": true,
+    "no_process_preemption": true,
+    "no_process_signals": true
+  },
+  "training": {
+    "python": "python3",
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_mlebench_lite_full.py",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/mlebench_lite_runs",
+    "allowed_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "official_source_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mle-bench",
+    "run_id": "hpc88240_siim_final_s42_20260727",
+    "seed": 42,
+    "epochs": 8,
+    "outer_folds": 5,
+    "inner_folds": 3,
+    "image_size": 384,
+    "batch_probe_candidates": [
+      64,
+      32,
+      16
+    ],
+    "probe_metadata_width": 16,
+    "probe_output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/batch_probes",
+    "workers": 16,
+    "backbone": "convnext_small",
+    "secondary_backbone": "efficientnet_v2_s",
+    "learning_rate": 0.0003,
+    "metadata_iterations": 700,
+    "catboost_task_type": "GPU",
+    "torch_home": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_model_cache/torch",
+    "candidate_only": true,
+    "hold_cuda_lease": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "data_contract": {
+    "inventory": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/data_contract/public_staging_inventory.json",
+      "bytes": 882,
+      "sha256": "1377dec22a9f3eb4b5eea965eb89684de042301967c7ea85e4443f603e676448"
+    },
+    "staging_report": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/data_contract/public_staging_report.json",
+    "public_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/siim-isic-melanoma-classification/prepared/public",
+    "sample_submission": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/siim-isic-melanoma-classification/prepared/public/sample_submission.csv",
+    "manifest_sha256": "8fef392368fcc433f4532129312f3b2ef7118d76cad04dc70f694246c34eff13",
+    "file_count": 33129,
+    "total_bytes": 25765345055,
+    "train_rows": 28984,
+    "test_rows": 4142,
+    "train_jpeg_count": 28984,
+    "test_jpeg_count": 4142,
+    "private_paths_requested": false
+  },
+  "implementation": {
+    "full_runner": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_mlebench_lite_full.py",
+      "bytes": 96356,
+      "sha256": "efd6d64ca9bbaf4e6eccbcb45f0d956eda68dfaeddf67557133351342d93616c"
+    },
+    "wave0": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43431,
+      "sha256": "4097f8188d537f993ddd306897fa517dd3a82b9237e9cf35f41a6c9a48f811a2"
+    },
+    "adapter": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 322949,
+      "sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8"
+    },
+    "wave2": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/mlebench_wave2_adapters.py",
+      "bytes": 357348,
+      "sha256": "da643aacc782b4322a194227b040d1f800c33d6ab371faebc7f156011d0d1c3d"
+    },
+    "ablation_runner": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_siim_preprocessing_ablation.py",
+      "bytes": 38623,
+      "sha256": "750cca207b19fd5fd59f2baac4d44f6d45cbf0a856d7f9377005c7105ca6c645"
+    },
+    "batch_probe": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/probe_siim_candidate_batch.py",
+      "bytes": 6810,
+      "sha256": "94073f0983df2ded3f870cb61ce92905dd4d5cec78977d0f74f2d877d7cfb926"
+    },
+    "verifier": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/verify_siim_final_candidate_hpc.py",
+      "bytes": 4515,
+      "sha256": "4e0251a5623bd79dc154137b53eb4ee810c79309873e08b359c9175c04590aaa"
+    }
+  },
+  "launch_contract": {
+    "queue_status": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/full_siim_status.json",
+    "gpu_idle_consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10,
+    "batch_probe_required": true,
+    "batch_selection_rule": "largest_passing_frozen_candidate",
+    "process_signals_allowed": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "human_confirmation_required_for_official_grader": true
+  },
+  "verification_contract": {
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/verify_siim_final_candidate_hpc.py",
+    "recompute_public_oof_auc": true,
+    "verify_patient_content_group_isolation": true,
+    "verify_nested_selection_and_fresh_refit": true,
+    "rehash_all_material_artifacts": true,
+    "rebuild_test_fold_ensemble_and_submission": true,
+    "official_grader_must_be_false": true,
+    "kaggle_submission_must_be_false": true,
+    "process_signals_must_equal": 0
+  },
+  "claim_boundary": "Frozen public-data candidate plan; no official score or medal is claimed.",
+  "operational_revision": {
+    "created_at": "2026-07-27T14:11:43.557738+08:00",
+    "reason": "Run the frozen SIIM nested candidate on A40 after the verified Leaf terminal stage.",
+    "model_data_folds_seed_backbones_epochs_and_thresholds_changed": false,
+    "throughput_only_changes": {
+      "batch_probe_candidates": [
+        64,
+        32,
+        16
+      ],
+      "workers": 16
+    },
+    "process_signals_sent": 0
+  },
+  "execution_target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "site_packages": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/env/site-packages",
+    "process_signals_allowed": false
+  }
+}

@@ -55,6 +55,34 @@ function assistantToolSessionEnv(request: Request) {
   };
 }
 
+function assistantModelRouteEnv() {
+  return {
+    EVOLUTION_PRIMARY_PROVIDER: "openai",
+    EVOLUTION_PROVIDER_STRICT: "true",
+    OPENAI_BASE_URL: "http://127.0.0.1:65068/v1",
+    OPENAI_MODEL: "gpt-5.6-sol",
+    OPENAI_REASONING_EFFORT: "low",
+    OPENAI_SERVICE_TIER: "priority",
+  };
+}
+
+const LEGACY_GPU_ENV_KEYS = [
+  "GPU_SSH_HOST", "GPU_SSH_HOST_FILE", "GPU_SSH_PORT", "GPU_SSH_USER", "GPU_SSH_USER_FILE",
+  "GPU_SSH_PASSWORD", "GPU_SSH_PASSWORD_FILE", "GPU_SSH_KEY_PATH", "GPU_SSH_KEY_PATH_FILE",
+  "GPU_SSH_SOCKS_HOST", "GPU_SSH_SOCKS_HOST_FILE", "GPU_SSH_SOCKS_PORT", "GPU_SSH_SOCKS_USER",
+  "GPU_SSH_SOCKS_USER_FILE", "GPU_SSH_SOCKS_PASSWORD", "GPU_SSH_SOCKS_PASSWORD_FILE",
+  "GPU_SSH_JUMP_HOST", "GPU_SSH_JUMP_HOST_FILE", "GPU_SSH_JUMP_PORT", "GPU_SSH_JUMP_USER",
+  "GPU_SSH_JUMP_USER_FILE", "GPU_SSH_KNOWN_HOSTS_PATH", "GPU_SSH_KNOWN_HOSTS_PATH_FILE",
+  "GPU_REMOTE_WORKSPACE", "GPU_REMOTE_WORKSPACE_FILE", "EVOMIND_HPC_EXPECTED_HOST_UUID",
+  "EVOMIND_HPC_EXPECTED_HOST_UUID_FILE", "EVOMIND_HPC_EXPECTED_GPU_UUID", "EVOMIND_HPC_EXPECTED_GPU_UUID_FILE",
+] as const;
+
+function assistantProcessEnv() {
+  const env = { ...process.env };
+  for (const key of LEGACY_GPU_ENV_KEYS) delete env[key];
+  return env;
+}
+
 export async function POST(request: Request) {
   let body: AssistantRequest;
   try {
@@ -78,6 +106,7 @@ export async function POST(request: Request) {
   };
   const encoder = new TextEncoder();
   const toolSessionEnv = assistantToolSessionEnv(request);
+  const modelRouteEnv = assistantModelRouteEnv();
   let child: ChildProcessWithoutNullStreams | null = null;
   let closed = false;
 
@@ -90,8 +119,9 @@ export async function POST(request: Request) {
         windowsHide: true,
         shell: false,
         env: {
-          ...process.env,
+          ...assistantProcessEnv(),
           ...toolSessionEnv,
+          ...modelRouteEnv,
           PYTHONIOENCODING: "utf-8",
           PYTHONUTF8: "1",
           PYTHONPATH: [sourceRoot, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
@@ -101,6 +131,16 @@ export async function POST(request: Request) {
       let stdoutBuffer = "";
       let stderrSize = 0;
       let completed = false;
+      let idleWatch: ReturnType<typeof setInterval> | null = null;
+      let hardTimeout: ReturnType<typeof setTimeout> | null = null;
+      let lastProgressAt = Date.now();
+
+      const clearTimers = () => {
+        if (idleWatch) clearInterval(idleWatch);
+        if (hardTimeout) clearTimeout(hardTimeout);
+        idleWatch = null;
+        hardTimeout = null;
+      };
 
       const push = (event: string, data: Record<string, unknown>) => {
         if (closed) return;
@@ -108,6 +148,7 @@ export async function POST(request: Request) {
       };
       const close = () => {
         if (closed) return;
+        clearTimers();
         closed = true;
         controller.close();
       };
@@ -122,6 +163,7 @@ export async function POST(request: Request) {
           try {
             const data = JSON.parse(line) as Record<string, unknown>;
             const event = String(data.type ?? "message");
+            lastProgressAt = Date.now();
             if (event === "answer_completed") completed = true;
             push(event, data);
           } catch {
@@ -150,11 +192,27 @@ export async function POST(request: Request) {
       });
 
       request.signal.addEventListener("abort", () => {
+        clearTimers();
         if (child && !child.killed) child.kill();
         close();
       }, { once: true });
 
       child.stdin.end(JSON.stringify(payload));
+      const failTimeout = (code: string, message: string) => {
+        if (completed || closed) return;
+        completed = true;
+        push("error", { type: "error", code, message, session_id: sessionId });
+        if (child && !child.killed) child.kill();
+        close();
+      };
+      idleWatch = setInterval(() => {
+        if (Date.now() - lastProgressAt >= 150000) {
+          failTimeout("assistant_progress_timeout", "本轮 Agent 长时间没有模型或工具进度，现场状态已保留，可以直接重试。");
+        }
+      }, 15000);
+      hardTimeout = setTimeout(() => {
+        failTimeout("assistant_hard_timeout", "本轮 Agent 已达到五分钟执行上限，现场状态已保留，可以继续同一任务。");
+      }, 295000);
     },
     cancel() {
       closed = true;

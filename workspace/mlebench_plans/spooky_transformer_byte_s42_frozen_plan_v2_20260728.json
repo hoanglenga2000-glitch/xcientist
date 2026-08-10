@@ -1,0 +1,184 @@
+{
+  "schema": "evomind.mlebench_lite.spooky_transformer_byte_frozen_plan.v1",
+  "created_at": "2026-07-28T00:39:43.544961+08:00",
+  "status": "frozen_before_training",
+  "driver": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "audit_path": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+    "audit_sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce",
+    "ranked_upgrade": "pretrained_transformer_plus_byte_channel"
+  },
+  "competition_id": "spooky-author-identification",
+  "public_data_only": true,
+  "private_labels_used": false,
+  "official_grader_feedback_allowed": false,
+  "source": {
+    "runner_path": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22\\run_spooky_transformer_oof.py",
+    "runner_sha256": "cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22",
+    "frozen_adapter_path": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\6b3d4d5e76a9f383db7bd9cb81127a7181f0268473237f54d4f89fe65f237a33\\mlebench_medal_recovery_adapters.py",
+    "frozen_adapter_sha256": "6b3d4d5e76a9f383db7bd9cb81127a7181f0268473237f54d4f89fe65f237a33"
+  },
+  "inputs": {
+    "public_train_sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf",
+    "public_test_sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5",
+    "public_sample_submission_sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6",
+    "train_rows": 17621,
+    "test_rows": 1958,
+    "class_order": [
+      "EAP",
+      "HPL",
+      "MWS"
+    ],
+    "duplicate_group_report": {
+      "schema": "evomind.spooky.duplicate_groups.v1",
+      "normalization": "NFKC_lower_word_number_tokens_v1",
+      "rows": 17621,
+      "unique_groups": 17613,
+      "duplicate_groups": 8,
+      "duplicate_rows_beyond_first": 8,
+      "maximum_group_size": 2,
+      "conflicting_label_groups": 0,
+      "folds": 5,
+      "seed": 42,
+      "group_isolation": true
+    }
+  },
+  "model": {
+    "repo_id": "distilbert/distilroberta-base",
+    "revision": "fb53ab8802853c8e4fbdbcd0529f21fc6f459b2b",
+    "generic_pretrained": true,
+    "task_specific_checkpoint": false,
+    "num_labels": 3,
+    "problem_type": "single_label_classification"
+  },
+  "training": {
+    "seed": 42,
+    "folds": 5,
+    "epochs_per_fold": 3,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "max_length": 192,
+    "train_batch_size": 8,
+    "eval_batch_size": 64,
+    "gradient_accumulation_steps": 4,
+    "effective_batch_size": 32,
+    "learning_rate": 2e-05,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "schedule": "cosine",
+    "gradient_checkpointing": true,
+    "mixed_precision": "bf16",
+    "max_grad_norm": 1.0,
+    "num_workers": 2,
+    "tf32": true
+  },
+  "byte_channel": {
+    "encoding": "utf8_bytes_plus_one_zero_pad",
+    "max_length": 768,
+    "embedding_dim": 48,
+    "kernels": [
+      3,
+      5,
+      7
+    ],
+    "channels": 128,
+    "dropout": 0.2,
+    "epochs_per_fold": 6,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "train_batch_size": 128,
+    "eval_batch_size": 256,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "label_smoothing": 0.05
+  },
+  "sparse_channel": {
+    "model": "fold_local_word_raw_char_nbsvm",
+    "word_ngram_range": [
+      1,
+      2
+    ],
+    "raw_char_ngram_range": [
+      2,
+      6
+    ],
+    "word_max_features": 100000,
+    "char_max_features": 180000,
+    "c_value": 4.0,
+    "fixed_channel_weights": {
+      "word": 0.3,
+      "raw_char": 0.7
+    },
+    "fit_scope": "outer_fit_rows_only"
+  },
+  "ensemble": {
+    "components": [
+      "sparse",
+      "byte",
+      "transformer"
+    ],
+    "weight_grid_steps": 20,
+    "temperatures": [
+      0.8,
+      0.9,
+      1.0,
+      1.1,
+      1.2
+    ],
+    "modes": [
+      "probability",
+      "log_probability"
+    ],
+    "selection": "for_each_outer_fold_on_all_other_folds_only",
+    "test_aggregation": "apply_fold_specific_transform_then_average",
+    "exact_deployment_oof_required": true
+  },
+  "promotion_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "bronze_threshold_reference": 0.29381,
+    "single_seed_log_loss_threshold": 0.292,
+    "single_seed_only_is_not_promotable": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "three_seed_mean_threshold": 0.285,
+    "maximum_individual_seed_log_loss": 0.315,
+    "official_medal_claim_requires_private_grader": true
+  },
+  "execution": {
+    "device": "local_rtx4060",
+    "queue_position": "after_current_serial_gpu_chain",
+    "automatic_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "official_private_grader_before_gate": false,
+    "process_signals_allowed": false,
+    "single_gpu_strict_serial": true,
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22\\run_spooky_transformer_oof.py",
+    "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs",
+    "hf_cache": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\model_cache\\huggingface\\hub",
+    "serial_dependency": {
+      "competition_id": "leaf-classification",
+      "run_id": "local4060_leaf_dualbb_s404142_20260727_0154",
+      "report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\runs\\local4060_leaf_dualbb_s404142_20260727_0154\\leaf_multibackbone_oof.json",
+      "terminal_statuses": [
+        "promotion_gate_passed",
+        "promotion_gate_failed"
+      ]
+    },
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_max_utilization_percent": 20
+  },
+  "claim_boundary": "Frozen public-data experiment plan. OOF is not an official medal; leaderboard claims require official MLE-Bench private grading only after the complete multi-seed public gate.",
+  "supersession": {
+    "schema": "evomind.frozen_plan_supersession.v1",
+    "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+    "predecessor_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb",
+    "reason": "Bind mutable live artifacts to content-addressed immutable snapshots after validated source evolution. No training, grading, submission, or process signal occurred.",
+    "pre_use_correction": true
+  }
+}

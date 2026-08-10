@@ -1,0 +1,47 @@
+{
+  "schema": "evomind.mlebench_lite.human_gate_readiness_audit.v1",
+  "created_at": "2026-07-28T15:11:53.690060+08:00",
+  "approval_request": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate_staged_runs\\approval_request_current.json",
+    "sha256": "3970487584351ec79a1217c333d75e94d0988d774acdd20c11d95f2ec995981a",
+    "status": "awaiting_explicit_human_approval",
+    "candidate_count": 2,
+    "exact_approval_phrase": "批准执行一次 MLE-Bench 官方 private grader：jigsaw-toxic-comment-classification-challenge + spooky-author-identification；仅使用冻结候选；不提交 Kaggle。"
+  },
+  "checks": [
+    {
+      "run_id": "hg_jigsaw_multiseed_v3_20260727",
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "staged_status": "verified_human_approval_pending",
+      "approved": false,
+      "approval_template_approved": false,
+      "candidate_manifest_sha256": "38e83cd739e04706f5aff413b3e3fea5f107a5a07814805a7efbe9707bf5b1c2",
+      "submission_sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43",
+      "source_result_contract": "passed",
+      "regrades_dir_exists": false,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false,
+      "errors": []
+    },
+    {
+      "run_id": "hg_spooky_crossrun_xgb_v1_20260727",
+      "competition_id": "spooky-author-identification",
+      "staged_status": "verified_human_approval_pending",
+      "approved": false,
+      "approval_template_approved": false,
+      "candidate_manifest_sha256": "e60b5f0f1eba02d98568d9882bab8f6adfdfada8fbd801cf337406d5a11c783a",
+      "submission_sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec",
+      "source_result_contract": "passed",
+      "regrades_dir_exists": false,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false,
+      "errors": []
+    }
+  ],
+  "ready_for_explicit_human_approval": true,
+  "automatic_approval": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "errors": [],
+  "rule": "This audit only verifies frozen staged packages and approval templates. It does not approve, grade, submit, train, or use private labels."
+}

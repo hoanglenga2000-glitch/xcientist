@@ -2,10 +2,27 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Collection
+
+
+class BenchmarkRegistryError(ValueError):
+    """Raised when a benchmark task registry is internally inconsistent."""
+
+
+_TASK_MODALITIES = frozenset({"tabular", "image", "text", "multimodal", "time_series", "other"})
+_EVALUATION_MODES = frozenset({"official", "proxy", "offline", "dry_run"})
+_TASK_STATUSES = frozenset({"not_started", "ready", "running", "blocked", "completed", "failed"})
+_PINNED_SPLIT75_FILENAME = "openai_split75_507f92e.txt"
+_PINNED_SPLIT75_SHA256 = "aa6a4dbfd19fee0536235be78361968603c84f0d4e06d4ed0ddc9bb212023057"
+_PINNED_SPLIT75_TASK_COUNT = 75
+_MAX_REGISTRY_TASKS = 10_000
+_MAX_TIME_BUDGET_HOURS = 24 * 365
+_MAX_SUBMISSION_LIMIT = 1_000_000
 
 
 @dataclass
@@ -60,9 +77,391 @@ class BenchmarkResult:
     overclaim_risk: str = "insufficient_official_benchmark_evidence"
 
 
+def _registry_integer(
+    value: Any,
+    *,
+    field_name: str,
+    minimum: int = 0,
+    maximum: int | None = None,
+) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < minimum
+        or (maximum is not None and value > maximum)
+    ):
+        range_text = f">= {minimum}" if maximum is None else f"between {minimum} and {maximum}"
+        raise BenchmarkRegistryError(
+            f"benchmark registry {field_name!r} must be an integer {range_text}, got {value!r}"
+        )
+    return value
+
+
+def _registry_number(
+    value: Any,
+    *,
+    field_name: str,
+    allow_none: bool = False,
+    positive: bool = False,
+    maximum: int | float | None = None,
+) -> int | float | None:
+    if value is None and allow_none:
+        return None
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        suffix = " or null" if allow_none else ""
+        raise BenchmarkRegistryError(
+            f"benchmark registry {field_name!r} must be a finite number{suffix}, got {value!r}"
+        )
+    try:
+        finite = math.isfinite(value)
+    except (OverflowError, TypeError, ValueError):
+        finite = False
+    if not finite:
+        raise BenchmarkRegistryError(
+            f"benchmark registry {field_name!r} must be finite, got {value!r}"
+        )
+    if positive and value <= 0:
+        raise BenchmarkRegistryError(
+            f"benchmark registry {field_name!r} must be > 0, got {value!r}"
+        )
+    if maximum is not None and value > maximum:
+        raise BenchmarkRegistryError(
+            f"benchmark registry {field_name!r} must be <= {maximum}, got {value!r}"
+        )
+    return value
+
+
+def _reject_nonstandard_json_number(value: str) -> None:
+    raise BenchmarkRegistryError(f"benchmark registry contains non-standard JSON number {value!r}")
+
+
+def _load_pinned_split75_ids(registry_path: Path) -> tuple[str, ...]:
+    manifest_path = registry_path.parent / _PINNED_SPLIT75_FILENAME
+    try:
+        manifest_bytes = manifest_path.read_bytes()
+    except OSError as exc:
+        raise BenchmarkRegistryError(
+            f"could not read pinned MLE-Bench manifest {manifest_path}: {exc}"
+        ) from exc
+    actual_digest = hashlib.sha256(manifest_bytes).hexdigest()
+    if actual_digest != _PINNED_SPLIT75_SHA256:
+        raise BenchmarkRegistryError(
+            "pinned MLE-Bench manifest SHA-256 mismatch: "
+            f"expected={_PINNED_SPLIT75_SHA256}, actual={actual_digest}"
+        )
+    try:
+        manifest_ids = tuple(manifest_bytes.decode("utf-8").splitlines())
+    except UnicodeDecodeError as exc:
+        raise BenchmarkRegistryError(f"pinned MLE-Bench manifest is not UTF-8: {exc}") from exc
+    if (
+        len(manifest_ids) != _PINNED_SPLIT75_TASK_COUNT
+        or len(set(manifest_ids)) != _PINNED_SPLIT75_TASK_COUNT
+        or any(not item or item != item.strip() for item in manifest_ids)
+    ):
+        raise BenchmarkRegistryError(
+            "pinned MLE-Bench manifest must contain exactly 75 unique, unpadded identifiers"
+        )
+    return manifest_ids
+
+
+def validate_task_registry_payload(
+    payload: Any,
+    *,
+    official_competition_ids: Collection[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Validate and normalize legacy-list or registry-object task payloads.
+
+    The public MLE-Bench registry is an object whose task records live under
+    ``tasks``.  Older callers may still provide a bare list, so both encodings
+    are accepted.  Registry objects fail closed when their declared totals,
+    modality allocation, range note, or task identifiers disagree.
+    """
+
+    mle_bench_reference: dict[str, Any] | None = None
+    if isinstance(payload, list):
+        task_rows = payload
+    elif isinstance(payload, dict):
+        schema = payload.get("schema")
+        expected_schema = "academic_research_os.benchmark_task_registry.v3"
+        if schema != expected_schema:
+            raise BenchmarkRegistryError(
+                f"benchmark registry schema must be {expected_schema!r}, got {schema!r}"
+            )
+
+        task_rows = payload.get("tasks")
+        if not isinstance(task_rows, list):
+            raise BenchmarkRegistryError("benchmark registry 'tasks' must be a JSON array")
+
+        total_tasks = _registry_integer(
+            payload.get("total_tasks"),
+            field_name="total_tasks",
+            minimum=1,
+            maximum=_MAX_REGISTRY_TASKS,
+        )
+        remaining = _registry_integer(
+            payload.get("remaining_tasks_planned"),
+            field_name="remaining_tasks_planned",
+            maximum=_MAX_REGISTRY_TASKS,
+        )
+        if total_tasks != len(task_rows) + remaining:
+            raise BenchmarkRegistryError(
+                "benchmark registry total mismatch: "
+                f"total_tasks={total_tasks}, registered={len(task_rows)}, remaining={remaining}"
+            )
+
+        planned_summary = payload.get("planned_tasks_summary")
+        if not isinstance(planned_summary, list):
+            raise BenchmarkRegistryError("benchmark registry 'planned_tasks_summary' must be a JSON array")
+        planned_total = 0
+        seen_modalities: set[str] = set()
+        for index, row in enumerate(planned_summary):
+            if not isinstance(row, dict):
+                raise BenchmarkRegistryError(f"planned_tasks_summary[{index}] must be a JSON object")
+            modality = row.get("modality")
+            if not isinstance(modality, str) or not modality.strip():
+                raise BenchmarkRegistryError(
+                    f"planned_tasks_summary[{index}].modality must be a non-empty string"
+                )
+            if modality in seen_modalities:
+                raise BenchmarkRegistryError(f"duplicate planned modality: {modality!r}")
+            seen_modalities.add(modality)
+            if row.get("status") != "planned":
+                raise BenchmarkRegistryError(
+                    f"planned_tasks_summary[{index}].status must be 'planned'"
+                )
+            planned_total += _registry_integer(
+                row.get("count"),
+                field_name=f"planned_tasks_summary[{index}].count",
+                maximum=_MAX_REGISTRY_TASKS,
+            )
+        if planned_total != remaining:
+            raise BenchmarkRegistryError(
+                "benchmark registry planned modality mismatch: "
+                f"planned_total={planned_total}, remaining_tasks_planned={remaining}"
+            )
+
+        note = payload.get("normalization_note")
+        if not isinstance(note, str) or not note.strip():
+            raise BenchmarkRegistryError("benchmark registry 'normalization_note' must be a non-empty string")
+        if remaining:
+            expected_range = f"Tasks {len(task_rows) + 1}-{total_tasks}"
+            if expected_range not in note:
+                raise BenchmarkRegistryError(
+                    f"benchmark registry normalization_note must contain {expected_range!r}"
+                )
+
+        mle_bench_reference = payload.get("mle_bench_reference")
+        if not isinstance(mle_bench_reference, dict):
+            raise BenchmarkRegistryError("benchmark registry 'mle_bench_reference' must be an object")
+        expected_reference_strings = {
+            "repository": "https://github.com/openai/mle-bench",
+            "commit": "507f92e1138bb6e40dac5c6ee7a6758e6424bf97",
+            "split_path": "experiments/splits/split75.txt",
+            "local_manifest": "benchmark/mle_bench_75/openai_split75_507f92e.txt",
+            "sha256": "aa6a4dbfd19fee0536235be78361968603c84f0d4e06d4ed0ddc9bb212023057",
+        }
+        for field_name, expected_value in expected_reference_strings.items():
+            if mle_bench_reference.get(field_name) != expected_value:
+                raise BenchmarkRegistryError(
+                    f"mle_bench_reference.{field_name} must be {expected_value!r}"
+                )
+        if _registry_integer(
+            mle_bench_reference.get("total_tasks"),
+            field_name="mle_bench_reference.total_tasks",
+            minimum=1,
+        ) != 75:
+            raise BenchmarkRegistryError("mle_bench_reference.total_tasks must be 75")
+        overlap = mle_bench_reference.get("locally_registered_official_competitions")
+        if (
+            not isinstance(overlap, list)
+            or any(not isinstance(item, str) or not item.strip() for item in overlap)
+            or len(set(overlap)) != len(overlap)
+        ):
+            raise BenchmarkRegistryError(
+                "mle_bench_reference.locally_registered_official_competitions must be a unique string array"
+            )
+    else:
+        raise BenchmarkRegistryError("benchmark task payload must be a JSON array or registry object")
+
+    normalized: list[dict[str, Any]] = []
+    seen_task_ids: set[str] = set()
+    for index, row in enumerate(task_rows):
+        if not isinstance(row, dict):
+            raise BenchmarkRegistryError(f"tasks[{index}] must be a JSON object")
+        task_id = row.get("task_id")
+        if not isinstance(task_id, str) or not task_id.strip():
+            raise BenchmarkRegistryError(f"tasks[{index}].task_id must be a non-empty string")
+        if task_id in seen_task_ids:
+            raise BenchmarkRegistryError(f"duplicate benchmark task_id: {task_id!r}")
+        seen_task_ids.add(task_id)
+
+        try:
+            task = BenchmarkTask(**row)
+        except TypeError as exc:
+            raise BenchmarkRegistryError(
+                f"benchmark task {task_id!r} does not match BenchmarkTask: {exc}"
+            ) from exc
+        for field_name in ("competition_name", "task_type", "modality", "metric", "evaluation_mode", "status"):
+            value = getattr(task, field_name)
+            if not isinstance(value, str) or not value.strip():
+                raise BenchmarkRegistryError(f"benchmark task {task_id!r} field {field_name!r} must be non-empty")
+        enum_fields = {
+            "modality": _TASK_MODALITIES,
+            "evaluation_mode": _EVALUATION_MODES,
+            "status": _TASK_STATUSES,
+        }
+        for field_name, allowed_values in enum_fields.items():
+            value = getattr(task, field_name)
+            if value not in allowed_values:
+                raise BenchmarkRegistryError(
+                    f"benchmark task {task_id!r} field {field_name!r} must be one of "
+                    f"{sorted(allowed_values)}, got {value!r}"
+                )
+        for field_name in ("train_data_path", "test_data_path", "sample_submission_path"):
+            value = getattr(task, field_name)
+            if value is not None and not isinstance(value, str):
+                raise BenchmarkRegistryError(
+                    f"benchmark task {task_id!r} field {field_name!r} must be a string or null"
+                )
+        _registry_number(
+            task.time_budget_hours,
+            field_name=f"tasks[{index}].time_budget_hours",
+            positive=True,
+            maximum=_MAX_TIME_BUDGET_HOURS,
+        )
+        if type(task.gpu_required) is not bool:
+            raise BenchmarkRegistryError(f"benchmark task {task_id!r} gpu_required must be a JSON boolean")
+        if (
+            not isinstance(task.allowed_models, list)
+            or not task.allowed_models
+            or any(not isinstance(model, str) or not model.strip() for model in task.allowed_models)
+            or len(set(task.allowed_models)) != len(task.allowed_models)
+        ):
+            raise BenchmarkRegistryError(
+                f"benchmark task {task_id!r} allowed_models must be a non-empty unique string array"
+            )
+        if task.submission_limit is not None and (
+            isinstance(task.submission_limit, bool)
+            or not isinstance(task.submission_limit, int)
+            or task.submission_limit < 0
+            or task.submission_limit > _MAX_SUBMISSION_LIMIT
+        ):
+            raise BenchmarkRegistryError(
+                f"benchmark task {task_id!r} submission_limit must be an integer between 0 and "
+                f"{_MAX_SUBMISSION_LIMIT}, or null"
+            )
+        if not isinstance(task.medal_thresholds, dict):
+            raise BenchmarkRegistryError(f"benchmark task {task_id!r} medal_thresholds must be an object")
+        for threshold_name, threshold in task.medal_thresholds.items():
+            if not isinstance(threshold_name, str) or not threshold_name.strip():
+                raise BenchmarkRegistryError(
+                    f"benchmark task {task_id!r} medal_thresholds keys must be non-empty strings"
+                )
+            if threshold is None:
+                continue
+            if isinstance(threshold, str):
+                if not threshold.strip():
+                    raise BenchmarkRegistryError(
+                        f"benchmark task {task_id!r} medal_thresholds[{threshold_name!r}] "
+                        "must not be an empty string"
+                    )
+                continue
+            _registry_number(
+                threshold,
+                field_name=f"tasks[{index}].medal_thresholds[{threshold_name!r}]",
+            )
+        for score_name in ("baseline_score", "target_score"):
+            score = getattr(task, score_name)
+            _registry_number(
+                score,
+                field_name=f"tasks[{index}].{score_name}",
+                allow_none=True,
+            )
+        if not isinstance(task.notes, str):
+            raise BenchmarkRegistryError(f"benchmark task {task_id!r} notes must be a string")
+        normalized.append(dict(row))
+
+    if mle_bench_reference is not None:
+        registered_competitions = {str(row["competition_name"]) for row in normalized}
+        declared_overlap = set(mle_bench_reference["locally_registered_official_competitions"])
+        if official_competition_ids is None:
+            raise BenchmarkRegistryError(
+                "official_competition_ids are required to validate a pinned MLE-Bench registry object"
+            )
+        official_ids = set(official_competition_ids)
+        if (
+            len(official_ids) != _PINNED_SPLIT75_TASK_COUNT
+            or any(not isinstance(item, str) or not item.strip() for item in official_ids)
+        ):
+            raise BenchmarkRegistryError("official_competition_ids must contain 75 unique strings")
+        expected_overlap = registered_competitions & official_ids
+        if declared_overlap != expected_overlap:
+            raise BenchmarkRegistryError(
+                "mle_bench_reference overlap does not match local tasks and the pinned split75 manifest: "
+                f"declared={sorted(declared_overlap)}, expected={sorted(expected_overlap)}"
+            )
+    return normalized
+
+
 def load_tasks(path: str | Path) -> list[BenchmarkTask]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    return [BenchmarkTask(**item) for item in payload]
+    registry_path = Path(path)
+    try:
+        payload = json.loads(
+            registry_path.read_text(encoding="utf-8-sig"),
+            parse_constant=_reject_nonstandard_json_number,
+        )
+    except (OSError, UnicodeError, json.JSONDecodeError, BenchmarkRegistryError) as exc:
+        raise BenchmarkRegistryError(f"could not read benchmark registry {registry_path}: {exc}") from exc
+
+    official_competition_ids = (
+        _load_pinned_split75_ids(registry_path) if isinstance(payload, dict) else None
+    )
+
+    tasks: list[BenchmarkTask] = []
+    for index, item in enumerate(
+        validate_task_registry_payload(
+            payload,
+            official_competition_ids=official_competition_ids,
+        )
+    ):
+        try:
+            tasks.append(BenchmarkTask(**item))
+        except TypeError as exc:
+            raise BenchmarkRegistryError(
+                f"benchmark task {item.get('task_id', index)!r} does not match BenchmarkTask: {exc}"
+            ) from exc
+    return tasks
+
+
+def validate_result_task_ids(tasks: list[BenchmarkTask], results: list[BenchmarkResult]) -> None:
+    """Reject unknown or duplicate result identifiers before evidence is persisted."""
+
+    task_ids = [task.task_id for task in tasks]
+    duplicate_task_ids = sorted(
+        task_id for task_id in set(task_ids) if task_ids.count(task_id) > 1
+    )
+    if duplicate_task_ids:
+        raise BenchmarkRegistryError(
+            f"duplicate benchmark task task_id values: {duplicate_task_ids}"
+        )
+    known_task_ids = set(task_ids)
+    seen_result_ids: set[str] = set()
+    duplicate_result_ids: set[str] = set()
+    unknown_result_ids: set[str] = set()
+    for result in results:
+        if result.task_id in seen_result_ids:
+            duplicate_result_ids.add(result.task_id)
+        seen_result_ids.add(result.task_id)
+        if result.task_id not in known_task_ids:
+            unknown_result_ids.add(result.task_id)
+    if duplicate_result_ids:
+        raise BenchmarkRegistryError(
+            f"duplicate benchmark result task_id values: {sorted(duplicate_result_ids)}"
+        )
+    if unknown_result_ids:
+        raise BenchmarkRegistryError(
+            f"benchmark results reference unknown task_id values: {sorted(unknown_result_ids)}"
+        )
 
 
 def _load_results(path: Path) -> list[BenchmarkResult]:
@@ -181,6 +580,7 @@ def export_benchmark_report(
     mlevolve_target_medal_rate: float | None = None,
     evidence_note: str = "local demo results only; not an official 75-task benchmark.",
 ) -> Path:
+    validate_result_task_ids(tasks, results)
     summary = summarize_results(results)
     target_line = "not_configured"
     if mlevolve_target_medal_rate is not None:

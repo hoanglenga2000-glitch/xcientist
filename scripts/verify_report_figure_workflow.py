@@ -6,8 +6,15 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from workstation_local_auth import authenticated_headers
+
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+def origin_for(url: str) -> str:
+    parsed = urllib.parse.urlsplit(url)
+    return f"{parsed.scheme}://{parsed.netloc}"
 
 
 def workspace_path(raw_path: str | None) -> Path:
@@ -17,25 +24,45 @@ def workspace_path(raw_path: str | None) -> Path:
 
 
 def request_json(url: str, method: str = "GET") -> dict:
-    request = urllib.request.Request(url, method=method)
+    origin = origin_for(url)
+    is_post = method.upper() == "POST"
+    request = urllib.request.Request(
+        url,
+        data=b"{}" if is_post else None,
+        method=method,
+        headers=authenticated_headers(
+            origin,
+            {
+                "Accept": "application/json",
+                "Origin": origin,
+                **({"Content-Type": "application/json"} if is_post else {}),
+            },
+        ),
+    )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def post_json(url: str, payload: dict) -> dict:
     data = json.dumps(payload).encode("utf-8")
+    origin = origin_for(url)
     request = urllib.request.Request(
         url,
         data=data,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers=authenticated_headers(
+            origin,
+            {"Content-Type": "application/json", "Accept": "application/json", "Origin": origin},
+        ),
     )
     with urllib.request.urlopen(request, timeout=30) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def request_bytes(url: str) -> tuple[bytes, str]:
-    with urllib.request.urlopen(url, timeout=30) as response:
+    origin = origin_for(url)
+    request = urllib.request.Request(url, headers=authenticated_headers(origin, {"Origin": origin}))
+    with urllib.request.urlopen(request, timeout=30) as response:
         return response.read(), response.headers.get("content-type", "")
 
 

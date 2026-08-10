@@ -1,0 +1,26 @@
+{
+  "records": [
+    {
+      "record_id": "memory_93d77d4c6f",
+      "task_type": "binary_classification",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "random_forest with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.8305,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "accuracy",
+        "titanic"
+      ],
+      "evidence_refs": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "created_at": "2026-07-01T14:46:17"
+    }
+  ]
+}

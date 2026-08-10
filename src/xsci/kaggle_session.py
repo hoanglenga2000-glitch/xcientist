@@ -13,11 +13,15 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from .config import Config, PROJECT_DIRNAME, load_config
+from .config import PROJECT_DIRNAME, Config, load_config
 
 MODE_CHAT = "chat"
 MODE_PLANNING = "planning"
 MODE_EXECUTING = "executing"
+KAGGLE_NOT_CONFIGURED = "not_configured"
+KAGGLE_CONFIGURED_UNVERIFIED = "configured_unverified"
+KAGGLE_AUTHENTICATED = "authenticated"
+KAGGLE_READINESS_REPORT = Path("workspace") / "verification" / "kaggle_dpapi_readiness.json"
 
 
 def _has_llm(cfg: Config) -> bool:
@@ -37,6 +41,47 @@ def _has_kaggle(cfg: Config) -> bool:
         or (cfg.get("secrets.kaggle_username") and cfg.get("secrets.kaggle_key"))
         or os.environ.get("KAGGLE_API_TOKEN")
         or (os.environ.get("KAGGLE_USERNAME") and os.environ.get("KAGGLE_KEY"))
+    )
+
+
+@dataclass(frozen=True)
+class KaggleAuthState:
+    status: str
+    configured: bool
+    authenticated: bool
+    evidence_path: str = ""
+
+
+def kaggle_auth_state(cfg: Config, root: Path) -> KaggleAuthState:
+    report_path = Path(root) / KAGGLE_READINESS_REPORT
+    report: dict[str, object] = {}
+    try:
+        payload = json.loads(report_path.read_text(encoding="utf-8"))
+        if isinstance(payload, dict):
+            report = payload
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        pass
+
+    evidence_authenticated = bool(
+        report.get("authenticated") is True
+        and report.get("status") == "passed"
+        and report.get("credential_status") == "authenticated_real_api"
+        and report.get("verification_method") == "dpapi_status_and_real_api_smoke"
+        and report.get("credential_installed") is True
+    )
+    configured = bool(_has_kaggle(cfg) or report.get("credential_installed") is True or evidence_authenticated)
+    status = (
+        KAGGLE_AUTHENTICATED
+        if evidence_authenticated
+        else KAGGLE_CONFIGURED_UNVERIFIED
+        if configured
+        else KAGGLE_NOT_CONFIGURED
+    )
+    return KaggleAuthState(
+        status=status,
+        configured=configured,
+        authenticated=evidence_authenticated,
+        evidence_path=str(report_path) if report else "",
     )
 
 
@@ -118,7 +163,9 @@ class SessionState:
     llm_ready: bool = False
     llm_provider: str = "unset"
     kaggle_ready: bool = False
-    compute_backend: str = "local"
+    kaggle_status: str = KAGGLE_NOT_CONFIGURED
+    kaggle_authenticated: bool = False
+    compute_backend: str = "gpu"
     gpu_ready: bool = False
     gpu_status: str = ""
     gpu_blocker: str = ""
@@ -133,7 +180,7 @@ class SessionState:
     updated_at: str = ""
     # ── EvoMind terminal-agent extensions ──────────────────────────────
     tool_readiness: str = ""                # "idle" | "inspecting" | "training" | "reporting"
-    current_compute_override: str = ""      # "local" | "gpu" | "" (use default)
+    current_compute_override: str = ""      # "gpu" | "" (use default)
     last_action: str = ""                   # last action type
     last_artifact: str = ""                 # last artifact path
     last_event_path: str = ""               # last events.jsonl path
@@ -147,12 +194,15 @@ class SessionState:
         gpu_status = gpu_manifest.get("status", "")
         gpu_blocker = gpu_manifest.get("current_blocker", "")
         gpu_blocked = bool(gpu_configured and (gpu_blocker or gpu_status.endswith("_closed") or "blocked" in gpu_status.lower()))
+        kaggle = kaggle_auth_state(cfg, root)
         state = cls(
             workspace_root=str(root),
             llm_ready=_has_llm(cfg),
             llm_provider=str(cfg.get("llm.brand") or cfg.get("llm.provider", "unset") or "unset"),
-            kaggle_ready=_has_kaggle(cfg),
-            compute_backend=str(cfg.get("compute.backend", "local") or "local"),
+            kaggle_ready=kaggle.authenticated,
+            kaggle_status=kaggle.status,
+            kaggle_authenticated=kaggle.authenticated,
+            compute_backend=str(cfg.get("compute.backend", "gpu") or "gpu"),
             gpu_ready=gpu_configured,
             gpu_status=gpu_status,
             gpu_blocker=gpu_blocker,
@@ -294,15 +344,24 @@ class SessionState:
                 "LLM API: hypothesis generation, code generation, failure attribution, and multi-round evolution need it. "
                 "Run `setup` or `/setup` to configure Anthropic or DeepSeek."
             )
-        if not self.kaggle_ready:
+        if self.kaggle_status == KAGGLE_NOT_CONFIGURED:
             gaps.append(
                 "Kaggle API: needed for official downloads, competition metadata, and submit candidates. "
-                "Run `setup` to import kaggle.json or configure a token. You may skip it for local data."
+                "Configure a protected token, then run the explicit real API smoke before claiming readiness."
+            )
+        elif not self.kaggle_authenticated:
+            gaps.append(
+                "Kaggle API: credentials are configured but unverified. Run the explicit real API smoke; "
+                "credential presence alone is not authentication evidence."
+            )
+        if effective_compute != "gpu":
+            gaps.append(
+                "Compute: local training is disabled by the HPC-only release policy. Select compute=gpu and "
+                "configure the gated HPC runtime."
             )
         if effective_compute == "gpu" and not self.gpu_ready:
             gaps.append(
-                "GPU/SSH: compute=gpu is selected, but SSH host/user is missing. Configure it in `setup`, "
-                "or switch back to local for small controlled tests."
+                "GPU/SSH: compute=gpu is selected, but SSH host/user is missing. Configure it in `setup`."
             )
         if effective_compute == "gpu" and self.gpu_ready and self.gpu_blocked:
             detail = f" Manifest status: {self.gpu_status}." if self.gpu_status else ""
@@ -320,9 +379,8 @@ class SessionState:
     def blocking_setup(self, *, compute_override: Optional[str] = None) -> list[str]:
         """Return only the gates that must block a run.
 
-        Kaggle API is useful for official downloads/submissions, but it should not
-        block a local run when the task data/config already exists. GPU blockers
-        apply only when the effective compute backend is gpu.
+        Kaggle authentication gates official API actions. All training compute is
+        HPC/GPU-only; a local override is always blocking.
         """
         effective_compute = compute_override or self.compute_backend
         gaps: list[str] = []
@@ -335,10 +393,15 @@ class SessionState:
             gaps.append(
                 "Task: no competition is selected. Use `task add https://www.kaggle.com/competitions/<slug>` first."
             )
+        if effective_compute != "gpu":
+            gaps.append(
+                "Compute: local training is disabled by the HPC-only release policy. Select compute=gpu and "
+                "configure the gated HPC runtime."
+            )
         if effective_compute == "gpu" and not self.gpu_ready:
             gaps.append(
                 "GPU/SSH: this run requested compute=gpu, but SSH host/user is missing. "
-                "Configure GPU/HPC or request local compute for a small controlled test."
+                "Configure the gated GPU/HPC runtime."
             )
         if effective_compute == "gpu" and self.gpu_ready and self.gpu_blocked:
             detail = f" Manifest status: {self.gpu_status}." if self.gpu_status else ""
@@ -363,7 +426,7 @@ class SessionState:
             ("workspace", self.workspace_root),
             ("task", self.selected_task or "(none selected)"),
             ("llm", f"{self.llm_provider} ({'ready' if self.llm_ready else 'setup needed'})"),
-            ("kaggle", "ready" if self.kaggle_ready else "setup needed"),
+            ("kaggle", self.kaggle_status),
             ("compute", self.compute_backend),
             ("gpu/ssh", gpu_label),
             ("memory", self.memory_summary or "-"),

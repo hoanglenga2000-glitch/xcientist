@@ -1,0 +1,1062 @@
+{
+  "schema": "evomind.mlebench_lite.wave2_deep_gpt56_review.v1",
+  "created_at": "2026-07-24T22:24:05.871970+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "latency_ms": 363477.9,
+    "usage": {
+      "completion_tokens": 24335,
+      "total_tokens": 41423,
+      "prompt_tokens": 17088,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 6718
+      }
+    },
+    "reasoning_effort_requested": "high",
+    "json_mode_requested": true
+  },
+  "prompt_path": "workspace/mlebench_plans/wave2_deep_gpt56_prompt_current.txt",
+  "prompt_sha256": "dd556d1a754949944df637621912682336624537ea99d15a8ea873a86c30e197",
+  "response_sha256": "4c76789172c696f1326897cbc6c147cca081d86215e7a135ae63c45400b2910c",
+  "parse_ok": true,
+  "review": {
+    "verdict": {
+      "overall": "NO-GO",
+      "basis": "The current adapter is suitable for schema and CUDA smoke testing, not for a medal-maximizing deployment. It has no official private-grader evidence, uses single holdouts, leaves validation rows out of final vision and Birds training, silently permits randomly initialized vision backbones, ignores critical NOMAD geometry and Birds supplemental features, and uses validation designs that are optimistic or metric-inexact for several tasks.",
+      "per_task_current_adapter": {
+        "aptos2019-blindness-detection": "NO-GO",
+        "dog-breed-identification": "NO-GO",
+        "histopathologic-cancer-detection": "NO-GO",
+        "jigsaw-toxic-comment-classification-challenge": "NO-GO",
+        "mlsp-2013-birds": "NO-GO",
+        "nomad2018-predict-transparent-conductors": "NO-GO",
+        "plant-pathology-2020-fgvc7": "NO-GO",
+        "ranzcr-clip-catheter-line-classification": "NO-GO",
+        "text-normalization-challenge-english-language": "NO-GO",
+        "text-normalization-challenge-russian-language": "NO-GO",
+        "the-icml-2013-whale-challenge-right-whale-redux": "NO-GO"
+      },
+      "critical_cross_task_blockers": [
+        "No official private scores exist for these adapters, so no medal can be claimed.",
+        "_vision_model catches every pretrained-weight failure and silently trains from random initialization. Medal runs must fail closed when required pretrained weights are absent.",
+        "Vision test predictions come from a model trained on only the training partition; validation rows are never recovered through full-data retraining or fold ensembling.",
+        "The single holdout is insufficient for model selection, threshold fitting, blend fitting, and uncertainty estimation.",
+        "APTOS thresholds are optimized and evaluated on the same holdout, making the reported QWK optimistic.",
+        "Birds computes mean per-species AUC even though the supplied Phase-A contract identifies one binary ROC-AUC over submission rows. The exact grader reduction must be reproduced and tested before any score is trusted.",
+        "Birds uses split-trained models for test prediction without full-data refitting and ignores CVfolds_2.txt and provided supplemental features.",
+        "RANZCR is randomly split instead of grouped by patient when PatientID is available.",
+        "Jigsaw vectorizers are fit on validation and test text, while rare labels are not stratified; this is not an honest OOF estimate.",
+        "Text-normalization validation is a row slice, ignores sentence grouping and token class, and cannot diagnose changed-token performance.",
+        "The current evidence does not include three external benchmark seeds or mean plus SEM."
+      ]
+    },
+    "task_audits": [
+      {
+        "competition_id": "aptos2019-blindness-detection",
+        "current_risk": "High. Six epochs of ConvNeXt-Tiny at 320 pixels, no retinal field crop, no illumination correction, one split, and same-holdout threshold fitting are not adequate evidence for QWK 0.914492. The generic RandomResizedCrop can remove peripheral lesions. Silent loss of ImageNet weights would make the run effectively noncompetitive.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.15,
+            0.4
+          ],
+          "after_recommended_changes": [
+            0.5,
+            0.72
+          ],
+          "uncertainty": "Subjective epistemic interval conditional on intact data, available pretrained weights, and correct private metric reproduction; there is no official grader observation."
+        },
+        "highest_leverage_changes": [
+          "Crop the black border using the largest retinal foreground component, pad to square, and apply a Ben-Graham branch: corrected = clip(4 * image - 4 * GaussianBlur(image, sigma=image_width/30) + 128). Blend corrected and ordinary RGB models.",
+          "Train 5 stratified folds at 448 or 512 pixels with ConvNeXt-Small or EfficientNetV2-S for 15-25 epochs, cosine decay, 2-epoch warmup, AdamW learning rate 1e-4, weight decay 1e-4, and stochastic weight averaging over the final 3 checkpoints.",
+          "Use a hybrid loss: 0.5 weighted cross-entropy without fixed label smoothing, 0.3 CORAL ordinal loss, and 0.2 smooth-L1 on expected grade.",
+          "Group perceptual duplicates before fold assignment. Use only horizontal-flip and mild scale TTA; do not use vertical-flip TTA.",
+          "Generate complete OOF probabilities, fit four monotone thresholds on four folds, apply them to the held-out fold, and report cross-fitted QWK. Refit thresholds on all OOF predictions only after the unbiased score has been recorded.",
+          "Average fold predictions in expected-grade space, then apply the final OOF thresholds."
+        ],
+        "validation_design": "Five-fold stratified grouped CV by diagnosis and perceptual-hash duplicate group. Every row receives exactly one OOF prediction. Thresholds for each held-out fold are fitted only on the other four folds. Report fold QWK, pooled cross-fitted QWK, diagnosis confusion matrix, per-class recall, and seed sensitivity. Deployment gate should use pooled cross-fitted QWK at least 0.920, not the in-sample threshold score.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 0.7-1.5 hours, heavily dependent on PNG decoding throughput.",
+          "strengthened_candidate": "Approximately 10-18 hours for five 448-pixel folds and two preprocessing branches, sequentially on one A800; peak target below 72 GiB."
+        },
+        "stop_or_escalate_gate": "Stop if pretrained weights are unavailable, any fold is below 0.90, or pooled cross-fitted QWK is below 0.910. Escalate from one backbone to the corrected-image blend only if the first complete 5-fold OOF score is at least 0.910. Permit human-gated official grading only at cross-fitted QWK at least 0.920 with no class absent from a fold.",
+        "leakage_or_metric_risks": [
+          "Threshold optimization on the scored holdout is optimistic.",
+          "Duplicate or near-duplicate retinal images must not cross folds.",
+          "QWK requires integer labels 0-4 and the exact official weighting convention.",
+          "A validation model trained on only 80 percent of rows must not be presented as a full-data final model.",
+          "Submission diagnosis must remain an integer-valued column in sample ID order."
+        ]
+      },
+      {
+        "competition_id": "dog-breed-identification",
+        "current_risk": "Extreme. The bronze contract is multiclass log loss at or below 0.04598. A generic ConvNeXt-Tiny at 288 pixels for six epochs is unlikely to approach that level. Label smoothing 0.04 alone pushes even a nearly perfect classifier toward a correct-class probability near 0.96 and a log-loss floor around 0.04 before accounting for any mistakes.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.0,
+            0.02
+          ],
+          "after_recommended_changes": [
+            0.03,
+            0.15
+          ],
+          "uncertainty": "The low interval reflects the unusually strict 0.04598 threshold. Feasibility depends strongly on access to high-quality fine-grained dog or large-scale image pretraining and exact breed-label alignment."
+        },
+        "highest_leverage_changes": [
+          "Remove label smoothing for Dog Breed. Optimize unweighted cross-entropy or focal cross-entropy with gamma no greater than 0.5, then fit temperature scaling from OOF logits.",
+          "Use at least two high-capacity pretrained fine-grained models, such as ConvNeXt-Large at 384 pixels and EVA02-Large or ViT-Large at 448 pixels, trained sequentially on the one A800.",
+          "Add a dog localization stage using a cached detector or segmentation model. Blend full-image and dog-crop predictions; preserve full image when detector confidence is below 0.3.",
+          "Use 5 stratified folds, RandAugment of moderate strength, random erasing no greater than 0.1, and MixUp/CutMix only during early epochs because persistent soft targets can damage ultra-low log loss.",
+          "Map labels exclusively by sample-submission column names and assert all 120 breeds are present. Average fold logits, not probabilities, before temperature scaling.",
+          "Search convex backbone weights and a single temperature using nested OOF. Clip final probabilities no more aggressively than 1e-7 and renormalize each row."
+        ],
+        "validation_design": "Five-fold breed-stratified CV with complete OOF logits. Use an inner split or cross-fitting for temperature and blend weights. Report multiclass log loss, top-1 accuracy, top-5 accuracy, expected calibration error, worst-breed loss, and the number of examples assigned less than 0.1 probability to the true class. The medal-relevant gate is OOF log loss at or below 0.040 to provide margin to 0.04598.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 0.5-1 hour.",
+          "strengthened_candidate": "Approximately 18-35 hours for two large five-fold backbones plus crop inference, run sequentially."
+        },
+        "stop_or_escalate_gate": "Stop after the first strong backbone if 5-fold OOF log loss exceeds 0.08. Escalate to a second backbone and localization only if the first reaches at most 0.08. Do not spend an official grading slot unless cross-fitted blended OOF is at most 0.040 and all probability rows sum to one within 1e-6.",
+        "leakage_or_metric_risks": [
+          "Class-column order is part of the metric contract and must exactly equal sample submission order.",
+          "Probability calibration, not only accuracy, is decisive at 0.04598.",
+          "External dog-specific weights or data must comply with the benchmark and competition rules and be recorded in the artifact manifest.",
+          "Duplicate images or externally overlapping images can produce invalid validation evidence.",
+          "Fixed label smoothing is incompatible with the required confidence."
+        ]
+      },
+      {
+        "competition_id": "histopathologic-cancer-detection",
+        "current_risk": "Moderate. This is the strongest current vision candidate, but only one holdout and four epochs are used. RandomResizedCrop is applied after CenterCrop(64), so it can move or discard the label-defining central tissue. Twenty percent of the data is excluded from the final trained checkpoint, and the current row cap discards additional labeled patches.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.5,
+            0.78
+          ],
+          "after_recommended_changes": [
+            0.78,
+            0.93
+          ],
+          "uncertainty": "The task is usually tractable with pretrained CNNs, but the interval still lacks official private-grader evidence and depends on correct handling of the central label region."
+        },
+        "highest_leverage_changes": [
+          "Use all training rows and preserve the center explicitly. Train one branch on the full 96 by 96 patch resized to 192 and a second branch on the central 64 by 64 crop resized to 192.",
+          "Replace RandomResizedCrop with rotations by multiples of 90 degrees, horizontal and vertical flips, mild affine scale, and stain/color augmentation that does not translate the center out of view.",
+          "Train 3 folds of EfficientNetV2-S or ConvNeXt-Small for 5-8 epochs with BCE, no class-weight requirement for AUC unless representation learning demonstrably improves, and exponential moving average.",
+          "Blend full-patch and center-patch fold predictions by OOF AUC, normally starting at weights 0.4 and 0.6.",
+          "Use eight dihedral TTA transforms, which are appropriate for tissue patches."
+        ],
+        "validation_design": "Three stratified folds, grouped by any available patient, slide, or source identifier; otherwise group perceptual duplicates. Produce exact OOF predictions and report pooled ROC AUC plus bootstrap 95 percent interval. A safe internal gate is pooled OOF AUC at least 0.9775 and no fold below 0.974.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 2-4 hours, often I/O-bound.",
+          "strengthened_candidate": "Approximately 8-14 hours for three folds and two patch branches."
+        },
+        "stop_or_escalate_gate": "Stop if center-preserving single-branch OOF AUC is below 0.972. Escalate to the dual-view blend at 0.972 or above. Permit human-gated official grading at pooled OOF AUC at least 0.9775 with duplicate groups isolated.",
+        "leakage_or_metric_risks": [
+          "The label is defined by central tissue, so unconstrained crop translation can introduce label noise.",
+          "Patch duplicates or multiple patches from one slide can inflate random-split AUC.",
+          "AUC consumes continuous probabilities; thresholding is invalid.",
+          "Subsampling must not create train/test path mismatches or be mistaken for full-data training."
+        ]
+      },
+      {
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "current_risk": "High. A word/character TF-IDF logistic baseline is credible but usually has little margin to the 0.98639 bronze threshold. The current random split can omit positives for rare labels, vectorizers see validation and test text, class_weight='balanced' is fixed without OOF comparison, and no NB-SVM or nonlinear pretrained text model is included.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.12,
+            0.35
+          ],
+          "after_recommended_changes": [
+            0.45,
+            0.72
+          ],
+          "uncertainty": "A few ten-thousandths determine the medal boundary. OOF-to-private variance and the rare threat and identity_hate columns dominate uncertainty."
+        },
+        "highest_leverage_changes": [
+          "Implement per-label NB-SVM for both word and character matrices using log-count ratios and logistic regression.",
+          "Raise word capacity to 300000-500000 features with 1-2 grams and char capacity to 400000-700000 features with 3-6 grams, subject to RAM smoke tests.",
+          "Add a pretrained RoBERTa-base or DeBERTa-v3-base multilabel model at maximum length 256, 3 folds, 2-3 epochs, BCEWithLogitsLoss, learning rate 1.5e-5, weight decay 0.01, and gradient accumulation.",
+          "Blend word NB-SVM, char NB-SVM, ordinary char logistic regression, and transformer using cross-fitted rank-normalized predictions.",
+          "Tune regularization independently by label from C values 0.5, 1, 2, and 4 using inner-fold AUC."
+        ],
+        "validation_design": "Use 5-fold iterative multilabel stratification. For an honest model score, fit vectorizers only on each fold's training text; a separate full-train vectorizer may be used for final test training. Produce six-column OOF predictions and report each label AUC and their exact unweighted mean. Learn blend weights on four folds and score the fifth, rotating all folds. Internal deployment gate is cross-fitted mean AUC at least 0.9870 with every label having both classes in every scored fold.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 1-4 CPU hours and high RAM; the A800 is mostly unused.",
+          "strengthened_candidate": "Approximately 8-16 hours including sparse models and a three-fold transformer, with stages run sequentially."
+        },
+        "stop_or_escalate_gate": "Stop if the complete word-plus-char NB-SVM OOF mean is below 0.9845. Add the transformer if NB-SVM is at least 0.9845. Do not grade officially unless cross-fitted blend AUC is at least 0.9870 and the blend improves at least 0.0003 over its strongest base model.",
+        "leakage_or_metric_risks": [
+          "Fitting vectorizer vocabulary and IDF on validation text makes OOF evidence transductive and slightly optimistic.",
+          "Random splits can make threat and identity_hate AUC unstable or undefined.",
+          "The official metric is the unweighted mean of six column AUCs, not pooled AUC.",
+          "Calibration does not improve an individual model's AUC; it is useful only to put heterogeneous model outputs on a compatible blend scale."
+        ]
+      },
+      {
+        "competition_id": "mlsp-2013-birds",
+        "current_risk": "Extreme. Seventy-two global spectral summaries discard temporal call structure, provided supplemental features and CVfolds_2.txt are ignored, split training is not stratified, and test models are not refit on all labeled recordings. The current mean-per-species validation reduction may not match the supplied binary ROC-AUC contract.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.03,
+            0.18
+          ],
+          "after_recommended_changes": [
+            0.48,
+            0.75
+          ],
+          "uncertainty": "The interval depends on the exact semantics of rec_labels_test_hidden.txt, CVfolds_2.txt, supplemental features, and the Id encoding. Those must be verified against the competition description before labels are consumed."
+        },
+        "highest_leverage_changes": [
+          "Parse and validate the official recording/species Id encoding from the supplied description instead of assuming rec_id = Id // 100 and species = Id % 100.",
+          "Use CVfolds_2.txt if it is the official training fold assignment, after proving no test IDs or hidden labels are exposed.",
+          "Load, document, and align every provided supplemental feature by recording ID; add missingness indicators and reject duplicate IDs.",
+          "Extract 1572-dimensional handcrafted log-mel, delta, MFCC, contrast, chroma, waveform, and modulation features, plus segment-level CNN embeddings.",
+          "Train per-species calibrated gradient boosting models and a global recording-species pair model containing species identity and feature-by-species interactions.",
+          "Train a small pretrained audio CNN or PANN-style log-mel model on 2-5 second windows and aggregate recording predictions with mean, top-quartile mean, and maximum pooling.",
+          "Refit models on all labeled recordings or average complete fold models for test inference."
+        ],
+        "validation_design": "First reproduce the exact official ROC-AUC reduction from sample rows. If it is one binary AUC, flatten OOF recording-species pairs in exact Id order; do not average species AUCs. If official documentation proves macro species AUC instead, encode that explicitly and test it. Use official folds when valid, otherwise repeated 5-fold iterative multilabel stratification by recording. Report pooled pair AUC, macro species AUC as a diagnostic, per-species positive counts, and fold variance.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 10-30 minutes, mostly CPU feature extraction.",
+          "strengthened_candidate": "Approximately 2-6 hours including feature extraction, fold boosting, and a compact audio CNN."
+        },
+        "stop_or_escalate_gate": "Immediate stop if file semantics or Id encoding cannot be proven. Stop if supplemental-plus-handcrafted OOF is below 0.85. Add CNN embeddings at 0.85 or above. Permit human-gated grading only when the exact-contract OOF AUC is at least 0.89 and every test row maps to one valid recording/species pair.",
+        "leakage_or_metric_risks": [
+          "A file named rec_labels_test_hidden.txt requires semantic verification; hidden test labels must never be used.",
+          "The current metric reduction may not match the official binary ROC-AUC contract.",
+          "Recording windows must remain in one fold.",
+          "Supplemental features can leak targets if their provenance or train/test construction is not documented.",
+          "Train and test recording ID sets must be asserted disjoint."
+        ]
+      },
+      {
+        "competition_id": "nomad2018-predict-transparent-conductors",
+        "current_risk": "High. The current model ignores geometry.xyz despite structure being central to both targets. It treats spacegroup as a continuous number, has one holdout, and uses only shallow tabular interactions. A score at or below 0.06582 is unlikely to be robust without structural descriptors and OOF blending.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.08,
+            0.28
+          ],
+          "after_recommended_changes": [
+            0.62,
+            0.83
+          ],
+          "uncertainty": "The improved interval assumes geometry files are complete, coordinates and units are correctly interpreted, and a 5-fold OOF target near 0.062 is obtained."
+        },
+        "highest_leverage_changes": [
+          "Parse all train and test geometry.xyz files and cache deterministic structure features keyed by id and file hash.",
+          "Treat spacegroup as categorical for CatBoost and add composition, lattice, reciprocal-lattice, periodic pair-distance, radial-distribution, coordination, and Coulomb or sine-matrix descriptors.",
+          "Train separate log1p-target CatBoost, ExtraTrees or Extremely Randomized Trees, and LightGBM/XGBoost models.",
+          "Optimize nonnegative per-target blend weights in log1p space using cross-fitted OOF predictions.",
+          "Average fold predictions in log space and apply expm1 only once when writing nonnegative submissions."
+        ],
+        "validation_design": "Primary 5-fold shuffled CV with fixed fold artifact and complete OOF predictions. Add a stress CV grouped by reduced composition signature and spacegroup to quantify structural extrapolation. Blend weights for each held-out fold must be learned from the other four folds. Report each target RMSLE, their unweighted mean, fold scores, and stress-CV score. Candidate gate is primary cross-fitted mean RMSLE at most 0.0625 and no fold above 0.066.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 10-30 minutes.",
+          "strengthened_candidate": "Approximately 1-3 hours including geometry parsing and sequential boosted-model folds; geometry extraction is primarily CPU-bound."
+        },
+        "stop_or_escalate_gate": "Stop if geometry IDs, atom counts, or lattice reconstruction fail any invariant. Stop model escalation if geometry CatBoost OOF exceeds 0.068. Add tree and descriptor blends if it reaches 0.068 or better. Permit official grading only at cross-fitted OOF at most 0.0625.",
+        "leakage_or_metric_risks": [
+          "RMSLE must be computed as RMSE in log1p space separately for each target and then averaged.",
+          "Negative predictions must be prevented before log1p.",
+          "Geometry parser row-order or coordinate-convention mistakes can silently corrupt all descriptors.",
+          "Blend weights fitted and reported on the same OOF rows are optimistic unless cross-fitted.",
+          "Duplicate structures should be grouped or separately diagnosed."
+        ]
+      },
+      {
+        "competition_id": "plant-pathology-2020-fgvc7",
+        "current_risk": "High. The dataset is small, lesions can be tiny, and 288-pixel single-fold ConvNeXt-Tiny training may not reach 0.97361 mean columnwise AUC reliably. Weighted multiclass cross-entropy is not directly aligned with four independent one-vs-rest AUCs.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.22,
+            0.48
+          ],
+          "after_recommended_changes": [
+            0.58,
+            0.79
+          ],
+          "uncertainty": "Small validation folds and the rare multiple_diseases class create substantial variance. Duplicate and image-source grouping may reduce apparent CV."
+        },
+        "highest_leverage_changes": [
+          "Train 5 stratified folds at 448-512 pixels with EfficientNet-B4, EfficientNetV2-S, or ConvNeXt-Small.",
+          "Use BCE on the four one-hot targets, or blend BCE with multiclass cross-entropy, to align representation learning with columnwise AUC.",
+          "Apply moderate color, brightness, contrast, hue, scale, CutMix, and MixUp augmentation while preserving enough resolution for localized lesions.",
+          "Use class-balanced sampling rather than large static loss weights, and include exponential moving average.",
+          "Blend two backbones and average horizontal-flip plus multi-crop TTA predictions. Renormalization is optional for AUC but should be tested OOF."
+        ],
+        "validation_design": "Five-fold stratification on the four-class label, grouped by perceptual duplicates or source sequence where detectable. Report all four OOF AUCs and their exact mean. Use cross-fitted model/blend selection and bootstrap intervals, with special monitoring of multiple_diseases. Internal gate is mean OOF AUC at least 0.978 and every class AUC at least 0.95.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 20-50 minutes.",
+          "strengthened_candidate": "Approximately 5-10 hours for two five-fold backbones."
+        },
+        "stop_or_escalate_gate": "Stop if a complete strong-backbone 5-fold OOF mean is below 0.968. Add the second backbone at 0.968 or above. Permit official grading at cross-fitted mean at least 0.978 and blend improvement at least 0.001.",
+        "leakage_or_metric_risks": [
+          "The metric is the unweighted mean of four one-vs-rest AUCs, not multiclass accuracy.",
+          "Perceptual duplicate leaves must not cross folds.",
+          "The test images share the images directory with training images, so ID-based partition assertions are mandatory.",
+          "Argmax conversion is valid only if each train row is exactly one-hot; assert this."
+        ]
+      },
+      {
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "current_risk": "Very high. The bronze threshold 0.9709 is close to the top of the metric range. A 320-pixel ConvNeXt-Tiny, five epochs, one random split, and no patient grouping or chest-specific preprocessing is insufficiently robust. Rare labels make mean AUC highly fold-sensitive.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.08,
+            0.25
+          ],
+          "after_recommended_changes": [
+            0.38,
+            0.62
+          ],
+          "uncertainty": "The improved interval is sensitive to whether PatientID and all official target columns are present in the actual data. The supplied nine-column prediction contract must be treated as authoritative for this benchmark instance."
+        },
+        "highest_leverage_changes": [
+          "Use 5-fold iterative multilabel GroupKFold by PatientID when available; otherwise derive and document the strongest valid patient or study grouping.",
+          "Train DenseNet121 or EfficientNetV2-S initialized from chest-X-ray-compatible weights when rule-compliant, plus a ConvNeXt-Small ImageNet branch.",
+          "Use 512-640 pixel grayscale images replicated to three channels, percentile intensity clipping, optional CLAHE, and no vertical flips.",
+          "Use BCE with modest capped positive weighting or asymmetric loss, comparing both by per-column OOF AUC.",
+          "Apply horizontal-flip and scale TTA only if each improves OOF. Blend chest-specific and generic backbones using cross-fitted rank predictions."
+        ],
+        "validation_design": "Five grouped iterative multilabel folds with exact OOF coverage. Report all official prediction-column AUCs, their unweighted mean, patient overlap checks, and positive counts per fold. Do not import extra target names from the historical Kaggle schema; use the supplied sample columns exactly. Internal gate is grouped OOF mean at least 0.9725 with no undefined column AUC.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 2-5 hours.",
+          "strengthened_candidate": "Approximately 22-40 hours for two five-fold high-resolution backbones."
+        },
+        "stop_or_escalate_gate": "Stop if grouped single-backbone OOF is below 0.965. Escalate to the second backbone at 0.965 or above. Permit official grading only at grouped cross-fitted OOF at least 0.9725 and with zero patient overlap across folds.",
+        "leakage_or_metric_risks": [
+          "Random study splitting can leak the same patient across train and validation.",
+          "The exact benchmark sample has nine prediction columns according to the supplied schema; historical eleven-label assumptions would generate an invalid submission.",
+          "Mean columnwise AUC requires both classes in each scored fold.",
+          "Aggressive image resizing can erase catheter-tip detail."
+        ]
+      },
+      {
+        "competition_id": "text-normalization-challenge-english-language",
+        "current_risk": "Moderate to high. Exact-token memorization plus basic integer and decimal rules may approach the 0.99038 bronze boundary because unchanged tokens dominate, but it ignores class, context, dates, measures, money, ordinals, times, fractions, electronic strings, abbreviations, and ambiguity. Current contiguous row validation does not provide a reliable estimate.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.38,
+            0.68
+          ],
+          "after_recommended_changes": [
+            0.75,
+            0.91
+          ],
+          "uncertainty": "Overall token accuracy can look excellent while changed-token accuracy is poor. The interval depends on sentence-aware validation and exact formatting conventions."
+        },
+        "highest_leverage_changes": [
+          "Read sentence_id, token_id, class, before, and after when present; reconstruct sentence context and preserve sample id order.",
+          "Build exact, lowercase, shape-conditioned, and context-conditioned frequency maps using only fold-training sentences, with ambiguity thresholds.",
+          "Implement deterministic transducers for CARDINAL, ORDINAL, DECIMAL, FRACTION, DATE, TIME, MONEY, MEASURE, TELEPHONE, DIGIT, LETTERS, ELECTRONIC, ADDRESS, VERBATIM, PUNCT, and PLAIN.",
+          "Train a lightweight character-word class classifier from token plus two neighboring tokens for cases where class is absent at test time, then dispatch to deterministic class rules.",
+          "Add English scale words through trillion, year-specific date readings, pluralized measurement units, currency order, Roman numerals, abbreviation expansion, and digit-by-digit modes.",
+          "Store streaming frequency counts in SQLite or DuckDB to avoid an unbounded Python Counter."
+        ],
+        "validation_design": "Use 5-fold GroupKFold by sentence_id. Construct every map and class model from only the four training folds. Report overall exact accuracy, changed-token accuracy, unseen-before accuracy, ambiguous-before accuracy, per-class accuracy, and fallback rate. Also run a source-ordered stress split. Internal gate is grouped OOF overall accuracy at least 0.9920 and no rule class with more than 1 percent regression versus identity or memorization baseline.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 20-90 CPU minutes depending on compressed CSV size.",
+          "strengthened_candidate": "Approximately 1-4 CPU hours; GPU is not required."
+        },
+        "stop_or_escalate_gate": "Stop if grouped OOF remains below 0.9900 after exact maps and core numeric rules. Escalate to context classification and full class transducers at 0.9900 or above. Permit official grading at grouped OOF at least 0.9920 with valid UTF-8, exact row count, and no missing after values.",
+        "leakage_or_metric_risks": [
+          "Frequency maps must be rebuilt inside each fold; constructing one map from all training rows before CV is direct validation leakage.",
+          "Rows from one sentence must remain in one fold.",
+          "Overall accuracy is dominated by unchanged tokens, so changed and unseen subsets are mandatory diagnostics.",
+          "Incorrect verbalization can be worse than copying; each rule needs confidence and identity fallback."
+        ]
+      },
+      {
+        "competition_id": "text-normalization-challenge-russian-language",
+        "current_risk": "Moderate to high. Exact memorization is useful, but the current Russian fallback is identity and contains no numeric morphology, date, currency, measure, abbreviation, or grammatical-case handling. The 0.97592 threshold is lower than English but still requires robust handling of frequent changed classes.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.35,
+            0.68
+          ],
+          "after_recommended_changes": [
+            0.7,
+            0.88
+          ],
+          "uncertainty": "Russian inflection and context produce wider uncertainty than English. A strong exact map may nevertheless cover much of the private distribution."
+        },
+        "highest_leverage_changes": [
+          "Use the same sentence-grouped, class-aware architecture as English with Russian-specific transducers.",
+          "Implement cardinal and ordinal number generation with gender and case selected from class, unit, suffix, and neighboring tokens; use a vetted morphology library only if its version and model files are pinned.",
+          "Handle dates, years, decimals, fractions, money, measures, telephone, digit sequences, Roman numerals, abbreviations, and Cyrillic or Latin letter spelling.",
+          "Use exact and lowercase maps first when unambiguous, class-conditioned maps second, rules third, and identity as the safe fallback.",
+          "Record rule coverage and exact errors by normalization class and token shape."
+        ],
+        "validation_design": "Five-fold GroupKFold by sentence_id with fold-local maps and class model. Report overall, changed-token, unseen-token, ambiguous-token, and per-class exact accuracy. Add a source-ordered stress split and specifically measure morphology-sensitive classes. Internal gate is grouped OOF overall accuracy at least 0.9800, giving margin over 0.97592.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 15-60 CPU minutes.",
+          "strengthened_candidate": "Approximately 1-3 CPU hours."
+        },
+        "stop_or_escalate_gate": "Stop if exact and class-conditioned maps plus conservative numeric rules remain below 0.974. Escalate to morphology-aware rules at 0.974 or above. Permit official grading at grouped OOF at least 0.9800 and source-stress accuracy at least 0.976.",
+        "leakage_or_metric_risks": [
+          "Sentence leakage and full-data map leakage can inflate accuracy.",
+          "Wrong Russian case or gender produces exact-match failure despite semantically correct words.",
+          "Unicode normalization, Cyrillic confusables, hyphens, and nonbreaking spaces must be canonicalized only when the training convention proves it.",
+          "Aggressive rules need confidence gates because identity is often correct."
+        ]
+      },
+      {
+        "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+        "current_risk": "Very high. The current 72-dimensional feature vector averages the spectrum over the entire clip and loses the characteristic time-frequency trajectory of right-whale calls. A single CatBoost split is unlikely to reach ROC AUC 0.90521 robustly.",
+        "probability_band_to_bronze": {
+          "current_adapter": [
+            0.05,
+            0.22
+          ],
+          "after_recommended_changes": [
+            0.58,
+            0.8
+          ],
+          "uncertainty": "The bronze threshold is achievable with spectrogram models, but source duplicates, clip naming, sample rates, and pretrained audio availability affect the estimate."
+        },
+        "highest_leverage_changes": [
+          "Resample every clip to 16000 Hz, preserve a fixed physical frequency scale, and cache log-mel, PCEN, and handcrafted descriptors.",
+          "Train a 2D EfficientNet-B0 or ConvNeXt-Tiny on 128-bin log-mel spectrograms with time and frequency masking, random gain, time shift, and mixup.",
+          "Add a handcrafted-feature CatBoost or SVM model using the 1572-dimensional audio specification.",
+          "Use duplicate-aware stratified 5-fold CV based on waveform or spectrogram hashes.",
+          "Blend CNN and handcrafted predictions by cross-fitted ranks and average fold models for test inference."
+        ],
+        "validation_design": "Five stratified folds grouped by exact and near-duplicate audio hash. Report pooled OOF ROC AUC, fold AUC, bootstrap interval, score by SNR band, and duplicate-group checks. Internal gate is OOF AUC at least 0.93 with no fold below 0.90.",
+        "expected_single_A800_runtime": {
+          "current_adapter": "Approximately 1-4 hours depending on the number of clips and AIFF decoding throughput.",
+          "strengthened_candidate": "Approximately 7-15 hours including cached feature extraction, five CNN folds, and the handcrafted model."
+        },
+        "stop_or_escalate_gate": "Stop if handcrafted OOF AUC is below 0.85. Add the CNN at 0.85 or above. Do not grade officially unless the duplicate-aware blend reaches OOF AUC at least 0.93 and improves at least 0.01 over handcrafted features.",
+        "leakage_or_metric_risks": [
+          "Near-duplicate clips can inflate random CV.",
+          "FFT-bin summaries without resampling are not comparable across sample rates.",
+          "Filename label extraction must be asserted for every train clip and never applied to test filenames.",
+          "ROC AUC requires continuous scores; probability calibration is secondary to ranking."
+        ]
+      }
+    ],
+    "conversion_priority": {
+      "ordered_task_ids": [
+        {
+          "competition_id": "histopathologic-cancer-detection",
+          "justification": "Highest near-term vision conversion probability; the central-patch signal is strong and the current model is directionally correct."
+        },
+        {
+          "competition_id": "text-normalization-challenge-english-language",
+          "justification": "CPU-only, cheap iteration, and a class-aware deterministic system can create a measurable margin over 0.99038."
+        },
+        {
+          "competition_id": "text-normalization-challenge-russian-language",
+          "justification": "Lower bronze threshold than English and exact maps should provide substantial coverage, although morphology requires care."
+        },
+        {
+          "competition_id": "nomad2018-predict-transparent-conductors",
+          "justification": "Geometry is an unused high-signal source; adding it is likely to produce a larger gain per compute hour than additional tabular tuning."
+        },
+        {
+          "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+          "justification": "The current representation is severely underpowered, while a spectrogram CNN directly addresses the known signal and the bronze AUC is 0.90521."
+        },
+        {
+          "competition_id": "plant-pathology-2020-fgvc7",
+          "justification": "Small dataset and known high-resolution vision recipes make sequential fold experimentation affordable."
+        },
+        {
+          "competition_id": "mlsp-2013-birds",
+          "justification": "Provided folds and supplemental features may produce a large improvement, but file semantics and metric reduction must first be proven."
+        },
+        {
+          "competition_id": "aptos2019-blindness-detection",
+          "justification": "Retina-specific preprocessing and ordinal ensembling are established improvements, but QWK variance and threshold fitting make it less certain."
+        },
+        {
+          "competition_id": "jigsaw-toxic-comment-classification-challenge",
+          "justification": "The threshold is very tight; NB-SVM is cheap, but a transformer blend is probably required for reliable margin."
+        },
+        {
+          "competition_id": "ranzcr-clip-catheter-line-classification",
+          "justification": "High compute cost, patient-grouped validation, and a 0.9709 threshold make this a later high-risk conversion."
+        },
+        {
+          "competition_id": "dog-breed-identification",
+          "justification": "A log loss of 0.04598 is a stretch target requiring exceptional accuracy and calibration. It should not consume the first scarce GPU window."
+        }
+      ],
+      "estimated_medal_conversion_count": {
+        "current_adapter_expected": "Approximately 2-4 of 11, but this is not official evidence and the lower outcome is plausible.",
+        "strengthened_expected_value": "Approximately 6.5-7.5 of 11.",
+        "plausible_interval": "5-9 of 11.",
+        "stretch_case": "10 of 11 by converting every task except Dog Breed; this is planning upside, not a medal claim."
+      }
+    },
+    "patch_plan": [
+      {
+        "order": 1,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Add validate_submission_contract(competition_id, submission, sample) to require exact column names and order, exact row count, unique unchanged IDs, finite numeric predictions, task-specific ranges, integer APTOS diagnoses, and probability-row sums for Dog Breed.",
+          "Change _vision_model(output_count, require_pretrained=True) to catch only known download/cache exceptions and raise RuntimeError in medal mode when pretrained weights are absent. Record the exact weight enum and SHA256.",
+          "Add deterministic fold artifacts under task_dir/folds_seed{seed}.parquet containing row ID, group ID, label summary, and fold. Never regenerate silently.",
+          "Add an artifact manifest with source file sizes and hashes, code revision, package versions, seed, pretrained-weight hashes, fold hash, feature-cache hashes, CV metric implementation, and submission hash.",
+          "Add explicit metric reducers per task instead of competition-ID conditionals inside the generic vision loop."
+        ],
+        "required_new_tests": [
+          "test_submission_contract_exact_columns_order_and_ids",
+          "test_submission_contract_rejects_nonfinite_and_duplicate_ids",
+          "test_dog_probabilities_sum_to_one",
+          "test_aptos_submission_is_integer_0_to_4",
+          "test_vision_pretrained_failure_is_fail_closed",
+          "test_fold_artifact_is_stable_and_complete",
+          "test_metric_directions_and_threshold_comparators"
+        ]
+      },
+      {
+        "order": 2,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Replace _run_vision single holdout with train_vision_folds and infer_vision_fold_ensemble. Each fold writes best checkpoint, OOF logits, test logits, history, and peak memory. Test predictions must be averaged across complete fold models.",
+          "Add group-aware fold constructors for duplicates, PatientID, and multilabel targets.",
+          "Add crossfit_ordinal_thresholds so every APTOS OOF row is thresholded using thresholds fitted without that row's fold.",
+          "Seed Python, NumPy, torch, CUDA, DataLoader generators, and worker_init_fn. Record determinism settings and permit a separately labeled performance mode.",
+          "Use BF16 autocast on A800 when supported and retain FP32 metric computation."
+        ],
+        "required_new_tests": [
+          "test_oof_rows_are_covered_exactly_once",
+          "test_group_ids_never_cross_folds",
+          "test_crossfit_ordinal_thresholds_exclude_scored_fold",
+          "test_fold_ensemble_uses_all_training_rows_across_models",
+          "test_dataloader_worker_seeding_is_repeatable",
+          "test_multilabel_fold_has_both_classes_when_feasible"
+        ]
+      },
+      {
+        "order": 3,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Add parse_nomad_geometry, nomad_structure_features, build_nomad_feature_cache, crossfit_regression_blend, and train_nomad_folds.",
+          "Make spacegroup categorical for CatBoost and preserve numeric and categorical feature schemas in JSON.",
+          "Optimize blend weights in log1p space with nonnegative weights summing to one and cross-fit the weight search."
+        ],
+        "required_new_tests": [
+          "test_nomad_cubic_cell_volume_and_angles",
+          "test_nomad_fractional_cartesian_round_trip",
+          "test_nomad_periodic_minimum_image_distance",
+          "test_nomad_pair_feature_width_is_constant",
+          "test_nomad_atom_counts_match_composition",
+          "test_nomad_crossfit_blend_does_not_fit_scored_fold",
+          "test_nomad_rmsle_matches_manual_log_space_formula"
+        ]
+      },
+      {
+        "order": 4,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Replace audio_features with resample_audio, extract_audio_feature_vector, extract_logmel_segments, hash_audio_group, and cache_audio_features.",
+          "Add parse_birds_metadata with explicit description-driven Id semantics, official-fold parsing, label-file provenance checks, train/test disjointness, and supplemental-feature alignment.",
+          "Implement both flattened binary AUC and macro-species AUC, then select only the reducer proven by official documentation.",
+          "Refit Birds tabular models on all labeled recordings or use complete fold ensembles."
+        ],
+        "required_new_tests": [
+          "test_audio_features_are_1572_wide_and_finite",
+          "test_audio_features_are_sample_rate_invariant_for_same_tone",
+          "test_audio_silence_and_short_clip_are_supported",
+          "test_birds_id_round_trip_from_documented_encoding",
+          "test_birds_train_test_recordings_are_disjoint",
+          "test_birds_metric_reducer_matches_hand_calculation",
+          "test_birds_hidden_or_unknown_labels_are_never_training_labels",
+          "test_supplemental_feature_alignment_rejects_duplicate_ids"
+        ]
+      },
+      {
+        "order": 5,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Add stream_normalization_counts using SQLite or DuckDB, reconstruct_sentences, build_fold_normalization_maps, classify_normalization_class, normalize_english_by_class, and normalize_russian_by_class.",
+          "Implement confidence-gated transducers and diagnostics for identity, changed, unseen, ambiguous, and each class.",
+          "Make sentence-grouped CV mandatory and prohibit use of a global map during OOF scoring."
+        ],
+        "required_new_tests": [
+          "test_normalization_sentence_groups_do_not_cross_folds",
+          "test_normalization_fold_map_excludes_validation_rows",
+          "test_english_cardinal_ordinal_decimal_fraction_date_time_money_measure",
+          "test_russian_cardinal_ordinal_date_money_measure_inflections",
+          "test_ambiguous_mapping_requires_context_or_falls_back",
+          "test_unicode_and_empty_tokens_round_trip",
+          "test_normalization_submission_preserves_sample_ids_and_rows"
+        ]
+      },
+      {
+        "order": 6,
+        "stage": "implementable_now_without_GPU",
+        "changes": [
+          "Add compute_nb_log_count_ratio, train_nbsvm_label, train_jigsaw_sparse_folds, rank_normalize_by_fold, and crossfit_auc_blend.",
+          "Use iterative multilabel folds and fold-local sparse vectorizers for honest OOF.",
+          "Persist sparse-model OOF and test predictions separately so a later transformer can be blended without retraining."
+        ],
+        "required_new_tests": [
+          "test_nb_log_count_ratio_matches_manual_example",
+          "test_jigsaw_each_fold_has_rare_label_positives_when_feasible",
+          "test_jigsaw_vectorizer_does_not_fit_validation_text",
+          "test_rank_normalization_is_monotonic",
+          "test_crossfit_auc_blend_excludes_scored_fold",
+          "test_jigsaw_metric_is_unweighted_mean_of_six_aucs"
+        ]
+      },
+      {
+        "order": 7,
+        "stage": "needs_remote_validation",
+        "changes": [
+          "Run one-batch CUDA smoke tests for each selected vision backbone, audio CNN, text transformer, and CatBoost GPU path.",
+          "Benchmark JPEG, PNG, TIFF, AIFF, and ZIP I/O from the remote filesystem before selecting worker counts and batches.",
+          "Verify all pretrained weights are already cached or manually staged under the allowed remote root with hashes.",
+          "Measure A800 memory and throughput at the intended high resolutions; automatically reduce batch size, not image resolution, on out-of-memory."
+        ],
+        "required_new_tests": [
+          "test_cuda_smoke_all_model_families",
+          "test_cuda_peak_memory_below_72_gib",
+          "test_pretrained_weight_hashes_match_manifest",
+          "test_catboost_gpu_device_zero_only",
+          "test_remote_artifacts_remain_under_allowed_root"
+        ]
+      },
+      {
+        "order": 8,
+        "stage": "needs_remote_validation",
+        "changes": [
+          "Run priority tasks in order: Histopathology, English normalization, Russian normalization, NOMAD, Whale, Plant, Birds, APTOS, Jigsaw, RANZCR, then Dog Breed.",
+          "Require full OOF artifacts and task-specific gates before generating an official-candidate submission.",
+          "Use the human submission gate; never invoke Kaggle or the private grader automatically.",
+          "After each official result, store grader response, schema validity, private score, threshold comparison, and medal evidence separately from CV."
+        ],
+        "required_new_tests": [
+          "test_result_record_distinguishes_cv_private_score_and_medal",
+          "test_no_automatic_submission_path_exists",
+          "test_official_evidence_requires_grader_artifact",
+          "test_seed_results_are_immutable_after_grading"
+        ]
+      }
+    ],
+    "nomad_geometry_spec": {
+      "parser_contract": {
+        "input": "{train|test}/{id}/geometry.xyz",
+        "required_records": [
+          "Exactly three lattice_vector records with three finite Cartesian components each.",
+          "One or more atom records with finite x, y, z and element in Al, Ga, In, O."
+        ],
+        "matrix_convention": "Store the three lattice vectors as rows of A. For Cartesian row vector r, fractional coordinate f = r @ inverse(A). Reconstruct r = f @ A.",
+        "invariants": [
+          "abs(det(A)) must exceed 1e-6.",
+          "Every atom element must be one of Al, Ga, In, O.",
+          "Parsed atom count must equal number_of_total_atoms when that field is reliable; otherwise fail the medal run and inspect.",
+          "Element fractions derived from geometry must agree with CSV percentages within a recorded tolerance.",
+          "All train and test IDs must have exactly one geometry feature row."
+        ]
+      },
+      "exact_features": {
+        "lattice": [
+          "A flattened into 9 components.",
+          "Gram matrix G = A @ A.T flattened upper triangle into 6 components.",
+          "Lengths a_i = norm(A_i), their mean, standard deviation, minimum, maximum, maximum/minimum, and geometric mean.",
+          "Angles alpha = acos(dot(A_2,A_3)/(norm(A_2)norm(A_3))), beta, gamma in degrees.",
+          "Volume V = abs(det(A)); volume_per_atom = V/N.",
+          "Reciprocal lattice B = 2*pi*inverse(A).T; its three lengths and summary statistics.",
+          "Singular values of A, condition number, and anisotropy = max(singular_value)/min(singular_value)."
+        ],
+        "composition": [
+          "Counts and fractions for Al, Ga, In, O.",
+          "All ten unordered fraction products f_e*f_g.",
+          "Composition entropy = -sum_e f_e*log(max(f_e,1e-12)).",
+          "For atomic number, mass, covalent radius, van der Waals radius, and Pauling electronegativity: weighted mean, standard deviation, minimum, maximum, and range.",
+          "Cation total fraction, oxygen-to-cation ratio, and Al/Ga/In pair ratios with protected denominators."
+        ],
+        "periodic_distances": [
+          "Wrap fractional coordinates to [0,1).",
+          "For each atom pair, obtain the exact local minimum-image distance by checking the 27 translations around the rounded fractional displacement; do not rely only on componentwise rounding for skewed cells.",
+          "For all pairs and each of the ten unordered element-pair types: count, minimum, mean, standard deviation, p10, p25, p50, p75, p90, maximum.",
+          "Radial-distribution histograms from 0 to 8 angstrom in 0.2-angstrom bins for all pairs and each element-pair type, normalized by pair count and shell volume.",
+          "Per-atom first through sixth nearest-neighbor distances aggregated by mean, standard deviation, minimum, median, and maximum.",
+          "Coordination counts within 2.0, 2.5, 3.0, 3.5, and 4.0 angstrom, globally and by central element and neighbor element."
+        ],
+        "matrix_descriptors": [
+          "Periodic sine-matrix or Ewald-compatible Coulomb-like matrix using nuclear charges.",
+          "Sorted eigenvalues padded or truncated to the maximum training atom count, with an explicit valid-length feature.",
+          "Frobenius norm, trace, spectral radius, and top 5, 10, and 20 eigenvalue sums."
+        ],
+        "tabular_interactions": [
+          "Original numeric columns.",
+          "spacegroup as both categorical and numeric.",
+          "Existing cell-volume and lattice interaction features.",
+          "Geometry-minus-CSV residuals for lattice lengths, angles, atom count, and composition; large residuals are hard failures rather than predictive inputs."
+        ]
+      },
+      "oof_and_blend_design": {
+        "targets": [
+          "formation_energy_ev_natom",
+          "bandgap_energy_ev"
+        ],
+        "target_transform": "z = log1p(max(y,0)). Train and blend z directly. Final prediction is max(expm1(z_hat),0).",
+        "primary_folds": "Five fixed shuffled folds with seed recorded in a parquet artifact.",
+        "stress_folds": "Five groups based on reduced composition signature plus spacegroup to estimate extrapolation risk.",
+        "base_models": [
+          "CatBoostRegressor with depth in {6,8}, learning_rate 0.02-0.04, 2500-5000 maximum iterations, RMSE loss in log space, early stopping 150, GPU device 0, and categorical spacegroup.",
+          "ExtraTreesRegressor with 800-1200 trees, max_features in {0.7,1.0}, min_samples_leaf in {1,2}, and all CPU cores allowed by the job.",
+          "LightGBM or XGBoost if installed and pinned: depth 4-8, learning_rate 0.02, 2000-5000 trees, subsample 0.8, column sample 0.8, early stopping."
+        ],
+        "blend": "For each target, solve nonnegative weights summing to one that minimize RMSE of z. Cross-fit this optimization: weights for fold k are learned from OOF rows outside fold k. Average final fold-model predictions in z space. A simple fallback is 0.6 geometry CatBoost, 0.25 gradient boosting, and 0.15 ExtraTrees.",
+        "target_gate": {
+          "bronze_contract": "mean columnwise RMSLE <= 0.06582",
+          "required_primary_crossfit_oof": "<= 0.0625",
+          "required_worst_fold": "<= 0.0660",
+          "stress_diagnostic": "<= 0.0700 preferred; a worse result requires explicit private-shift risk labeling"
+        }
+      }
+    },
+    "audio_spec": {
+      "shared_preprocessing": {
+        "decode": "Decode WAV or AIFF to float32 mono. Reject nonfinite samples and record source sample rate.",
+        "resample": "Polyphase-resample to 16000 Hz before any spectral feature.",
+        "normalization": "Remove DC. Preserve an RMS and peak feature before gain normalization. Normalize by robust p99 absolute amplitude with epsilon, not only the maximum.",
+        "spectrogram": "128 mel bins, n_fft=1024, window_length=1024, hop_length=320, fmin=40 Hz, fmax=7800 Hz. Cache log1p mel power and PCEN.",
+        "segments": "Use deterministic overlapping windows: 5 seconds with 50 percent overlap for Birds and task-tuned 2-5 second windows for Whale. Pad short clips and retain a padding fraction feature."
+      },
+      "fixed_width_handcrafted_vector": {
+        "total_width": 1572,
+        "components": [
+          "Log-mel: for each of 128 bands, mean, standard deviation, p10, p50, p90, and maximum = 768.",
+          "First and second temporal deltas: mean and standard deviation for each of 128 bands and each derivative order = 512.",
+          "MFCC 0-39: mean, standard deviation, p10, and p90 = 160.",
+          "Spectral contrast with 7 bands: mean, standard deviation, p10, and p90 = 28.",
+          "Chroma with 12 bins: mean, standard deviation, p10, and p90 = 48.",
+          "Waveform and spectral scalars = 24, including duration, original rate, padding fraction, RMS, peak, crest factor, zero-crossing rate, spectral centroid, bandwidth, rolloff at 0.85 and 0.95, flatness, entropy, and quantiles.",
+          "Temporal modulation and energy-envelope descriptors = 32, including modulation-band powers, autocorrelation peaks, event occupancy, and event-duration summaries."
+        ],
+        "cnn_embedding": "Keep CNN embeddings as a separately versioned feature block, typically 1024-2048 dimensions. Do not silently mix widths across folds."
+      },
+      "birds": {
+        "metric_contract": "Resolve from official documentation whether ROC AUC is pooled over all recording-species sample rows. The Phase-A binary contract implies pooled AUC; current macro-species AUC must not be treated as official without proof.",
+        "models": [
+          "Per-species CatBoost or logistic models on handcrafted, supplemental, and CNN features.",
+          "One global pair model with species as categorical input, recording features, feature-by-species projections, and species prior.",
+          "Segment CNN with sigmoid outputs for 19 species; aggregate by mean, maximum, and top-quartile mean."
+        ],
+        "cv": "Use validated CVfolds_2 assignments if they refer only to labeled training recordings. Otherwise use repeated five-fold iterative multilabel stratification. All segments from one recording remain together.",
+        "blend": "Cross-fit nonnegative weights among per-species tabular, global pair, and CNN scores. Start with 0.35, 0.20, and 0.45 respectively. Use rank blend if base score scales differ.",
+        "target_gate": "Exact-contract OOF AUC >= 0.89 before human-gated official grading; bronze is >= 0.87372."
+      },
+      "whale": {
+        "models": [
+          "EfficientNet-B0 or ConvNeXt-Tiny on log-mel and PCEN as two channels, initialized from available compliant weights.",
+          "CatBoost, calibrated SVM, or ExtraTrees on the 1572 handcrafted features.",
+          "Optional matched-filter features for upsweep calls based on Hough-like positive spectrogram slopes."
+        ],
+        "augmentation": [
+          "Time shift up to 20 percent.",
+          "Gain jitter plus or minus 6 dB.",
+          "One or two time masks and frequency masks.",
+          "Background-noise mix and mixup at low probability.",
+          "No frequency-axis reversal."
+        ],
+        "cv": "Five stratified folds grouped by exact waveform hash and near-duplicate spectrogram embedding cluster.",
+        "blend": "Cross-fitted rank blend, initial weights 0.7 CNN and 0.3 handcrafted. Require at least 0.01 OOF improvement over handcrafted-only before accepting the CNN cost.",
+        "target_gate": "Duplicate-aware OOF AUC >= 0.93 before human-gated official grading; bronze is >= 0.90521."
+      }
+    },
+    "normalization_spec": {
+      "architecture": {
+        "data_model": "Load sentence_id, token_id, class, before, and after where available. Sort only for sentence reconstruction; write predictions in original test row and sample ID order.",
+        "decision_order": [
+          "Return exact fold-training mapping when one output has posterior frequency at least 0.98 and at least two observations.",
+          "Return class-conditioned exact or lowercase mapping when unambiguous.",
+          "Infer normalization class from regex and a lightweight token-plus-context classifier if class is absent.",
+          "Apply a deterministic class transducer with confidence checks.",
+          "Use context-conditioned mapping for unresolved ambiguous tokens.",
+          "Return identity when no rule is proven safer."
+        ],
+        "map_keys": [
+          "Exact before token.",
+          "Unicode-normalized lowercase token.",
+          "Token shape plus inferred class.",
+          "Previous token, before token, next token.",
+          "Before token plus unit, currency, date, or punctuation context."
+        ],
+        "storage": "Use SQLite or DuckDB tables keyed by map type, fold, before, context, and after with count and posterior. This avoids loading all changed pairs into an unbounded Counter."
+      },
+      "english": {
+        "classes": [
+          "PLAIN",
+          "PUNCT",
+          "DATE",
+          "LETTERS",
+          "CARDINAL",
+          "VERBATIM",
+          "DECIMAL",
+          "MEASURE",
+          "MONEY",
+          "ORDINAL",
+          "TIME",
+          "ELECTRONIC",
+          "DIGIT",
+          "FRACTION",
+          "TELEPHONE",
+          "ADDRESS"
+        ],
+        "rules": [
+          "Cardinals through trillion with signed values and training-derived comma conventions.",
+          "Ordinals including irregular first, second, third, fifth, eighth, ninth, and twelfth forms.",
+          "Decimals with configurable point versus decimal conventions and digit-wise fractional reading.",
+          "Fractions with numerator cardinal and denominator ordinal/plural handling.",
+          "Dates with month names, day ordinals, and year-specific readings selected from training frequencies.",
+          "Times including hour, minute, seconds, a.m., p.m., and colon-separated forms.",
+          "Money and measures with singular/plural unit selection and symbol expansion.",
+          "Telephone, digit, address, electronic, URL, email, hashtag, and letter-spelling modes.",
+          "Roman numerals and abbreviation expansion only under learned contextual confidence."
+        ],
+        "target": "Grouped OOF token exact accuracy >= 0.9920 before grading; official bronze is 0.99038."
+      },
+      "russian": {
+        "rules": [
+          "Cardinal and ordinal generation with gender, number, and grammatical case inferred from neighboring unit or date words.",
+          "Date and year forms, including ordinal year inflection.",
+          "Decimal and fraction morphology.",
+          "Ruble, kopeck, currency, and measurement-unit declension.",
+          "Telephone and digit-by-digit modes.",
+          "Cyrillic and Latin letter spelling, abbreviations, Roman numerals, addresses, and electronic tokens.",
+          "Conservative identity fallback whenever morphology confidence is insufficient."
+        ],
+        "target": "Grouped OOF token exact accuracy >= 0.9800 and source-ordered stress accuracy >= 0.976 before grading; official bronze is 0.97592."
+      },
+      "diagnostics": [
+        "Overall exact accuracy.",
+        "Identity-token accuracy and changed-token accuracy.",
+        "Seen-before, unseen-before, and ambiguous-before accuracy.",
+        "Per-class accuracy, support, and rule coverage.",
+        "Accuracy by frequency bucket and token shape.",
+        "Fallback rate and harmful-rule rate, where a rule changes a token that identity would have matched.",
+        "Top exact confusions with sentence context.",
+        "UTF-8 validity, missing output count, row count, ID preservation, and duplicate ID count."
+      ],
+      "validation_split": "Five-fold GroupKFold by sentence_id. All maps, ambiguity statistics, class models, and rule-frequency choices are trained only on the other four folds. A second source-ordered or contiguous-sentence stress split detects distribution drift. Never construct one global map before OOF scoring."
+    },
+    "jigsaw_spec": {
+      "nbsvm_formula": {
+        "binary_matrix": "B = 1[X > 0] for the selected word or character TF-IDF vocabulary.",
+        "positive_rate": "p_j = (1 + sum_{i:y_i=1} B_ij) / (2 + number_of_positive_rows)",
+        "negative_rate": "q_j = (1 + sum_{i:y_i=0} B_ij) / (2 + number_of_negative_rows)",
+        "log_count_ratio": "r_j = log(p_j / q_j)",
+        "classifier_input": "X_nb = X elementwise-multiplied by r. Fit one logistic regression per target."
+      },
+      "sparse_models": [
+        "Word NB-SVM: word 1-2 grams, strip_accents=unicode, sublinear TF, min_df=2, max_features 300000-500000, C selected from 0.5, 1, 2, 4.",
+        "Character NB-SVM: char or char_wb 3-6 grams, sublinear TF, min_df=2-3, max_features 400000-700000.",
+        "Ordinary character logistic regression as a complementary smoother.",
+        "Optional word analyzer with punctuation and obfuscation-preserving tokenization for toxic spellings."
+      ],
+      "transformer": {
+        "model": "RoBERTa-base or DeBERTa-v3-base with six sigmoid outputs.",
+        "training": "Three folds, maximum length 256, dynamic padding, batch selected by CUDA smoke, gradient accumulation to effective batch 64, 2-3 epochs, AdamW learning rate 1.5e-5, weight decay 0.01, linear warmup 6 percent, BF16, and best checkpoint by mean validation AUC.",
+        "requirement": "Use only pinned, compliant pretrained weights with recorded hashes. Fail closed if unavailable."
+      },
+      "calibration_and_blend": {
+        "principle": "Individual AUC is invariant to monotone calibration. Calibration is used only to make heterogeneous model outputs comparable for blending.",
+        "rank_transform": "Within each OOF fold and target, convert predictions to fractional ranks (rank-0.5)/n, clip to [1e-5,1-1e-5], and optionally transform through the normal quantile.",
+        "weight_search": "For each held-out fold, search simplex weights on the other four folds using a coarse 0.05 grid followed by SLSQP. Optimize the exact unweighted mean of six AUCs. Record both shared weights and per-label weights; prefer shared weights unless per-label cross-fitted improvement exceeds 0.0001.",
+        "initial_weights": "0.25 word NB-SVM, 0.25 char NB-SVM, 0.10 ordinary char logistic, 0.40 transformer.",
+        "final_prediction": "Average fold test predictions within each base model, apply the same rank or empirical-CDF convention, combine with locked weights, map to [1e-6,1-1e-6]."
+      },
+      "validation": "Five-fold iterative multilabel OOF for sparse models and compatible fold assignment for the transformer. Report all six AUCs, exact mean, fold variance, and bootstrap interval. The deployment target is cross-fitted mean AUC >= 0.9870; official bronze is 0.98639."
+    },
+    "vision_spec": {
+      "shared_contract": [
+        "Required pretrained weights must be local, pinned, hashed, and loaded successfully; random initialization is a hard failure.",
+        "Use fixed fold artifacts, complete OOF logits, fold-model test ensembles, BF16 on A800, EMA or SWA, and exact task metric reducers.",
+        "Check every image path or a complete generated manifest, not only the first 32 paths.",
+        "Search blend and calibration parameters through cross-fitting, not on the same OOF rows used for the reported score."
+      ],
+      "aptos2019-blindness-detection": {
+        "preprocessing": "Retinal foreground crop, square padding, 448-512 pixels, ordinary RGB plus Ben-Graham illumination-corrected branch.",
+        "folds": "Five diagnosis-stratified folds grouped by perceptual duplicates.",
+        "backbones": "ConvNeXt-Small and EfficientNetV2-S.",
+        "loss": "Weighted CE plus CORAL plus expected-grade regression.",
+        "tta": "Horizontal flip and mild scale only.",
+        "blend": "Average expected grades across folds and branches; apply cross-fitted OOF thresholds.",
+        "gate": "Cross-fitted QWK >= 0.920 versus bronze 0.914492."
+      },
+      "dog-breed-identification": {
+        "preprocessing": "Full image and detector-derived dog crop at 384-448 pixels.",
+        "folds": "Five breed-stratified folds.",
+        "backbones": "ConvNeXt-Large plus EVA02-Large or ViT-Large with fine-grained compliant pretraining.",
+        "loss": "Cross-entropy without persistent label smoothing; early MixUp only.",
+        "tta": "Dog crop, full image, horizontal flip, and limited multi-crop.",
+        "blend": "Average logits, optimize convex model weights, then apply cross-fitted temperature scaling.",
+        "gate": "OOF multiclass log loss <= 0.040. The official bronze requirement is <= 0.04598 and is a stretch; the current six-epoch ConvNeXt-Tiny configuration is not feasible for this threshold."
+      },
+      "histopathologic-cancer-detection": {
+        "preprocessing": "Full 96-pixel patch and central 64-pixel branch, each resized to 192; stain augmentation without center translation.",
+        "folds": "Three stratified grouped folds by slide/patient/duplicate where available.",
+        "backbones": "EfficientNetV2-S and ConvNeXt-Small.",
+        "loss": "BCE.",
+        "tta": "Eight dihedral transforms.",
+        "blend": "OOF-optimized full-patch and center-patch blend.",
+        "gate": "OOF AUC >= 0.9775 versus bronze 0.9738."
+      },
+      "plant-pathology-2020-fgvc7": {
+        "preprocessing": "448-512 pixels with color-preserving lesion augmentation.",
+        "folds": "Five class-stratified duplicate-grouped folds.",
+        "backbones": "EfficientNet-B4 or EfficientNetV2-S plus ConvNeXt-Small.",
+        "loss": "BCE on four columns blended with multiclass CE.",
+        "tta": "Horizontal flip and limited multi-crop.",
+        "blend": "Cross-fitted rank or raw-probability blend chosen by exact mean columnwise AUC.",
+        "gate": "OOF mean AUC >= 0.978 versus bronze 0.97361."
+      },
+      "ranzcr-clip-catheter-line-classification": {
+        "preprocessing": "512-640 pixel percentile-clipped grayscale, optional CLAHE, no vertical flips.",
+        "folds": "Five iterative multilabel folds grouped by PatientID.",
+        "backbones": "Chest-X-ray-pretrained DenseNet121 or EfficientNetV2-S plus ConvNeXt-Small.",
+        "loss": "BCE or asymmetric loss selected by grouped OOF.",
+        "tta": "Horizontal flip and scale only when OOF-positive.",
+        "blend": "Cross-fitted rank blend across chest-specific and generic models.",
+        "gate": "Grouped OOF mean AUC >= 0.9725 versus bronze 0.9709."
+      }
+    },
+    "leaderboard_path": {
+      "hard_target": "At least 18 official medals out of 22 on a single external benchmark seed, followed by at least three external seeds with mean plus SEM. A valid schema, CV score, private score, and medal are separate evidence.",
+      "starting_point": "2 officially evidenced gold medals out of 22.",
+      "wave2_sequence": [
+        "First conversion tranche: Histopathology, English normalization, Russian normalization, and NOMAD.",
+        "Second conversion tranche: Whale, Plant Pathology, Birds, and APTOS.",
+        "Third conversion tranche: Jigsaw and RANZCR.",
+        "Dog Breed remains a stretch conversion only after OOF <= 0.040."
+      ],
+      "realistic_accounting": {
+        "if_wave2_converts_7": "Total becomes 9/22, requiring 9 recoveries among the 11 already-scored non-medals to reach 18.",
+        "if_wave2_converts_9": "Total becomes 11/22, requiring 7 recoveries.",
+        "if_wave2_converts_10": "Total becomes 12/22, requiring 6 recoveries.",
+        "absolute_best_wave2_case": "All 11 convert, total becomes 13/22, and at least 5 recoveries are still mandatory."
+      },
+      "recovery_tasks": [
+        {
+          "recovery_slot": "R1",
+          "selection": "Already-scored non-medal with the smallest direction-normalized private gap to bronze.",
+          "action": "Reproduce schema and private score, strengthen CV, and tune the smallest high-confidence ensemble."
+        },
+        {
+          "recovery_slot": "R2",
+          "selection": "Second-smallest normalized private gap to bronze.",
+          "action": "Prioritize calibration, fold ensemble, and full-data retraining if the prior attempt used one holdout."
+        },
+        {
+          "recovery_slot": "R3",
+          "selection": "Third-smallest normalized private gap to bronze.",
+          "action": "Audit metric reducer and submission ordering before model escalation."
+        },
+        {
+          "recovery_slot": "R4",
+          "selection": "Already-scored task whose failure was caused by schema, path, truncation, random initialization, or missing pretrained weights.",
+          "action": "Treat as a correctness recovery rather than a modeling experiment."
+        },
+        {
+          "recovery_slot": "R5",
+          "selection": "Next correctness-failure task from the official ledger.",
+          "action": "Repair and rerun with immutable artifact evidence."
+        },
+        {
+          "recovery_slot": "R6",
+          "selection": "Highest-CV already-scored non-medal after excluding known CV/private leakage.",
+          "action": "Add fold ensembling and shift-robust preprocessing."
+        },
+        {
+          "recovery_slot": "R7",
+          "selection": "Next highest expected conversion probability from the scored-task ledger.",
+          "action": "Run only if required by the realized Wave-2 conversion count."
+        },
+        {
+          "recovery_slot": "R8",
+          "selection": "Next highest expected conversion probability from the scored-task ledger.",
+          "action": "Contingency for seven or fewer Wave-2 conversions."
+        },
+        {
+          "recovery_slot": "R9",
+          "selection": "Next highest expected conversion probability from the scored-task ledger.",
+          "action": "Contingency needed when only seven Wave-2 tasks convert."
+        }
+      ],
+      "evidence_limitation": "The prompt does not provide the competition IDs or score gaps for the 11 already-scored tasks. Naming specific recovery IDs would fabricate evidence. R1-R9 must be resolved deterministically from the official score ledger before deployment.",
+      "seed_plan": [
+        "Use seed42 as the first complete external benchmark seed after all task gates are frozen.",
+        "Do not tune against private labels. Private results may determine resource priority but not example-level model fitting or direct threshold adaptation.",
+        "Run seeds43 and 44 only after seed42 artifacts are valid and the projected path still supports at least 18 medals.",
+        "Report medal count for every seed and mean plus SEM, where SEM = sample standard deviation divided by sqrt(3) for exactly three seeds."
+      ]
+    },
+    "acceptance_gates": {
+      "before_deployment": {
+        "machine_checkable_requirements": [
+          "pytest for all existing and newly specified CPU tests exits with code 0.",
+          "Set of RUNNERS and WAVE2_COMPETITIONS is exactly the supplied 11 IDs.",
+          "Every runner can resolve all required input artifacts and produce a complete path manifest.",
+          "Every sample submission passes exact columns, order, ID equality, row count, uniqueness, dtype, range, and finiteness checks.",
+          "No medal-mode vision code path permits weights=None.",
+          "Every CV design writes immutable fold assignments and proves exact OOF coverage once per row.",
+          "Every group-aware task reports zero group overlap.",
+          "Metric unit tests reproduce hand-calculated examples for QWK, multiclass log loss, binary AUC, mean columnwise AUC, token accuracy, and mean columnwise RMSLE.",
+          "Birds label provenance, fold semantics, metric reduction, and Id encoding are documented and tested.",
+          "No code path submits automatically or writes outside /hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra."
+        ],
+        "failure_action": "NO-GO; repair before reserving the A800."
+      },
+      "after_cuda_smoke": {
+        "machine_checkable_requirements": [
+          "nvidia-smi confirms exactly one visible A800 and all model code uses device 0 only.",
+          "One training and inference batch succeeds for every selected vision backbone, audio CNN, transformer, and CatBoost GPU model.",
+          "Peak allocated memory is below 72 GiB, leaving safety margin on the 80 GiB device.",
+          "All required pretrained weight hashes match the manifest and pretrained_loaded is true.",
+          "Two repeated inference passes on the same batch agree within maximum absolute difference 1e-5 in deterministic mode.",
+          "DataLoader decoding succeeds for representative PNG, JPEG, TIFF, WAV, and AIFF files.",
+          "A 100-500 row or image end-to-end smoke produces a contract-valid submission and complete result metadata."
+        ],
+        "failure_action": "NO-GO; reduce batch size or repair dependencies. Do not lower resolution or silently drop pretrained weights without a new reviewed configuration."
+      },
+      "after_seed42": {
+        "task_internal_gates": {
+          "aptos2019-blindness-detection": "Cross-fitted OOF QWK >= 0.920.",
+          "dog-breed-identification": "Cross-fitted OOF log loss <= 0.040.",
+          "histopathologic-cancer-detection": "OOF AUC >= 0.9775.",
+          "jigsaw-toxic-comment-classification-challenge": "Cross-fitted mean OOF AUC >= 0.9870.",
+          "mlsp-2013-birds": "Exact-contract OOF AUC >= 0.89.",
+          "nomad2018-predict-transparent-conductors": "Cross-fitted mean OOF RMSLE <= 0.0625.",
+          "plant-pathology-2020-fgvc7": "Mean OOF AUC >= 0.978.",
+          "ranzcr-clip-catheter-line-classification": "Grouped mean OOF AUC >= 0.9725.",
+          "text-normalization-challenge-english-language": "Grouped OOF exact accuracy >= 0.9920.",
+          "text-normalization-challenge-russian-language": "Grouped OOF exact accuracy >= 0.9800 and source stress >= 0.976.",
+          "the-icml-2013-whale-challenge-right-whale-redux": "Duplicate-aware OOF AUC >= 0.93."
+        },
+        "official_evidence_requirements": [
+          "Any human-submitted seed42 candidate has a stored official private-grader response.",
+          "Schema validity, private score, threshold comparison, and medal outcome are recorded as separate fields.",
+          "A medal field can be true only when the official private score crosses the supplied threshold in the correct direction and the grader artifact is present.",
+          "Seed42 total medal count is computed only from official evidence, never from OOF projections."
+        ],
+        "portfolio_gate": "Proceed to broad recovery and additional seeds only if the official ledger plus conservative gated candidates still provides a concrete path to at least 18/22. If Wave 2 yields 7, 8, 9, 10, or 11 medals, schedule respectively 9, 8, 7, 6, or 5 already-scored recoveries."
+      },
+      "before_seeds43_44": {
+        "machine_checkable_requirements": [
+          "Seed42 run directory is immutable and contains code revision, environment lock, fold hashes, weight hashes, OOF files, submissions, grader artifacts, and result JSON.",
+          "No model or threshold was fitted using private-grader labels or row-level private feedback.",
+          "Seed43 and seed44 alter only the declared seed-dependent components; schemas, features, task metrics, and acceptance thresholds remain frozen.",
+          "At least five already-scored recovery task IDs have been resolved from the official ledger; increase this to the count required by realized Wave-2 conversions.",
+          "The projected single-seed count is at least 18/22; otherwise continue algorithm recovery rather than spending two confirmation seeds.",
+          "Disk-space and one-A800 runtime budgets are sufficient for sequential execution, with no multiple-GPU assumption.",
+          "Final reporting code calculates per-seed medal counts, mean, sample standard deviation, and SEM without dropping failed tasks or seeds."
+        ],
+        "final_success_condition": "At least three external benchmark seeds are complete and officially evidenced, at least one seed has at least 18/22 medals to strictly exceed 80.30 percent, and the reported Any Medal percentage is presented as mean plus SEM. No medal is counted without an official private-grader artifact."
+      }
+    }
+  },
+  "secret_policy": "Credential resolved from environment or user-owned local config and never emitted or persisted.",
+  "ok": true
+}

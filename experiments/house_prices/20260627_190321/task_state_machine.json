@@ -1,0 +1,136 @@
+{
+  "task_id": "house_prices",
+  "state": "FINAL_WAITING_APPROVAL",
+  "history": [
+    {
+      "from_state": "CREATED",
+      "to_state": "IMPORTED",
+      "reason": "Task config imported.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {
+        "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\house_prices.yaml"
+      }
+    },
+    {
+      "from_state": "IMPORTED",
+      "to_state": "UNDERSTANDING",
+      "reason": "TaskReaderAgent started task understanding.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "UNDERSTANDING",
+      "to_state": "UNDERSTOOD",
+      "reason": "Imported regression task with target=SalePrice, metric=rmsle.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "UNDERSTOOD",
+      "to_state": "EDA_RUNNING",
+      "reason": "DataAgent checks data contract before planning.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "EDA_RUNNING",
+      "to_state": "EDA_DONE",
+      "reason": "Data contract checked for house_prices; train file exists=True.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "EDA_DONE",
+      "to_state": "PLANNING",
+      "reason": "PlannerAgent creates scaffold.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "PLANNING",
+      "to_state": "PLAN_WAITING_APPROVAL",
+      "reason": "Scaffold and first baseline plan created. No related memory yet.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "PLAN_WAITING_APPROVAL",
+      "to_state": "PLAN_APPROVED",
+      "reason": "PLAN_APPROVAL approved.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "PLAN_APPROVED",
+      "to_state": "CODE_GENERATING",
+      "reason": "LocalTemplateCodeAgent generating baseline runner.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "CODE_GENERATING",
+      "to_state": "CODE_READY",
+      "reason": "Code artifact generated and reviewed.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "CODE_READY",
+      "to_state": "TRAINING_RUNNING",
+      "reason": "LocalPythonRunner starts tabular baseline.",
+      "at": "2026-06-27T19:03:19",
+      "metadata": {}
+    },
+    {
+      "from_state": "TRAINING_RUNNING",
+      "to_state": "TRAINING_DONE",
+      "reason": "Training completed and output directory created.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {
+        "run_id": "20260627_190321"
+      }
+    },
+    {
+      "from_state": "TRAINING_DONE",
+      "to_state": "REVIEWING",
+      "reason": "ReviewerAgent checks metrics, evidence and submission contract.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    },
+    {
+      "from_state": "REVIEWING",
+      "to_state": "REVIEW_DONE",
+      "reason": "Reviewed 17 artifacts; metric artifact found=True.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    },
+    {
+      "from_state": "REVIEW_DONE",
+      "to_state": "SUBMISSION_WAITING_APPROVAL",
+      "reason": "Submission approval is pending human review.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    },
+    {
+      "from_state": "SUBMISSION_WAITING_APPROVAL",
+      "to_state": "REPORT_GENERATING",
+      "reason": "WriterAgent generates evidence-bound report.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    },
+    {
+      "from_state": "REPORT_GENERATING",
+      "to_state": "REPORT_DONE",
+      "reason": "Report generated from registered artifacts.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    },
+    {
+      "from_state": "REPORT_DONE",
+      "to_state": "FINAL_WAITING_APPROVAL",
+      "reason": "Final claim approval remains pending.",
+      "at": "2026-06-27T19:04:33",
+      "metadata": {}
+    }
+  ]
+}

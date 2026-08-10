@@ -12,6 +12,8 @@ test("all authenticated mutations are length-bounded and JSON-only", async () =>
   assert.match(source, /contentType !== "application\/json"/);
   assert.match(source, /allowsMultipart && contentType === "multipart\/form-data"/);
   assert.doesNotMatch(source, /rawLength === null && transferEncoding/);
+  assert.match(source, /forwardedHeaders\.delete\(LOCAL_AUTOMATION_VERIFIED_HEADER\)/);
+  assert.match(source, /if \(localAutomation\) forwardedHeaders\.set\(LOCAL_AUTOMATION_VERIFIED_HEADER, "1"\)/);
 });
 
 test("the browser session wrapper supplies an empty JSON envelope and fixed fetch controls", async () => {
@@ -61,5 +63,17 @@ test("assistant subprocess receives only the authenticated request session for l
   assert.match(route, /EVOMIND_INTERNAL_SESSION_COOKIE/);
   assert.match(route, /EVOMIND_INTERNAL_CSRF/);
   assert.match(route, /EVOMIND_INTERNAL_ORIGIN/);
+  assert.match(route, /EVOLUTION_PRIMARY_PROVIDER:\s*"openai"/);
+  assert.match(route, /EVOLUTION_PROVIDER_STRICT:\s*"true"/);
+  assert.match(route, /OPENAI_BASE_URL:\s*"http:\/\/127\.0\.0\.1:65068\/v1"/);
+  assert.match(route, /OPENAI_MODEL:\s*"gpt-5\.6-sol"/);
+  assert.match(route, /OPENAI_REASONING_EFFORT:\s*"low"/);
+  assert.match(route, /OPENAI_SERVICE_TIER:\s*"priority"/);
+  assert.match(route, /LEGACY_GPU_ENV_KEYS/);
+  assert.match(route, /for \(const key of LEGACY_GPU_ENV_KEYS\) delete env\[key\]/);
+  assert.match(route, /assistantProcessEnv\(\)/);
+  assert.match(route, /assistant_progress_timeout/);
+  assert.match(route, /Date\.now\(\) - lastProgressAt >= 150000/);
+  assert.doesNotMatch(route, /demo_timeout_fallback/);
   assert.doesNotMatch(route, /WORKSTATION_SESSION_SECRET/);
 });

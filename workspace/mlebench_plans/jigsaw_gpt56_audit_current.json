@@ -1,0 +1,208 @@
+{
+  "schema": "evomind.mlebench_lite.jigsaw_gpt56_audit.v1",
+  "created_at": "2026-07-25T21:29:01.398749+00:00",
+  "planner": {
+    "provider": "openai",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "latency_ms": 237265.7,
+    "usage": {
+      "completion_tokens": 13735,
+      "total_tokens": 20522,
+      "prompt_tokens": 6787,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 8851
+      }
+    },
+    "reasoning_effort_requested": "high",
+    "json_mode_requested": true
+  },
+  "summary_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\job89441_jigsaw_toxic_s42_parallel_20260726_035500\\summary.json",
+  "summary_sha256": "263ac7af623bfbd2789623c01123ce4aacdd401221fb3b1d1829553e9d909b3c",
+  "source_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+  "source_sha256": "46174d9e23e1809eb2f1858b70901a7c7454eb5c245b7e686fac12f8782385d1",
+  "prompt_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_gpt56_audit_prompt_current.txt",
+  "prompt_sha256": "d2a5fefe6a449731abde24ce8c767b5b324d9c1207c1f8804b1722afc2c0f469",
+  "response_sha256": "0ba50fc404580ff4ab503e2946aa1a6a18f4da56f96883ae316ecd1d3b24677f",
+  "parse_ok": true,
+  "audit": {
+    "diagnosis": [
+      "Confirmed source limitation: the model has only two highly correlated sparse channels. `fit_jigsaw_nbsvm_channels` trains one word and one `char_wb` NB-SVM per label, and `cross_fit_multilabel_rank_blend` can only choose one scalar word weight per label. It cannot use raw-character behavior, punctuation-preserving tokens, dense semantic representations, nonlinear disagreement, or predictions from correlated labels.",
+      "Confirmed source limitation: all six labels and both channels share `C=4.0`, the same regularization form, and fixed vectorizer settings. There is no fold-internal selection of regularization or channel inclusion. Rare labels such as `threat` and `identity_hate` therefore receive no label-specific tuning.",
+      "Confirmed source limitation: every reported fold reaches exactly 350000 word and 500000 character features. The `max_features` caps are active rather than incidental, so vocabulary truncation is occurring. Merely increasing the caps is expensive and unlikely to provide enough independent signal by itself.",
+      "Confirmed source limitation: the word analyzer uses `token_pattern=r\"\\w{1,}\"`, which discards punctuation as features and does not preserve obfuscation tokens, repeated punctuation, emoticons, or punctuation-separated profanity. The only character analyzer is `char_wb`, which pads word boundaries and is less able than raw character n-grams to model patterns crossing whitespace and punctuation.",
+      "Confirmed source limitation: models are fitted independently by target. Neither the base models nor the blend use the strong public-train correlation among `toxic`, `obscene`, `insult`, `severe_toxic`, and `identity_hate`. A leakage-safe stacker can use out-of-fold predictions for all six labels without using another label's ground truth as a feature.",
+      "Confirmed metric-contract defect: `build_jigsaw_promotion_gate` fold-ranks the word and character bases but computes `blend_auc = label_auc(blend)` without applying `fold_clean_rank` to the blend. Its evidence nevertheless says `same_fold_clean_fractional_rank_for_bases_and_blend`. The implementation and evidence are inconsistent and must be corrected before comparing an upgraded pipeline.",
+      "Confirmed auditability limitation: OOF arrays are initialized to finite zeroes, while `complete_oof` checks only fold coverage and finiteness. `run_jigsaw` currently writes every validation row, but no immutable write mask or row-to-model provenance is persisted, so the promotion artifact cannot independently prove that every prediction was written exactly once by a model excluding that row.",
+      "Inference from the supplied evidence: the current two-channel own-label rank blend is near its useful upper bound. It already improves the strongest base by 0.0013541, uses interior weights for every label, and has only a one-dimensional 0.05-spaced search left to refine. A finer grid or cosmetic calibration is unlikely to produce the additional required 0.0014826. The next credible gain must primarily come from new signal.",
+      "The largest remaining weaknesses are `toxic` at 0.9808783, `insult` at 0.9835443, and `identity_hate` at 0.9816902. A generic pretrained encoder is justified because it adds semantic and contextual signal precisely where sparse spelling channels remain weak. A generic checkpoint must be used; a toxicity-specific checkpoint potentially pretrained on Jigsaw labels would create unacceptable provenance risk.",
+      "All gain ranges below are planning estimates over the supplied 0.9855174 OOF baseline, not official scores. They overlap and are not additive. Only a newly generated, complete, fold-clean OOF artifact may authorize the official private grader."
+    ],
+    "ranked_upgrades": [
+      {
+        "id": "generic-xfmr-oof",
+        "expected_oof_auc_gain_low": 0.0015,
+        "expected_oof_auc_gain_high": 0.0035,
+        "compute_cost": "high",
+        "source_changes": [
+          "Add `fit_jigsaw_transformer_fold` to fine-tune one generic `microsoft/deberta-v3-base` six-output classifier for each existing outer fold using only that fold's `train_indices`.",
+          "Add `encode_jigsaw_head_tail` to retain deterministic beginning and ending tokens within a 256-token budget instead of silently retaining only the beginning of long comments.",
+          "Use a fixed two-epoch schedule, BCE-with-logits loss, fixed learning rate, fixed seed, and no early stopping or checkpoint choice based on the outer validation labels.",
+          "Write validation logits only to `valid_indices` and preserve fold-specific test logits as `test_transformer_by_fold[fold]`.",
+          "Reject toxicity-specific checkpoints unless a manifest proves that their pretraining did not use Jigsaw labels. Generic language-model pretraining is acceptable."
+        ],
+        "validation_contract": [
+          "The checkpoint identity, revision, and SHA-256 hashes must be recorded before training; local checkpoint availability must be checked before any fold starts.",
+          "For every OOF row, persisted provenance must show that the transformer model's training index set excluded that row.",
+          "Outer validation labels may be read only after the fold checkpoint is finalized; they cannot control epoch count, learning rate, checkpoint choice, or retry selection.",
+          "The candidate must produce finite logits for all 159571 training rows and all six labels, with each row written exactly once.",
+          "Promotion must be computed after fold-clean ranking and cross-fitted stacking, not from a transformer score measured on any training row used by that checkpoint."
+        ],
+        "stop_rule": "Run one generic checkpoint configuration for at most five folds and two epochs per fold. Permit one batch-size-halving retry for an out-of-memory failure without changing optimization steps. Do not launch a checkpoint sweep. Stop immediately if the cumulative corrected OOF reaches 0.9870000000 and all promotion checks pass."
+      },
+      {
+        "id": "sparse-channel-diversity",
+        "expected_oof_auc_gain_low": 0.00025,
+        "expected_oof_auc_gain_high": 0.0008,
+        "compute_cost": "medium",
+        "source_changes": [
+          "Add `build_jigsaw_sparse_vectorizers` and preserve the current `word` and `char_wb` definitions as immutable baseline channels.",
+          "Add a `char_raw` vectorizer with `analyzer=\"char\"`, `ngram_range=(2, 6)`, `min_df=2`, `sublinear_tf=True`, and a separately bounded feature cap.",
+          "Add module-level `tokenize_jigsaw_punctuation` and a `word_punct` vectorizer with `tokenizer=tokenize_jigsaw_punctuation`, `token_pattern=None`, word n-grams `(1, 3)`, and punctuation, contractions, and repeated marks preserved as tokens.",
+          "Generalize `fit_jigsaw_nbsvm_channels` into `fit_jigsaw_nbsvm_channel_grid` so any configured sparse channel is fitted with the same deterministic fold and target ordering.",
+          "Persist each channel independently rather than replacing the existing word or `char_wb` predictions."
+        ],
+        "validation_contract": [
+          "Every vectorizer must be fitted only on `train_text.iloc[train_indices]`; validation and test text may only call `transform`.",
+          "Each channel must have complete finite OOF predictions and fold-specific test predictions with an explicit write mask and train-index provenance.",
+          "Channel inclusion in the final cross-fitted stack must be selected using only the non-held folds; the held fold cannot select its own channels.",
+          "A channel's gain must be measured against the same corrected fold-clean metric, folds, target order, and row IDs as the frozen baseline."
+        ],
+        "stop_rule": "Evaluate exactly two new sparse analyzers, `char_raw` and `word_punct`; do not search additional n-gram ranges. Drop a channel inside the nested selector if its non-held-fold improvement is below 0.0001 or if it never receives a nonzero stacker coefficient. Stop sparse expansion after these two channels."
+      },
+      {
+        "id": "cross-label-stacker",
+        "expected_oof_auc_gain_low": 0.00015,
+        "expected_oof_auc_gain_high": 0.0006,
+        "compute_cost": "low",
+        "source_changes": [
+          "Add `fold_clean_fractional_rank_channels` to create identically normalized channel features within each source fold without labels.",
+          "Add `cross_fit_multilabel_stacker` that, for each outer fold and target, fits an L2 logistic meta-model on rows from other folds and predicts only the held-out fold.",
+          "Give each target stacker the fold-clean predictions for all six labels from every enabled channel. Never provide any ground-truth label as a feature.",
+          "Select stacker `C` and optional channel inclusion with inner splits restricted to the outer meta-training rows, then refit on all non-held rows.",
+          "For test prediction, apply each outer-fold stacker to the corresponding fold model's test-channel matrix and average the five fold predictions after deterministic rank normalization."
+        ],
+        "validation_contract": [
+          "Every meta-training feature must itself be an OOF base prediction for its row.",
+          "A stacker scoring fold `f` must receive no rows or target values from fold `f` in fitting, preprocessing, regularization selection, or channel selection.",
+          "A spy-estimator unit test must verify disjoint meta fit and score row IDs for every fold and label.",
+          "Cross-label inputs may contain only predictions. Public truth from another target cannot be supplied directly or through aggregate label-count features.",
+          "The promotion gate must compare the stack against every declared base channel and require both mean AUC at least 0.9870000000 and the existing minimum 0.0003 improvement over the strongest base."
+        ],
+        "stop_rule": "Use only L2 logistic regression and the fixed `C` grid `[0.03, 0.1, 0.3, 1.0]`. Do not add tree models or manually tune coefficients after viewing held-fold results. Retain the stacker only if complete corrected OOF improves by at least 0.00015 and no label loses more than 0.0005."
+      },
+      {
+        "id": "joint-nbsvm-inner-cv",
+        "expected_oof_auc_gain_low": 0.0001,
+        "expected_oof_auc_gain_high": 0.00045,
+        "compute_cost": "high",
+        "source_changes": [
+          "Add `fit_jigsaw_joint_nbsvm` to horizontally concatenate already-built sparse channel matrices and compute a target-specific NB log-count ratio on the concatenated outer-training matrix.",
+          "Modify `_fit_nbsvm` to expose convergence status and accept a selected label/channel `C` rather than only the global scalar.",
+          "Add `select_jigsaw_nbsvm_c_inner` to choose from `[1.0, 2.0, 4.0, 8.0]` using only inner OOF predictions inside each outer training partition.",
+          "Expose the joint model as another independent base channel; do not silently substitute it for the existing component predictions."
+        ],
+        "validation_contract": [
+          "Both NB ratios and logistic coefficients must be fitted without the scored outer fold.",
+          "Regularization selection must be repeated inside each outer fold; selecting `C` from the complete OOF is not permitted.",
+          "Any `ConvergenceWarning` must be recorded and must trigger only a predetermined `max_iter` increase, not an outcome-driven hyperparameter change.",
+          "Joint model predictions must satisfy the same exact-once write-mask and row provenance tests as other channels."
+        ],
+        "stop_rule": "Run this only if the corrected sparse-diversity pipeline remains below 0.987 and the transformer route is unavailable or leaves less than 0.0003 ensemble improvement over its strongest base. Search exactly four `C` values and one concatenation; stop if gain is below 0.0001."
+      }
+    ],
+    "recommended_minimal_patch": {
+      "functions_to_add_or_change": [
+        "Change `build_jigsaw_promotion_gate`",
+        "Change `run_jigsaw`",
+        "Change `fit_jigsaw_nbsvm_channels` or replace it with backward-compatible `fit_jigsaw_nbsvm_channel_grid`",
+        "Add `build_jigsaw_sparse_vectorizers`",
+        "Add `tokenize_jigsaw_punctuation`",
+        "Add `encode_jigsaw_head_tail`",
+        "Add `fit_jigsaw_transformer_fold`",
+        "Add `fold_clean_fractional_rank_channels`",
+        "Add `cross_fit_multilabel_stacker`",
+        "Add `save_jigsaw_prediction_bundle`",
+        "Add `validate_jigsaw_prediction_provenance`"
+      ],
+      "algorithm": [
+        "Freeze the current train IDs, test IDs, target order, iterative fold assignment, baseline arrays, source revision, and the reported 0.9855174292532056 score under a content hash. Never overwrite this artifact.",
+        "Correct `build_jigsaw_promotion_gate` by computing `ranked_blend = fold_clean_rank(blend)` and scoring that array. Generalize the function to accept a name-to-OOF-component mapping so the strongest-base check includes every declared channel, including transformer and joint channels.",
+        "Add an integer OOF write-count array per channel. Increment it only when predictions are assigned to `valid_indices`; require every element to equal one before metrics or submission generation.",
+        "Build the current word and `char_wb` channels unchanged, then add `char_raw` and `word_punct`. Fit every vectorizer, NB ratio, and classifier only on the current outer fold's training indices.",
+        "Preflight the generic transformer checkpoint and record its immutable revision and hashes. For each existing outer fold, train a six-output classifier for exactly two epochs using only outer-training rows. Do not use outer validation labels for early stopping or checkpoint selection.",
+        "Persist fold-specific validation and test logits for every channel. Convert channel scores to fractional ranks independently within their source fold; this preserves the existing fold-clean AUC contract while making channels comparable.",
+        "For each outer fold and target, fit the logistic cross-label stacker on OOF base features from the other folds. Select `C` through inner group splits over those folds, refit on all non-held rows, and score only the held fold.",
+        "Apply each outer stacker to the matching base model's fold-specific test predictions, average the five test predictions, and finally apply a monotonic fractional rank per target for submission stability.",
+        "Compute per-label and mean AUC only after all six OOF columns have exact-once coverage. Require corrected mean AUC at least 0.9870000000, absolute gain at least 0.0014825708 against the supplied baseline, and at least 0.0003 improvement over the strongest declared base.",
+        "Only after every gate and provenance test passes may `wave0.finalize_scored_task` expose the submission to the official private grader. The private grader should be invoked once for the promoted immutable artifact."
+      ],
+      "new_cli_arguments": [
+        "`--wave2-jigsaw-extra-sparse-channels`, default `char_raw,word_punct`: fixed additional sparse analyzers.",
+        "`--wave2-jigsaw-char-raw-features`, default `500000`: cap for raw character n-grams.",
+        "`--wave2-jigsaw-word-punct-features`, default `400000`: cap for punctuation-preserving word n-grams.",
+        "`--wave2-jigsaw-transformer-model`, default `microsoft/deberta-v3-base`: generic pretrained checkpoint; toxicity-specific checkpoints are rejected without clean provenance.",
+        "`--wave2-jigsaw-transformer-revision`, default `main`: pinned checkpoint revision that is resolved to hashes in the manifest.",
+        "`--wave2-jigsaw-transformer-local-files-only`, default `true`: prohibit untracked network retrieval during a graded run.",
+        "`--wave2-jigsaw-transformer-max-length`, default `256`: deterministic head-tail token budget.",
+        "`--wave2-jigsaw-transformer-head-fraction`, default `0.75`: fraction of non-special tokens retained from the beginning, with the remainder retained from the end.",
+        "`--wave2-jigsaw-transformer-epochs`, default `2`: fixed outer-fold training duration; not controlled by held-fold labels.",
+        "`--wave2-jigsaw-transformer-learning-rate`, default `2e-5`: fixed optimizer learning rate.",
+        "`--wave2-jigsaw-transformer-batch-size`, default `16`: per-device batch size, with one predetermined halving retry on OOM.",
+        "`--wave2-jigsaw-transformer-grad-accum`, default `2`: gradient accumulation steps.",
+        "`--wave2-jigsaw-stacker-c-grid`, default `0.03,0.1,0.3,1.0`: bounded inner-CV regularization grid.",
+        "`--wave2-jigsaw-stacker-cross-labels`, default `true`: allow only cross-fitted predictions from all labels as meta-features.",
+        "`--wave2-jigsaw-artifact-version`, default `2`: select the immutable multi-channel prediction/provenance schema."
+      ],
+      "artifact_changes": [
+        "Preserve the current `jigsaw_sparse_oof_and_test.npz` unchanged as the baseline artifact.",
+        "Write a new content-addressed `jigsaw_prediction_bundle_v2_<sha256>.npz` containing `oof_by_channel` with shape `[channels, train_rows, 6]`, `test_by_fold_channel` with shape `[folds, channels, test_rows, 6]`, final stack OOF and test predictions, truth, fold assignment, train IDs, test IDs, and exact-once write counts.",
+        "Write `jigsaw_prediction_bundle_v2_<sha256>.manifest.json` containing source revision, CLI configuration, target order, fold hashes, model/checkpoint hashes, train indices used by each fold model, validation indices, vectorizer vocabulary hashes, seeds, feature counts, convergence state, and metric-normalization version.",
+        "Persist outer stacker coefficients, intercepts, selected `C`, selected channels, meta-fit folds, score fold, and matching fold-specific test-source identity.",
+        "Persist corrected per-fold and per-label AUC tables for every base and final stack, plus the strongest-base improvement and promotion-gate result.",
+        "Generate the submission only from the immutable bundle and record its SHA-256 hash in the promotion manifest."
+      ],
+      "acceptance_tests": [
+        "Baseline regression test: with extra channels and transformer disabled, replay the current code path and reproduce existing word/character predictions and blend weights within `1e-10`; separately assert that the corrected promotion metric uses `fold_clean_rank` on the blend.",
+        "Normalization-contract test: construct two folds whose blend distributions differ despite identical component ranks. Assert that `build_jigsaw_promotion_gate` scores `fold_clean_rank(blend)` and that its evidence string accurately names that operation.",
+        "Exact-once coverage test: deliberately omit one validation assignment and duplicate another. `validate_jigsaw_prediction_provenance` must fail even though the resulting arrays remain finite.",
+        "Base leakage test: use a spy fitter on a deterministic synthetic six-label, five-fold fixture and assert that no row ID appears in both a model's fit indices and its OOF prediction indices.",
+        "Stacker leakage test: for every outer fold and label, assert that meta fit row IDs and score row IDs are disjoint, all meta features are marked OOF for their rows, and the stacker receives only the target truth from non-held rows.",
+        "Outer-label isolation test: with immutable base predictions, mutate all target values in one held fold and assert that the fitted stacker parameters and predictions for that fold are unchanged.",
+        "Transformer control-flow test: replace the trainer with a spy and assert that outer validation labels are not passed to training, scheduler construction, epoch selection, checkpoint selection, or OOM retry logic.",
+        "Determinism test: run the stacker twice from the same persisted base bundle and assert bitwise-identical fold choices, coefficients within `1e-12`, OOF predictions within `1e-12`, and identical submission hash.",
+        "Target and ID contract test: assert exact target tuple `toxic,severe_toxic,obscene,threat,insult,identity_hate`, unique complete train/test IDs, and submission IDs exactly aligned to the sample submission.",
+        "Promotion test: reject official-grader authorization unless corrected complete OOF mean AUC is at least `0.9870000000`, gain over the supplied baseline is at least `0.0014825708`, strongest-base improvement is at least `0.0003`, all six labels are scoreable in all folds, and every artifact/provenance hash verifies."
+      ]
+    },
+    "experiment_sequence": [
+      "Experiment 0, no training: freeze and hash the supplied baseline, implement the blend-ranking correction, and report the corrected baseline metric. Do not interpret any change from this correction as a model gain.",
+      "Experiment 1, low cost: run `cross_fit_multilabel_stacker` on the immutable existing word and `char_wb` OOF predictions. This diagnoses remaining cross-label and nonlinear blending headroom. Use only the fixed four-value nested `C` grid.",
+      "Experiment 2, medium cost: generate complete five-fold `char_raw` predictions and rerun the same cross-fitted stacker with `word`, `char_wb`, and `char_raw`. Do not alter its n-gram range after viewing OOF.",
+      "Experiment 3, medium cost: generate complete five-fold `word_punct` predictions and run the predetermined four-sparse-channel stack. This ends sparse analyzer search.",
+      "Experiment 4, high cost and primary promotion candidate: preflight one generic DeBERTa checkpoint, generate complete fixed-schedule five-fold transformer logits, and run the nested cross-label stack over all predetermined channels. If corrected OOF reaches 0.9870000000 with all checks, stop experimentation and authorize one official private-grader run.",
+      "Experiment 5, bounded fallback only if Experiment 4 misses the gate or the generic checkpoint is unavailable: run one joint sparse NB-SVM with the four-value inner `C` grid. No further feature, checkpoint, seed, or blending sweep is authorized.",
+      "At every stage, compare only immutable complete OOF arrays under the corrected fold-clean metric. Intermediate single-fold results cannot select configurations or authorize the grader."
+    ],
+    "go_no_go": {
+      "implementation_verdict": "GO",
+      "reason": "GO for implementation because the source has clear unexploited independent signal and a generic cross-fitted transformer plus leakage-safe cross-label stacking is a credible route to more than the required gain. The sparse-only two-channel blend is not a credible route by coefficient refinement alone. This is still NO-GO for the official private grader until a new immutable, corrected, complete cross-fitted OOF artifact reaches at least 0.9870000000 and passes every provenance and strongest-base-improvement check.",
+      "minimum_required_observed_gain": 0.0014825708
+    }
+  },
+  "secret_policy": "API key came from the secure child environment and is absent from artifacts.",
+  "ok": true
+}

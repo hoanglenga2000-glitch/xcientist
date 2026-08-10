@@ -18,7 +18,8 @@ param(
   [switch]$SkipGatewayStart,
   [switch]$SkipMutableReconciliation,
   [switch]$SkipVerify,
-  [switch]$InstallUserShims
+  [switch]$InstallUserShims,
+  [switch]$NoPathPrepend
 )
 
 $ErrorActionPreference = "Stop"
@@ -34,7 +35,7 @@ $BundleMode = Test-Path -LiteralPath $Standalone -PathType Leaf
 $LocalAppDataBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) }
 $AppDataBase = if ($env:APPDATA) { $env:APPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::ApplicationData) }
 $ManagedLocalRoot = Join-Path $LocalAppDataBase "EvoMind"
-$DataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "data" } else { Join-Path $Root "user-data" } } else { [IO.Path]::GetFullPath($DataDir) }
+$DataDir = if ([string]::IsNullOrWhiteSpace($DataDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "data" } else { $Root } } else { [IO.Path]::GetFullPath($DataDir) }
 $LogsDir = if ([string]::IsNullOrWhiteSpace($LogsDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "logs" } else { Join-Path $DataDir "logs" } } else { [IO.Path]::GetFullPath($LogsDir) }
 $BackupsDir = if ([string]::IsNullOrWhiteSpace($BackupsDir)) { if ($BundleMode) { Join-Path $ManagedLocalRoot "backups" } else { Join-Path $DataDir "backups" } } else { [IO.Path]::GetFullPath($BackupsDir) }
 $ProfilesDir = if ([string]::IsNullOrWhiteSpace($ProfilesDir)) { Join-Path $AppDataBase "EvoMind\profiles" } else { [IO.Path]::GetFullPath($ProfilesDir) }
@@ -213,11 +214,17 @@ if ($BundleMode) {
     try { Invoke-Checked $npm.Source @("ci", "--no-audit", "--no-fund") "npm ci" } finally { $env:NODE_ENV = $savedNodeEnv; Pop-Location }
   }
   Push-Location $Web
-  try { Invoke-Checked $npm.Source @("run", "db:generate") "Prisma client generation" } finally { Pop-Location }
+  try {
+    npm run db:push
+    if ($LASTEXITCODE -ne 0) { throw "npm run db:push failed with exit code $LASTEXITCODE" }
+    npm run db:generate
+    if ($LASTEXITCODE -ne 0) { throw "npm run db:generate failed with exit code $LASTEXITCODE" }
+  } finally { Pop-Location }
   if (-not $SkipBuild) {
     Push-Location $Web
     try {
-      Invoke-Checked $npm.Source @("run", "build") "production build"
+      npm run build
+      if ($LASTEXITCODE -ne 0) { throw "npm run build failed with exit code $LASTEXITCODE" }
     } finally { Pop-Location }
   }
 } else {
@@ -229,6 +236,9 @@ $database = if ($BundleMode) { Join-Path $DataDir "prisma\workstation.db" } else
 $migrationRoot = if ($BundleMode) { Join-Path $Root "app\prisma\migrations" } else { Join-Path $Web "prisma\migrations" }
 $env:DATABASE_URL = "file:$($database.Replace('\','/'))"
 Invoke-Checked $VenvPython @((Join-Path $Root "scripts\release_db_migrate.py"), "--database", $database, "--migrations", $migrationRoot, "--backup-dir", (Join-Path $BackupsDir "database")) "database migration"
+if (-not $BundleMode -and -not $SkipBuild) {
+  Invoke-Checked $VenvPython @((Join-Path $Root "scripts\manage_workstation_dashboard.py"), "register-source-build") "source build identity registration"
+}
 if (-not $SkipMutableReconciliation) {
   Invoke-Checked $VenvPython @((Join-Path $Root "scripts\reconcile_action_log_mirror.py"), "--database", $database, "--runtime-root", (Join-Path $DataDir "workspace\runtime")) "action audit mirror reconciliation"
 }
@@ -312,7 +322,8 @@ $state = [ordered]@{
 Write-JsonAtomic $StatePath $state
 
 if ($InstallUserShims -and (Test-Path -LiteralPath (Join-Path $Root "scripts\install_autokaggle_cli.ps1"))) {
-  & (Join-Path $Root "scripts\install_autokaggle_cli.ps1") -PrependShimPath
+  $shimOptions = if ($NoPathPrepend) { @{ NoPathPrepend = $true } } else { @{ PrependShimPath = $true } }
+  & (Join-Path $Root "scripts\install_autokaggle_cli.ps1") @shimOptions
   if ($LASTEXITCODE -ne 0) { throw "CLI shim installation failed." }
 }
 
@@ -333,6 +344,10 @@ if ($BundleMode) {
 
 Write-Host ""
 Write-Host "Installation complete." -ForegroundColor Green
+Write-Host "Next steps:"
+Write-Host "1. Configure an LLM provider: evomind setup"
+Write-Host "2. Start the dashboard: evomind dashboard start"
+Write-Host "3. Verify the workstation: powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_verified_workstation.ps1 restart"
 Write-Host "Start:  powershell -NoProfile -ExecutionPolicy Bypass -File .\start.ps1"
 Write-Host "Status: powershell -NoProfile -ExecutionPolicy Bypass -File .\status.ps1"
 Write-Host "Open:   http://127.0.0.1:$Port/?page=assistant"

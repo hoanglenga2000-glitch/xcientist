@@ -1,0 +1,130 @@
+{
+  "schema": "evomind.mlebench.a800_lane_watch.completion.v1",
+  "created_at": "2026-07-26T19:25:57.258548+08:00",
+  "run_id": "a800_ranzcr_recovery_s42_20260726_145840",
+  "process": "stopped",
+  "summary_status": "passed",
+  "official_grade_count": 1,
+  "official_results": [
+    {
+      "competition_id": "ranzcr-clip-catheter-line-classification",
+      "metric": "mean_columnwise_roc_auc",
+      "direction": "maximize",
+      "cv_score": 0.9388353612205999,
+      "mle_private_grader_score": 0.95889,
+      "upstream_report": {
+        "above_median": false,
+        "any_medal": false,
+        "bronze_medal": false,
+        "bronze_threshold": 0.9709,
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "created_at": "2026-07-26T19:20:50.971838",
+        "gold_medal": false,
+        "gold_threshold": 0.97357,
+        "is_lower_better": false,
+        "median_threshold": 0.9675,
+        "score": 0.95889,
+        "silver_medal": false,
+        "silver_threshold": 0.97152,
+        "submission_exists": true,
+        "submission_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/attempts/attempt_001/submission.csv",
+        "valid_submission": true
+      }
+    }
+  ],
+  "regrade_executed": true,
+  "collection": {
+    "schema": "evomind.mlebench_remote_ops.collection.v1",
+    "created_at": "2026-07-26T11:25:57.253328+00:00",
+    "run_id": "a800_ranzcr_recovery_s42_20260726_145840",
+    "remote_run": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840",
+    "local_root": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840",
+    "include_checkpoints": false,
+    "file_count": 13,
+    "files": [
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/environment.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\environment.json",
+        "bytes": 800,
+        "sha256": "dcc41c0b59e7bf8f265214e4ba3db6e09a7f45aa44d0076a6fc604f7607be6b5"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/phase_a_audit.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\phase_a_audit.json",
+        "bytes": 51800,
+        "sha256": "5536bcadc5b080421f98c92ec46e261d7b4ccb361fc5710f70d0b2c00d1eca30"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/results_current.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\results_current.json",
+        "bytes": 5035904,
+        "sha256": "292245f58d601862869acb1bbc0522cd540a259a7f57cc43147336549de300cb"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/checkpoint.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\checkpoint.json",
+        "bytes": 368,
+        "sha256": "2cacc4db5a4ae392ec46d27119f4fb692872e8ed693f07521f5c325665d3bb56"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/summary.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\summary.json",
+        "bytes": 5036321,
+        "sha256": "84afc9465de30283b3ffa7e3576526df5440b37cea660b12299c50423f19c74d"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/manifest.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\manifest.json",
+        "bytes": 3614,
+        "sha256": "7447abd7580b268e67c259f6f2c9576474514b1ac9cf346de8a3768e2300e5ff"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\result.json",
+        "bytes": 4431733,
+        "sha256": "19d7b52194c26fa264b46bea48698d50e4c0c7c3f788e2c4d2c61eb0471a0a1f"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/regrades/regrade_001/private_grader.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\regrades\\regrade_001\\private_grader.json",
+        "bytes": 12560,
+        "sha256": "d219ba81cfefe93a822ec64a24848d0b23abe21f8c874325715e9c5081773d4f"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/regrades/regrade_001/submission_validation.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\regrades\\regrade_001\\submission_validation.json",
+        "bytes": 1786,
+        "sha256": "5521ce73ed7fb1f4d478832f87fcd86da67574aaebb991d007ffd6cbd66db3f0"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/regrades/regrade_001/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\regrades\\regrade_001\\result.json",
+        "bytes": 4431733,
+        "sha256": "e1ec2884cb475da032241cde6be06b8d5853d2528d566588f6e656a6b77b37ae"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/attempts/attempt_001/submission.csv",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\attempts\\attempt_001\\submission.csv",
+        "bytes": 757835,
+        "sha256": "c4806d392a9b251a372172b58e88d3aedaff40cef7cd09d24051de8af3743449"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/attempts/attempt_001/submission_validation.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\attempts\\attempt_001\\submission_validation.json",
+        "bytes": 1786,
+        "sha256": "5521ce73ed7fb1f4d478832f87fcd86da67574aaebb991d007ffd6cbd66db3f0"
+      },
+      {
+        "remote": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/a800_ranzcr_recovery_s42_20260726_145840/ranzcr-clip-catheter-line-classification/attempts/attempt_001/result.json",
+        "local": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\collected\\a800_ranzcr_recovery_s42_20260726_145840\\ranzcr-clip-catheter-line-classification\\attempts\\attempt_001\\result.json",
+        "bytes": 4418044,
+        "sha256": "73c5a5790e869001c57dccebe48044395f87a0a1dc5d232305790aa482a01d72"
+      }
+    ],
+    "passed": true
+  },
+  "campaign_mutation_performed": false,
+  "campaign_integration_required": true,
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false
+}

@@ -1,0 +1,1131 @@
+{
+  "task": {
+    "task_id": "telco_churn",
+    "name": "Telco Customer Churn",
+    "task_type": "binary_classification",
+    "target": "Churn",
+    "metric": "accuracy",
+    "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn",
+    "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\train.csv",
+    "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\test.csv",
+    "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\sample_submission.csv",
+    "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\overview.txt",
+    "metadata": {
+      "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\telco_churn.yaml",
+      "id_column": "customerID",
+      "prediction_column": "Churn"
+    }
+  },
+  "run": {
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853",
+    "accepted": true,
+    "best_model": "gradient_boosting",
+    "best_metrics": {
+      "cv_accuracy_mean": 0.807773,
+      "cv_accuracy_std": 0.007051,
+      "holdout_accuracy": 0.809228,
+      "holdout_macro_f1": 0.739197,
+      "seconds": 3.9265
+    }
+  },
+  "experiment_record": {
+    "run_id": "20260623_160853",
+    "task_id": "telco_churn",
+    "source_type": "local_template",
+    "code_agent_provider": "local_template",
+    "code_patch_id": null,
+    "runner_provider": "local_pipeline",
+    "gpu_provider": "mock",
+    "llm_provider": "rule_based",
+    "dataset_version": "telco_churn",
+    "code_commit": null,
+    "seed": 42,
+    "metric": {
+      "cv_accuracy_mean": 0.807773,
+      "cv_accuracy_std": 0.007051,
+      "holdout_accuracy": 0.809228,
+      "holdout_macro_f1": 0.739197,
+      "seconds": 3.9265
+    },
+    "artifacts": [
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md"
+    ],
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853"
+  },
+  "connector_status": {
+    "code_agent": {
+      "name": "Code Agent",
+      "state": "local_template",
+      "configured": true,
+      "notes": "External code agents use export/import patch flow."
+    },
+    "python_runner": {
+      "name": "Python Runner",
+      "state": "local",
+      "configured": true,
+      "notes": "Local subprocess adapter is available for scripts."
+    },
+    "gpu": {
+      "name": "GPU",
+      "state": "mock",
+      "configured": false,
+      "notes": "Mock adapter reserves SSH/Slurm/Docker/Kubernetes/Cloud GPU slots."
+    },
+    "kaggle": {
+      "name": "Kaggle",
+      "state": "Not Configured",
+      "configured": false,
+      "notes": "Kaggle submission requires credentials and Human Gate."
+    },
+    "llm": {
+      "name": "LLM",
+      "state": "rule_based",
+      "configured": true,
+      "notes": "No API key required for rule-based mode; API adapters can replace it later."
+    },
+    "storage": {
+      "name": "Storage",
+      "state": "local_workspace",
+      "configured": true,
+      "notes": "S3/OSS/MinIO reserved."
+    },
+    "env_keys": {
+      "CODE_AGENT_PROVIDER": "local_template",
+      "PYTHON_RUNNER": "local",
+      "GPU_PROVIDER": "mock",
+      "KAGGLE_ENABLED": "false",
+      "LLM_PROVIDER": "rule_based"
+    }
+  },
+  "stages": [
+    {
+      "stage": "task_understanding",
+      "status": "passed",
+      "details": {
+        "task_id": "telco_churn",
+        "name": "Telco Customer Churn",
+        "task_type": "binary_classification",
+        "target": "Churn",
+        "metric": "accuracy",
+        "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn",
+        "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\train.csv",
+        "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\test.csv",
+        "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\data\\sample_submission.csv",
+        "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\overview.txt",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\telco_churn.yaml",
+          "id_column": "customerID",
+          "prediction_column": "Churn"
+        }
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "eda",
+      "status": "passed",
+      "details": {
+        "summary": "Data contract checked for telco_churn; train file exists=True.",
+        "risk_flags": []
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "experiment_planning",
+      "status": "passed",
+      "details": {
+        "plan": {
+          "plan_id": "plan_0c2f722f26",
+          "task_id": "telco_churn",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "scaffold": {
+          "research_question": "Can a reproducible binary_classification baseline improve accuracy for Telco Customer Churn?",
+          "task_type": "binary_classification",
+          "dataset_type": "tabular",
+          "target_column": "Churn",
+          "id_column": "customerID",
+          "metric": "accuracy",
+          "validation_strategy": {
+            "strategy": "holdout_or_cv"
+          },
+          "baseline_strategy": "local_template_sklearn_baseline",
+          "preprocessing_strategy": "numeric/categorical automatic preprocessing with missing-value handling",
+          "candidate_models": [
+            "linear_or_logistic_baseline",
+            "tree_ensemble_baseline"
+          ],
+          "risk_points": [
+            "data leakage",
+            "submission column mismatch",
+            "missing predictions",
+            "metric mismatch",
+            "unapproved plan or patch"
+          ],
+          "required_gates": [
+            "PLAN_APPROVAL",
+            "SUBMISSION_APPROVAL",
+            "FINAL_CLAIM_APPROVAL",
+            "REPORT_EXPORT_APPROVAL"
+          ],
+          "expected_artifacts": [
+            "task_profile.json",
+            "scaffold.json",
+            "data_quality.json",
+            "model_results.json",
+            "submission.csv",
+            "validation_gate.json",
+            "agent_trace.jsonl",
+            "artifact_manifest.json",
+            "evidence_index.json",
+            "report.md",
+            "reflection.json"
+          ],
+          "first_run_plan": [
+            "inspect input files",
+            "train local baseline",
+            "write metrics and submission",
+            "run validation gate",
+            "bind evidence and draft report"
+          ],
+          "fallback_plan": [
+            "if training fails, enter WAITING_FIX and export context for Codex/Claude Code",
+            "if validation fails, block submission approval and request reviewer evidence"
+          ]
+        }
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "human_plan_gate",
+      "status": "approved",
+      "details": {
+        "gate_id": "gate_4ea59bde15",
+        "task_id": "telco_churn",
+        "run_id": null,
+        "gate_type": "PLAN_APPROVAL",
+        "triggered_by": "PlannerAgent",
+        "reason": "Scaffold must be reviewed before code generation and training.",
+        "required_evidence": [
+          "scaffold.json",
+          "scaffold.md"
+        ],
+        "risk_level": "medium",
+        "status": "approved",
+        "reviewer": "Research Admin (local MVP)",
+        "decision_comment": "Auto-approved for local closed-loop demo; production requires explicit reviewer action.",
+        "created_at": "2026-06-23T16:08:51",
+        "decided_at": "2026-06-23T16:08:51"
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "code_generation",
+      "status": "passed",
+      "details": {
+        "provider": "local_template",
+        "files": [
+          "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py"
+        ]
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "code_review",
+      "status": "passed",
+      "details": {
+        "status": "passed",
+        "findings": []
+      },
+      "at": "2026-06-23T16:08:51"
+    },
+    {
+      "stage": "training",
+      "status": "passed",
+      "details": {
+        "summary": {
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853",
+          "accepted": true,
+          "best_model": "gradient_boosting",
+          "best_metrics": {
+            "cv_accuracy_mean": 0.807773,
+            "cv_accuracy_std": 0.007051,
+            "holdout_accuracy": 0.809228,
+            "holdout_macro_f1": 0.739197,
+            "seconds": 3.9265
+          }
+        },
+        "runner": {
+          "run_id": "run_8919994789",
+          "command": [
+            "C:\\codex-python\\python.exe",
+            "D:\\桌面\\codex\\科研港科技\\src\\research_agent_workstation\\tabular_pipeline.py",
+            "--config",
+            "D:\\桌面\\codex\\科研港科技\\configs\\telco_churn.yaml",
+            "--output-dir",
+            "D:\\桌面\\codex\\科研港科技\\experiments",
+            "--random-state",
+            "42"
+          ],
+          "cwd": "D:\\桌面\\codex\\科研港科技",
+          "return_code": 0,
+          "stdout_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_8919994789\\train_log.txt",
+          "stderr_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_8919994789\\error_log.txt",
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853"
+        }
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "submission_check",
+      "status": "passed",
+      "details": {
+        "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+        "rows_match": true,
+        "columns_match": true,
+        "missing_predictions": 0,
+        "prediction_columns": [
+          "Churn"
+        ],
+        "valid": true,
+        "allowed_values": [
+          "No",
+          "Yes"
+        ],
+        "allowed_values_only": true,
+        "prediction_distribution": {
+          "No": 1118,
+          "Yes": 291
+        }
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "validation_review",
+      "status": "passed",
+      "details": {
+        "evidence_count": 14
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "human_submission_gate",
+      "status": "pending",
+      "details": {
+        "gate_id": "gate_ae99c68cde",
+        "task_id": "telco_churn",
+        "gate_type": "human_submission",
+        "decision": "pending",
+        "required_evidence": [
+          "ev_8e2e94a6f7",
+          "ev_ff5341106d",
+          "ev_f13008e49b",
+          "ev_c512960238",
+          "ev_a7769da0d2",
+          "ev_2b0ecd7dbf",
+          "ev_0618470956",
+          "ev_c9901c917b",
+          "ev_544534e9bc",
+          "ev_6caabeb28e",
+          "ev_0bb5a87560",
+          "ev_6f1ecadfd3",
+          "ev_b0ce9288e3",
+          "ev_049ec3a5ee"
+        ],
+        "reviewer": "human",
+        "metadata": {}
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "report_generation",
+      "status": "passed",
+      "details": {
+        "report": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workstation_report.md"
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "human_final_gate",
+      "status": "pending",
+      "details": {
+        "reason": "final academic review remains manual"
+      },
+      "at": "2026-06-23T16:09:04"
+    },
+    {
+      "stage": "reflection",
+      "status": "passed",
+      "details": {
+        "next": [
+          "Try CatBoost with same preprocessing.",
+          "Compare LightGBM with XGBoost under same folds.",
+          "Check leakage risk before leaderboard submission.",
+          "Add feature importance report before final conclusion."
+        ],
+        "memory_record": "memory_46481edfe1"
+      },
+      "at": "2026-06-23T16:09:04"
+    }
+  ],
+  "task_state": {
+    "task_id": "telco_churn",
+    "state": "FINAL_WAITING_APPROVAL",
+    "history": [
+      {
+        "from_state": "CREATED",
+        "to_state": "IMPORTED",
+        "reason": "Task config imported.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\telco_churn.yaml"
+        }
+      },
+      {
+        "from_state": "IMPORTED",
+        "to_state": "UNDERSTANDING",
+        "reason": "TaskReaderAgent started task understanding.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTANDING",
+        "to_state": "UNDERSTOOD",
+        "reason": "Imported binary_classification task with target=Churn, metric=accuracy.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTOOD",
+        "to_state": "EDA_RUNNING",
+        "reason": "DataAgent checks data contract before planning.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_RUNNING",
+        "to_state": "EDA_DONE",
+        "reason": "Data contract checked for telco_churn; train file exists=True.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_DONE",
+        "to_state": "PLANNING",
+        "reason": "PlannerAgent creates scaffold.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLANNING",
+        "to_state": "PLAN_WAITING_APPROVAL",
+        "reason": "Scaffold and first baseline plan created. No related memory yet.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_WAITING_APPROVAL",
+        "to_state": "PLAN_APPROVED",
+        "reason": "PLAN_APPROVAL approved.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_APPROVED",
+        "to_state": "CODE_GENERATING",
+        "reason": "LocalTemplateCodeAgent generating baseline runner.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_GENERATING",
+        "to_state": "CODE_READY",
+        "reason": "Code artifact generated and reviewed.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_READY",
+        "to_state": "TRAINING_RUNNING",
+        "reason": "LocalPythonRunner starts tabular baseline.",
+        "at": "2026-06-23T16:08:51",
+        "metadata": {}
+      },
+      {
+        "from_state": "TRAINING_RUNNING",
+        "to_state": "TRAINING_DONE",
+        "reason": "Training completed and output directory created.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {
+          "run_id": "20260623_160853"
+        }
+      },
+      {
+        "from_state": "TRAINING_DONE",
+        "to_state": "REVIEWING",
+        "reason": "ReviewerAgent checks metrics, evidence and submission contract.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEWING",
+        "to_state": "REVIEW_DONE",
+        "reason": "Reviewed 17 artifacts; metric artifact found=True.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEW_DONE",
+        "to_state": "SUBMISSION_WAITING_APPROVAL",
+        "reason": "Submission approval is pending human review.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      },
+      {
+        "from_state": "SUBMISSION_WAITING_APPROVAL",
+        "to_state": "REPORT_GENERATING",
+        "reason": "WriterAgent generates evidence-bound report.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_GENERATING",
+        "to_state": "REPORT_DONE",
+        "reason": "Report generated from registered artifacts.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_DONE",
+        "to_state": "FINAL_WAITING_APPROVAL",
+        "reason": "Final claim approval remains pending.",
+        "at": "2026-06-23T16:09:04",
+        "metadata": {}
+      }
+    ]
+  },
+  "agent_trace": [
+    {
+      "timestamp": "2026-06-23T16:08:51.431",
+      "agent": "TaskReaderAgent",
+      "stage": "task_understanding",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=task_understanding; artifacts=0",
+      "output_summary": "Imported binary_classification task with target=Churn, metric=accuracy.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-23T16:08:51.432",
+      "agent": "DataAgent",
+      "stage": "eda",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=eda; artifacts=0",
+      "output_summary": "Data contract checked for telco_churn; train file exists=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-23T16:08:51.435",
+      "agent": "PlannerAgent",
+      "stage": "experiment_planning",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=experiment_planning; artifacts=1",
+      "output_summary": "Scaffold and first baseline plan created. No related memory yet.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "waiting_gate",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-23T16:09:04.142",
+      "agent": "TrainerAgent",
+      "stage": "training",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=training; artifacts=17",
+      "output_summary": "Local Python runner completed baseline training and produced metric artifacts.",
+      "artifacts_generated": [
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md"
+      ],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260623_160853"
+    },
+    {
+      "timestamp": "2026-06-23T16:09:04.145",
+      "agent": "ReviewerAgent",
+      "stage": "validation_review",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=validation_review; artifacts=17",
+      "output_summary": "Reviewed 17 artifacts; metric artifact found=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [
+        "artifact_92bd5dc488"
+      ],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260623_160853"
+    },
+    {
+      "timestamp": "2026-06-23T16:09:04.147",
+      "agent": "WriterAgent",
+      "stage": "report_generation",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=report_generation; artifacts=17",
+      "output_summary": "Report draft generated from 17 registered artifacts.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260623_160853"
+    },
+    {
+      "timestamp": "2026-06-23T16:09:04.148",
+      "agent": "ReflectionAgent",
+      "stage": "reflection",
+      "action": "run",
+      "input_summary": "task=telco_churn; stage=reflection; artifacts=17",
+      "output_summary": "Generated retrospective memory and next experiment suggestions from metrics, artifacts and reviewer output.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260623_160853"
+    }
+  ],
+  "artifact_registry": [
+    {
+      "artifact_id": "artifact_1879c61aed",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "scaffold.json",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.json",
+      "size": 1608,
+      "hash": "d8363ba41d5880413d94fc789c76f60fbdf611f49e226932e9b821cb9fda9ba8",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_8944e2334a",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "scaffold.md",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.md",
+      "size": 507,
+      "hash": "d502394a52a81546cc7b4e7b1154c4317a8f236e74ab3f08942756aabf5d7c86",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_c2bb5a11e7",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "baseline_runner.py",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py",
+      "size": 249,
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "created_by": "LocalTemplateCodeAgent",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "code_generation",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_3b4721f4da",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "data_quality.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+      "size": 1540,
+      "hash": "2d0ef65bc4d8cdace0368a2d992812c78ddbf5d419a3b18aa67afa3f9727c9db",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_13b3e41df9",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "experiment_log.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+      "size": 17429,
+      "hash": "8435fc979506bcc4a308ae6f2fc8e42f8ff8d18339e0d5c2671bb339ad600912",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_7fac1487ef",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+      "size": 38169,
+      "hash": "0b074c49e64f9b0e36882d65cd7532d54d0dad2d5e5a65da602f6f79172c3c40",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_eb9ab66389",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+      "size": 2604,
+      "hash": "a777ba4c7d744d5f859794dd119d1975a27cec50ff012d4046545c228eda1f68",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_92bd5dc488",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "model_results.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+      "size": 955,
+      "hash": "4030893921bd88a8249065ee82f6437bf2bb6dc40d329f9f272047bb83f6f3a1",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_5ea9ba3123",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "post_scaffold_improvement.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+      "size": 895,
+      "hash": "ae83f4961a8c4583e68356d930ec510767acd2c334b96808ffcbbdc228891935",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_d114ed576b",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "post_scaffold_improvement.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+      "size": 842,
+      "hash": "bdb8eaeb3b3e1a372257b21be3e741e68dcd1e049810f23a3bf6cca3b8901ee4",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_287a921f7d",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "submission.csv",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+      "size": 21444,
+      "hash": "c1f58233515beab552ac646571dffac194902a2a0440e67d6cbcf40d41bd1c80",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_b00bf60bf6",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "task_scaffold.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+      "size": 5639,
+      "hash": "697b35ea75c99c205bea22f87201611d6c27dc1bbd2772c132e7e6ac33ffe13f",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_e18d212868",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "task_scaffold.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+      "size": 1501,
+      "hash": "0cbf662fe44659f170950dd00bc43dd4ea6ca7f2b548e029a1a89c6036c7dcbc",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_01e72e447e",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "telco_churn_local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+      "size": 38169,
+      "hash": "0b074c49e64f9b0e36882d65cd7532d54d0dad2d5e5a65da602f6f79172c3c40",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_a9fcd1aacb",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "telco_churn_local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+      "size": 2604,
+      "hash": "a777ba4c7d744d5f859794dd119d1975a27cec50ff012d4046545c228eda1f68",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_c8e4a8ffd2",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "workflow_stage_audit.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+      "size": 5117,
+      "hash": "a4bd0cc3b2b870e0665485e56af9d275384dcd17709670854df1e17cbe583fd9",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_e50dc8e8fc",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "workflow_stage_audit.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md",
+      "size": 3577,
+      "hash": "ce1d7f41595ef99d2cd44db1b3a74beea88a89601f7f7bc5f1f3adb57f6c9d74",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_fe34a0623e",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "name": "workstation_report.md",
+      "type": "report",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workstation_report.md",
+      "size": 252,
+      "hash": "d7aa1069ef6025b2c1da00edb5b4c0ec9d9b09b70a1f596b6921d21f73d6d901",
+      "created_by": "WriterAgent",
+      "created_at": "2026-06-23T16:09:04",
+      "linked_stage": "report_generation",
+      "linked_claims": [
+        "claim_89a094fb55"
+      ],
+      "preview_available": true,
+      "metadata": {}
+    }
+  ],
+  "evidence_graph": {
+    "evidence_count": 17,
+    "claims": [
+      {
+        "claim_id": "claim_89a094fb55",
+        "text": "Telco Customer Churn local baseline produced validated accuracy results.",
+        "source": "reviewer",
+        "evidence_ids": [
+          "evidence_7cb66b99de",
+          "evidence_fb407517f1"
+        ],
+        "confidence": 0.86,
+        "reviewer_status": "bound",
+        "risk_level": "medium"
+      }
+    ]
+  },
+  "experiment_graph": {
+    "nodes": [
+      {
+        "run_id": "20260623_160853",
+        "parent_run_id": null,
+        "branch_id": "baseline",
+        "stage": "training_done",
+        "hypothesis": "Local template baseline establishes a reproducible reference run.",
+        "plan": {
+          "plan_id": "plan_0c2f722f26",
+          "task_id": "telco_churn",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "code_snapshot": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py",
+        "model": "gradient_boosting",
+        "params": {},
+        "metric": "accuracy",
+        "score": 0.807773,
+        "is_buggy": false,
+        "status": "passed",
+        "artifacts": [
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workstation_report.md"
+        ],
+        "reward": 0.807773,
+        "created_at": "2026-06-23T16:09:04"
+      }
+    ],
+    "edges": []
+  },
+  "memory": [
+    {
+      "record_id": "memory_46481edfe1",
+      "task_type": "binary_classification",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "gradient_boosting with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.807773,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "accuracy",
+        "telco_churn"
+      ],
+      "evidence_refs": [
+        "evidence_7cb66b99de",
+        "evidence_fb407517f1"
+      ],
+      "created_at": "2026-06-23T16:09:04"
+    }
+  ],
+  "reflection": {
+    "what_changed": "Local baseline run completed and artifacts were registered through the runtime.",
+    "metric_change": {
+      "before": null,
+      "after": 0.807773,
+      "metric": "accuracy"
+    },
+    "why_it_might_help": "It creates a reproducible baseline before Codex/Claude Code optimization.",
+    "failure_reason": null,
+    "next_experiment_suggestion": [
+      "Try CatBoost with same preprocessing.",
+      "Compare LightGBM with XGBoost under same folds.",
+      "Check leakage risk before leaderboard submission.",
+      "Add feature importance report before final conclusion."
+    ],
+    "memory_record": {
+      "record_id": "memory_46481edfe1",
+      "task_type": "binary_classification",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "gradient_boosting with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.807773,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "accuracy",
+        "telco_churn"
+      ],
+      "evidence_refs": [
+        "evidence_7cb66b99de",
+        "evidence_fb407517f1"
+      ],
+      "created_at": "2026-06-23T16:09:04"
+    },
+    "whether_continue_this_branch": true,
+    "whether_try_new_branch": true
+  },
+  "pending_gates": [
+    {
+      "gate_id": "gate_05d05fc52e",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "gate_type": "SUBMISSION_APPROVAL",
+      "triggered_by": "ReviewerAgent",
+      "reason": "Submission can only proceed after submission_check passed and evidence is bound.",
+      "required_evidence": [
+        "evidence_7cb66b99de",
+        "evidence_fb407517f1"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-06-23T16:09:04",
+      "decided_at": null
+    },
+    {
+      "gate_id": "gate_69a329fdff",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "gate_type": "FINAL_CLAIM_APPROVAL",
+      "triggered_by": "WriterAgent",
+      "reason": "Final claims require reviewer approval and evidence binding.",
+      "required_evidence": [
+        "evidence_7cb66b99de",
+        "evidence_fb407517f1"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-06-23T16:09:04",
+      "decided_at": null
+    }
+  ],
+  "evidence_count": 14,
+  "kaggle": {
+    "configured": false,
+    "provider": "kaggle",
+    "message": "Kaggle API not configured"
+  },
+  "gpu": {
+    "available": false,
+    "devices": [],
+    "message": "GPU interface reserved; no remote GPU connected."
+  }
+}

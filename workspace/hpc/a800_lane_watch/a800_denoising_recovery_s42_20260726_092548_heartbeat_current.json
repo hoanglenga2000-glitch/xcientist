@@ -1,0 +1,37 @@
+{
+  "schema": "evomind.mlebench.a800_lane_watch.heartbeat.v1",
+  "created_at": "2026-07-26T09:31:50.284048+08:00",
+  "run_id": "a800_denoising_recovery_s42_20260726_092548",
+  "process": "stopped",
+  "summary_status": "partial_failure",
+  "summary_passed": 0,
+  "summary_failed": 1,
+  "official_grade_count": 0,
+  "checkpoint": {
+    "completed": {
+      "denoising-dirty-documents": "failed"
+    },
+    "remaining": [],
+    "requested": [
+      "denoising-dirty-documents"
+    ],
+    "run_id": "a800_denoising_recovery_s42_20260726_092548",
+    "schema": "evomind.mlebench_lite.checkpoint.v1",
+    "updated_at": "2026-07-26T01:31:10.060972+00:00"
+  },
+  "last_log_lines": [
+    "2026-07-26 09:30:43,268 INFO [denoising-dirty-documents] starting attempt=1",
+    "2026-07-26 09:31:09,657 ERROR [denoising-dirty-documents] failed",
+    "Traceback (most recent call last):",
+    "  File \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_remote_ops/releases/f31d007b6d6de91073fb8fd8d49e0d2ccf2e21021ab8ff683734fd91d46bc688/scripts/run_mlebench_lite_full.py\", line 1824, in main",
+    "    result = RUNNERS[competition_id](args, attempt_dir, logger)",
+    "  File \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_remote_ops/releases/f31d007b6d6de91073fb8fd8d49e0d2ccf2e21021ab8ff683734fd91d46bc688/scripts/mlebench_medal_recovery_adapters.py\", line 1505, in run_denoising_unet",
+    "    ) = _train_denoising_model(",
+    "  File \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_remote_ops/releases/f31d007b6d6de91073fb8fd8d49e0d2ccf2e21021ab8ff683734fd91d46bc688/scripts/mlebench_medal_recovery_adapters.py\", line 1219, in _train_denoising_model",
+    "    model = build_denoising_unet(args.denoising_base_channels).cuda(",
+    "TypeError: Module.cuda() got an unexpected keyword argument 'memory_format'",
+    "2026-07-26 09:31:10,063 INFO [denoising-dirty-documents] status=failed"
+  ],
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false
+}

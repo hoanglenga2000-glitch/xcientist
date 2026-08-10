@@ -81,6 +81,8 @@ class LocalSubprocessRunner:
         self.python_exe = python_exe or sys.executable
 
     def run(self, code: str, *, data_dir: str, out_dir: str, exp_id: str) -> RunResult:
+        from research_os.hpc_policy import require_hpc_compute
+        require_hpc_compute("local")
         script_dir = self.workdir / exp_id
         script_dir.mkdir(parents=True, exist_ok=True)
         script_path = script_dir / "solution.py"

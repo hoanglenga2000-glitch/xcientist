@@ -17,6 +17,7 @@ from research_os.demo_campaign import (
     verify_demo_evidence_chain,
 )
 from research_os.evolution_loop import EvolutionConfig, EvolutionLoop, LocalSubprocessRunner
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 from research_os.mcgs_selector import MCGSSelector
 from research_os.variation_generator import TaskContext
 

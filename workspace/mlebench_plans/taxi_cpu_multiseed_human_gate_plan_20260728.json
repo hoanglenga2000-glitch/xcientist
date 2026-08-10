@@ -1,0 +1,59 @@
+{
+  "schema": "evomind.mlebench.taxi_cpu_multiseed_human_gate_plan.v1",
+  "created_at": "2026-07-28T09:50:52.390440+08:00",
+  "status": "approved_waiting_for_all_seeds",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "seeds": [
+    43,
+    44,
+    45
+  ],
+  "seed_plan_paths": [
+    "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_cpu_lightgbm_candidate_s43_job89941_v3_20260728.json",
+    "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_cpu_lightgbm_confirmation_s44_job89941_20260728.json",
+    "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_cpu_lightgbm_confirmation_s45_job89941_20260728.json"
+  ],
+  "seed_plan_sha256s": [
+    "316ee83c20e1c029e7b7e0b60802ae514708d171efec6c89061fdbe937662747",
+    "e8edc82feff3c78a89adca0af9e8b3407f11c0bbcbdbdc49303bdc972ee51a31",
+    "8368054c8a4f7989fffb3072b7823199852f9ff2925872e05701a601001c76f6"
+  ],
+  "expected_train_rows": 5000000,
+  "expected_test_rows": 9914,
+  "aggregator_source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\aggregate_taxi_cpu_multiseed_candidate.py",
+    "relative_path": "scripts/aggregate_taxi_cpu_multiseed_candidate.py",
+    "bytes": 15527,
+    "sha256": "8eb89e1588984c8eccf88d5760d6213776a8d9a349beaadbbf64cfd405a9f94e"
+  },
+  "sample_submission": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\new-york-city-taxi-fare-prediction\\prepared\\public\\sample_submission.csv",
+    "relative_path": "workspace/local_gpu/mlebench_official_data/new-york-city-taxi-fare-prediction/prepared/public/sample_submission.csv",
+    "bytes": 343716,
+    "sha256": "2ffb30d6529752503276f5a67e33c052e659967bfd96c8551748c3fa43c64ff4"
+  },
+  "promotion_gate": {
+    "every_seed_random_oof_rmse_maximum": 2.85,
+    "every_seed_temporal_rmse_maximum": 3.1,
+    "every_seed_geographic_rmse_maximum": 3.35,
+    "mean_random_oof_rmse_maximum": 2.82,
+    "ensemble_random_oof_rmse_maximum": 2.82,
+    "all_three_model_seeds_required": true
+  },
+  "execution_contract": {
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_required": true
+  },
+  "claim_boundary": "Three-seed PUBLIC_ONLY OOF package; not an official score or medal.",
+  "boundaries": {
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  }
+}

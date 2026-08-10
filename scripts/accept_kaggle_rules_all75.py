@@ -84,7 +84,6 @@ SPLIT75 = [
     "petfinder-pawpularity-score",
     "plant-pathology-2020-fgvc7",
     "plant-pathology-2021-fgvc8",
-    "playground-series-s3e18",
     "predict-volcanic-eruptions-ingv-oe",
     "random-acts-of-pizza",
     "ranzcr-clip-catheter-line-classification",

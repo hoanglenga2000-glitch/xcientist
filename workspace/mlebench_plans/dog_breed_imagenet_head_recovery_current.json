@@ -1,0 +1,78 @@
+{
+  "schema": "evomind.mlebench.dog_breed_imagenet_head_recovery_plan.v1",
+  "created_at": "2026-07-26T10:32:32.927378+00:00",
+  "status": "queued_behind_active_parent",
+  "competition_id": "dog-breed-identification",
+  "official_metric": "multiclass_log_loss",
+  "promotion_threshold": 0.04,
+  "active_parent": {
+    "run_id": "local4060_dog_breed_imagenethead_s42_20260726_201211",
+    "training_started": true,
+    "completed": true,
+    "summary_status": "partial_failure",
+    "result_status": "promotion_gate_failed",
+    "adapter_sha256_at_start": "b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+    "cv_log_loss": 0.12175188531885915,
+    "fold_scores": [
+      0.10612146351954876,
+      0.1362613018422401,
+      0.13242488731302374,
+      0.1233359916727365,
+      0.11060972672577203
+    ],
+    "promotion_threshold": 0.04,
+    "promotion_gate_passed": false,
+    "official_grader_executed": false,
+    "official_score": null,
+    "model_family": "convnext_small_ImageNet1K_fold_ensemble_plus_frozen_ImageNet120_teacher",
+    "summary_path": "workspace/local_gpu/mlebench_lite_runs/local4060_dog_breed_imagenethead_s42_20260726_201211/summary.json",
+    "summary_sha256": "9892e98df0fe707754aa676e200e7711bb104e16f2538dd3962c35fb9cf18b14"
+  },
+  "frozen_teacher_evidence": {
+    "rows": 9199,
+    "classes": 120,
+    "oof_like_train_log_loss": 0.18795286176572076,
+    "top1_accuracy": 0.9616262637243178,
+    "top5_accuracy": 0.9988042178497663,
+    "cache_path": "workspace/local_gpu/mlebench_lite_runs/_shared_wave2_cache/dog-breed-identification/convnext_small_imagenet1k_teacher_v1.npz",
+    "cache_sha256": "30fb44992670ec6a4bdfbbb3003eea21e070f8e7a4fb2eedb0296c464ee58b16",
+    "private_labels_used": false
+  },
+  "material_revision": {
+    "adapter_sha256": "b7789cb5912626aa5f14770f165f10f9af34ee1231dc5a2fe9d3f78e60667dfc",
+    "changes": [
+      "initialize the 120-class task head from the exact corresponding rows of the pinned ImageNet-1K ConvNeXt-Small classifier",
+      "use pretrained backbone 0.1x and classifier 1.0x differential learning rates",
+      "retain five-fold OOF, frozen-teacher blend, TTA, duplicate grouping, and official private grader gate",
+      "add leakage-safe joint arithmetic/geometric family-weight-temperature calibration with bounded coarse-to-fine search and automatic no-degradation fallback"
+    ],
+    "pinned_weight_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+    "runtime_probe_path": "workspace/mlebench_plans/dog_breed_imagenet_head_runtime_probe_current.json",
+    "runtime_probe_sha256": "5c71014548a176ef39743edb001a4346636ecb13e7a7334cd55f3ba7cb58d051",
+    "runtime_probe_contract": "exact_full_120_class_mapping_weights_bias_logits_probabilities",
+    "runtime_probe_passed": true,
+    "gpt56_audit_path": "workspace/mlebench_plans/dog_breed_gpt56_audit_current.json",
+    "gpt56_audit_sha256": "a612f80aecd627b274078e4d31c563c5cea27457259c12021479af99fbf58af4",
+    "gpt56_implemented_experiment": "DB-CAL",
+    "calibration_search": "joint_family_weight_temperature_coarse_to_fine_v1"
+  },
+  "queue": {
+    "schema": "evomind.local_dog_recovery_queue.v1",
+    "created_at": "2026-07-26T18:57:42.3664821+08:00",
+    "status": "waiting_for_parent_terminal_summary",
+    "parent_run_id": "local4060_dog_breed_s42_20260726_180233",
+    "parent_process_ids": [
+      67176,
+      50888
+    ],
+    "poll_seconds": 60,
+    "no_process_signals_sent": true,
+    "human_gate_preserved": true,
+    "kaggle_submission_enabled": false
+  },
+  "launch_policy": "launch only after the parent exits and only when the parent does not prove any_medal=true",
+  "no_process_signals_sent": true,
+  "human_gate_preserved": true,
+  "kaggle_submission_enabled": false,
+  "updated_at": "2026-07-26T10:58:16.891558+00:00"
+}

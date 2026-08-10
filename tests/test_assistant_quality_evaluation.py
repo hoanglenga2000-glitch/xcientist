@@ -43,7 +43,7 @@ def _good_answer() -> str:
 def test_versioned_suite_is_valid_and_weights_are_complete() -> None:
     suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
     assert suite["suite_id"] == "evomind_novice_research_agent_v1"
-    assert suite["version"] == 2
+    assert suite["version"] == 3
     assert len(suite["cases"]) == 5
     assert suite["required_provider"] == "openai"
     assert suite["required_model"] == "gpt-5.6-sol"
@@ -75,7 +75,7 @@ def test_live_quality_evaluation_binds_loopback_gateway_credential(tmp_path) -> 
     bound = assistant_quality_evaluation._bind_quality_provider_env(
         {
             "OPENAI_BASE_URL": "http://127.0.0.1:65068/v1",
-            "OPENAI_API_KEY": "unrelated-cloud-key",
+            "OPENAI_API_KEY": "test-unrelated-cloud-key",
             "EVOMIND_LOCAL_GATEWAY_CONFIG": str(config),
         },
         suite,
@@ -88,11 +88,11 @@ def test_live_quality_evaluation_binds_loopback_gateway_credential(tmp_path) -> 
 def test_scorer_passes_grounded_answer_and_fails_stale_metadata() -> None:
     suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
     case = _case(suite, "siim_results_for_novice")
-    good = score_response(case, answer=_good_answer(), tool_names=["verified_context"])
+    good = score_response(case, answer=_good_answer(), tool_names=["experiment_results"])
     stale = score_response(
         case,
         answer=_good_answer() + " house_prices SalePrice",
-        tool_names=["verified_context"],
+        tool_names=["experiment_results"],
     )
     assert good["passed"] is True
     assert good["score"] == 1.0
@@ -116,8 +116,8 @@ def test_scorer_accepts_equivalent_audit_wording_and_rejects_link_drift() -> Non
         "http://localhost/api/multi-agent/runs/.../download/file",
     )
 
-    accepted = score_response(case, answer=equivalent, tool_names=["verified_context"])
-    rejected = score_response(case, answer=drifted, tool_names=["verified_context"])
+    accepted = score_response(case, answer=equivalent, tool_names=["experiment_results"])
+    rejected = score_response(case, answer=drifted, tool_names=["experiment_results"])
 
     assert accepted["passed"] is True
     assert rejected["passed"] is False
@@ -134,7 +134,7 @@ def test_scorer_fails_closed_when_live_provider_or_model_is_not_required_one() -
     wrong = score_response(
         case,
         answer=_good_answer(),
-        tool_names=["verified_context"],
+        tool_names=["experiment_results"],
         provider="deepseek",
         model="deepseek-v4-flash",
     )
@@ -158,7 +158,7 @@ def test_recorded_pair_uses_runtime_ledger_and_proves_regression_fixed(tmp_path)
             runtime.create_session(objective=prompt, title="Web assistant", session_id=session_id)
             runtime.store.add_turn(session_id, "user", prompt)
             runtime.store.add_turn(session_id, "assistant", answer)
-            runtime.store.append_event(session_id, "web.tool_started", {"tool": "verified_context"})
+            runtime.store.append_event(session_id, "web.tool_started", {"tool": "experiment_results"})
             runtime.store.append_event(session_id, "web.usage", {
                 "provider": "openai", "model": "gpt-5.6-sol", "input_tokens": 10, "output_tokens": 20,
             })

@@ -1449,4 +1449,18 @@ def run_workspace_agent(
     return payload
 
 
-__all__ = ["WorkspaceAgentLimits", "WorkspacePlanner", "run_workspace_agent"]
+def sanitize_workspace_result(payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the JSON-safe representation allowed across CLI boundaries."""
+
+    sanitized = _safe_json_value(dict(payload))
+    if not isinstance(sanitized, dict):
+        raise TypeError("workspace result sanitizer did not return an object")
+    return sanitized
+
+
+__all__ = [
+    "WorkspaceAgentLimits",
+    "WorkspacePlanner",
+    "run_workspace_agent",
+    "sanitize_workspace_result",
+]

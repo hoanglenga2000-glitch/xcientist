@@ -1,0 +1,169 @@
+{
+  "schema": "evomind.jigsaw.multiseed_confirmation_plan.v1",
+  "created_at": "2026-07-27T17:54:33.481546+08:00",
+  "status": "frozen_before_aggregation",
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "objective": "Probability-average the independently verified public-OOF candidates for model seeds 40, 41, and 42.",
+  "driver": {
+    "model": "gpt-5.6-sol",
+    "control_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_confirmation_s40_s41_frozen_plan_20260727.json",
+      "bytes": 8706,
+      "sha256": "a1721660255015334febbab5deabe53cfdcf4f1634bda95cf43d181024d1ca3b"
+    },
+    "execution_topology": "local_seed40+hpc_seed41+local_seed42"
+  },
+  "implementation": {
+    "aggregator": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\aggregate_jigsaw_multiseed_candidate.py",
+      "bytes": 20765,
+      "sha256": "e00eb2a912827bed990259482c3b0bfb74ef4379741339dd5e958d8d2abf916f"
+    },
+    "verifier": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_jigsaw_multiseed_candidate.py",
+      "bytes": 13327,
+      "sha256": "374f60b1ef4d116c7054e051c2edc3531208447af6554f1adf95a475acfd1f42"
+    },
+    "watcher": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\watch_jigsaw_hybrid_multiseed_completion.py",
+      "bytes": 30116,
+      "sha256": "be0bcc23989ef3768db4a374f84fad33a8461e113aa9d4506c83d3dcd82671ad"
+    }
+  },
+  "public_inputs": {
+    "train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\train.csv",
+      "sha256": "36e730b9b0852edced41616b0fb53962939d678ac54f170f6d5b1a6a35af1bfd"
+    },
+    "test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\test.csv",
+      "sha256": "c31ef2c52864c3305e3dd82b7ac643b90b5d2f4c39a041480c3835379e93101d"
+    },
+    "sample_submission": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\sample_submission.csv",
+      "sha256": "81dc6e1f9eeb89ebb9e651a9ea6a3c971980ae9d12e29c687adcadfe610813b5"
+    }
+  },
+  "seed_runs": [
+    {
+      "model_seed": 40,
+      "run_id": "local4060_jigsaw_xfmr1_s40_confirm_20260727",
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_s40_frozen_plan.json",
+        "bytes": 4493,
+        "sha256": "2cffbc2aa8c10cb7ee716ec9dc94cfaad1f46cf09fa6b0f2027d78fef3abd273"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\summary.json",
+        "bytes": 40311,
+        "sha256": "4625c1c411341b5a1464305a40eeb7d6b539a19cf514fa8a34a42adbfbabd432"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\independent_verification.json",
+        "bytes": 32313,
+        "sha256": "548aae11299d73d1e136c83b9a8ea866ec82e6d8404b610fc1f4d90c37f21cd2"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 24048181,
+        "sha256": "724967d2b76254a43ee8cddcd5706241da155edf8810de26470fc3a66b6e0e3b"
+      }
+    },
+    {
+      "model_seed": 41,
+      "run_id": "hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\hpc_seed41_frozen_plan.json",
+        "bytes": 6839,
+        "sha256": "14ac71d98668f1e2012105cc6cfea45e945fae642c06887772b6ab1cb5431350"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\summary.json",
+        "bytes": 38990,
+        "sha256": "5e4b442779b1cb0cfefd3a344de322b68a5ba4fa401ba6fbc738808430ebc483"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\independent_verification.json",
+        "bytes": 31056,
+        "sha256": "e9a7710ee5799fd48aa734038e0a214591cbe63b2a370737e7aed00ee209bdd6"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 24039106,
+        "sha256": "d676a258a17939cb88fccf305ca3aa21f16e5d23e813e1ac6dd8cd302f449332"
+      }
+    },
+    {
+      "model_seed": 42,
+      "run_id": "local4060_jigsaw_xfmr1_s42_20260727_0024",
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_frozen_plan.json",
+        "bytes": 3772,
+        "sha256": "37503de1a8603c1ecaca0e200b3c3aeca861cf642b1605e71c7c51e97a2c28b4"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\summary.json",
+        "bytes": 39826,
+        "sha256": "d9570d189126f4d446ceabab12dfe4ab99d58d1be26ef0ebe68cb6aeddf8336c"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\independent_verification.json",
+        "bytes": 32024,
+        "sha256": "4f58684b540b0e34fec07d84ee36d8131bbf0089d000a70c223897c851378071"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 23501345,
+        "sha256": "deaa81db47274ce7ef2c6b2622f68281835ff9e634f26651699f8502200242b8"
+      },
+      "boundary_audit": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_candidate_audit_current.json",
+        "bytes": 3982,
+        "sha256": "f0c0f1fe6fe6b96c23124e67f791b55c201749a70e91e97730c1f052d2661677"
+      }
+    }
+  ],
+  "queue_status": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_multiseed_source_completion_evidence_relocation_v2_20260727.json",
+    "bytes": 5200,
+    "sha256": "459255a6f5cf00a4f9c98190874ec47da63b9310f1cb68a658724ace4bf47ba4"
+  },
+  "aggregation": {
+    "method": "arithmetic_mean_probability",
+    "model_seeds": [
+      40,
+      41,
+      42
+    ],
+    "numeric_bundle_arrays_only": true,
+    "legacy_object_ids_ignored": true,
+    "public_csv_id_order_reconstructed": true
+  },
+  "confirmation_gate": {
+    "metric": "mean_columnwise_roc_auc",
+    "minimum_seed_auc": 0.987,
+    "minimum_mean_auc": 0.987,
+    "minimum_seed_gain": 0.0003,
+    "maximum_population_std": 0.0025,
+    "all_three_seed_promotion_gates_required": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "official_medal_claim_requires_human_gated_private_evaluation": true
+  },
+  "output": {
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_multiseed_probability_confirmation_relocation_v2",
+    "result": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_multiseed_probability_confirmation_relocation_v2\\jigsaw_multiseed_confirmation_result.json",
+    "submission_disposition": "withheld_human_gate"
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "Public OOF confirmation only; no official score or medal is claimed."
+}

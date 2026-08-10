@@ -1,0 +1,3155 @@
+{
+  "has_dot": {
+    "rows": 498,
+    "letters": 355,
+    "candidate_correct": 353,
+    "identity_correct": 0,
+    "examples": [
+      {
+        "before": "T.W.",
+        "after": "t w",
+        "class": "LETTERS",
+        "candidate": "t w"
+      },
+      {
+        "before": "S. K.",
+        "after": "s k",
+        "class": "LETTERS",
+        "candidate": "s k"
+      },
+      {
+        "before": "P. G.",
+        "after": "p g",
+        "class": "LETTERS",
+        "candidate": "p g"
+      },
+      {
+        "before": "N.Y.",
+        "after": "n y",
+        "class": "LETTERS",
+        "candidate": "n y"
+      },
+      {
+        "before": "O. E.",
+        "after": "o e",
+        "class": "LETTERS",
+        "candidate": "o e"
+      },
+      {
+        "before": "A. R.",
+        "after": "a r",
+        "class": "LETTERS",
+        "candidate": "a r"
+      },
+      {
+        "before": "A.J.",
+        "after": "a j",
+        "class": "LETTERS",
+        "candidate": "a j"
+      },
+      {
+        "before": "G. E.",
+        "after": "g e",
+        "class": "LETTERS",
+        "candidate": "g e"
+      },
+      {
+        "before": "C.B.E.",
+        "after": "c b e",
+        "class": "LETTERS",
+        "candidate": "c b e"
+      },
+      {
+        "before": "F.C.S.C.J.",
+        "after": "f c s c j",
+        "class": "LETTERS",
+        "candidate": "f c s c j"
+      },
+      {
+        "before": "W. A. J.",
+        "after": "w a j",
+        "class": "LETTERS",
+        "candidate": "w a j"
+      },
+      {
+        "before": "C. F. W. R.",
+        "after": "c f w r",
+        "class": "LETTERS",
+        "candidate": "c f w r"
+      }
+    ],
+    "net_gain": 353,
+    "precision": 0.7088353413654619
+  },
+  "dotted_letters": {
+    "rows": 351,
+    "letters": 350,
+    "candidate_correct": 350,
+    "identity_correct": 0,
+    "examples": [
+      {
+        "before": "T.W.",
+        "after": "t w",
+        "class": "LETTERS",
+        "candidate": "t w"
+      },
+      {
+        "before": "S. K.",
+        "after": "s k",
+        "class": "LETTERS",
+        "candidate": "s k"
+      },
+      {
+        "before": "P. G.",
+        "after": "p g",
+        "class": "LETTERS",
+        "candidate": "p g"
+      },
+      {
+        "before": "N.Y.",
+        "after": "n y",
+        "class": "LETTERS",
+        "candidate": "n y"
+      },
+      {
+        "before": "O. E.",
+        "after": "o e",
+        "class": "LETTERS",
+        "candidate": "o e"
+      },
+      {
+        "before": "A. R.",
+        "after": "a r",
+        "class": "LETTERS",
+        "candidate": "a r"
+      },
+      {
+        "before": "A.J.",
+        "after": "a j",
+        "class": "LETTERS",
+        "candidate": "a j"
+      },
+      {
+        "before": "G. E.",
+        "after": "g e",
+        "class": "LETTERS",
+        "candidate": "g e"
+      },
+      {
+        "before": "C.B.E.",
+        "after": "c b e",
+        "class": "LETTERS",
+        "candidate": "c b e"
+      },
+      {
+        "before": "F.C.S.C.J.",
+        "after": "f c s c j",
+        "class": "LETTERS",
+        "candidate": "f c s c j"
+      },
+      {
+        "before": "W. A. J.",
+        "after": "w a j",
+        "class": "LETTERS",
+        "candidate": "w a j"
+      },
+      {
+        "before": "C. F. W. R.",
+        "after": "c f w r",
+        "class": "LETTERS",
+        "candidate": "c f w r"
+      }
+    ],
+    "net_gain": 350,
+    "precision": 0.9971509971509972
+  },
+  "upper_len_3": {
+    "rows": 1091,
+    "letters": 654,
+    "candidate_correct": 654,
+    "identity_correct": 427,
+    "examples": [
+      {
+        "before": "SHU",
+        "after": "SHU",
+        "class": "PLAIN",
+        "candidate": "s h u"
+      },
+      {
+        "before": "PTM",
+        "after": "p t m",
+        "class": "LETTERS",
+        "candidate": "p t m"
+      },
+      {
+        "before": "CAL",
+        "after": "CAL",
+        "class": "PLAIN",
+        "candidate": "c a l"
+      },
+      {
+        "before": "EBR",
+        "after": "e b r",
+        "class": "LETTERS",
+        "candidate": "e b r"
+      },
+      {
+        "before": "ITA",
+        "after": "ITA",
+        "class": "PLAIN",
+        "candidate": "i t a"
+      },
+      {
+        "before": "DSP",
+        "after": "d s p",
+        "class": "LETTERS",
+        "candidate": "d s p"
+      },
+      {
+        "before": "DOS",
+        "after": "DOS",
+        "class": "PLAIN",
+        "candidate": "d o s"
+      },
+      {
+        "before": "ATR",
+        "after": "a t r",
+        "class": "LETTERS",
+        "candidate": "a t r"
+      },
+      {
+        "before": "ACA",
+        "after": "a c a",
+        "class": "LETTERS",
+        "candidate": "a c a"
+      },
+      {
+        "before": "CPT",
+        "after": "c p t",
+        "class": "LETTERS",
+        "candidate": "c p t"
+      },
+      {
+        "before": "WVB",
+        "after": "w v b",
+        "class": "LETTERS",
+        "candidate": "w v b"
+      },
+      {
+        "before": "EPA",
+        "after": "e p a",
+        "class": "LETTERS",
+        "candidate": "e p a"
+      }
+    ],
+    "net_gain": 227,
+    "precision": 0.5994500458295142
+  },
+  "trailing_hyphen": {
+    "rows": 155,
+    "letters": 155,
+    "candidate_correct": 155,
+    "identity_correct": 0,
+    "examples": [
+      {
+        "before": "MBV-",
+        "after": "m b v",
+        "class": "LETTERS",
+        "candidate": "m b v"
+      },
+      {
+        "before": "CNF-",
+        "after": "c n f",
+        "class": "LETTERS",
+        "candidate": "c n f"
+      },
+      {
+        "before": "FT-",
+        "after": "f t",
+        "class": "LETTERS",
+        "candidate": "f t"
+      },
+      {
+        "before": "RT-",
+        "after": "r t",
+        "class": "LETTERS",
+        "candidate": "r t"
+      },
+      {
+        "before": "SSN-",
+        "after": "s s n",
+        "class": "LETTERS",
+        "candidate": "s s n"
+      },
+      {
+        "before": "SP-",
+        "after": "s p",
+        "class": "LETTERS",
+        "candidate": "s p"
+      },
+      {
+        "before": "WNEW-",
+        "after": "w n e w",
+        "class": "LETTERS",
+        "candidate": "w n e w"
+      },
+      {
+        "before": "DTI-",
+        "after": "d t i",
+        "class": "LETTERS",
+        "candidate": "d t i"
+      },
+      {
+        "before": "DD-",
+        "after": "d d",
+        "class": "LETTERS",
+        "candidate": "d d"
+      },
+      {
+        "before": "neurotrophin-",
+        "after": "n e u r o t r o p h i n",
+        "class": "LETTERS",
+        "candidate": "n e u r o t r o p h i n"
+      },
+      {
+        "before": "O-",
+        "after": "o",
+        "class": "LETTERS",
+        "candidate": "o"
+      },
+      {
+        "before": "O-",
+        "after": "o",
+        "class": "LETTERS",
+        "candidate": "o"
+      }
+    ],
+    "net_gain": 155,
+    "precision": 1.0
+  },
+  "has_hyphen": {
+    "rows": 163,
+    "letters": 155,
+    "candidate_correct": 155,
+    "identity_correct": 1,
+    "examples": [
+      {
+        "before": "MBV-",
+        "after": "m b v",
+        "class": "LETTERS",
+        "candidate": "m b v"
+      },
+      {
+        "before": "CNF-",
+        "after": "c n f",
+        "class": "LETTERS",
+        "candidate": "c n f"
+      },
+      {
+        "before": "FT-",
+        "after": "f t",
+        "class": "LETTERS",
+        "candidate": "f t"
+      },
+      {
+        "before": "RT-",
+        "after": "r t",
+        "class": "LETTERS",
+        "candidate": "r t"
+      },
+      {
+        "before": "SSN-",
+        "after": "s s n",
+        "class": "LETTERS",
+        "candidate": "s s n"
+      },
+      {
+        "before": "SP-",
+        "after": "s p",
+        "class": "LETTERS",
+        "candidate": "s p"
+      },
+      {
+        "before": "WNEW-",
+        "after": "w n e w",
+        "class": "LETTERS",
+        "candidate": "w n e w"
+      },
+      {
+        "before": "DTI-",
+        "after": "d t i",
+        "class": "LETTERS",
+        "candidate": "d t i"
+      },
+      {
+        "before": "DD-",
+        "after": "d d",
+        "class": "LETTERS",
+        "candidate": "d d"
+      },
+      {
+        "before": "neurotrophin-",
+        "after": "n e u r o t r o p h i n",
+        "class": "LETTERS",
+        "candidate": "n e u r o t r o p h i n"
+      },
+      {
+        "before": "O-",
+        "after": "o",
+        "class": "LETTERS",
+        "candidate": "o"
+      },
+      {
+        "before": "O-",
+        "after": "o",
+        "class": "LETTERS",
+        "candidate": "o"
+      }
+    ],
+    "net_gain": 154,
+    "precision": 0.950920245398773
+  },
+  "has_space": {
+    "rows": 143,
+    "letters": 142,
+    "candidate_correct": 142,
+    "identity_correct": 0,
+    "examples": [
+      {
+        "before": "S. K.",
+        "after": "s k",
+        "class": "LETTERS",
+        "candidate": "s k"
+      },
+      {
+        "before": "P. G.",
+        "after": "p g",
+        "class": "LETTERS",
+        "candidate": "p g"
+      },
+      {
+        "before": "O. E.",
+        "after": "o e",
+        "class": "LETTERS",
+        "candidate": "o e"
+      },
+      {
+        "before": "A. R.",
+        "after": "a r",
+        "class": "LETTERS",
+        "candidate": "a r"
+      },
+      {
+        "before": "G. E.",
+        "after": "g e",
+        "class": "LETTERS",
+        "candidate": "g e"
+      },
+      {
+        "before": "W. A. J.",
+        "after": "w a j",
+        "class": "LETTERS",
+        "candidate": "w a j"
+      },
+      {
+        "before": "C. F. W. R.",
+        "after": "c f w r",
+        "class": "LETTERS",
+        "candidate": "c f w r"
+      },
+      {
+        "before": "K. G.",
+        "after": "k g",
+        "class": "LETTERS",
+        "candidate": "k g"
+      },
+      {
+        "before": "J. R.",
+        "after": "j r",
+        "class": "LETTERS",
+        "candidate": "j r"
+      },
+      {
+        "before": "P. L.",
+        "after": "p l",
+        "class": "LETTERS",
+        "candidate": "p l"
+      },
+      {
+        "before": "F. G.",
+        "after": "f g",
+        "class": "LETTERS",
+        "candidate": "f g"
+      },
+      {
+        "before": "P. T.",
+        "after": "p t",
+        "class": "LETTERS",
+        "candidate": "p t"
+      }
+    ],
+    "net_gain": 142,
+    "precision": 0.993006993006993
+  },
+  "upper_len_4": {
+    "rows": 599,
+    "letters": 329,
+    "candidate_correct": 329,
+    "identity_correct": 266,
+    "examples": [
+      {
+        "before": "ISCR",
+        "after": "i s c r",
+        "class": "LETTERS",
+        "candidate": "i s c r"
+      },
+      {
+        "before": "CUCV",
+        "after": "c u c v",
+        "class": "LETTERS",
+        "candidate": "c u c v"
+      },
+      {
+        "before": "HPRD",
+        "after": "h p r d",
+        "class": "LETTERS",
+        "candidate": "h p r d"
+      },
+      {
+        "before": "WARC",
+        "after": "w a r c",
+        "class": "LETTERS",
+        "candidate": "w a r c"
+      },
+      {
+        "before": "WDTA",
+        "after": "w d t a",
+        "class": "LETTERS",
+        "candidate": "w d t a"
+      },
+      {
+        "before": "MWNT",
+        "after": "m w n t",
+        "class": "LETTERS",
+        "candidate": "m w n t"
+      },
+      {
+        "before": "USFA",
+        "after": "u s f a",
+        "class": "LETTERS",
+        "candidate": "u s f a"
+      },
+      {
+        "before": "NECN",
+        "after": "n e c n",
+        "class": "LETTERS",
+        "candidate": "n e c n"
+      },
+      {
+        "before": "WEOG",
+        "after": "w e o g",
+        "class": "LETTERS",
+        "candidate": "w e o g"
+      },
+      {
+        "before": "WTRN",
+        "after": "w t r n",
+        "class": "LETTERS",
+        "candidate": "w t r n"
+      },
+      {
+        "before": "PLMX",
+        "after": "p l m x",
+        "class": "LETTERS",
+        "candidate": "p l m x"
+      },
+      {
+        "before": "CAIR",
+        "after": "c a i r",
+        "class": "LETTERS",
+        "candidate": "c a i r"
+      }
+    ],
+    "net_gain": 63,
+    "precision": 0.5492487479131887
+  },
+  "upper_plural": {
+    "rows": 64,
+    "letters": 51,
+    "candidate_correct": 51,
+    "identity_correct": 13,
+    "examples": [
+      {
+        "before": "ZRs",
+        "after": "z r's",
+        "class": "LETTERS",
+        "candidate": "z r's"
+      },
+      {
+        "before": "CNTs",
+        "after": "c n t's",
+        "class": "LETTERS",
+        "candidate": "c n t's"
+      },
+      {
+        "before": "DVDs",
+        "after": "d v d's",
+        "class": "LETTERS",
+        "candidate": "d v d's"
+      },
+      {
+        "before": "ACDs",
+        "after": "a c d's",
+        "class": "LETTERS",
+        "candidate": "a c d's"
+      },
+      {
+        "before": "ODIs",
+        "after": "ODIs",
+        "class": "PLAIN",
+        "candidate": "o d i's"
+      },
+      {
+        "before": "ICs",
+        "after": "i c's",
+        "class": "LETTERS",
+        "candidate": "i c's"
+      },
+      {
+        "before": "HBTs",
+        "after": "h b t's",
+        "class": "LETTERS",
+        "candidate": "h b t's"
+      },
+      {
+        "before": "OLEDs",
+        "after": "o l e d's",
+        "class": "LETTERS",
+        "candidate": "o l e d's"
+      },
+      {
+        "before": "PRCs",
+        "after": "p r c's",
+        "class": "LETTERS",
+        "candidate": "p r c's"
+      },
+      {
+        "before": "PMCs",
+        "after": "p m c's",
+        "class": "LETTERS",
+        "candidate": "p m c's"
+      },
+      {
+        "before": "NPAs",
+        "after": "n p a's",
+        "class": "LETTERS",
+        "candidate": "n p a's"
+      },
+      {
+        "before": "PAMs",
+        "after": "PAMs",
+        "class": "PLAIN",
+        "candidate": "p a m's"
+      }
+    ],
+    "net_gain": 38,
+    "precision": 0.796875
+  },
+  "mixed_len_4": {
+    "rows": 96,
+    "letters": 55,
+    "candidate_correct": 61,
+    "identity_correct": 35,
+    "examples": [
+      {
+        "before": "CNTs",
+        "after": "c n t's",
+        "class": "LETTERS",
+        "candidate": "c n t's"
+      },
+      {
+        "before": "DVDs",
+        "after": "d v d's",
+        "class": "LETTERS",
+        "candidate": "d v d's"
+      },
+      {
+        "before": "ACDs",
+        "after": "a c d's",
+        "class": "LETTERS",
+        "candidate": "a c d's"
+      },
+      {
+        "before": "HeaT",
+        "after": "HeaT",
+        "class": "PLAIN",
+        "candidate": "h e a t"
+      },
+      {
+        "before": "ODIs",
+        "after": "ODIs",
+        "class": "PLAIN",
+        "candidate": "o d i's"
+      },
+      {
+        "before": "PLoS",
+        "after": "PLoS",
+        "class": "PLAIN",
+        "candidate": "p l o s"
+      },
+      {
+        "before": "SaaS",
+        "after": "SaaS",
+        "class": "PLAIN",
+        "candidate": "s a a s"
+      },
+      {
+        "before": "trkC",
+        "after": "t r k c",
+        "class": "VERBATIM",
+        "candidate": "t r k c"
+      },
+      {
+        "before": "HBTs",
+        "after": "h b t's",
+        "class": "LETTERS",
+        "candidate": "h b t's"
+      },
+      {
+        "before": "MeSH",
+        "after": "MeSH",
+        "class": "PLAIN",
+        "candidate": "m e s h"
+      },
+      {
+        "before": "TrkB",
+        "after": "t r k b",
+        "class": "VERBATIM",
+        "candidate": "t r k b"
+      },
+      {
+        "before": "HeLa",
+        "after": "HeLa",
+        "class": "PLAIN",
+        "candidate": "h e l a"
+      }
+    ],
+    "net_gain": 26,
+    "precision": 0.6354166666666666
+  },
+  "mixed_len_3": {
+    "rows": 54,
+    "letters": 23,
+    "candidate_correct": 37,
+    "identity_correct": 17,
+    "examples": [
+      {
+        "before": "ZRs",
+        "after": "z r's",
+        "class": "LETTERS",
+        "candidate": "z r's"
+      },
+      {
+        "before": "LfL",
+        "after": "l f l",
+        "class": "VERBATIM",
+        "candidate": "l f l"
+      },
+      {
+        "before": "BWk",
+        "after": "b w k",
+        "class": "VERBATIM",
+        "candidate": "b w k"
+      },
+      {
+        "before": "TiO",
+        "after": "TiO",
+        "class": "PLAIN",
+        "candidate": "t i o"
+      },
+      {
+        "before": "ICs",
+        "after": "i c's",
+        "class": "LETTERS",
+        "candidate": "i c's"
+      },
+      {
+        "before": "BEd",
+        "after": "BEd",
+        "class": "PLAIN",
+        "candidate": "b e d"
+      },
+      {
+        "before": "InP",
+        "after": "i n p",
+        "class": "LETTERS",
+        "candidate": "i n p"
+      },
+      {
+        "before": "BSc",
+        "after": "b s c",
+        "class": "VERBATIM",
+        "candidate": "b s c"
+      },
+      {
+        "before": "BoM",
+        "after": "BoM",
+        "class": "PLAIN",
+        "candidate": "b o m"
+      },
+      {
+        "before": "VfB",
+        "after": "v f b",
+        "class": "VERBATIM",
+        "candidate": "v f b"
+      },
+      {
+        "before": "BAe",
+        "after": "b a e",
+        "class": "LETTERS",
+        "candidate": "b a e"
+      },
+      {
+        "before": "WoW",
+        "after": "WoW",
+        "class": "PLAIN",
+        "candidate": "w o w"
+      }
+    ],
+    "net_gain": 20,
+    "precision": 0.6851851851851852
+  },
+  "mixed_len_2": {
+    "rows": 3,
+    "letters": 0,
+    "candidate_correct": 3,
+    "identity_correct": 0,
+    "examples": [
+      {
+        "before": "kD",
+        "after": "k d",
+        "class": "VERBATIM",
+        "candidate": "k d"
+      },
+      {
+        "before": "kD",
+        "after": "k d",
+        "class": "VERBATIM",
+        "candidate": "k d"
+      },
+      {
+        "before": "mL",
+        "after": "m l",
+        "class": "VERBATIM",
+        "candidate": "m l"
+      }
+    ],
+    "net_gain": 3,
+    "precision": 1.0
+  },
+  "lower_len_1": {
+    "rows": 7128,
+    "letters": 125,
+    "candidate_correct": 7124,
+    "identity_correct": 7124,
+    "examples": [],
+    "net_gain": 0,
+    "precision": 0.999438832772166
+  },
+  "mixed_len_5": {
+    "rows": 77,
+    "letters": 23,
+    "candidate_correct": 22,
+    "identity_correct": 51,
+    "examples": [
+      {
+        "before": "LaRue",
+        "after": "LaRue",
+        "class": "PLAIN",
+        "candidate": "l a r u e"
+      },
+      {
+        "before": "SSAct",
+        "after": "s s a c t",
+        "class": "LETTERS",
+        "candidate": "s s a c t"
+      },
+      {
+        "before": "FeLos",
+        "after": "FeLos",
+        "class": "PLAIN",
+        "candidate": "f e l o s"
+      },
+      {
+        "before": "SFico",
+        "after": "s f i c o",
+        "class": "LETTERS",
+        "candidate": "s f i c o"
+      },
+      {
+        "before": "McGee",
+        "after": "McGee",
+        "class": "PLAIN",
+        "candidate": "m c g e e"
+      },
+      {
+        "before": "eBird",
+        "after": "eBird",
+        "class": "PLAIN",
+        "candidate": "e b i r d"
+      },
+      {
+        "before": "ePost",
+        "after": "ePost",
+        "class": "PLAIN",
+        "candidate": "e p o s t"
+      },
+      {
+        "before": "LaRue",
+        "after": "LaRue",
+        "class": "PLAIN",
+        "candidate": "l a r u e"
+      },
+      {
+        "before": "McKay",
+        "after": "McKay",
+        "class": "PLAIN",
+        "candidate": "m c k a y"
+      },
+      {
+        "before": "OLEDs",
+        "after": "o l e d's",
+        "class": "LETTERS",
+        "candidate": "o l e d's"
+      },
+      {
+        "before": "liggR",
+        "after": "liggR",
+        "class": "PLAIN",
+        "candidate": "l i g g r"
+      },
+      {
+        "before": "McCoy",
+        "after": "McCoy",
+        "class": "PLAIN",
+        "candidate": "m c c o y"
+      }
+    ],
+    "net_gain": -29,
+    "precision": 0.2857142857142857
+  },
+  "upper_len_6": {
+    "rows": 133,
+    "letters": 40,
+    "candidate_correct": 40,
+    "identity_correct": 93,
+    "examples": [
+      {
+        "before": "PLANTS",
+        "after": "PLANTS",
+        "class": "PLAIN",
+        "candidate": "p l a n t s"
+      },
+      {
+        "before": "SCSBOA",
+        "after": "s c s b o a",
+        "class": "LETTERS",
+        "candidate": "s c s b o a"
+      },
+      {
+        "before": "RECORD",
+        "after": "RECORD",
+        "class": "PLAIN",
+        "candidate": "r e c o r d"
+      },
+      {
+        "before": "FRENCH",
+        "after": "FRENCH",
+        "class": "PLAIN",
+        "candidate": "f r e n c h"
+      },
+      {
+        "before": "DURING",
+        "after": "DURING",
+        "class": "PLAIN",
+        "candidate": "d u r i n g"
+      },
+      {
+        "before": "HORROR",
+        "after": "HORROR",
+        "class": "PLAIN",
+        "candidate": "h o r r o r"
+      },
+      {
+        "before": "FLOWER",
+        "after": "FLOWER",
+        "class": "PLAIN",
+        "candidate": "f l o w e r"
+      },
+      {
+        "before": "SHODAN",
+        "after": "s h o d a n",
+        "class": "LETTERS",
+        "candidate": "s h o d a n"
+      },
+      {
+        "before": "DISCUS",
+        "after": "DISCUS",
+        "class": "PLAIN",
+        "candidate": "d i s c u s"
+      },
+      {
+        "before": "CAREER",
+        "after": "CAREER",
+        "class": "PLAIN",
+        "candidate": "c a r e e r"
+      },
+      {
+        "before": "HEROES",
+        "after": "HEROES",
+        "class": "PLAIN",
+        "candidate": "h e r o e s"
+      },
+      {
+        "before": "PRINCE",
+        "after": "PRINCE",
+        "class": "PLAIN",
+        "candidate": "p r i n c e"
+      }
+    ],
+    "net_gain": -53,
+    "precision": 0.3007518796992481
+  },
+  "upper_len_5": {
+    "rows": 272,
+    "letters": 108,
+    "candidate_correct": 108,
+    "identity_correct": 163,
+    "examples": [
+      {
+        "before": "CVBIA",
+        "after": "c v b i a",
+        "class": "LETTERS",
+        "candidate": "c v b i a"
+      },
+      {
+        "before": "GSCSP",
+        "after": "g s c s p",
+        "class": "LETTERS",
+        "candidate": "g s c s p"
+      },
+      {
+        "before": "EXCEL",
+        "after": "EXCEL",
+        "class": "PLAIN",
+        "candidate": "e x c e l"
+      },
+      {
+        "before": "COLOR",
+        "after": "COLOR",
+        "class": "PLAIN",
+        "candidate": "c o l o r"
+      },
+      {
+        "before": "PCCBA",
+        "after": "p c c b a",
+        "class": "LETTERS",
+        "candidate": "p c c b a"
+      },
+      {
+        "before": "XOOPS",
+        "after": "x o o p s",
+        "class": "LETTERS",
+        "candidate": "x o o p s"
+      },
+      {
+        "before": "POWER",
+        "after": "POWER",
+        "class": "PLAIN",
+        "candidate": "p o w e r"
+      },
+      {
+        "before": "THIRD",
+        "after": "THIRD",
+        "class": "PLAIN",
+        "candidate": "t h i r d"
+      },
+      {
+        "before": "MONEY",
+        "after": "MONEY",
+        "class": "PLAIN",
+        "candidate": "m o n e y"
+      },
+      {
+        "before": "RACAR",
+        "after": "r a c a r",
+        "class": "LETTERS",
+        "candidate": "r a c a r"
+      },
+      {
+        "before": "PHOTO",
+        "after": "PHOTO",
+        "class": "PLAIN",
+        "candidate": "p h o t o"
+      },
+      {
+        "before": "NIGHT",
+        "after": "NIGHT",
+        "class": "PLAIN",
+        "candidate": "n i g h t"
+      }
+    ],
+    "net_gain": -55,
+    "precision": 0.39705882352941174
+  },
+  "upper_len_7": {
+    "rows": 104,
+    "letters": 18,
+    "candidate_correct": 18,
+    "identity_correct": 86,
+    "examples": [
+      {
+        "before": "AFRICOM",
+        "after": "AFRICOM",
+        "class": "PLAIN",
+        "candidate": "a f r i c o m"
+      },
+      {
+        "before": "BALANCE",
+        "after": "BALANCE",
+        "class": "PLAIN",
+        "candidate": "b a l a n c e"
+      },
+      {
+        "before": "EARACHE",
+        "after": "EARACHE",
+        "class": "PLAIN",
+        "candidate": "e a r a c h e"
+      },
+      {
+        "before": "CARCASS",
+        "after": "CARCASS",
+        "class": "PLAIN",
+        "candidate": "c a r c a s s"
+      },
+      {
+        "before": "CLASSIC",
+        "after": "CLASSIC",
+        "class": "PLAIN",
+        "candidate": "c l a s s i c"
+      },
+      {
+        "before": "OPENING",
+        "after": "OPENING",
+        "class": "PLAIN",
+        "candidate": "o p e n i n g"
+      },
+      {
+        "before": "RUDDOCK",
+        "after": "RUDDOCK",
+        "class": "PLAIN",
+        "candidate": "r u d d o c k"
+      },
+      {
+        "before": "BRITISH",
+        "after": "BRITISH",
+        "class": "PLAIN",
+        "candidate": "b r i t i s h"
+      },
+      {
+        "before": "CERAMIC",
+        "after": "CERAMIC",
+        "class": "PLAIN",
+        "candidate": "c e r a m i c"
+      },
+      {
+        "before": "LAURENT",
+        "after": "LAURENT",
+        "class": "PLAIN",
+        "candidate": "l a u r e n t"
+      },
+      {
+        "before": "PERSSON",
+        "after": "PERSSON",
+        "class": "PLAIN",
+        "candidate": "p e r s s o n"
+      },
+      {
+        "before": "MICHAEL",
+        "after": "MICHAEL",
+        "class": "PLAIN",
+        "candidate": "m i c h a e l"
+      }
+    ],
+    "net_gain": -68,
+    "precision": 0.17307692307692307
+  },
+  "upper_len_8": {
+    "rows": 180,
+    "letters": 41,
+    "candidate_correct": 41,
+    "identity_correct": 139,
+    "examples": [
+      {
+        "before": "BREAKING",
+        "after": "BREAKING",
+        "class": "PLAIN",
+        "candidate": "b r e a k i n g"
+      },
+      {
+        "before": "DAUGHTER",
+        "after": "DAUGHTER",
+        "class": "PLAIN",
+        "candidate": "d a u g h t e r"
+      },
+      {
+        "before": "DARKNESS",
+        "after": "DARKNESS",
+        "class": "PLAIN",
+        "candidate": "d a r k n e s s"
+      },
+      {
+        "before": "DEMETERTON",
+        "after": "d e m e t e r t o n",
+        "class": "LETTERS",
+        "candidate": "d e m e t e r t o n"
+      },
+      {
+        "before": "BRITANNIA",
+        "after": "BRITANNIA",
+        "class": "PLAIN",
+        "candidate": "b r i t a n n i a"
+      },
+      {
+        "before": "ELECTIONS",
+        "after": "ELECTIONS",
+        "class": "PLAIN",
+        "candidate": "e l e c t i o n s"
+      },
+      {
+        "before": "FRANCISCO",
+        "after": "FRANCISCO",
+        "class": "PLAIN",
+        "candidate": "f r a n c i s c o"
+      },
+      {
+        "before": "DEPARTMENT",
+        "after": "DEPARTMENT",
+        "class": "PLAIN",
+        "candidate": "d e p a r t m e n t"
+      },
+      {
+        "before": "INVICTUS",
+        "after": "INVICTUS",
+        "class": "PLAIN",
+        "candidate": "i n v i c t u s"
+      },
+      {
+        "before": "SIGGRAPH",
+        "after": "SIGGRAPH",
+        "class": "PLAIN",
+        "candidate": "s i g g r a p h"
+      },
+      {
+        "before": "STATISTICS",
+        "after": "STATISTICS",
+        "class": "PLAIN",
+        "candidate": "s t a t i s t i c s"
+      },
+      {
+        "before": "HANDBOOK",
+        "after": "HANDBOOK",
+        "class": "PLAIN",
+        "candidate": "h a n d b o o k"
+      }
+    ],
+    "net_gain": -98,
+    "precision": 0.22777777777777777
+  },
+  "upper_len_2": {
+    "rows": 442,
+    "letters": 154,
+    "candidate_correct": 154,
+    "identity_correct": 277,
+    "examples": [
+      {
+        "before": "LT",
+        "after": "l t",
+        "class": "LETTERS",
+        "candidate": "l t"
+      },
+      {
+        "before": "AT",
+        "after": "AT",
+        "class": "PLAIN",
+        "candidate": "a t"
+      },
+      {
+        "before": "IF",
+        "after": "IF",
+        "class": "PLAIN",
+        "candidate": "i f"
+      },
+      {
+        "before": "GA",
+        "after": "GA",
+        "class": "PLAIN",
+        "candidate": "g a"
+      },
+      {
+        "before": "AE",
+        "after": "AE",
+        "class": "PLAIN",
+        "candidate": "a e"
+      },
+      {
+        "before": "MI",
+        "after": "MI",
+        "class": "PLAIN",
+        "candidate": "m i"
+      },
+      {
+        "before": "ZE",
+        "after": "ZE",
+        "class": "PLAIN",
+        "candidate": "z e"
+      },
+      {
+        "before": "RK",
+        "after": "r k",
+        "class": "LETTERS",
+        "candidate": "r k"
+      },
+      {
+        "before": "KL",
+        "after": "k l",
+        "class": "LETTERS",
+        "candidate": "k l"
+      },
+      {
+        "before": "IQ",
+        "after": "i q",
+        "class": "LETTERS",
+        "candidate": "i q"
+      },
+      {
+        "before": "LE",
+        "after": "LE",
+        "class": "PLAIN",
+        "candidate": "l e"
+      },
+      {
+        "before": "SA",
+        "after": "SA",
+        "class": "PLAIN",
+        "candidate": "s a"
+      }
+    ],
+    "net_gain": -123,
+    "precision": 0.34841628959276016
+  },
+  "mixed_len_6": {
+    "rows": 135,
+    "letters": 4,
+    "candidate_correct": 5,
+    "identity_correct": 130,
+    "examples": [
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      },
+      {
+        "before": "WoLong",
+        "after": "WoLong",
+        "class": "PLAIN",
+        "candidate": "w o l o n g"
+      },
+      {
+        "before": "LaMarr",
+        "after": "LaMarr",
+        "class": "PLAIN",
+        "candidate": "l a m a r r"
+      },
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      },
+      {
+        "before": "McCain",
+        "after": "McCain",
+        "class": "PLAIN",
+        "candidate": "m c c a i n"
+      },
+      {
+        "before": "abrilA",
+        "after": "abrilA",
+        "class": "PLAIN",
+        "candidate": "a b r i l a"
+      },
+      {
+        "before": "HapMap",
+        "after": "HapMap",
+        "class": "PLAIN",
+        "candidate": "h a p m a p"
+      },
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      },
+      {
+        "before": "NewBay",
+        "after": "NewBay",
+        "class": "PLAIN",
+        "candidate": "n e w b a y"
+      },
+      {
+        "before": "fFirst",
+        "after": "fFirst",
+        "class": "PLAIN",
+        "candidate": "f f i r s t"
+      },
+      {
+        "before": "McFall",
+        "after": "McFall",
+        "class": "PLAIN",
+        "candidate": "m c f a l l"
+      },
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      }
+    ],
+    "net_gain": -125,
+    "precision": 0.037037037037037035
+  },
+  "mixed_len_7": {
+    "rows": 128,
+    "letters": 0,
+    "candidate_correct": 0,
+    "identity_correct": 128,
+    "examples": [
+      {
+        "before": "MacDill",
+        "after": "MacDill",
+        "class": "PLAIN",
+        "candidate": "m a c d i l l"
+      },
+      {
+        "before": "BioWare",
+        "after": "BioWare",
+        "class": "PLAIN",
+        "candidate": "b i o w a r e"
+      },
+      {
+        "before": "VigLink",
+        "after": "VigLink",
+        "class": "PLAIN",
+        "candidate": "v i g l i n k"
+      },
+      {
+        "before": "KamalEl",
+        "after": "KamalEl",
+        "class": "PLAIN",
+        "candidate": "k a m a l e l"
+      },
+      {
+        "before": "BigPond",
+        "after": "BigPond",
+        "class": "PLAIN",
+        "candidate": "b i g p o n d"
+      },
+      {
+        "before": "NatWest",
+        "after": "NatWest",
+        "class": "PLAIN",
+        "candidate": "n a t w e s t"
+      },
+      {
+        "before": "NatWest",
+        "after": "NatWest",
+        "class": "PLAIN",
+        "candidate": "n a t w e s t"
+      },
+      {
+        "before": "McNiven",
+        "after": "McNiven",
+        "class": "PLAIN",
+        "candidate": "m c n i v e n"
+      },
+      {
+        "before": "McClure",
+        "after": "McClure",
+        "class": "PLAIN",
+        "candidate": "m c c l u r e"
+      },
+      {
+        "before": "McClain",
+        "after": "McClain",
+        "class": "PLAIN",
+        "candidate": "m c c l a i n"
+      },
+      {
+        "before": "FitzRoy",
+        "after": "FitzRoy",
+        "class": "PLAIN",
+        "candidate": "f i t z r o y"
+      },
+      {
+        "before": "DeVille",
+        "after": "DeVille",
+        "class": "PLAIN",
+        "candidate": "d e v i l l e"
+      }
+    ],
+    "net_gain": -128,
+    "precision": 0.0
+  },
+  "mixed_len_8": {
+    "rows": 773,
+    "letters": 2,
+    "candidate_correct": 2,
+    "identity_correct": 771,
+    "examples": [
+      {
+        "before": "HillSullivan",
+        "after": "HillSullivan",
+        "class": "PLAIN",
+        "candidate": "h i l l s u l l i v a n"
+      },
+      {
+        "before": "McCutcheon",
+        "after": "McCutcheon",
+        "class": "PLAIN",
+        "candidate": "m c c u t c h e o n"
+      },
+      {
+        "before": "ListDallas",
+        "after": "ListDallas",
+        "class": "PLAIN",
+        "candidate": "l i s t d a l l a s"
+      },
+      {
+        "before": "MacArthur",
+        "after": "MacArthur",
+        "class": "PLAIN",
+        "candidate": "m a c a r t h u r"
+      },
+      {
+        "before": "McCarley",
+        "after": "McCarley",
+        "class": "PLAIN",
+        "candidate": "m c c a r l e y"
+      },
+      {
+        "before": "VirtualTouristAnderson",
+        "after": "VirtualTouristAnderson",
+        "class": "PLAIN",
+        "candidate": "v i r t u a l t o u r i s t a n d e r s o n"
+      },
+      {
+        "before": "McKitterick",
+        "after": "McKitterick",
+        "class": "PLAIN",
+        "candidate": "m c k i t t e r i c k"
+      },
+      {
+        "before": "ThammaratLocal",
+        "after": "ThammaratLocal",
+        "class": "PLAIN",
+        "candidate": "t h a m m a r a t l o c a l"
+      },
+      {
+        "before": "StarCraft",
+        "after": "StarCraft",
+        "class": "PLAIN",
+        "candidate": "s t a r c r a f t"
+      },
+      {
+        "before": "PlayStation",
+        "after": "PlayStation",
+        "class": "PLAIN",
+        "candidate": "p l a y s t a t i o n"
+      },
+      {
+        "before": "NeuroImage",
+        "after": "NeuroImage",
+        "class": "PLAIN",
+        "candidate": "n e u r o i m a g e"
+      },
+      {
+        "before": "MacGregor",
+        "after": "MacGregor",
+        "class": "PLAIN",
+        "candidate": "m a c g r e g o r"
+      }
+    ],
+    "net_gain": -769,
+    "precision": 0.00258732212160414
+  },
+  "mixed_case": {
+    "rows": 1266,
+    "letters": 107,
+    "candidate_correct": 130,
+    "identity_correct": 1132,
+    "examples": [
+      {
+        "before": "ZRs",
+        "after": "z r's",
+        "class": "LETTERS",
+        "candidate": "z r's"
+      },
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      },
+      {
+        "before": "HillSullivan",
+        "after": "HillSullivan",
+        "class": "PLAIN",
+        "candidate": "h i l l s u l l i v a n"
+      },
+      {
+        "before": "WoLong",
+        "after": "WoLong",
+        "class": "PLAIN",
+        "candidate": "w o l o n g"
+      },
+      {
+        "before": "LaMarr",
+        "after": "LaMarr",
+        "class": "PLAIN",
+        "candidate": "l a m a r r"
+      },
+      {
+        "before": "CNTs",
+        "after": "c n t's",
+        "class": "LETTERS",
+        "candidate": "c n t's"
+      },
+      {
+        "before": "DVDs",
+        "after": "d v d's",
+        "class": "LETTERS",
+        "candidate": "d v d's"
+      },
+      {
+        "before": "McCutcheon",
+        "after": "McCutcheon",
+        "class": "PLAIN",
+        "candidate": "m c c u t c h e o n"
+      },
+      {
+        "before": "McGraw",
+        "after": "McGraw",
+        "class": "PLAIN",
+        "candidate": "m c g r a w"
+      },
+      {
+        "before": "ListDallas",
+        "after": "ListDallas",
+        "class": "PLAIN",
+        "candidate": "l i s t d a l l a s"
+      },
+      {
+        "before": "ACDs",
+        "after": "a c d's",
+        "class": "LETTERS",
+        "candidate": "a c d's"
+      },
+      {
+        "before": "LaRue",
+        "after": "LaRue",
+        "class": "PLAIN",
+        "candidate": "l a r u e"
+      }
+    ],
+    "net_gain": -1002,
+    "precision": 0.10268562401263823
+  },
+  "upper_len_1": {
+    "rows": 1911,
+    "letters": 302,
+    "candidate_correct": 0,
+    "identity_correct": 1858,
+    "examples": [
+      {
+        "before": "E",
+        "after": "E",
+        "class": "PLAIN",
+        "candidate": "e"
+      },
+      {
+        "before": "F",
+        "after": "F",
+        "class": "PLAIN",
+        "candidate": "f"
+      },
+      {
+        "before": "T",
+        "after": "T",
+        "class": "LETTERS",
+        "candidate": "t"
+      },
+      {
+        "before": "R",
+        "after": "R",
+        "class": "PLAIN",
+        "candidate": "r"
+      },
+      {
+        "before": "B",
+        "after": "B",
+        "class": "PLAIN",
+        "candidate": "b"
+      },
+      {
+        "before": "A",
+        "after": "A",
+        "class": "PLAIN",
+        "candidate": "a"
+      },
+      {
+        "before": "B",
+        "after": "B",
+        "class": "LETTERS",
+        "candidate": "b"
+      },
+      {
+        "before": "T",
+        "after": "T",
+        "class": "LETTERS",
+        "candidate": "t"
+      },
+      {
+        "before": "W",
+        "after": "W",
+        "class": "PLAIN",
+        "candidate": "w"
+      },
+      {
+        "before": "A",
+        "after": "A",
+        "class": "PLAIN",
+        "candidate": "a"
+      },
+      {
+        "before": "W",
+        "after": "W",
+        "class": "LETTERS",
+        "candidate": "w"
+      },
+      {
+        "before": "A",
+        "after": "A",
+        "class": "PLAIN",
+        "candidate": "a"
+      }
+    ],
+    "net_gain": -1858,
+    "precision": 0.0
+  },
+  "upper_all": {
+    "rows": 4732,
+    "letters": 1646,
+    "candidate_correct": 1344,
+    "identity_correct": 3309,
+    "examples": [
+      {
+        "before": "E",
+        "after": "E",
+        "class": "PLAIN",
+        "candidate": "e"
+      },
+      {
+        "before": "LT",
+        "after": "l t",
+        "class": "LETTERS",
+        "candidate": "l t"
+      },
+      {
+        "before": "SHU",
+        "after": "SHU",
+        "class": "PLAIN",
+        "candidate": "s h u"
+      },
+      {
+        "before": "ISCR",
+        "after": "i s c r",
+        "class": "LETTERS",
+        "candidate": "i s c r"
+      },
+      {
+        "before": "CUCV",
+        "after": "c u c v",
+        "class": "LETTERS",
+        "candidate": "c u c v"
+      },
+      {
+        "before": "F",
+        "after": "F",
+        "class": "PLAIN",
+        "candidate": "f"
+      },
+      {
+        "before": "T",
+        "after": "T",
+        "class": "LETTERS",
+        "candidate": "t"
+      },
+      {
+        "before": "R",
+        "after": "R",
+        "class": "PLAIN",
+        "candidate": "r"
+      },
+      {
+        "before": "PTM",
+        "after": "p t m",
+        "class": "LETTERS",
+        "candidate": "p t m"
+      },
+      {
+        "before": "HPRD",
+        "after": "h p r d",
+        "class": "LETTERS",
+        "candidate": "h p r d"
+      },
+      {
+        "before": "AT",
+        "after": "AT",
+        "class": "PLAIN",
+        "candidate": "a t"
+      },
+      {
+        "before": "CAL",
+        "after": "CAL",
+        "class": "PLAIN",
+        "candidate": "c a l"
+      }
+    ],
+    "net_gain": -1965,
+    "precision": 0.28402366863905326
+  },
+  "capitalized_len_2": {
+    "rows": 6460,
+    "letters": 14,
+    "candidate_correct": 38,
+    "identity_correct": 6410,
+    "examples": [
+      {
+        "before": "In",
+        "after": "In",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "He",
+        "after": "He",
+        "class": "PLAIN",
+        "candidate": "h e"
+      },
+      {
+        "before": "Oi",
+        "after": "Oi",
+        "class": "PLAIN",
+        "candidate": "o i"
+      },
+      {
+        "before": "In",
+        "after": "In",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "It",
+        "after": "It",
+        "class": "PLAIN",
+        "candidate": "i t"
+      },
+      {
+        "before": "At",
+        "after": "At",
+        "class": "PLAIN",
+        "candidate": "a t"
+      },
+      {
+        "before": "In",
+        "after": "In",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "In",
+        "after": "In",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "It",
+        "after": "It",
+        "class": "PLAIN",
+        "candidate": "i t"
+      },
+      {
+        "before": "On",
+        "after": "On",
+        "class": "PLAIN",
+        "candidate": "o n"
+      },
+      {
+        "before": "Ya",
+        "after": "Ya",
+        "class": "PLAIN",
+        "candidate": "y a"
+      },
+      {
+        "before": "Su",
+        "after": "Su",
+        "class": "PLAIN",
+        "candidate": "s u"
+      }
+    ],
+    "net_gain": -6372,
+    "precision": 0.0058823529411764705
+  },
+  "capitalized_len_3": {
+    "rows": 12805,
+    "letters": 79,
+    "candidate_correct": 87,
+    "identity_correct": 12706,
+    "examples": [
+      {
+        "before": "Red",
+        "after": "Red",
+        "class": "PLAIN",
+        "candidate": "r e d"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "Her",
+        "after": "Her",
+        "class": "PLAIN",
+        "candidate": "h e r"
+      },
+      {
+        "before": "Her",
+        "after": "Her",
+        "class": "PLAIN",
+        "candidate": "h e r"
+      },
+      {
+        "before": "How",
+        "after": "How",
+        "class": "PLAIN",
+        "candidate": "h o w"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      }
+    ],
+    "net_gain": -12619,
+    "precision": 0.006794221007418977
+  },
+  "capitalized_len_4": {
+    "rows": 13728,
+    "letters": 102,
+    "candidate_correct": 101,
+    "identity_correct": 13619,
+    "examples": [
+      {
+        "before": "List",
+        "after": "List",
+        "class": "PLAIN",
+        "candidate": "l i s t"
+      },
+      {
+        "before": "Road",
+        "after": "Road",
+        "class": "PLAIN",
+        "candidate": "r o a d"
+      },
+      {
+        "before": "Auto",
+        "after": "Auto",
+        "class": "PLAIN",
+        "candidate": "a u t o"
+      },
+      {
+        "before": "With",
+        "after": "With",
+        "class": "PLAIN",
+        "candidate": "w i t h"
+      },
+      {
+        "before": "Stax",
+        "after": "Stax",
+        "class": "PLAIN",
+        "candidate": "s t a x"
+      },
+      {
+        "before": "Self",
+        "after": "Self",
+        "class": "PLAIN",
+        "candidate": "s e l f"
+      },
+      {
+        "before": "When",
+        "after": "When",
+        "class": "PLAIN",
+        "candidate": "w h e n"
+      },
+      {
+        "before": "Shop",
+        "after": "Shop",
+        "class": "PLAIN",
+        "candidate": "s h o p"
+      },
+      {
+        "before": "Meir",
+        "after": "Meir",
+        "class": "PLAIN",
+        "candidate": "m e i r"
+      },
+      {
+        "before": "Leek",
+        "after": "Leek",
+        "class": "PLAIN",
+        "candidate": "l e e k"
+      },
+      {
+        "before": "Punk",
+        "after": "Punk",
+        "class": "PLAIN",
+        "candidate": "p u n k"
+      },
+      {
+        "before": "Jack",
+        "after": "Jack",
+        "class": "PLAIN",
+        "candidate": "j a c k"
+      }
+    ],
+    "net_gain": -13518,
+    "precision": 0.007357226107226107
+  },
+  "capitalized_len_7": {
+    "rows": 16248,
+    "letters": 0,
+    "candidate_correct": 0,
+    "identity_correct": 16242,
+    "examples": [
+      {
+        "before": "Species",
+        "after": "Species",
+        "class": "PLAIN",
+        "candidate": "s p e c i e s"
+      },
+      {
+        "before": "Musical",
+        "after": "Musical",
+        "class": "PLAIN",
+        "candidate": "m u s i c a l"
+      },
+      {
+        "before": "Records",
+        "after": "Records",
+        "class": "PLAIN",
+        "candidate": "r e c o r d s"
+      },
+      {
+        "before": "Country",
+        "after": "Country",
+        "class": "PLAIN",
+        "candidate": "c o u n t r y"
+      },
+      {
+        "before": "Sadovyi",
+        "after": "Sadovyi",
+        "class": "PLAIN",
+        "candidate": "s a d o v y i"
+      },
+      {
+        "before": "Ecology",
+        "after": "Ecology",
+        "class": "PLAIN",
+        "candidate": "e c o l o g y"
+      },
+      {
+        "before": "Bangkok",
+        "after": "Bangkok",
+        "class": "PLAIN",
+        "candidate": "b a n g k o k"
+      },
+      {
+        "before": "Churnet",
+        "after": "Churnet",
+        "class": "PLAIN",
+        "candidate": "c h u r n e t"
+      },
+      {
+        "before": "Singles",
+        "after": "Singles",
+        "class": "PLAIN",
+        "candidate": "s i n g l e s"
+      },
+      {
+        "before": "Captain",
+        "after": "Captain",
+        "class": "PLAIN",
+        "candidate": "c a p t a i n"
+      },
+      {
+        "before": "Orioles",
+        "after": "Orioles",
+        "class": "PLAIN",
+        "candidate": "o r i o l e s"
+      },
+      {
+        "before": "Olympic",
+        "after": "Olympic",
+        "class": "PLAIN",
+        "candidate": "o l y m p i c"
+      }
+    ],
+    "net_gain": -16242,
+    "precision": 0.0
+  },
+  "capitalized_len_6": {
+    "rows": 18163,
+    "letters": 4,
+    "candidate_correct": 4,
+    "identity_correct": 18157,
+    "examples": [
+      {
+        "before": "Athens",
+        "after": "Athens",
+        "class": "PLAIN",
+        "candidate": "a t h e n s"
+      },
+      {
+        "before": "Sounio",
+        "after": "Sounio",
+        "class": "PLAIN",
+        "candidate": "s o u n i o"
+      },
+      {
+        "before": "Canvas",
+        "after": "Canvas",
+        "class": "PLAIN",
+        "candidate": "c a n v a s"
+      },
+      {
+        "before": "Dublin",
+        "after": "Dublin",
+        "class": "PLAIN",
+        "candidate": "d u b l i n"
+      },
+      {
+        "before": "Valley",
+        "after": "Valley",
+        "class": "PLAIN",
+        "candidate": "v a l l e y"
+      },
+      {
+        "before": "Miller",
+        "after": "Miller",
+        "class": "PLAIN",
+        "candidate": "m i l l e r"
+      },
+      {
+        "before": "League",
+        "after": "League",
+        "class": "PLAIN",
+        "candidate": "l e a g u e"
+      },
+      {
+        "before": "Silver",
+        "after": "Silver",
+        "class": "PLAIN",
+        "candidate": "s i l v e r"
+      },
+      {
+        "before": "Wlasuk",
+        "after": "Wlasuk",
+        "class": "PLAIN",
+        "candidate": "w l a s u k"
+      },
+      {
+        "before": "Ronald",
+        "after": "Ronald",
+        "class": "PLAIN",
+        "candidate": "r o n a l d"
+      },
+      {
+        "before": "United",
+        "after": "United",
+        "class": "PLAIN",
+        "candidate": "u n i t e d"
+      },
+      {
+        "before": "Carbis",
+        "after": "Carbis",
+        "class": "PLAIN",
+        "candidate": "c a r b i s"
+      }
+    ],
+    "net_gain": -18153,
+    "precision": 0.00022022793591367065
+  },
+  "capitalized_len_5": {
+    "rows": 18397,
+    "letters": 14,
+    "candidate_correct": 14,
+    "identity_correct": 18381,
+    "examples": [
+      {
+        "before": "Greek",
+        "after": "Greek",
+        "class": "PLAIN",
+        "candidate": "g r e e k"
+      },
+      {
+        "before": "China",
+        "after": "China",
+        "class": "PLAIN",
+        "candidate": "c h i n a"
+      },
+      {
+        "before": "Lalah",
+        "after": "Lalah",
+        "class": "PLAIN",
+        "candidate": "l a l a h"
+      },
+      {
+        "before": "Debut",
+        "after": "Debut",
+        "class": "PLAIN",
+        "candidate": "d e b u t"
+      },
+      {
+        "before": "Young",
+        "after": "Young",
+        "class": "PLAIN",
+        "candidate": "y o u n g"
+      },
+      {
+        "before": "Green",
+        "after": "Green",
+        "class": "PLAIN",
+        "candidate": "g r e e n"
+      },
+      {
+        "before": "Black",
+        "after": "Black",
+        "class": "PLAIN",
+        "candidate": "b l a c k"
+      },
+      {
+        "before": "Urban",
+        "after": "Urban",
+        "class": "PLAIN",
+        "candidate": "u r b a n"
+      },
+      {
+        "before": "Urban",
+        "after": "Urban",
+        "class": "PLAIN",
+        "candidate": "u r b a n"
+      },
+      {
+        "before": "Books",
+        "after": "Books",
+        "class": "PLAIN",
+        "candidate": "b o o k s"
+      },
+      {
+        "before": "Board",
+        "after": "Board",
+        "class": "PLAIN",
+        "candidate": "b o a r d"
+      },
+      {
+        "before": "Mills",
+        "after": "Mills",
+        "class": "PLAIN",
+        "candidate": "m i l l s"
+      }
+    ],
+    "net_gain": -18367,
+    "precision": 0.000760993640267435
+  },
+  "lower_len_7": {
+    "rows": 18740,
+    "letters": 2,
+    "candidate_correct": 2,
+    "identity_correct": 18733,
+    "examples": [
+      {
+        "before": "through",
+        "after": "through",
+        "class": "PLAIN",
+        "candidate": "t h r o u g h"
+      },
+      {
+        "before": "compact",
+        "after": "compact",
+        "class": "PLAIN",
+        "candidate": "c o m p a c t"
+      },
+      {
+        "before": "support",
+        "after": "support",
+        "class": "PLAIN",
+        "candidate": "s u p p o r t"
+      },
+      {
+        "before": "combine",
+        "after": "combine",
+        "class": "PLAIN",
+        "candidate": "c o m b i n e"
+      },
+      {
+        "before": "compete",
+        "after": "compete",
+        "class": "PLAIN",
+        "candidate": "c o m p e t e"
+      },
+      {
+        "before": "private",
+        "after": "private",
+        "class": "PLAIN",
+        "candidate": "p r i v a t e"
+      },
+      {
+        "before": "resumes",
+        "after": "resumes",
+        "class": "PLAIN",
+        "candidate": "r e s u m e s"
+      },
+      {
+        "before": "village",
+        "after": "village",
+        "class": "PLAIN",
+        "candidate": "v i l l a g e"
+      },
+      {
+        "before": "located",
+        "after": "located",
+        "class": "PLAIN",
+        "candidate": "l o c a t e d"
+      },
+      {
+        "before": "primary",
+        "after": "primary",
+        "class": "PLAIN",
+        "candidate": "p r i m a r y"
+      },
+      {
+        "before": "contain",
+        "after": "contain",
+        "class": "PLAIN",
+        "candidate": "c o n t a i n"
+      },
+      {
+        "before": "million",
+        "after": "million",
+        "class": "PLAIN",
+        "candidate": "m i l l i o n"
+      }
+    ],
+    "net_gain": -18731,
+    "precision": 0.00010672358591248666
+  },
+  "lower_len_6": {
+    "rows": 19839,
+    "letters": 0,
+    "candidate_correct": 0,
+    "identity_correct": 19834,
+    "examples": [
+      {
+        "before": "passes",
+        "after": "passes",
+        "class": "PLAIN",
+        "candidate": "p a s s e s"
+      },
+      {
+        "before": "splash",
+        "after": "splash",
+        "class": "PLAIN",
+        "candidate": "s p l a s h"
+      },
+      {
+        "before": "plants",
+        "after": "plants",
+        "class": "PLAIN",
+        "candidate": "p l a n t s"
+      },
+      {
+        "before": "office",
+        "after": "office",
+        "class": "PLAIN",
+        "candidate": "o f f i c e"
+      },
+      {
+        "before": "neumes",
+        "after": "neumes",
+        "class": "PLAIN",
+        "candidate": "n e u m e s"
+      },
+      {
+        "before": "letter",
+        "after": "letter",
+        "class": "PLAIN",
+        "candidate": "l e t t e r"
+      },
+      {
+        "before": "called",
+        "after": "called",
+        "class": "PLAIN",
+        "candidate": "c a l l e d"
+      },
+      {
+        "before": "yellow",
+        "after": "yellow",
+        "class": "PLAIN",
+        "candidate": "y e l l o w"
+      },
+      {
+        "before": "energy",
+        "after": "energy",
+        "class": "PLAIN",
+        "candidate": "e n e r g y"
+      },
+      {
+        "before": "ground",
+        "after": "ground",
+        "class": "PLAIN",
+        "candidate": "g r o u n d"
+      },
+      {
+        "before": "signed",
+        "after": "signed",
+        "class": "PLAIN",
+        "candidate": "s i g n e d"
+      },
+      {
+        "before": "median",
+        "after": "median",
+        "class": "PLAIN",
+        "candidate": "m e d i a n"
+      }
+    ],
+    "net_gain": -19834,
+    "precision": 0.0
+  },
+  "lower_len_5": {
+    "rows": 23841,
+    "letters": 10,
+    "candidate_correct": 11,
+    "identity_correct": 23828,
+    "examples": [
+      {
+        "before": "sport",
+        "after": "sport",
+        "class": "PLAIN",
+        "candidate": "s p o r t"
+      },
+      {
+        "before": "sized",
+        "after": "sized",
+        "class": "PLAIN",
+        "candidate": "s i z e d"
+      },
+      {
+        "before": "fluid",
+        "after": "fluid",
+        "class": "PLAIN",
+        "candidate": "f l u i d"
+      },
+      {
+        "before": "sound",
+        "after": "sound",
+        "class": "PLAIN",
+        "candidate": "s o u n d"
+      },
+      {
+        "before": "heard",
+        "after": "heard",
+        "class": "PLAIN",
+        "candidate": "h e a r d"
+      },
+      {
+        "before": "first",
+        "after": "first",
+        "class": "PLAIN",
+        "candidate": "f i r s t"
+      },
+      {
+        "before": "mayor",
+        "after": "mayor",
+        "class": "PLAIN",
+        "candidate": "m a y o r"
+      },
+      {
+        "before": "mares",
+        "after": "mares",
+        "class": "PLAIN",
+        "candidate": "m a r e s"
+      },
+      {
+        "before": "early",
+        "after": "early",
+        "class": "PLAIN",
+        "candidate": "e a r l y"
+      },
+      {
+        "before": "which",
+        "after": "which",
+        "class": "PLAIN",
+        "candidate": "w h i c h"
+      },
+      {
+        "before": "names",
+        "after": "names",
+        "class": "PLAIN",
+        "candidate": "n a m e s"
+      },
+      {
+        "before": "owned",
+        "after": "owned",
+        "class": "PLAIN",
+        "candidate": "o w n e d"
+      }
+    ],
+    "net_gain": -23817,
+    "precision": 0.0004613900423639948
+  },
+  "lower_len_4": {
+    "rows": 30649,
+    "letters": 29,
+    "candidate_correct": 30,
+    "identity_correct": 30615,
+    "examples": [
+      {
+        "before": "town",
+        "after": "town",
+        "class": "PLAIN",
+        "candidate": "t o w n"
+      },
+      {
+        "before": "over",
+        "after": "over",
+        "class": "PLAIN",
+        "candidate": "o v e r"
+      },
+      {
+        "before": "went",
+        "after": "went",
+        "class": "PLAIN",
+        "candidate": "w e n t"
+      },
+      {
+        "before": "hold",
+        "after": "hold",
+        "class": "PLAIN",
+        "candidate": "h o l d"
+      },
+      {
+        "before": "solo",
+        "after": "solo",
+        "class": "PLAIN",
+        "candidate": "s o l o"
+      },
+      {
+        "before": "tell",
+        "after": "tell",
+        "class": "PLAIN",
+        "candidate": "t e l l"
+      },
+      {
+        "before": "time",
+        "after": "time",
+        "class": "PLAIN",
+        "candidate": "t i m e"
+      },
+      {
+        "before": "bred",
+        "after": "bred",
+        "class": "PLAIN",
+        "candidate": "b r e d"
+      },
+      {
+        "before": "tomb",
+        "after": "tomb",
+        "class": "PLAIN",
+        "candidate": "t o m b"
+      },
+      {
+        "before": "this",
+        "after": "this",
+        "class": "PLAIN",
+        "candidate": "t h i s"
+      },
+      {
+        "before": "lies",
+        "after": "lies",
+        "class": "PLAIN",
+        "candidate": "l i e s"
+      },
+      {
+        "before": "some",
+        "after": "some",
+        "class": "PLAIN",
+        "candidate": "s o m e"
+      }
+    ],
+    "net_gain": -30585,
+    "precision": 0.0009788247577408725
+  },
+  "capitalized_len_8": {
+    "rows": 33210,
+    "letters": 0,
+    "candidate_correct": 0,
+    "identity_correct": 33179,
+    "examples": [
+      {
+        "before": "Threatened",
+        "after": "Threatened",
+        "class": "PLAIN",
+        "candidate": "t h r e a t e n e d"
+      },
+      {
+        "before": "National",
+        "after": "National",
+        "class": "PLAIN",
+        "candidate": "n a t i o n a l"
+      },
+      {
+        "before": "Brilliance",
+        "after": "Brilliance",
+        "class": "PLAIN",
+        "candidate": "b r i l l i a n c e"
+      },
+      {
+        "before": "Brilliance",
+        "after": "Brilliance",
+        "class": "PLAIN",
+        "candidate": "b r i l l i a n c e"
+      },
+      {
+        "before": "Republic",
+        "after": "Republic",
+        "class": "PLAIN",
+        "candidate": "r e p u b l i c"
+      },
+      {
+        "before": "Downloaded",
+        "after": "Downloaded",
+        "class": "PLAIN",
+        "candidate": "d o w n l o a d e d"
+      },
+      {
+        "before": "Hathaway",
+        "after": "Hathaway",
+        "class": "PLAIN",
+        "candidate": "h a t h a w a y"
+      },
+      {
+        "before": "Stretches",
+        "after": "Stretches",
+        "class": "PLAIN",
+        "candidate": "s t r e t c h e s"
+      },
+      {
+        "before": "Portrait",
+        "after": "Portrait",
+        "class": "PLAIN",
+        "candidate": "p o r t r a i t"
+      },
+      {
+        "before": "Caribbean",
+        "after": "Caribbean",
+        "class": "PLAIN",
+        "candidate": "c a r i b b e a n"
+      },
+      {
+        "before": "Magazine",
+        "after": "Magazine",
+        "class": "PLAIN",
+        "candidate": "m a g a z i n e"
+      },
+      {
+        "before": "Retrieved",
+        "after": "Retrieved",
+        "class": "PLAIN",
+        "candidate": "r e t r i e v e d"
+      }
+    ],
+    "net_gain": -33179,
+    "precision": 0.0
+  },
+  "lower_len_8": {
+    "rows": 41151,
+    "letters": 0,
+    "candidate_correct": 0,
+    "identity_correct": 41101,
+    "examples": [
+      {
+        "before": "produced",
+        "after": "produced",
+        "class": "PLAIN",
+        "candidate": "p r o d u c e d"
+      },
+      {
+        "before": "together",
+        "after": "together",
+        "class": "PLAIN",
+        "candidate": "t o g e t h e r"
+      },
+      {
+        "before": "pericardial",
+        "after": "pericardial",
+        "class": "PLAIN",
+        "candidate": "p e r i c a r d i a l"
+      },
+      {
+        "before": "tinkling",
+        "after": "tinkling",
+        "class": "PLAIN",
+        "candidate": "t i n k l i n g"
+      },
+      {
+        "before": "superimposed",
+        "after": "superimposed",
+        "class": "PLAIN",
+        "candidate": "s u p e r i m p o s e d"
+      },
+      {
+        "before": "succussion",
+        "after": "succussion",
+        "class": "PLAIN",
+        "candidate": "s u c c u s s i o n"
+      },
+      {
+        "before": "exhibition",
+        "after": "exhibition",
+        "class": "PLAIN",
+        "candidate": "e x h i b i t i o n"
+      },
+      {
+        "before": "reelected",
+        "after": "reelected",
+        "class": "PLAIN",
+        "candidate": "r e e l e c t e d"
+      },
+      {
+        "before": "approximately",
+        "after": "approximately",
+        "class": "PLAIN",
+        "candidate": "a p p r o x i m a t e l y"
+      },
+      {
+        "before": "cemetery",
+        "after": "cemetery",
+        "class": "PLAIN",
+        "candidate": "c e m e t e r y"
+      },
+      {
+        "before": "interpretation",
+        "after": "interpretation",
+        "class": "PLAIN",
+        "candidate": "i n t e r p r e t a t i o n"
+      },
+      {
+        "before": "digraphic",
+        "after": "digraphic",
+        "class": "PLAIN",
+        "candidate": "d i g r a p h i c"
+      }
+    ],
+    "net_gain": -41101,
+    "precision": 0.0
+  },
+  "lower_len_2": {
+    "rows": 47398,
+    "letters": 26,
+    "candidate_correct": 41,
+    "identity_correct": 47344,
+    "examples": [
+      {
+        "before": "of",
+        "after": "of",
+        "class": "PLAIN",
+        "candidate": "o f"
+      },
+      {
+        "before": "is",
+        "after": "is",
+        "class": "PLAIN",
+        "candidate": "i s"
+      },
+      {
+        "before": "by",
+        "after": "by",
+        "class": "PLAIN",
+        "candidate": "b y"
+      },
+      {
+        "before": "in",
+        "after": "in",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "of",
+        "after": "of",
+        "class": "PLAIN",
+        "candidate": "o f"
+      },
+      {
+        "before": "on",
+        "after": "on",
+        "class": "PLAIN",
+        "candidate": "o n"
+      },
+      {
+        "before": "in",
+        "after": "in",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "is",
+        "after": "is",
+        "class": "PLAIN",
+        "candidate": "i s"
+      },
+      {
+        "before": "on",
+        "after": "on",
+        "class": "PLAIN",
+        "candidate": "o n"
+      },
+      {
+        "before": "to",
+        "after": "to",
+        "class": "PLAIN",
+        "candidate": "t o"
+      },
+      {
+        "before": "in",
+        "after": "in",
+        "class": "PLAIN",
+        "candidate": "i n"
+      },
+      {
+        "before": "at",
+        "after": "at",
+        "class": "PLAIN",
+        "candidate": "a t"
+      }
+    ],
+    "net_gain": -47303,
+    "precision": 0.0008650154014937339
+  },
+  "lower_len_3": {
+    "rows": 50821,
+    "letters": 54,
+    "candidate_correct": 72,
+    "identity_correct": 50747,
+    "examples": [
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "air",
+        "after": "air",
+        "class": "PLAIN",
+        "candidate": "a i r"
+      },
+      {
+        "before": "and",
+        "after": "and",
+        "class": "PLAIN",
+        "candidate": "a n d"
+      },
+      {
+        "before": "mix",
+        "after": "mix",
+        "class": "PLAIN",
+        "candidate": "m i x"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "sac",
+        "after": "sac",
+        "class": "PLAIN",
+        "candidate": "s a c"
+      },
+      {
+        "before": "her",
+        "after": "her",
+        "class": "PLAIN",
+        "candidate": "h e r"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "was",
+        "after": "was",
+        "class": "PLAIN",
+        "candidate": "w a s"
+      }
+    ],
+    "net_gain": -50675,
+    "precision": 0.0014167371755770253
+  },
+  "capitalized": {
+    "rows": 119011,
+    "letters": 213,
+    "candidate_correct": 244,
+    "identity_correct": 118694,
+    "examples": [
+      {
+        "before": "Red",
+        "after": "Red",
+        "class": "PLAIN",
+        "candidate": "r e d"
+      },
+      {
+        "before": "List",
+        "after": "List",
+        "class": "PLAIN",
+        "candidate": "l i s t"
+      },
+      {
+        "before": "Threatened",
+        "after": "Threatened",
+        "class": "PLAIN",
+        "candidate": "t h r e a t e n e d"
+      },
+      {
+        "before": "Species",
+        "after": "Species",
+        "class": "PLAIN",
+        "candidate": "s p e c i e s"
+      },
+      {
+        "before": "Greek",
+        "after": "Greek",
+        "class": "PLAIN",
+        "candidate": "g r e e k"
+      },
+      {
+        "before": "National",
+        "after": "National",
+        "class": "PLAIN",
+        "candidate": "n a t i o n a l"
+      },
+      {
+        "before": "Road",
+        "after": "Road",
+        "class": "PLAIN",
+        "candidate": "r o a d"
+      },
+      {
+        "before": "Athens",
+        "after": "Athens",
+        "class": "PLAIN",
+        "candidate": "a t h e n s"
+      },
+      {
+        "before": "Sounio",
+        "after": "Sounio",
+        "class": "PLAIN",
+        "candidate": "s o u n i o"
+      },
+      {
+        "before": "The",
+        "after": "The",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "Brilliance",
+        "after": "Brilliance",
+        "class": "PLAIN",
+        "candidate": "b r i l l i a n c e"
+      },
+      {
+        "before": "Brilliance",
+        "after": "Brilliance",
+        "class": "PLAIN",
+        "candidate": "b r i l l i a n c e"
+      }
+    ],
+    "net_gain": -118450,
+    "precision": 0.0020502306509482316
+  },
+  "lower_all": {
+    "rows": 239567,
+    "letters": 246,
+    "candidate_correct": 7280,
+    "identity_correct": 239326,
+    "examples": [
+      {
+        "before": "of",
+        "after": "of",
+        "class": "PLAIN",
+        "candidate": "o f"
+      },
+      {
+        "before": "passes",
+        "after": "passes",
+        "class": "PLAIN",
+        "candidate": "p a s s e s"
+      },
+      {
+        "before": "through",
+        "after": "through",
+        "class": "PLAIN",
+        "candidate": "t h r o u g h"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      },
+      {
+        "before": "town",
+        "after": "town",
+        "class": "PLAIN",
+        "candidate": "t o w n"
+      },
+      {
+        "before": "is",
+        "after": "is",
+        "class": "PLAIN",
+        "candidate": "i s"
+      },
+      {
+        "before": "sport",
+        "after": "sport",
+        "class": "PLAIN",
+        "candidate": "s p o r t"
+      },
+      {
+        "before": "compact",
+        "after": "compact",
+        "class": "PLAIN",
+        "candidate": "c o m p a c t"
+      },
+      {
+        "before": "sized",
+        "after": "sized",
+        "class": "PLAIN",
+        "candidate": "s i z e d"
+      },
+      {
+        "before": "produced",
+        "after": "produced",
+        "class": "PLAIN",
+        "candidate": "p r o d u c e d"
+      },
+      {
+        "before": "by",
+        "after": "by",
+        "class": "PLAIN",
+        "candidate": "b y"
+      },
+      {
+        "before": "the",
+        "after": "the",
+        "class": "PLAIN",
+        "candidate": "t h e"
+      }
+    ],
+    "net_gain": -232046,
+    "precision": 0.030388158636206156
+  }
+}

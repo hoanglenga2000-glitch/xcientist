@@ -1,0 +1,48 @@
+{
+  "train_rows": 891,
+  "train_columns": 12,
+  "test_rows": 418,
+  "test_columns": 11,
+  "sample_submission_rows": 418,
+  "sample_submission_columns": [
+    "PassengerId",
+    "Survived"
+  ],
+  "target": "Survived",
+  "task_type": "binary_classification",
+  "target_summary": {
+    "distribution": {
+      "0": 0.6162,
+      "1": 0.3838
+    }
+  },
+  "duplicate_train_rows": 0,
+  "train_test_feature_columns_match": true,
+  "missing_train_top20": {
+    "Cabin": 0.771,
+    "Age": 0.1987,
+    "Embarked": 0.0022,
+    "PassengerId": 0.0,
+    "Name": 0.0,
+    "Pclass": 0.0,
+    "Survived": 0.0,
+    "Sex": 0.0,
+    "Parch": 0.0,
+    "SibSp": 0.0,
+    "Fare": 0.0,
+    "Ticket": 0.0
+  },
+  "missing_test_top20": {
+    "Cabin": 0.7823,
+    "Age": 0.2057,
+    "Fare": 0.0024,
+    "Name": 0.0,
+    "Pclass": 0.0,
+    "PassengerId": 0.0,
+    "Sex": 0.0,
+    "Parch": 0.0,
+    "SibSp": 0.0,
+    "Ticket": 0.0,
+    "Embarked": 0.0
+  }
+}

@@ -1,9 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
-import { CSRF_HEADER, SESSION_COOKIE, localOrigin, validCsrfToken, validSessionCookie } from "@/lib/server/local-session";
+import {
+  CSRF_HEADER,
+  LOCAL_AUTOMATION_VERIFIED_HEADER,
+  SESSION_COOKIE,
+  localOrigin,
+  validCsrfToken,
+  validLocalAutomationToken,
+  validSessionCookie,
+} from "@/lib/server/local-session";
+import {
+  isAllowedMutationSource,
+  isLoopbackHostHeader,
+  normalizeTaskId,
+} from "@/lib/security/request-boundary";
 
-const PUBLIC_API_PATHS = new Set(["/api/healthz", "/api/session/bootstrap"]);
+const PUBLIC_API_PATHS = new Set(["/api/healthz", "/api/system/version", "/api/session/bootstrap"]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
+const LOCAL_AUTOMATION_HEADER = "x-evomind-local-automation";
 
 function pageContentSecurityPolicy(nonce: string) {
   return [
@@ -43,11 +58,41 @@ function jsonError(status: number, code: string) {
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   if (!pathname.startsWith("/api/")) return pageResponse(request);
+  const host = request.headers.get("host");
+  if (!isLoopbackHostHeader(host)) {
+    return jsonError(403, "loopback_required");
+  }
+
+  if (
+    MUTATING_METHODS.has(request.method)
+    && !isAllowedMutationSource(
+      request.headers.get("origin"),
+      host,
+      request.headers.get("sec-fetch-site"),
+    )
+  ) {
+    return jsonError(403, "origin_rejected");
+  }
+
+  const taskPrefix = "/api/tasks/";
+  if (pathname.startsWith(taskPrefix)) {
+    const taskSegment = pathname.slice(taskPrefix.length).split("/", 1)[0];
+    try {
+      normalizeTaskId(taskSegment);
+    } catch {
+      return jsonError(400, "invalid_task_id");
+    }
+  }
+
   if (PUBLIC_API_PATHS.has(pathname)) return NextResponse.next();
 
   const session = request.cookies.get(SESSION_COOKIE)?.value;
+  const localAutomation = validLocalAutomationToken(request.headers.get(LOCAL_AUTOMATION_HEADER));
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.delete(LOCAL_AUTOMATION_VERIFIED_HEADER);
+  if (localAutomation) forwardedHeaders.set(LOCAL_AUTOMATION_VERIFIED_HEADER, "1");
   try {
-    if (!validSessionCookie(session)) return jsonError(401, "session_required");
+    if (!localAutomation && !validSessionCookie(session)) return jsonError(401, "session_required");
   } catch {
     return jsonError(503, "local_session_not_configured");
   }
@@ -55,11 +100,10 @@ export async function proxy(request: NextRequest) {
   if (!SAFE_METHODS.has(request.method)) {
     const expectedOrigin = localOrigin();
     const origin = request.headers.get("origin");
-    const host = request.headers.get("host");
     if (origin !== expectedOrigin || host !== new URL(expectedOrigin).host) {
       return jsonError(403, "origin_rejected");
     }
-    if (!validCsrfToken(request.headers.get(CSRF_HEADER), session!)) {
+    if (!localAutomation && !validCsrfToken(request.headers.get(CSRF_HEADER), session!)) {
       return jsonError(403, "csrf_rejected");
     }
     const rawLength = request.headers.get("content-length");
@@ -79,7 +123,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  const response = NextResponse.next();
+  const response = NextResponse.next({ request: { headers: forwardedHeaders } });
   response.headers.set("Cache-Control", "private, no-store, max-age=0, must-revalidate");
   return response;
 }

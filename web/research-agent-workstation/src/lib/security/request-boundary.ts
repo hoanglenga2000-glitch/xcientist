@@ -1,4 +1,4 @@
-const TASK_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,127}$/;
+const TASK_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
 const LOOPBACK_HOST_HEADER = /^(localhost|127(?:\.\d{1,3}){3}|\[::1\])(?::(\d{1,5}))?$/i;
 

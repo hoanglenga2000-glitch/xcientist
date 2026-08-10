@@ -1,50 +1,38 @@
-"""HPC Connect - Stable paramiko SSH via SOCKS5 proxy.
+"""Pinned-host-key SSH client helper for the managed HPC gateway.
 
-Passwords must be supplied through environment variables such as
-HPC_87616_PASSWORD or GPU_SSH_PASSWORD. Do not hardcode rotating HPC secrets.
+Allocation routing and credentials are resolved by the named DPAPI profile and
+the verified workstation gateway.  This module deliberately contains no job,
+endpoint, account, or password registry.
 """
+from __future__ import annotations
+
 import os
-import paramiko, socket, struct
+from pathlib import Path
 
-JOBS = {
-    "87571": ("aimslab-fpgTDTSi", "HPC_87571_PASSWORD"),
-    "87557": ("aimslab-zoeXIdNC", "HPC_87557_PASSWORD"),
-    "87416": ("aimslab-IwkteXqP", "HPC_87416_PASSWORD"),
-    "87384": ("aimslab-TTA-A800-1GPU", "HPC_87384_PASSWORD"),
-    "87318": ("aimslab-kdd-ai4s", "HPC_87318_PASSWORD"),
-    "87136": ("aimslab-lyudongxin", "HPC_87136_PASSWORD"),
-    "87617": ("aimslab-HdLzYXoc", "HPC_87617_PASSWORD"),
-    "87616": ("aimslab-wqx-SDBS", "HPC_87616_PASSWORD"),
-    "87679": ("aimslab-RyBCioWD", "HPC_87679_PASSWORD"),
-    "87739": ("aimslab-deOiwKsB", "HPC_87739_PASSWORD"),
-}
+import paramiko
 
-def hpc_connect(job_id):
-    user, password_env = JOBS[job_id]
-    pwd = os.environ.get(password_env) or os.environ.get("GPU_SSH_PASSWORD")
-    if not pwd:
-        raise RuntimeError(f"Missing HPC password env: {password_env} or GPU_SSH_PASSWORD")
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.settimeout(30)
-    sock.connect(('127.0.0.1', 7897))
-    # SOCKS5 handshake (no-auth)
-    sock.send(b'\x05\x01\x00')
-    sock.recv(2)
-    # SOCKS5 CONNECT to 100.85.169.63:1235 via IPv4
-    sock.send(b'\x05\x01\x00\x01' + socket.inet_aton('100.85.169.63') + struct.pack('>H', 1235))
-    sock.recv(10)
-    # SSH via paramiko
-    ssh = paramiko.SSHClient()
-    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    ssh.connect(hostname='100.85.169.63', port=1235, username=user, password=pwd,
-                sock=sock, timeout=30, allow_agent=False, look_for_keys=False,
-                banner_timeout=30, auth_timeout=30)
-    return ssh
 
-def hpc_exec(job_id, command):
-    ssh = hpc_connect(job_id)
-    _, stdout, stderr = ssh.exec_command(command)
-    out = stdout.read().decode()
-    err = stderr.read().decode()
-    ssh.close()
-    return out, err
+def secure_ssh_client() -> paramiko.SSHClient:
+    client = paramiko.SSHClient()
+    try:
+        client.load_system_host_keys()
+        configured = os.environ.get("GPU_SSH_KNOWN_HOSTS_PATH", "").strip()
+        if not configured:
+            raise RuntimeError("Pinned known-hosts path is not configured (path hidden).")
+        known_hosts = Path(configured).expanduser()
+        if not known_hosts.is_file() or known_hosts.is_symlink():
+            raise RuntimeError("Pinned known-hosts file is missing or unsafe (path hidden).")
+        client.load_host_keys(str(known_hosts))
+        client.set_missing_host_key_policy(paramiko.RejectPolicy())
+        return client
+    except Exception:
+        client.close()
+        raise
+
+
+def hpc_connect(*_args, **_kwargs):
+    raise RuntimeError("Use the named DPAPI job profile through the verified workstation HPC gateway.")
+
+
+def hpc_exec(*_args, **_kwargs):
+    raise RuntimeError("Use the verified workstation HPC command route after job-container identity passes.")

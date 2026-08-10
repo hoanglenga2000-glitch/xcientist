@@ -8,8 +8,6 @@ const AUTHORIZATION_RE = /\b(bearer|basic)\s+[A-Za-z0-9._~+/=-]{3,}/gi;
 const URL_USERINFO_RE = /\b(https?:\/\/)[^/@\s:]+:[^/@\s]+@/gi;
 const QUERY_SECRET_RE = /([?&](?:api[_-]?key|password|passwd|passphrase|secret|access[_-]?token|refresh[_-]?token|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)=)[^&#\s]+/gi;
 const KEY_VALUE_SECRET_RE = /(["']?(?:api[_-]?key|authorization|cookie|credential|credentials|password|passwd|passphrase|private[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|secret|token|aws[_-]?(?:access[_-]?key[_-]?id|secret[_-]?access[_-]?key)|github[_-]?pat|gitlab[_-]?pat|kaggle[_-]?key)["']?\s*[:=]\s*["']?)([^"'\s,;}\]]{3,})/gi;
-const CONTROL_CHARACTER_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g;
-
 const SAFE_TOKEN_KEYS = new Set(["input_tokens", "max_tokens", "output_tokens", "token_count", "tokens_used"]);
 const SENSITIVE_KEYS = new Set([
   "access_token",
@@ -69,10 +67,24 @@ function isSensitiveKey(value: string) {
     || /_(?:github|gitlab)_pat$/.test(key);
 }
 
+function replaceUnsafeControlCharacters(value: string) {
+  let sanitized = "";
+  for (const character of value) {
+    const codePoint = character.codePointAt(0) ?? 0;
+    sanitized += (
+      (codePoint >= 0 && codePoint <= 8)
+      || codePoint === 11
+      || codePoint === 12
+      || (codePoint >= 14 && codePoint <= 31)
+      || codePoint === 127
+    ) ? " " : character;
+  }
+  return sanitized;
+}
+
 export function sanitizeAuditText(value: unknown, maxChars = MAX_AUDIT_TEXT_CHARS) {
   const boundedLimit = Math.max(0, Math.min(Number.isSafeInteger(maxChars) ? maxChars : 0, MAX_AUDIT_TEXT_CHARS));
-  return String(value ?? "")
-    .replace(CONTROL_CHARACTER_RE, " ")
+  return replaceUnsafeControlCharacters(String(value ?? ""))
     .replace(PRIVATE_KEY_RE, "[redacted private key]")
     .replace(URL_USERINFO_RE, "$1[redacted]@")
     .replace(QUERY_SECRET_RE, "$1[redacted]")

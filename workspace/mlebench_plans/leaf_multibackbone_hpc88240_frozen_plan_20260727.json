@@ -1,0 +1,175 @@
+{
+  "schema": "evomind.leaf.multibackbone_frozen_plan.v1",
+  "created_at": "2026-07-27T13:44:18.361014+08:00",
+  "status": "frozen_waiting_after_siim",
+  "competition_id": "leaf-classification",
+  "objective": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "historical_official_score": 2.43276,
+    "bronze_threshold": 0.01526,
+    "promotion_mean_log_loss": 0.0135,
+    "promotion_max_seed_log_loss": 0.0135,
+    "official_score_claimed": false
+  },
+  "planner": {
+    "provider": "openai_compatible_local_gateway",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "parse_ok": true,
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_current.json",
+      "bytes": 40378,
+      "sha256": "c90f066706d92d03c2c22932738714d407bf3d1c1bc76b5c49d70829494a1215"
+    },
+    "response_sha256": "1c00413a235cde787cc9dae03c706e9790ed780498f6abfcb9c25fa35c79d4e0"
+  },
+  "training": {
+    "python": "python3",
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/run_leaf_multibackbone_oof.py",
+    "run_id": "hpc88240_leaf_dualbb_s404142_20260727",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/leaf_multibackbone",
+    "torch_home": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_model_cache/torch",
+    "seeds": [
+      40,
+      41,
+      42
+    ],
+    "folds": 5,
+    "backbones": [
+      "convnext_small",
+      "efficientnet_v2_s"
+    ],
+    "image_size": 288,
+    "batch_size": 64,
+    "workers": 8,
+    "manifest_workers": 16,
+    "tta": 8,
+    "numeric_c": 10.0,
+    "image_c": 8.0,
+    "multimodal_c": 10.0,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "data_contract": {
+    "core_files": {
+      "description.md": {
+        "bytes": 4424,
+        "sha256": "7b57af084dd30eb953dc8aacdf48372b2c190f5118fb2217a2390b82c98092b7"
+      },
+      "sample_submission.csv": {
+        "bytes": 208005,
+        "sha256": "eda4dbc07a075c2bc5441e151e20927a7a06a16bdc03abe0d95a031e4f19079c"
+      },
+      "test.csv": {
+        "bytes": 164691,
+        "sha256": "0b5165de0f0fcae712900e2a4fae491ec8cd1d1a38b691cbaa59ee6d0b030f39"
+      },
+      "train.csv": {
+        "bytes": 1481500,
+        "sha256": "14a1f3f49692d0843d556f802b798b089e0d090752526d8a4b4fc476fa7429c3"
+      }
+    },
+    "file_count": 994,
+    "image_count": 990,
+    "public_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public",
+    "total_bytes": 28617101,
+    "private_paths_requested": false,
+    "remote_writes_limited_to_dedicated_root": true
+  },
+  "implementation": {
+    "runner": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/run_leaf_multibackbone_oof.py",
+      "bytes": 36588,
+      "sha256": "a7d602eee5a5feee739faabd2385645b213e04fb67d2ab7d6220947d4b02da16"
+    },
+    "verifier": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/verify_leaf_multibackbone_oof_run.py",
+      "bytes": 16891,
+      "sha256": "6fd87599c0e94a2c18ecd33695a171b2591399a35ee7bba30b315525bb70fa1c"
+    },
+    "source_bundle": [
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/run_leaf_multibackbone_oof.py",
+        "bytes": 36588,
+        "sha256": "a7d602eee5a5feee739faabd2385645b213e04fb67d2ab7d6220947d4b02da16"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/verify_leaf_multibackbone_oof_run.py",
+        "bytes": 16891,
+        "sha256": "6fd87599c0e94a2c18ecd33695a171b2591399a35ee7bba30b315525bb70fa1c"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/mlebench_medal_recovery_adapters.py",
+        "bytes": 322949,
+        "sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/mlebench_wave2_adapters.py",
+        "bytes": 357348,
+        "sha256": "da643aacc782b4322a194227b040d1f800c33d6ab371faebc7f156011d0d1c3d"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/run_mlebench_lite_wave0.py",
+        "bytes": 43431,
+        "sha256": "4097f8188d537f993ddd306897fa517dd3a82b9237e9cf35f41a6c9a48f811a2"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/scripts/russian_transliteration.py",
+        "bytes": 11016,
+        "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+      },
+      {
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/src/research_os/mlebench_phase_a.py",
+        "bytes": 35480,
+        "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+      }
+    ]
+  },
+  "serial_dependency": {
+    "jigsaw_job_id": 88240,
+    "jigsaw_status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/full_seed41_status.json",
+    "accepted_verified_terminal_statuses": [
+      "verification_passed",
+      "verification_complete_gate_failed"
+    ],
+    "integrity_failure_statuses": [
+      "training_failed",
+      "verifier_failed",
+      "verification_contract_failed",
+      "frozen_artifact_drift"
+    ]
+  },
+  "launch_contract": {
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_minimum_check_interval_seconds": 10,
+    "maximum_idle_memory_mib": 512,
+    "maximum_idle_utilization_percent": 10,
+    "no_compute_process_required": true,
+    "process_signals_allowed": false,
+    "automatic_kaggle_submission": false,
+    "automatic_official_grader": false
+  },
+  "claim_boundary": "HPC public-OOF continuation plan; CV and OOF are not official medals. Human Gate remains mandatory.",
+  "operational_revision": {
+    "created_at": "2026-07-27T13:44:18.361014+08:00",
+    "reason": "Move every post-seed40 GPU training stage from the local RTX 4060 to job 88240 A40.",
+    "model_data_folds_seeds_backbones_and_promotion_thresholds_changed": false,
+    "throughput_only_changes": {
+      "batch_size": 64,
+      "workers": 8,
+      "manifest_workers": 16
+    },
+    "process_signals_sent": 0
+  },
+  "execution_target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "mode": "persistent_serial_after_jigsaw_seed41",
+    "site_packages": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/env/site-packages"
+  }
+}

@@ -9,6 +9,10 @@ from pathlib import Path
 
 
 RUNTIME_TASKS = ["titanic", "house_prices", "telco_churn"]
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 
 
 def load_summary(url: str | None) -> dict:
@@ -16,7 +20,11 @@ def load_summary(url: str | None) -> dict:
         base = url.rstrip("/")
         for endpoint in ["api/workstation-summary", "api/summary"]:
             try:
-                with urllib.request.urlopen(f"{base}/{endpoint}", timeout=10) as response:
+                request = urllib.request.Request(
+                    f"{base}/{endpoint}",
+                    headers=authenticated_headers(base),
+                )
+                with urllib.request.urlopen(request, timeout=10) as response:
                     return json.loads(response.read().decode("utf-8"))
             except urllib.error.HTTPError:
                 continue
@@ -38,6 +46,37 @@ def main() -> None:
     args = parser.parse_args()
 
     summary = load_summary(args.url)
+    if (summary.get("_meta") or {}).get("mode") == "lite":
+        task_ids = {
+            str(task.get("id") or "").replace("-", "_")
+            for task in summary.get("tasks", [])
+            if isinstance(task, dict)
+        }
+        missing_tasks = sorted(set(RUNTIME_TASKS) - task_ids)
+        if missing_tasks:
+            fail(f"missing runtime task ids from lite summary: {missing_tasks}")
+        for key in ("runs", "gates", "evidence"):
+            if not isinstance(summary.get(key), list) or not summary.get(key):
+                fail(f"lite summary has no {key} projection")
+        runtime = summary.get("runtime")
+        if not isinstance(runtime, dict) or not runtime.get("task_id"):
+            fail("lite summary runtime projection is missing")
+        print(
+            json.dumps(
+                {
+                    "status": "passed",
+                    "summary_mode": "lite",
+                    "required_task_ids": sorted(RUNTIME_TASKS),
+                    "run_count": len(summary["runs"]),
+                    "gate_count": len(summary["gates"]),
+                    "evidence_count": len(summary["evidence"]),
+                    "runtime_task_id": runtime.get("task_id"),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
+        )
+        return
     if "runtime_by_task" in summary:
         runtime_by_task = summary.get("runtime_by_task", {})
         missing_tasks = sorted(set(RUNTIME_TASKS) - set(runtime_by_task))

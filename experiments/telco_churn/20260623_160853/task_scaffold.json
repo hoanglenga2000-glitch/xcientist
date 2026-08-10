@@ -1,0 +1,169 @@
+{
+  "task": {
+    "name": "telco_churn",
+    "competition": "Telco Customer Churn",
+    "type": "binary_classification",
+    "target": "Churn",
+    "metric": "accuracy",
+    "id_column": "customerID",
+    "prediction_column": "Churn"
+  },
+  "inputs": {
+    "overview": "tasks/telco_churn/overview.txt",
+    "train": "tasks/telco_churn/data/train.csv",
+    "test": "tasks/telco_churn/data/test.csv",
+    "sample_submission": "tasks/telco_churn/data/sample_submission.csv"
+  },
+  "agent_template_mapping": {
+    "orchestrator_planner": {
+      "server_template_id": 16,
+      "server_template_name": "多 Agent 调度主管",
+      "local_role": "Orchestrator/Planner",
+      "workstation_responsibility": [
+        "task_decomposition",
+        "acceptance_criteria",
+        "risk_management",
+        "stage_coordination"
+      ],
+      "prompt_template_summary": "把目标拆解为子任务，指定 Agent 角色，定义验收标准、依赖关系和风险处理方式。"
+    },
+    "analyst": {
+      "server_template_id": 13,
+      "server_template_name": "高级数据分析 Agent",
+      "local_role": "Analyst",
+      "workstation_responsibility": [
+        "tabular_eda",
+        "anomaly_detection",
+        "trend_hypothesis",
+        "validation_plan"
+      ],
+      "prompt_template_summary": "用业务语言解释数据，识别趋势和异常，给出可能原因、置信度和下一步验证方案。"
+    },
+    "developer": {
+      "server_template_id": 14,
+      "server_template_name": "代码开发 Agent",
+      "local_role": "Developer",
+      "workstation_responsibility": [
+        "implementation_plan",
+        "model_training_code",
+        "test_plan",
+        "implementation_risk"
+      ],
+      "prompt_template_summary": "先理解需求和约束，再给出实现方案、关键代码思路、测试点和风险。"
+    },
+    "evidence_summarizer": {
+      "server_template_id": 15,
+      "server_template_name": "知识库 RAG Agent",
+      "local_role": "Evidence/Summarizer",
+      "workstation_responsibility": [
+        "evidence_tracking",
+        "report_grounding",
+        "uncertainty_statement",
+        "context_memory"
+      ],
+      "prompt_template_summary": "优先基于上下文回答，列出依据；没有依据时说明无法确认。"
+    },
+    "reviewer_gate": {
+      "server_template_id": 18,
+      "server_template_name": "流程自动化 Agent",
+      "local_role": "Reviewer/Gate",
+      "workstation_responsibility": [
+        "stage_gate",
+        "approval_points",
+        "exception_handling",
+        "automation_checklist"
+      ],
+      "prompt_template_summary": "整理触发条件、输入输出、执行步骤、审批节点、异常处理和可自动化环节。"
+    }
+  },
+  "server_template_policy": {
+    "public_url": "https://ai.zhjjq.tech/agents",
+    "public_market_api": "https://ai.zhjjq.tech/api/market/agents",
+    "access_policy": "read_only_public_templates",
+    "private_agents_policy": "do_not_read_or_modify_without_login_authorization"
+  },
+  "data_snapshot": {
+    "train_rows": 5634,
+    "test_rows": 1409,
+    "sample_submission_rows": 1409,
+    "target_summary": {
+      "distribution": {
+        "No": 0.7346,
+        "Yes": 0.2654
+      }
+    },
+    "missing_train_top20": {
+      "TotalCharges": 0.0014,
+      "gender": 0.0,
+      "SeniorCitizen": 0.0,
+      "Partner": 0.0,
+      "customerID": 0.0,
+      "Dependents": 0.0,
+      "tenure": 0.0,
+      "MultipleLines": 0.0,
+      "PhoneService": 0.0,
+      "OnlineSecurity": 0.0,
+      "OnlineBackup": 0.0,
+      "DeviceProtection": 0.0,
+      "InternetService": 0.0,
+      "TechSupport": 0.0,
+      "StreamingTV": 0.0,
+      "Contract": 0.0,
+      "StreamingMovies": 0.0,
+      "PaperlessBilling": 0.0,
+      "PaymentMethod": 0.0,
+      "MonthlyCharges": 0.0
+    },
+    "missing_test_top20": {
+      "TotalCharges": 0.0021,
+      "customerID": 0.0,
+      "SeniorCitizen": 0.0,
+      "gender": 0.0,
+      "Partner": 0.0,
+      "Dependents": 0.0,
+      "PhoneService": 0.0,
+      "tenure": 0.0,
+      "InternetService": 0.0,
+      "OnlineSecurity": 0.0,
+      "OnlineBackup": 0.0,
+      "MultipleLines": 0.0,
+      "DeviceProtection": 0.0,
+      "TechSupport": 0.0,
+      "StreamingMovies": 0.0,
+      "StreamingTV": 0.0,
+      "Contract": 0.0,
+      "PaperlessBilling": 0.0,
+      "PaymentMethod": 0.0,
+      "MonthlyCharges": 0.0
+    }
+  },
+  "validation_strategy": "5-fold stratified cross-validation plus stratified holdout validation",
+  "time_budget_minutes": 15,
+  "candidate_models": [
+    "logistic_regression",
+    "random_forest",
+    "extra_trees",
+    "gradient_boosting"
+  ],
+  "feature_plan": [
+    "Use configured drop columns.",
+    "Use median imputation for numeric features.",
+    "Use most-frequent imputation and one-hot encoding for categorical features."
+  ],
+  "risk_points": [
+    "Churn is imbalanced, so validation must use stratified splits.",
+    "customerID is an identifier and must not be used as a model feature.",
+    "TotalCharges has blank-like values in the raw CSV and must be coerced to numeric.",
+    "Submission must keep customerID and Churn columns with business labels No/Yes.",
+    "Local validation is only a proxy before official Kaggle workflow automation."
+  ],
+  "stage_plan": [
+    "task_understanding",
+    "preliminary_eda",
+    "data_quality_check",
+    "feature_engineering",
+    "model_validation",
+    "submission_generation",
+    "report_and_review"
+  ]
+}

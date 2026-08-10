@@ -1,0 +1,1126 @@
+{
+  "task": {
+    "task_id": "house_prices",
+    "name": "House Prices - Advanced Regression Techniques",
+    "task_type": "regression",
+    "target": "SalePrice",
+    "metric": "rmsle",
+    "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices",
+    "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\train.csv",
+    "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\test.csv",
+    "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\sample_submission.csv",
+    "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\overview.txt",
+    "metadata": {
+      "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\house_prices.yaml",
+      "id_column": "Id",
+      "prediction_column": "SalePrice"
+    }
+  },
+  "run": {
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321",
+    "accepted": true,
+    "best_model": "gradient_boosting_log_target",
+    "best_metrics": {
+      "cv_rmsle_mean": 0.12899,
+      "cv_rmsle_std": 0.020176,
+      "holdout_rmsle": 0.129797,
+      "holdout_mae": 15187.626782,
+      "seconds": 50.5501
+    }
+  },
+  "experiment_record": {
+    "run_id": "20260627_190321",
+    "task_id": "house_prices",
+    "source_type": "local_template",
+    "code_agent_provider": "local_template",
+    "code_patch_id": null,
+    "runner_provider": "local_pipeline",
+    "gpu_provider": "mock",
+    "llm_provider": "rule_based",
+    "dataset_version": "house_prices",
+    "code_commit": null,
+    "seed": 42,
+    "metric": {
+      "cv_rmsle_mean": 0.12899,
+      "cv_rmsle_std": 0.020176,
+      "holdout_rmsle": 0.129797,
+      "holdout_mae": 15187.626782,
+      "seconds": 50.5501
+    },
+    "artifacts": [
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md"
+    ],
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321"
+  },
+  "connector_status": {
+    "code_agent": {
+      "name": "Code Agent",
+      "state": "local_template",
+      "configured": true,
+      "notes": "External code agents use export/import patch flow."
+    },
+    "python_runner": {
+      "name": "Python Runner",
+      "state": "local",
+      "configured": true,
+      "notes": "Local subprocess adapter is available for scripts."
+    },
+    "gpu": {
+      "name": "GPU",
+      "state": "mock",
+      "configured": false,
+      "notes": "Mock adapter reserves SSH/Slurm/Docker/Kubernetes/Cloud GPU slots."
+    },
+    "kaggle": {
+      "name": "Kaggle",
+      "state": "Not Configured",
+      "configured": false,
+      "notes": "Kaggle submission requires credentials and Human Gate."
+    },
+    "llm": {
+      "name": "LLM",
+      "state": "rule_based",
+      "configured": true,
+      "notes": "No API key required for rule-based mode; API adapters can replace it later."
+    },
+    "storage": {
+      "name": "Storage",
+      "state": "local_workspace",
+      "configured": true,
+      "notes": "S3/OSS/MinIO reserved."
+    },
+    "env_keys": {
+      "CODE_AGENT_PROVIDER": "local_template",
+      "PYTHON_RUNNER": "local",
+      "GPU_PROVIDER": "mock",
+      "KAGGLE_ENABLED": "false",
+      "LLM_PROVIDER": "rule_based"
+    }
+  },
+  "stages": [
+    {
+      "stage": "task_understanding",
+      "status": "passed",
+      "details": {
+        "task_id": "house_prices",
+        "name": "House Prices - Advanced Regression Techniques",
+        "task_type": "regression",
+        "target": "SalePrice",
+        "metric": "rmsle",
+        "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices",
+        "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\train.csv",
+        "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\test.csv",
+        "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\data\\sample_submission.csv",
+        "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\overview.txt",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\house_prices.yaml",
+          "id_column": "Id",
+          "prediction_column": "SalePrice"
+        }
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "eda",
+      "status": "passed",
+      "details": {
+        "summary": "Data contract checked for house_prices; train file exists=True.",
+        "risk_flags": []
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "experiment_planning",
+      "status": "passed",
+      "details": {
+        "plan": {
+          "plan_id": "plan_20e16b5106",
+          "task_id": "house_prices",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "scaffold": {
+          "research_question": "Can a reproducible regression baseline improve rmsle for House Prices - Advanced Regression Techniques?",
+          "task_type": "regression",
+          "dataset_type": "tabular",
+          "target_column": "SalePrice",
+          "id_column": "Id",
+          "metric": "rmsle",
+          "validation_strategy": {
+            "strategy": "holdout_or_cv"
+          },
+          "baseline_strategy": "local_template_sklearn_baseline",
+          "preprocessing_strategy": "numeric/categorical automatic preprocessing with missing-value handling",
+          "candidate_models": [
+            "linear_or_logistic_baseline",
+            "tree_ensemble_baseline"
+          ],
+          "risk_points": [
+            "data leakage",
+            "submission column mismatch",
+            "missing predictions",
+            "metric mismatch",
+            "unapproved plan or patch"
+          ],
+          "required_gates": [
+            "PLAN_APPROVAL",
+            "SUBMISSION_APPROVAL",
+            "FINAL_CLAIM_APPROVAL",
+            "REPORT_EXPORT_APPROVAL"
+          ],
+          "expected_artifacts": [
+            "task_profile.json",
+            "scaffold.json",
+            "data_quality.json",
+            "model_results.json",
+            "submission.csv",
+            "validation_gate.json",
+            "agent_trace.jsonl",
+            "artifact_manifest.json",
+            "evidence_index.json",
+            "report.md",
+            "reflection.json"
+          ],
+          "first_run_plan": [
+            "inspect input files",
+            "train local baseline",
+            "write metrics and submission",
+            "run validation gate",
+            "bind evidence and draft report"
+          ],
+          "fallback_plan": [
+            "if training fails, enter WAITING_FIX and export context for Codex/Claude Code",
+            "if validation fails, block submission approval and request reviewer evidence"
+          ]
+        }
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "human_plan_gate",
+      "status": "approved",
+      "details": {
+        "gate_id": "gate_3510e019af",
+        "task_id": "house_prices",
+        "run_id": null,
+        "gate_type": "PLAN_APPROVAL",
+        "triggered_by": "PlannerAgent",
+        "reason": "Scaffold must be reviewed before code generation and training.",
+        "required_evidence": [
+          "scaffold.json",
+          "scaffold.md"
+        ],
+        "risk_level": "medium",
+        "status": "approved",
+        "reviewer": "Research Admin (local MVP)",
+        "decision_comment": "Auto-approved for local closed-loop demo; production requires explicit reviewer action.",
+        "created_at": "2026-06-27T19:03:19",
+        "decided_at": "2026-06-27T19:03:19"
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "code_generation",
+      "status": "passed",
+      "details": {
+        "provider": "local_template",
+        "files": [
+          "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py"
+        ]
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "code_review",
+      "status": "passed",
+      "details": {
+        "status": "passed",
+        "findings": []
+      },
+      "at": "2026-06-27T19:03:19"
+    },
+    {
+      "stage": "training",
+      "status": "passed",
+      "details": {
+        "summary": {
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321",
+          "accepted": true,
+          "best_model": "gradient_boosting_log_target",
+          "best_metrics": {
+            "cv_rmsle_mean": 0.12899,
+            "cv_rmsle_std": 0.020176,
+            "holdout_rmsle": 0.129797,
+            "holdout_mae": 15187.626782,
+            "seconds": 50.5501
+          }
+        },
+        "runner": {
+          "run_id": "run_8027814b23",
+          "command": [
+            "C:\\codex-python\\python.exe",
+            "D:\\桌面\\codex\\科研港科技\\src\\research_agent_workstation\\tabular_pipeline.py",
+            "--config",
+            "D:\\桌面\\codex\\科研港科技\\configs\\house_prices.yaml",
+            "--output-dir",
+            "D:\\桌面\\codex\\科研港科技\\experiments",
+            "--random-state",
+            "42"
+          ],
+          "cwd": "D:\\桌面\\codex\\科研港科技",
+          "return_code": 0,
+          "stdout_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_8027814b23\\train_log.txt",
+          "stderr_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_8027814b23\\error_log.txt",
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321"
+        }
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "submission_check",
+      "status": "passed",
+      "details": {
+        "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+        "rows_match": true,
+        "columns_match": true,
+        "missing_predictions": 0,
+        "prediction_columns": [
+          "SalePrice"
+        ],
+        "valid": true,
+        "positive_predictions": true,
+        "prediction_min": 37013.758431,
+        "prediction_max": 616964.81093,
+        "prediction_mean": 178044.941512
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "validation_review",
+      "status": "passed",
+      "details": {
+        "evidence_count": 14
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "human_submission_gate",
+      "status": "pending",
+      "details": {
+        "gate_id": "gate_2695431f2b",
+        "task_id": "house_prices",
+        "gate_type": "human_submission",
+        "decision": "pending",
+        "required_evidence": [
+          "ev_359b622590",
+          "ev_ac61306425",
+          "ev_6adc01b67c",
+          "ev_8710fbbc29",
+          "ev_e1c2db9ac1",
+          "ev_2feb9a2839",
+          "ev_caf9683964",
+          "ev_71aae6afe9",
+          "ev_2570f05ebf",
+          "ev_831cd90dfa",
+          "ev_3c53eb3a29",
+          "ev_9e66224cb2",
+          "ev_f8a1e1f4d0",
+          "ev_b091a3de33"
+        ],
+        "reviewer": "human",
+        "metadata": {}
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "report_generation",
+      "status": "passed",
+      "details": {
+        "report": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workstation_report.md"
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "human_final_gate",
+      "status": "pending",
+      "details": {
+        "reason": "final academic review remains manual"
+      },
+      "at": "2026-06-27T19:04:33"
+    },
+    {
+      "stage": "reflection",
+      "status": "passed",
+      "details": {
+        "next": [
+          "Try CatBoost with same preprocessing.",
+          "Compare LightGBM with XGBoost under same folds.",
+          "Check leakage risk before leaderboard submission.",
+          "Add feature importance report before final conclusion."
+        ],
+        "memory_record": "memory_2464475a87"
+      },
+      "at": "2026-06-27T19:04:33"
+    }
+  ],
+  "task_state": {
+    "task_id": "house_prices",
+    "state": "FINAL_WAITING_APPROVAL",
+    "history": [
+      {
+        "from_state": "CREATED",
+        "to_state": "IMPORTED",
+        "reason": "Task config imported.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\house_prices.yaml"
+        }
+      },
+      {
+        "from_state": "IMPORTED",
+        "to_state": "UNDERSTANDING",
+        "reason": "TaskReaderAgent started task understanding.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTANDING",
+        "to_state": "UNDERSTOOD",
+        "reason": "Imported regression task with target=SalePrice, metric=rmsle.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTOOD",
+        "to_state": "EDA_RUNNING",
+        "reason": "DataAgent checks data contract before planning.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_RUNNING",
+        "to_state": "EDA_DONE",
+        "reason": "Data contract checked for house_prices; train file exists=True.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_DONE",
+        "to_state": "PLANNING",
+        "reason": "PlannerAgent creates scaffold.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLANNING",
+        "to_state": "PLAN_WAITING_APPROVAL",
+        "reason": "Scaffold and first baseline plan created. No related memory yet.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_WAITING_APPROVAL",
+        "to_state": "PLAN_APPROVED",
+        "reason": "PLAN_APPROVAL approved.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_APPROVED",
+        "to_state": "CODE_GENERATING",
+        "reason": "LocalTemplateCodeAgent generating baseline runner.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_GENERATING",
+        "to_state": "CODE_READY",
+        "reason": "Code artifact generated and reviewed.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_READY",
+        "to_state": "TRAINING_RUNNING",
+        "reason": "LocalPythonRunner starts tabular baseline.",
+        "at": "2026-06-27T19:03:19",
+        "metadata": {}
+      },
+      {
+        "from_state": "TRAINING_RUNNING",
+        "to_state": "TRAINING_DONE",
+        "reason": "Training completed and output directory created.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {
+          "run_id": "20260627_190321"
+        }
+      },
+      {
+        "from_state": "TRAINING_DONE",
+        "to_state": "REVIEWING",
+        "reason": "ReviewerAgent checks metrics, evidence and submission contract.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEWING",
+        "to_state": "REVIEW_DONE",
+        "reason": "Reviewed 17 artifacts; metric artifact found=True.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEW_DONE",
+        "to_state": "SUBMISSION_WAITING_APPROVAL",
+        "reason": "Submission approval is pending human review.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      },
+      {
+        "from_state": "SUBMISSION_WAITING_APPROVAL",
+        "to_state": "REPORT_GENERATING",
+        "reason": "WriterAgent generates evidence-bound report.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_GENERATING",
+        "to_state": "REPORT_DONE",
+        "reason": "Report generated from registered artifacts.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_DONE",
+        "to_state": "FINAL_WAITING_APPROVAL",
+        "reason": "Final claim approval remains pending.",
+        "at": "2026-06-27T19:04:33",
+        "metadata": {}
+      }
+    ]
+  },
+  "agent_trace": [
+    {
+      "timestamp": "2026-06-27T19:03:19.242",
+      "agent": "TaskReaderAgent",
+      "stage": "task_understanding",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=task_understanding; artifacts=0",
+      "output_summary": "Imported regression task with target=SalePrice, metric=rmsle.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-27T19:03:19.242",
+      "agent": "DataAgent",
+      "stage": "eda",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=eda; artifacts=0",
+      "output_summary": "Data contract checked for house_prices; train file exists=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-27T19:03:19.251",
+      "agent": "PlannerAgent",
+      "stage": "experiment_planning",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=experiment_planning; artifacts=1",
+      "output_summary": "Scaffold and first baseline plan created. No related memory yet.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "waiting_gate",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-06-27T19:04:33.293",
+      "agent": "TrainerAgent",
+      "stage": "training",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=training; artifacts=17",
+      "output_summary": "Local Python runner completed baseline training and produced metric artifacts.",
+      "artifacts_generated": [
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md"
+      ],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260627_190321"
+    },
+    {
+      "timestamp": "2026-06-27T19:04:33.299",
+      "agent": "ReviewerAgent",
+      "stage": "validation_review",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=validation_review; artifacts=17",
+      "output_summary": "Reviewed 17 artifacts; metric artifact found=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [
+        "artifact_df2649a6e0"
+      ],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260627_190321"
+    },
+    {
+      "timestamp": "2026-06-27T19:04:33.303",
+      "agent": "WriterAgent",
+      "stage": "report_generation",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=report_generation; artifacts=17",
+      "output_summary": "Report draft generated from 17 registered artifacts.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260627_190321"
+    },
+    {
+      "timestamp": "2026-06-27T19:04:33.311",
+      "agent": "ReflectionAgent",
+      "stage": "reflection",
+      "action": "run",
+      "input_summary": "task=house_prices; stage=reflection; artifacts=17",
+      "output_summary": "Generated retrospective memory and next experiment suggestions from metrics, artifacts and reviewer output.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260627_190321"
+    }
+  ],
+  "artifact_registry": [
+    {
+      "artifact_id": "artifact_52449e9abf",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "scaffold.json",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.json",
+      "size": 1601,
+      "hash": "f985b9f17cd11bf580e3ef2c455cba2d62e78b52b30f1f80650d25ed4c09a952",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_ec7cc7b548",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "scaffold.md",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.md",
+      "size": 508,
+      "hash": "02630d86b7876c38102ea5e2c082167a1216ca99ecf34fdaf5908dd989f72bc6",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_0ba481489b",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "baseline_runner.py",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py",
+      "size": 249,
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "created_by": "LocalTemplateCodeAgent",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "code_generation",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_f5805fc1f5",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "data_quality.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+      "size": 1728,
+      "hash": "2ce61f0f0ba7b3877917d6f25020efce155e0e7353796d721feb78f5e53a9823",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_74f2b5fd6a",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "experiment_log.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+      "size": 18157,
+      "hash": "469524fff61b3e05909122753c175b6fa95d9df2202bf1658c9dbb0452310073",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_dc7fa31c0a",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "house_prices_local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+      "size": 38316,
+      "hash": "3a48f9a31aac320ce8b87d6a1aa7a2a9e7236a76d9fa1aa8f2284b04bcf51641",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_6fe87897af",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "house_prices_local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+      "size": 2794,
+      "hash": "bf0119816692450d1c39f10abae0913641937ef42171c57e6822987d7178728d",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_dcc14fb2ce",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+      "size": 38316,
+      "hash": "3a48f9a31aac320ce8b87d6a1aa7a2a9e7236a76d9fa1aa8f2284b04bcf51641",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_a6353ab694",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+      "size": 2794,
+      "hash": "bf0119816692450d1c39f10abae0913641937ef42171c57e6822987d7178728d",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_df2649a6e0",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "model_results.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+      "size": 950,
+      "hash": "5fd84fd9a215c67366888b97c0344867f46091a209c1147fed0bec241ad7bd58",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_5a288dd25c",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "post_scaffold_improvement.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+      "size": 897,
+      "hash": "643001a59ed0574554cfa40dd66421737bb24c67686fb5b0e6d300da31d012f5",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_f9f40a8202",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "post_scaffold_improvement.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+      "size": 844,
+      "hash": "6e425e36841178f20104ea59bf9e256c7da9a61aa8ddf70368dd2daa7a05f9b8",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_c3720311c0",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "submission.csv",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+      "size": 35865,
+      "hash": "991858b79d9ab45c4a3cc3b933094ede2f6a883b6ed91727602f2c343d81cab0",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_4b47a158cf",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "task_scaffold.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+      "size": 6207,
+      "hash": "4f9da73b82fa842608e732c98f0bc07cb4d0f7d88fb84ebe839a73a2994fa280",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_4216a419c2",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "task_scaffold.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+      "size": 1845,
+      "hash": "bae48d1b576cc6818be0ab04a489d3f86e9a5a102450cf4be4eb25dbeb788370",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_593d623ec7",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "workflow_stage_audit.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+      "size": 5081,
+      "hash": "9a995f78860604dd8ac4400059797b43eb8eaee5294a2473444ac830dabe33a1",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_3d69fc6ae7",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "workflow_stage_audit.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md",
+      "size": 3615,
+      "hash": "91a95a0c5f4d47d0be9fbf767afe0f672f254a5e31bb08d958ffedd437e524b4",
+      "created_by": "local_pipeline",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_d0329f4d7e",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "name": "workstation_report.md",
+      "type": "report",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workstation_report.md",
+      "size": 252,
+      "hash": "d7aa1069ef6025b2c1da00edb5b4c0ec9d9b09b70a1f596b6921d21f73d6d901",
+      "created_by": "WriterAgent",
+      "created_at": "2026-06-27T19:04:33",
+      "linked_stage": "report_generation",
+      "linked_claims": [
+        "claim_12361d4ed3"
+      ],
+      "preview_available": true,
+      "metadata": {}
+    }
+  ],
+  "evidence_graph": {
+    "evidence_count": 17,
+    "claims": [
+      {
+        "claim_id": "claim_12361d4ed3",
+        "text": "House Prices - Advanced Regression Techniques local baseline produced validated rmsle results.",
+        "source": "reviewer",
+        "evidence_ids": [
+          "evidence_823e1a3a7e",
+          "evidence_bcef745785"
+        ],
+        "confidence": 0.86,
+        "reviewer_status": "bound",
+        "risk_level": "medium"
+      }
+    ]
+  },
+  "experiment_graph": {
+    "nodes": [
+      {
+        "run_id": "20260627_190321",
+        "parent_run_id": null,
+        "branch_id": "baseline",
+        "stage": "training_done",
+        "hypothesis": "Local template baseline establishes a reproducible reference run.",
+        "plan": {
+          "plan_id": "plan_20e16b5106",
+          "task_id": "house_prices",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "code_snapshot": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py",
+        "model": "gradient_boosting_log_target",
+        "params": {},
+        "metric": "rmsle",
+        "score": 0.12899,
+        "is_buggy": false,
+        "status": "passed",
+        "artifacts": [
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workstation_report.md"
+        ],
+        "reward": 0.12899,
+        "created_at": "2026-06-27T19:04:33"
+      }
+    ],
+    "edges": []
+  },
+  "memory": [
+    {
+      "record_id": "memory_2464475a87",
+      "task_type": "regression",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "gradient_boosting_log_target with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.12899,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "rmsle",
+        "house_prices"
+      ],
+      "evidence_refs": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "created_at": "2026-06-27T19:04:33"
+    }
+  ],
+  "reflection": {
+    "what_changed": "Local baseline run completed and artifacts were registered through the runtime.",
+    "metric_change": {
+      "before": null,
+      "after": 0.12899,
+      "metric": "rmsle"
+    },
+    "why_it_might_help": "It creates a reproducible baseline before Codex/Claude Code optimization.",
+    "failure_reason": null,
+    "next_experiment_suggestion": [
+      "Try CatBoost with same preprocessing.",
+      "Compare LightGBM with XGBoost under same folds.",
+      "Check leakage risk before leaderboard submission.",
+      "Add feature importance report before final conclusion."
+    ],
+    "memory_record": {
+      "record_id": "memory_2464475a87",
+      "task_type": "regression",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "gradient_boosting_log_target with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.12899,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "rmsle",
+        "house_prices"
+      ],
+      "evidence_refs": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "created_at": "2026-06-27T19:04:33"
+    },
+    "whether_continue_this_branch": true,
+    "whether_try_new_branch": true
+  },
+  "pending_gates": [
+    {
+      "gate_id": "gate_485024aecc",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "gate_type": "SUBMISSION_APPROVAL",
+      "triggered_by": "ReviewerAgent",
+      "reason": "Submission can only proceed after submission_check passed and evidence is bound.",
+      "required_evidence": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-06-27T19:04:33",
+      "decided_at": null
+    },
+    {
+      "gate_id": "gate_2ac6a80856",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "gate_type": "FINAL_CLAIM_APPROVAL",
+      "triggered_by": "WriterAgent",
+      "reason": "Final claims require reviewer approval and evidence binding.",
+      "required_evidence": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-06-27T19:04:33",
+      "decided_at": null
+    }
+  ],
+  "evidence_count": 14,
+  "kaggle": {
+    "configured": false,
+    "provider": "kaggle",
+    "message": "Kaggle API not configured"
+  },
+  "gpu": {
+    "available": false,
+    "devices": [],
+    "message": "GPU interface reserved; no remote GPU connected."
+  }
+}

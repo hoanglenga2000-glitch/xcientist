@@ -1,0 +1,4711 @@
+{
+  "schema": "evomind.mlebench.text_normalization_public_oof_validation.v1",
+  "dataset": "text-normalization-challenge-russian-language",
+  "path_scope_verified": true,
+  "access_mode": "remote_read_only_cpu_probe",
+  "split_strategy": "dependency_free_groupkfold_compatible_greedy_balance",
+  "stress_strategy": "source_ordered_last_20pct_complete_sentences",
+  "folds": 2,
+  "ambiguous_before_accuracy": 0.9215116279069767,
+  "ambiguous_before_rows": 344,
+  "candidate_context_metrics": {
+    "context_aggressive": {
+      "accuracy": 0.9315,
+      "correct": 9315,
+      "rows": 10000
+    },
+    "context_balanced": {
+      "accuracy": 0.9318,
+      "correct": 9318,
+      "rows": 10000
+    },
+    "context_conservative": {
+      "accuracy": 0.9318,
+      "correct": 9318,
+      "rows": 10000
+    },
+    "token_identity": {
+      "accuracy": 0.9318,
+      "correct": 9318,
+      "rows": 10000
+    }
+  },
+  "changed_fraction": 0.1345,
+  "changed_token_accuracy": 0.512267657992565,
+  "class_metrics": {
+    "CARDINAL": {
+      "accuracy": 0.7596899224806202,
+      "rows": 258
+    },
+    "DATE": {
+      "accuracy": 0.9074074074074074,
+      "rows": 162
+    },
+    "DECIMAL": {
+      "accuracy": 0.6666666666666666,
+      "rows": 6
+    },
+    "DIGIT": {
+      "accuracy": 1.0,
+      "rows": 2
+    },
+    "ELECTRONIC": {
+      "accuracy": 0.0,
+      "rows": 3
+    },
+    "FRACTION": {
+      "accuracy": 0.0,
+      "rows": 1
+    },
+    "LETTERS": {
+      "accuracy": 0.9476439790575916,
+      "rows": 191
+    },
+    "MEASURE": {
+      "accuracy": 0.3695652173913043,
+      "rows": 46
+    },
+    "ORDINAL": {
+      "accuracy": 0.5128205128205128,
+      "rows": 39
+    },
+    "PLAIN": {
+      "accuracy": 0.9233545034642032,
+      "rows": 6928
+    },
+    "PUNCT": {
+      "accuracy": 1.0,
+      "rows": 2180
+    },
+    "TELEPHONE": {
+      "accuracy": 0.2222222222222222,
+      "rows": 9
+    },
+    "VERBATIM": {
+      "accuracy": 0.9885714285714285,
+      "rows": 175
+    }
+  },
+  "fold_sizes": [
+    4999,
+    5001
+  ],
+  "identity_accuracy": 0.9971114962449451,
+  "inference_confusion": [
+    {
+      "inferred_class": "PLAIN",
+      "rows": 6906,
+      "true_class": "PLAIN"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 2180,
+      "true_class": "PUNCT"
+    },
+    {
+      "inferred_class": "CARDINAL",
+      "rows": 243,
+      "true_class": "CARDINAL"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 175,
+      "true_class": "VERBATIM"
+    },
+    {
+      "inferred_class": "LETTERS",
+      "rows": 160,
+      "true_class": "LETTERS"
+    },
+    {
+      "inferred_class": "DATE",
+      "rows": 158,
+      "true_class": "DATE"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 31,
+      "true_class": "LETTERS"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 23,
+      "true_class": "MEASURE"
+    },
+    {
+      "inferred_class": "MEASURE",
+      "rows": 22,
+      "true_class": "MEASURE"
+    },
+    {
+      "inferred_class": "LETTERS",
+      "rows": 22,
+      "true_class": "PLAIN"
+    },
+    {
+      "inferred_class": "ORDINAL",
+      "rows": 20,
+      "true_class": "ORDINAL"
+    },
+    {
+      "inferred_class": "CARDINAL",
+      "rows": 12,
+      "true_class": "ORDINAL"
+    },
+    {
+      "inferred_class": "TELEPHONE",
+      "rows": 8,
+      "true_class": "TELEPHONE"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 8,
+      "true_class": "CARDINAL"
+    },
+    {
+      "inferred_class": "LETTERS",
+      "rows": 5,
+      "true_class": "CARDINAL"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 4,
+      "true_class": "DATE"
+    },
+    {
+      "inferred_class": "DECIMAL",
+      "rows": 4,
+      "true_class": "DECIMAL"
+    },
+    {
+      "inferred_class": "LETTERS",
+      "rows": 4,
+      "true_class": "ORDINAL"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 3,
+      "true_class": "ORDINAL"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 3,
+      "true_class": "ELECTRONIC"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 2,
+      "true_class": "DECIMAL"
+    },
+    {
+      "inferred_class": "DIGIT",
+      "rows": 2,
+      "true_class": "DIGIT"
+    },
+    {
+      "inferred_class": "TELEPHONE",
+      "rows": 2,
+      "true_class": "CARDINAL"
+    },
+    {
+      "inferred_class": "ORDINAL",
+      "rows": 1,
+      "true_class": "MEASURE"
+    },
+    {
+      "inferred_class": "FRACTION",
+      "rows": 1,
+      "true_class": "FRACTION"
+    },
+    {
+      "inferred_class": "PLAIN",
+      "rows": 1,
+      "true_class": "TELEPHONE"
+    }
+  ],
+  "inferred_class_overall_accuracy": 0.9319,
+  "mapping_entries_by_fold": [
+    580,
+    537
+  ],
+  "mapping_hit_fraction": 0.0328,
+  "oracle_class_overall_accuracy": 0.9358,
+  "rows": 10000,
+  "rule_impact": {
+    "CARDINAL": {
+      "gain": 106,
+      "loss": 0,
+      "neutral": 41
+    },
+    "DATE": {
+      "gain": 134,
+      "loss": 0,
+      "neutral": 12
+    },
+    "DECIMAL": {
+      "gain": 4,
+      "loss": 0,
+      "neutral": 0
+    },
+    "DIGIT": {
+      "gain": 2,
+      "loss": 0,
+      "neutral": 0
+    },
+    "LETTERS": {
+      "gain": 106,
+      "loss": 22,
+      "neutral": 2
+    },
+    "MEASURE": {
+      "gain": 16,
+      "loss": 0,
+      "neutral": 1
+    },
+    "ORDINAL": {
+      "gain": 18,
+      "loss": 1,
+      "neutral": 1
+    },
+    "TELEPHONE": {
+      "gain": 3,
+      "loss": 0,
+      "neutral": 7
+    }
+  },
+  "sentences": 741,
+  "source_stress_accuracy": 0.934071464519376,
+  "source_stress_mapping_entries": 845,
+  "source_stress_rows": 1987,
+  "top_errors": [
+    {
+      "after": "до",
+      "before": "—",
+      "count": 13,
+      "inferred_class": "PLAIN",
+      "prediction": "—",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "до",
+      "before": "-",
+      "count": 5,
+      "inferred_class": "PLAIN",
+      "prediction": "-",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans о_trans",
+      "before": "to",
+      "count": 3,
+      "inferred_class": "PLAIN",
+      "prediction": "to",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans н_trans д_trans",
+      "before": "und",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "und",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans а_trans т_trans т_trans е_trans с_trans т_trans и_trans н_trans",
+      "before": "Battestin",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Battestin",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "мак-глинн",
+      "before": "McGlynn",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "McGlynn",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "двенадцать тысяч пятьсот",
+      "before": "12 500",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "12 500",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans о_trans л_trans м_trans",
+      "before": "Colm",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Colm",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans о_trans л_trans",
+      "before": "Vol",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Vol",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans а_trans к_trans т_trans с_trans",
+      "before": "Facts",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Facts",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans и_trans с_trans т_trans е_trans м_trans с_trans",
+      "before": "Systems",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Systems",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "США",
+      "before": "США",
+      "count": 2,
+      "inferred_class": "LETTERS",
+      "prediction": "с ш а",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "двенадцать",
+      "before": "12",
+      "count": 2,
+      "inferred_class": "CARDINAL",
+      "prediction": "двенадцати",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "два",
+      "before": "II",
+      "count": 2,
+      "inferred_class": "LETTERS",
+      "prediction": "второй",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "одного",
+      "before": "1",
+      "count": 2,
+      "inferred_class": "CARDINAL",
+      "prediction": "один",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "с_trans и_trans б_trans е_trans р_trans",
+      "before": "Cyber",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Cyber",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans о_trans и_trans н_trans г_trans",
+      "before": "Boeing",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Boeing",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "о_trans к_trans т_trans о_trans б_trans е_trans р_trans",
+      "before": "October",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "October",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и_trans н_trans т_trans р_trans о_trans д_trans а_trans к_trans ш_trans е_trans н_trans",
+      "before": "Introduction",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Introduction",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans э_trans м_trans б_trans р_trans и_trans д_trans ж_trans",
+      "before": "Cambridge",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Cambridge",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans р_trans и_trans н_trans с_trans",
+      "before": "Prince",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Prince",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans и_trans л_trans ь_trans я_trans м_trans",
+      "before": "William",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "William",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans и_trans",
+      "before": "by",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "by",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ш_trans а_trans н_trans т_trans а_trans",
+      "before": "Shantae",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Shantae",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "УАТС",
+      "before": "УАТС",
+      "count": 2,
+      "inferred_class": "LETTERS",
+      "prediction": "у а т с",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans а_trans",
+      "before": "ha",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "ha",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans л_trans а_trans й_trans т_trans",
+      "before": "Flight",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Flight",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans",
+      "before": "an",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "an",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча восемьсот девяносто пятом",
+      "before": "1895",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча восемьсот девяносто пять",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот девяносто шестом",
+      "before": "—1896",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "—1896",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "с_trans б_trans р_trans и_trans н_trans с_trans",
+      "before": "Sbrinz",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Sbrinz",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans е_trans й_trans с_trans",
+      "before": "Kase",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Kase",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "г_trans м_trans б_trans",
+      "before": "GmbH",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "GmbH",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans и_trans л_trans л_trans",
+      "before": "Hill",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hill",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans д_trans",
+      "before": "ed",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "ed",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans о_trans с_trans а_trans и_trans т_trans и_trans",
+      "before": "Society",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Society",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans е_trans р_trans т_trans е_trans б_trans р_trans а_trans т_trans",
+      "before": "Vertebrate",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Vertebrate",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans а_trans л_trans е_trans о_trans н_trans т_trans о_trans л_trans о_trans д_trans ж_trans и_trans",
+      "before": "Paleontology",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Paleontology",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "шестьдесят один стоун",
+      "before": "61st",
+      "count": 1,
+      "inferred_class": "ORDINAL",
+      "prediction": "61st",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "а_trans н_trans н_trans у_trans а_trans л_trans",
+      "before": "Annual",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Annual",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans и_trans т_trans и_trans н_trans г_trans",
+      "before": "Meeting",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Meeting",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans о_trans з_trans м_trans а_trans н_trans",
+      "before": "Bozeman",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bozeman",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "пятисот километров",
+      "before": "500 км",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "500 км",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "тысяча семьсот девяносто шестого",
+      "before": "1796",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча семьсот девяносто шесть",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот второй",
+      "before": "1802",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча восемьсот два",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча сто девятого",
+      "before": "1109",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча сто девять",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча сто двенадцатого",
+      "before": "—1112",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "—1112",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "девятьсот семьдесят восемь sil пять sil восемь шесть ноль ноль семь sil семьсот sil три",
+      "before": "978-5-86007-700-3",
+      "count": 1,
+      "inferred_class": "TELEPHONE",
+      "prediction": "девятьсот семьдесят восемь sil пять sil восемьдесят шесть тысяч семь sil семьсот sil три",
+      "true_class": "TELEPHONE"
+    },
+    {
+      "after": "с_trans л_trans а_trans н_trans т_trans",
+      "before": "Slant",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Slant",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans э_trans г_trans а_trans з_trans и_trans н_trans",
+      "before": "Magazine",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Magazine",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и",
+      "before": "ї",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "ї",
+      "true_class": "VERBATIM"
+    },
+    {
+      "after": "о ц е н т р",
+      "before": "оцентр",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "оцентр",
+      "true_class": "LETTERS"
+    },
+    {
+      "after": "м_trans о_trans н_trans д_trans р_trans а_trans г_trans о_trans н_trans",
+      "before": "Mondragon",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Mondragon",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans к_trans о_trans н_trans о_trans м_trans и_trans к_trans",
+      "before": "economic",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "economic",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans а_trans л_trans и_trans с_trans и_trans с_trans",
+      "before": "analysis",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "analysis",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans о_trans г_trans а_trans н_trans",
+      "before": "Logan",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Logan",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans и_trans т_trans",
+      "before": "Mit",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Mit",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans ж_trans е_trans",
+      "before": "je",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "je",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans р_trans е_trans й_trans",
+      "before": "drei",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "drei",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans б_trans б_trans и_trans л_trans д_trans у_trans н_trans г_trans е_trans н_trans",
+      "before": "Abbildungen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Abbildungen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans а_trans з_trans л_trans о_trans",
+      "before": "Lazlo",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Lazlo",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans е_trans й_trans к_trans н_trans е_trans р_trans",
+      "before": "Lakner",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Lakner",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans с_trans е_trans л_trans ь_trans м_trans",
+      "before": "Anselm",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Anselm",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans и_trans ф_trans е_trans р_trans",
+      "before": "Kiefer",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Kiefer",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ЭДЕС",
+      "before": "ЭДЕС",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "э д е с",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "шестьдесят тысяч",
+      "before": "60 тысяч",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "60 тысяч",
+      "true_class": "DECIMAL"
+    },
+    {
+      "after": "шестнадцати",
+      "before": "16",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "шесть",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "м_trans у_trans р_trans",
+      "before": "Moore",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Moore",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans е_trans р_trans т_trans е_trans л_trans с_trans е_trans н_trans",
+      "before": "Bertelsen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bertelsen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans о_trans н_trans д_trans о_trans н_trans",
+      "before": "London",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "London",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans е_trans й_trans л_trans и_trans",
+      "before": "Daily",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Daily",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans д_trans в_trans е_trans р_trans т_trans и_trans з_trans е_trans р_trans",
+      "before": "Advertiser",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Advertiser",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девяноста восьми",
+      "before": "98",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "девяносто восемь",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "девяноста девяти",
+      "before": "99",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "девяносто девять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "девять",
+      "before": "9",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "девяти",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans а_trans с_trans к_trans и_trans",
+      "before": "Caskey",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Caskey",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans р_trans л_trans и_trans",
+      "before": "Early",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Early",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans е_trans л_trans л_trans а_trans д_trans и_trans к_trans",
+      "before": "Helladic",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Helladic",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans е_trans р_trans и_trans о_trans д_trans",
+      "before": "Period",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Period",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans р_trans г_trans о_trans л_trans и_trans д_trans",
+      "before": "Argolid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Argolid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans е_trans с_trans п_trans е_trans р_trans и_trans я_trans",
+      "before": "Hesperia",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hesperia",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "двухсот восьмидесяти пяти",
+      "before": "285",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести восемьдесят пять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "трехсот трех",
+      "before": "303",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста три",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "первое января две тысячи пятнадцатого года",
+      "before": "1 января 2015 года",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "первого января две тысячи пятнадцатого года",
+      "true_class": "DATE"
+    },
+    {
+      "after": "двухсот шестидесяти",
+      "before": "260",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести шестьдесят",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "двухсот",
+      "before": "200",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "шесть ноль",
+      "before": "60",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "шестьдесят",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "о_trans к_trans с_trans ф_trans о_trans р_trans д_trans",
+      "before": "Oxford",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Oxford",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans и_trans к_trans ш_trans е_trans н_trans а_trans р_trans и_trans",
+      "before": "Dictionary",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Dictionary",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans р_trans и_trans с_trans т_trans и_trans а_trans н_trans",
+      "before": "Christian",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Christian",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ч_trans е_trans р_trans ч_trans",
+      "before": "Church",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Church",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "пятидесяти девяти",
+      "before": "59",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "пятьдесят девять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "й_trans и_trans ц_trans х_trans а_trans к_trans",
+      "before": "Yitzhak",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Yitzhak",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans у_trans ч_trans с_trans",
+      "before": "Fuchs",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Fuchs",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "сорока двух",
+      "before": "42",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "сорок два",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "а_trans м_trans с_trans т_trans е_trans р_trans д_trans а_trans м_trans",
+      "before": "Amsterdam",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Amsterdam",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "семисот пятидесяти одного",
+      "before": "751",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "семьсот пятьдесят один",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "л_trans е_trans в_trans и_trans",
+      "before": "Levi",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Levi",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans и_trans в_trans и_trans т_trans а_trans",
+      "before": "Civita",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Civita",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans а_trans л_trans л_trans а_trans",
+      "before": "Sulla",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Sulla",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans с_trans п_trans р_trans е_trans ш_trans н_trans",
+      "before": "espressione",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "espressione",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans а_trans л_trans и_trans т_trans и_trans к_trans а_trans",
+      "before": "analitica",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "analitica",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans п_trans е_trans т_trans т_trans а_trans н_trans т_trans",
+      "before": "spettante",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "spettante",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans е_trans н_trans с_trans о_trans р_trans",
+      "before": "tensore",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "tensore",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "г_trans р_trans е_trans й_trans в_trans и_trans т_trans а_trans з_trans н_trans л_trans",
+      "before": "gravitazionale",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "gravitazionale",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "н_trans е_trans л_trans л_trans а_trans",
+      "before": "nella",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "nella",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans е_trans о_trans р_trans и_trans я_trans",
+      "before": "teoria",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "teoria",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans и_trans н_trans с_trans т_trans е_trans й_trans н_trans",
+      "before": "Einstein",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Einstein",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "СЭД",
+      "before": "СЭД",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "с э д",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девяти километрах",
+      "before": "9 км",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "9 км",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "трехсот",
+      "before": "300",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "п_trans с_trans и_trans ч_trans и_trans а_trans т_trans р_trans и_trans к_trans",
+      "before": "Psychiatric",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Psychiatric",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans у_trans л_trans л_trans е_trans т_trans и_trans н_trans",
+      "before": "Bulletin",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bulletin",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "трехсот девятнадцати",
+      "before": "319",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста девятнадцать",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "трехсот двадцати",
+      "before": "320",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста двадцать",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans у_trans н_trans и_trans",
+      "before": "Cooney",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Cooney",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans а_trans м_trans и_trans д_trans",
+      "before": "Hamid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hamid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans о_trans л_trans и_trans д_trans",
+      "before": "Walid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Walid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "РУССО",
+      "before": "РУССО",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "р у с с о",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans а_trans г_trans н_trans е_trans р_trans",
+      "before": "Wagner",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Wagner",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans о_trans н_trans с_trans е_trans р_trans т_trans",
+      "before": "concert",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "concert",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans п_trans а_trans р_trans к_trans с_trans",
+      "before": "sparks",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "sparks",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и_trans з_trans р_trans а_trans э_trans л_trans",
+      "before": "Israel",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Israel",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans о_trans у_trans",
+      "before": "row",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "row",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ЗАО",
+      "before": "ЗАО",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "з а о",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans о_trans п_trans у_trans л_trans е_trans й_trans ш_trans е_trans н_trans",
+      "before": "Population",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Population",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans е_trans д_trans ж_trans и_trans с_trans т_trans е_trans р_trans",
+      "before": "Register",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Register",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans э_trans н_trans т_trans р_trans",
+      "before": "Center",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Center",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans и_trans н_trans л_trans е_trans н_trans д_trans",
+      "before": "Finland",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Finland",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ВСЮР",
+      "before": "ВСЮР",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "в с ю р",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "десяти процентов",
+      "before": "10 %",
+      "count": 1,
+      "inferred_class": "MEASURE",
+      "prediction": "десять процентов",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "р_trans о_trans м_trans а_trans н_trans и_trans я_trans",
+      "before": "Romania",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Romania",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча девятьсот двадцать седьмого",
+      "before": "1927",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча девятьсот двадцать семь",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча девятьсот сорок второй",
+      "before": "1942",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча девятьсот сорок два",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот восемьдесят три тысяча восемьсот восемьдесят четвертых",
+      "before": "1883/1884",
+      "count": 1,
+      "inferred_class": "FRACTION",
+      "prediction": "1883/1884",
+      "true_class": "FRACTION"
+    },
+    {
+      "after": "сто тысяч",
+      "before": "100 000",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "100 000",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "двухсот метров",
+      "before": "200 метров.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "200 метров.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "з_trans у_trans р_trans",
+      "before": "Zur",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Zur",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans и_trans н_trans г_trans л_trans и_trans е_trans д_trans е_trans р_trans у_trans н_trans г_trans",
+      "before": "Eingliederung",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Eingliederung",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "н_trans ь_trans ю_trans д_trans ж_trans в_trans н_trans н_trans е_trans н_trans е_trans р_trans",
+      "before": "neugewonnener",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "neugewonnener",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans ж_trans б_trans и_trans е_trans т_trans",
+      "before": "Gebiete",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Gebiete",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans е_trans н_trans",
+      "before": "den",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "den",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans р_trans е_trans а_trans с_trans с_trans и_trans ш_trans е_trans н_trans",
+      "before": "preussischen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "preussischen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans т_trans а_trans э_trans т_trans",
+      "before": "Staat",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Staat",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девять километров",
+      "before": "9 км.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "9 км.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "РИА",
+      "before": "РИА",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "р и а",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans о_trans н_trans т_trans",
+      "before": "Conte",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Conte",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans о_trans п_trans у_trans л_trans е_trans р_trans",
+      "before": "populaire",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "populaire",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans а_trans с_trans с_trans е_trans",
+      "before": "Russe",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Russe",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans з_trans к_trans п_trans ф_trans",
+      "before": "PzKpfw",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "PzKpfw",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans а_trans й_trans г_trans е_trans р_trans",
+      "before": "Tiger",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Tiger",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "триста кубических сантиметров",
+      "before": "300 см3.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "300 см3.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "две тысячи оборотов в минуту",
+      "before": "2000 об/мин.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "2000 об/мин.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "три литра",
+      "before": "3 л.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "3 л.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "шести",
+      "before": "6-ти",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "6-ти",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "г л",
+      "before": "Гл",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Гл",
+      "true_class": "LETTERS"
+    },
+    {
+      "after": "тысяча шестьсот двадцать первом году",
+      "before": "1621 г.",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "тысяча шестьсот двадцать первый год",
+      "true_class": "DATE"
+    },
+    {
+      "after": "с_trans т_trans а_trans з_trans з_trans а_trans н_trans о_trans",
+      "before": "Stazzano",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Stazzano",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча девятьсот сорок втором году",
+      "before": "1942 г.",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "тысяча девятьсот сорок второй год",
+      "true_class": "DATE"
+    },
+    {
+      "after": "а_trans й_trans о_trans б_trans и_trans т_trans",
+      "before": "IObit",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "IObit",
+      "true_class": "PLAIN"
+    }
+  ],
+  "top_errors_by_class": {
+    "CARDINAL": [
+      {
+        "after": "двенадцать тысяч пятьсот",
+        "before": "12 500",
+        "count": 2,
+        "following": "экз",
+        "prediction": "12 500",
+        "previous": "—"
+      },
+      {
+        "after": "шестнадцати",
+        "before": "16",
+        "count": 1,
+        "following": "—",
+        "prediction": "шесть",
+        "previous": "от"
+      },
+      {
+        "after": "девяноста восьми",
+        "before": "98",
+        "count": 1,
+        "following": "-",
+        "prediction": "девяносто восемь",
+        "previous": "от"
+      },
+      {
+        "after": "девяноста девяти",
+        "before": "99",
+        "count": 1,
+        "following": "McGlynn",
+        "prediction": "девяносто девять",
+        "previous": "-"
+      },
+      {
+        "after": "девять",
+        "before": "9",
+        "count": 1,
+        "following": "McGlynn",
+        "prediction": "девяти",
+        "previous": "."
+      },
+      {
+        "after": "двухсот восьмидесяти пяти",
+        "before": "285",
+        "count": 1,
+        "following": "-",
+        "prediction": "двести восемьдесят пять",
+        "previous": "от"
+      },
+      {
+        "after": "трехсот трех",
+        "before": "303",
+        "count": 1,
+        "following": ")",
+        "prediction": "триста три",
+        "previous": "-"
+      },
+      {
+        "after": "двухсот шестидесяти",
+        "before": "260",
+        "count": 1,
+        "following": "видов",
+        "prediction": "двести шестьдесят",
+        "previous": "более"
+      },
+      {
+        "after": "двухсот",
+        "before": "200",
+        "count": 1,
+        "following": "—",
+        "prediction": "двести",
+        "previous": "около"
+      },
+      {
+        "after": "шесть ноль",
+        "before": "60",
+        "count": 1,
+        "following": "-",
+        "prediction": "шестьдесят",
+        "previous": "."
+      },
+      {
+        "after": "пятидесяти девяти",
+        "before": "59",
+        "count": 1,
+        "following": "летний",
+        "prediction": "пятьдесят девять",
+        "previous": "—"
+      },
+      {
+        "after": "сорока двух",
+        "before": "42",
+        "count": 1,
+        "following": "лет",
+        "prediction": "сорок два",
+        "previous": "старше"
+      },
+      {
+        "after": "семисот пятидесяти одного",
+        "before": "751",
+        "count": 1,
+        "following": "—",
+        "prediction": "семьсот пятьдесят один",
+        "previous": "от"
+      },
+      {
+        "after": "трехсот",
+        "before": "300",
+        "count": 1,
+        "following": "летнего",
+        "prediction": "триста",
+        "previous": "—"
+      },
+      {
+        "after": "трехсот девятнадцати",
+        "before": "319",
+        "count": 1,
+        "following": "-",
+        "prediction": "триста девятнадцать",
+        "previous": "от"
+      },
+      {
+        "after": "трехсот двадцати",
+        "before": "320",
+        "count": 1,
+        "following": "Colm",
+        "prediction": "триста двадцать",
+        "previous": "-"
+      },
+      {
+        "after": "сто тысяч",
+        "before": "100 000",
+        "count": 1,
+        "following": "экз",
+        "prediction": "100 000",
+        "previous": "—"
+      },
+      {
+        "after": "шести",
+        "before": "6-ти",
+        "count": 1,
+        "following": "т",
+        "prediction": "6-ти",
+        "previous": "В"
+      },
+      {
+        "after": "тридцати девяти",
+        "before": "39",
+        "count": 1,
+        "following": "-",
+        "prediction": "тридцать девять",
+        "previous": "от"
+      },
+      {
+        "after": "миллион триста тридцать семь тысяч девятьсот шестьдесят один",
+        "before": "1 337 961",
+        "count": 1,
+        "following": "человек",
+        "prediction": "один sil триста тридцать семь sil девятьсот шестьдесят один",
+        "previous": "составляет"
+      },
+      {
+        "after": "две тысячи тринадцать",
+        "before": "2013",
+        "count": 1,
+        "following": ".",
+        "prediction": "двух тысячах тринадцати",
+        "previous": ","
+      },
+      {
+        "after": "одиннадцати",
+        "before": "11",
+        "count": 1,
+        "following": "места",
+        "prediction": "одиннадцать",
+        "previous": "до"
+      },
+      {
+        "after": "тысячи девятисот пятидесяти четырех",
+        "before": "1954",
+        "count": 1,
+        "following": "до",
+        "prediction": "тысяча девятьсот пятьдесят четыре",
+        "previous": "с"
+      },
+      {
+        "after": "двенадцать",
+        "before": "12",
+        "count": 1,
+        "following": ")",
+        "prediction": "двенадцати",
+        "previous": "("
+      },
+      {
+        "after": "пяти",
+        "before": "5",
+        "count": 1,
+        "following": "—",
+        "prediction": "пять",
+        "previous": "от"
+      },
+      {
+        "after": "тысячью девятистах семидесяти двух",
+        "before": "1972",
+        "count": 1,
+        "following": "в",
+        "prediction": "тысяча девятьсот семьдесят два",
+        "previous": "в"
+      },
+      {
+        "after": "два",
+        "before": "II",
+        "count": 1,
+        "following": "of",
+        "prediction": "второй",
+        "previous": "Henry"
+      },
+      {
+        "after": "1",
+        "before": "1",
+        "count": 1,
+        "following": ":",
+        "prediction": "один",
+        "previous": ":"
+      },
+      {
+        "after": "один ноль ноль ноль ноль ноль",
+        "before": "100 000",
+        "count": 1,
+        "following": ".",
+        "prediction": "100 000",
+        "previous": ":"
+      },
+      {
+        "after": "четырнадцать",
+        "before": "XIV",
+        "count": 1,
+        "following": ".",
+        "prediction": "x i v",
+        "previous": "лама"
+      },
+      {
+        "after": "одного",
+        "before": "1",
+        "count": 1,
+        "following": "— ",
+        "prediction": "один",
+        "previous": "от"
+      },
+      {
+        "after": "трех",
+        "before": "3",
+        "count": 1,
+        "following": "года",
+        "prediction": "три",
+        "previous": "— "
+      },
+      {
+        "after": "три",
+        "before": "III",
+        "count": 1,
+        "following": "«",
+        "prediction": "третьего",
+        "previous": "Часть"
+      },
+      {
+        "after": "двенадцать",
+        "before": "12",
+        "count": 1,
+        "following": "(",
+        "prediction": "двенадцати",
+        "previous": "July"
+      },
+      {
+        "after": "двадцати пяти",
+        "before": "25",
+        "count": 1,
+        "following": "—",
+        "prediction": "двадцать пять",
+        "previous": "от"
+      },
+      {
+        "after": "двух тысячах одиннадцати",
+        "before": "2011",
+        "count": 1,
+        "following": "вышел",
+        "prediction": "две тысячи одиннадцать",
+        "previous": "В"
+      },
+      {
+        "after": "двух тысячах тринадцати",
+        "before": "2013",
+        "count": 1,
+        "following": "—",
+        "prediction": "две тысячи тринадцать",
+        "previous": "в"
+      },
+      {
+        "after": "пятидесяти четырех",
+        "before": "54",
+        "count": 1,
+        "following": "—",
+        "prediction": "пятьдесят четыре",
+        "previous": "от"
+      },
+      {
+        "after": "одиннадцать",
+        "before": "11",
+        "count": 1,
+        "following": "A",
+        "prediction": "одиннадцати",
+        "previous": "("
+      },
+      {
+        "after": "ста пятидесяти восьми",
+        "before": "158",
+        "count": 1,
+        "following": "—",
+        "prediction": "сто пятьдесят восемь",
+        "previous": "от"
+      },
+      {
+        "after": "тысячи восьмисот сорока пяти",
+        "before": "1845",
+        "count": 1,
+        "following": "графа",
+        "prediction": "тысяча восемьсот сорок пять",
+        "previous": "с"
+      },
+      {
+        "after": "семидесяти двух",
+        "before": "72",
+        "count": 1,
+        "following": "-",
+        "prediction": "семьдесят два",
+        "previous": "от"
+      },
+      {
+        "after": "семидесяти трех",
+        "before": "73",
+        "count": 1,
+        "following": ".",
+        "prediction": "семьдесят три",
+        "previous": "-"
+      },
+      {
+        "after": "ста семидесяти девяти",
+        "before": "179",
+        "count": 1,
+        "following": "российских",
+        "prediction": "сто семьдесят девять",
+        "previous": "участие"
+      },
+      {
+        "after": "одного",
+        "before": "1",
+        "count": 1,
+        "following": "—",
+        "prediction": "один",
+        "previous": "от"
+      },
+      {
+        "after": "тридцать пять тысяч",
+        "before": "35 000",
+        "count": 1,
+        "following": "экз",
+        "prediction": "35 000",
+        "previous": "—"
+      },
+      {
+        "after": "двум",
+        "before": "2",
+        "count": 1,
+        "following": "-",
+        "prediction": "два",
+        "previous": "по"
+      },
+      {
+        "after": "пять",
+        "before": "5",
+        "count": 1,
+        "following": "хозяйств",
+        "prediction": "пяти",
+        "previous": "—"
+      },
+      {
+        "after": "шести",
+        "before": "6",
+        "count": 1,
+        "following": "циклогексангексол",
+        "prediction": "шесть",
+        "previous": ","
+      },
+      {
+        "after": "девяти",
+        "before": "9",
+        "count": 1,
+        "following": "стереоизомеров",
+        "prediction": "девять",
+        "previous": "из"
+      },
+      {
+        "after": "тысяче шестистам восьми",
+        "before": "1608",
+        "count": 1,
+        "following": "—",
+        "prediction": "тысяча шестьсот восемь",
+        "previous": "к"
+      },
+      {
+        "after": "два",
+        "before": "II",
+        "count": 1,
+        "following": "тип",
+        "prediction": "второй",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "сто пять тысяч шестьсот семьдесят шесть",
+        "before": "105 676",
+        "count": 1,
+        "following": "человек",
+        "prediction": "105 676",
+        "previous": "—"
+      },
+      {
+        "after": "тысячи девятисот девяноста",
+        "before": "1990",
+        "count": 1,
+        "following": "—",
+        "prediction": "тысяча девятьсот девяносто",
+        "previous": "до"
+      },
+      {
+        "after": "ста пятнадцати",
+        "before": "115",
+        "count": 1,
+        "following": "—",
+        "prediction": "сто пятнадцать",
+        "previous": "от"
+      },
+      {
+        "after": "тысячью восьмистах четырнадцати",
+        "before": "1814",
+        "count": 1,
+        "following": "действовал",
+        "prediction": "тысяча восемьсот четырнадцать",
+        "previous": "В"
+      },
+      {
+        "after": "трехсот пятнадцати",
+        "before": "315",
+        "count": 1,
+        "following": "—",
+        "prediction": "триста пятнадцать",
+        "previous": "от"
+      },
+      {
+        "after": "шесть",
+        "before": "16",
+        "count": 1,
+        "following": "His",
+        "prediction": "шестнадцати",
+        "previous": "x"
+      },
+      {
+        "after": "восьмидесяти одного",
+        "before": "81",
+        "count": 1,
+        "following": "—",
+        "prediction": "восемьдесят один",
+        "previous": "от"
+      },
+      {
+        "after": "пятидесяти двух",
+        "before": "52",
+        "count": 1,
+        "following": "килограммов",
+        "prediction": "пятьдесят два",
+        "previous": "до"
+      },
+      {
+        "after": "двадцать пять тысяч",
+        "before": "25 000",
+        "count": 1,
+        "following": "экз",
+        "prediction": "25 000",
+        "previous": "—"
+      }
+    ],
+    "DATE": [
+      {
+        "after": "первое января две тысячи пятнадцатого года",
+        "before": "1 января 2015 года",
+        "count": 1,
+        "following": ".",
+        "prediction": "первого января две тысячи пятнадцатого года",
+        "previous": "на"
+      },
+      {
+        "after": "тысяча шестьсот двадцать первом году",
+        "before": "1621 г.",
+        "count": 1,
+        "following": "владелица",
+        "prediction": "тысяча шестьсот двадцать первый год",
+        "previous": "В"
+      },
+      {
+        "after": "тысяча девятьсот сорок втором году",
+        "before": "1942 г.",
+        "count": 1,
+        "following": "ушел",
+        "prediction": "тысяча девятьсот сорок второй год",
+        "previous": "В"
+      },
+      {
+        "after": "двадцать четвертое июня две тысячи одиннадцатого года",
+        "before": "24 июня 2011",
+        "count": 1,
+        "following": ")",
+        "prediction": "двадцать четвертого июня две тысячи одиннадцатого года",
+        "previous": "("
+      },
+      {
+        "after": "двадцать четвертое апреля тысяча девятьсот пятьдесят четвертого года",
+        "before": "24 апреля 1954",
+        "count": 1,
+        "following": "в",
+        "prediction": "двадцать четвертого апреля тысяча девятьсот пятьдесят четвертого года",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "одиннадцатое декабря",
+        "before": "11 декабря",
+        "count": 1,
+        "following": "52-й",
+        "prediction": "одиннадцатого декабря",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "шестнадцатое декабря две тысячи шестого года",
+        "before": "16 декабря 2006 года",
+        "count": 1,
+        "following": "в",
+        "prediction": "шестнадцатого декабря две тысячи шестого года",
+        "previous": "забил"
+      },
+      {
+        "after": "первое января две тысячи двенадцатого года",
+        "before": "1 января 2012 года",
+        "count": 1,
+        "following": ":",
+        "prediction": "первого января две тысячи двенадцатого года",
+        "previous": "на"
+      },
+      {
+        "after": "первое июля тысяча девятьсот шестьдесят третьего года",
+        "before": "1 июля 1963 года",
+        "count": 1,
+        "following": ",",
+        "prediction": "первого июля тысяча девятьсот шестьдесят третьего года",
+        "previous": "на"
+      },
+      {
+        "after": "семнадцатое февраля две тысячи третьего года",
+        "before": "17 февраля 2003",
+        "count": 1,
+        "following": ")",
+        "prediction": "семнадцатого февраля две тысячи третьего года",
+        "previous": "("
+      },
+      {
+        "after": "девятое сентября",
+        "before": "9 сентября",
+        "count": 1,
+        "following": ")",
+        "prediction": "девятого сентября",
+        "previous": "("
+      },
+      {
+        "after": "двадцатого февраля тысяча восемьсот пятьдесят пятого года",
+        "before": "20 февраля 1855 г.",
+        "count": 1,
+        "following": "произведен",
+        "prediction": "20 февраля 1855 г.",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "тысяча шестьсот девятому году",
+        "before": "1609 годам",
+        "count": 1,
+        "following": ".",
+        "prediction": "1609 годам",
+        "previous": "—"
+      },
+      {
+        "after": "тысяча девятьсот девяносто восьмой год",
+        "before": "1998г",
+        "count": 1,
+        "following": "он",
+        "prediction": "1998г",
+        "previous": "В"
+      },
+      {
+        "after": "девятнадцатое апреля две тысячи двенадцатого года",
+        "before": "19 апреля 2012",
+        "count": 1,
+        "following": ".",
+        "prediction": "девятнадцатого апреля две тысячи двенадцатого года",
+        "previous": "Проверено"
+      }
+    ],
+    "DECIMAL": [
+      {
+        "after": "шестьдесят тысяч",
+        "before": "60 тысяч",
+        "count": 1,
+        "following": "человек",
+        "prediction": "60 тысяч",
+        "previous": "в"
+      },
+      {
+        "after": "одного миллиона",
+        "before": "1 млн",
+        "count": 1,
+        "following": "нелегальных",
+        "prediction": "1 млн",
+        "previous": "около"
+      }
+    ],
+    "ELECTRONIC": [
+      {
+        "after": "две тысячи четырнадцать дефис ноль девять дефис ноль один точка ч_trans а_trans р_trans т_trans с_trans точка о_trans р_trans г_trans точка n z",
+        "before": "2014-09-01.Charts.org.nz",
+        "count": 1,
+        "following": "—",
+        "prediction": "2014-09-01.Charts.org.nz",
+        "previous": "Проверено"
+      },
+      {
+        "after": "э_trans л_trans в_trans и_trans с_trans п_trans р_trans е_trans с_trans л_trans и_trans б_trans и_trans о_trans г_trans р_trans а_trans ф_trans и_trans точка к_trans о_trans м_trans",
+        "before": "ElvisPresleyBiography.com",
+        "count": 1,
+        "following": ".",
+        "prediction": "ElvisPresleyBiography.com",
+        "previous": "сайте"
+      },
+      {
+        "after": "э_trans б_trans а_trans у_trans т_trans точка к_trans о_trans м_trans",
+        "before": "About.com",
+        "count": 1,
+        "following": ".",
+        "prediction": "About.com",
+        "previous": ","
+      }
+    ],
+    "FRACTION": [
+      {
+        "after": "тысяча восемьсот восемьдесят три тысяча восемьсот восемьдесят четвертых",
+        "before": "1883/1884",
+        "count": 1,
+        "following": "год",
+        "prediction": "1883/1884",
+        "previous": "("
+      }
+    ],
+    "LETTERS": [
+      {
+        "after": "о ц е н т р",
+        "before": "оцентр",
+        "count": 1,
+        "following": ",",
+        "prediction": "оцентр",
+        "previous": "і"
+      },
+      {
+        "after": "г л",
+        "before": "Гл",
+        "count": 1,
+        "following": ".",
+        "prediction": "Гл",
+        "previous": "/"
+      },
+      {
+        "after": "с п",
+        "before": "сп",
+        "count": 1,
+        "following": "перейти",
+        "prediction": "сп",
+        "previous": "190-го"
+      },
+      {
+        "after": "к н",
+        "before": "Кн",
+        "count": 1,
+        "following": ".",
+        "prediction": "Кн",
+        "previous": "."
+      },
+      {
+        "after": "д ж",
+        "before": "Дж",
+        "count": 1,
+        "following": ".",
+        "prediction": "Дж",
+        "previous": "»"
+      },
+      {
+        "after": "с м",
+        "before": "См",
+        "count": 1,
+        "following": ".",
+        "prediction": "См",
+        "previous": "."
+      },
+      {
+        "after": "с в т",
+        "before": "свт",
+        "count": 1,
+        "following": ".",
+        "prediction": "свт",
+        "previous": "имя"
+      },
+      {
+        "after": "к м",
+        "before": "км",
+        "count": 1,
+        "following": "²",
+        "prediction": "км",
+        "previous": "/"
+      },
+      {
+        "after": "д р",
+        "before": "др",
+        "count": 1,
+        "following": ".",
+        "prediction": "др",
+        "previous": "и"
+      },
+      {
+        "after": "с ъ",
+        "before": "съ",
+        "count": 1,
+        "following": "вет",
+        "prediction": "съ",
+        "previous": "Общински"
+      }
+    ],
+    "MEASURE": [
+      {
+        "after": "шестьдесят один стоун",
+        "before": "61st",
+        "count": 1,
+        "following": "Annual",
+        "prediction": "61st",
+        "previous": ","
+      },
+      {
+        "after": "пятисот километров",
+        "before": "500 км",
+        "count": 1,
+        "following": "по",
+        "prediction": "500 км",
+        "previous": "около"
+      },
+      {
+        "after": "девяти километрах",
+        "before": "9 км",
+        "count": 1,
+        "following": "от",
+        "prediction": "9 км",
+        "previous": "в"
+      },
+      {
+        "after": "десяти процентов",
+        "before": "10 %",
+        "count": 1,
+        "following": "рациона",
+        "prediction": "десять процентов",
+        "previous": "до"
+      },
+      {
+        "after": "двухсот метров",
+        "before": "200 метров.",
+        "count": 1,
+        "following": "<EOS>",
+        "prediction": "200 метров.",
+        "previous": "более"
+      },
+      {
+        "after": "девять километров",
+        "before": "9 км.",
+        "count": 1,
+        "following": "<EOS>",
+        "prediction": "9 км.",
+        "previous": "—"
+      },
+      {
+        "after": "триста кубических сантиметров",
+        "before": "300 см3.",
+        "count": 1,
+        "following": "Рабочая",
+        "prediction": "300 см3.",
+        "previous": "—"
+      },
+      {
+        "after": "две тысячи оборотов в минуту",
+        "before": "2000 об/мин.",
+        "count": 1,
+        "following": "Цилиндровая",
+        "prediction": "2000 об/мин.",
+        "previous": "—"
+      },
+      {
+        "after": "три литра",
+        "before": "3 л.",
+        "count": 1,
+        "following": "с",
+        "prediction": "3 л.",
+        "previous": "мощность"
+      },
+      {
+        "after": "сорок вольт",
+        "before": "40В.",
+        "count": 1,
+        "following": "К.",
+        "prediction": "40В.",
+        "previous": "-"
+      },
+      {
+        "after": "шестнадцать миллиметров",
+        "before": "16 мм",
+        "count": 1,
+        "following": ")",
+        "prediction": "16 мм",
+        "previous": "—"
+      },
+      {
+        "after": "трех тоннах",
+        "before": "3 т.",
+        "count": 1,
+        "following": "—",
+        "prediction": "три тонны",
+        "previous": "В"
+      },
+      {
+        "after": "сорок процентов",
+        "before": "40 %",
+        "count": 1,
+        "following": "самок",
+        "prediction": "сорока процентов",
+        "previous": "всего"
+      },
+      {
+        "after": "девять миллиметров",
+        "before": "9 мм",
+        "count": 1,
+        "following": ",",
+        "prediction": "9 мм",
+        "previous": "—"
+      },
+      {
+        "after": "тридцати одной минуту",
+        "before": "31 минуту",
+        "count": 1,
+        "following": "утра",
+        "prediction": "31 минуту",
+        "previous": "часов"
+      },
+      {
+        "after": "восемьдесят сантиметров",
+        "before": "80 см.",
+        "count": 1,
+        "following": "Корневище",
+        "prediction": "80 см.",
+        "previous": "—"
+      },
+      {
+        "after": "десять процентов",
+        "before": "10 %",
+        "count": 1,
+        "following": "на",
+        "prediction": "десяти процентов",
+        "previous": ":"
+      },
+      {
+        "after": "десять метров",
+        "before": "10 метров",
+        "count": 1,
+        "following": "кромки",
+        "prediction": "10 метров",
+        "previous": "вырывает"
+      },
+      {
+        "after": "сорока процентов",
+        "before": "40 %",
+        "count": 1,
+        "following": "от",
+        "prediction": "сорок процентов",
+        "previous": "менее"
+      },
+      {
+        "after": "семьдесят две целых и пять десятых процента",
+        "before": "72,5%",
+        "count": 1,
+        "following": ")",
+        "prediction": "72,5%",
+        "previous": "("
+      },
+      {
+        "after": "сто двадцать три кельвина",
+        "before": "123К",
+        "count": 1,
+        "following": "(",
+        "prediction": "123К",
+        "previous": "проекта"
+      },
+      {
+        "after": "девяносто минут",
+        "before": "90 минут.",
+        "count": 1,
+        "following": "<EOS>",
+        "prediction": "90 минут.",
+        "previous": "все"
+      },
+      {
+        "after": "пятьдесят пять тысяч гектаров",
+        "before": "55 тыс. га",
+        "count": 1,
+        "following": ",",
+        "prediction": "55 тыс. га",
+        "previous": "площадью"
+      },
+      {
+        "after": "двухсот девятнадцати метров",
+        "before": "219 м",
+        "count": 1,
+        "following": ")",
+        "prediction": "219 м",
+        "previous": "до"
+      },
+      {
+        "after": "четырнадцать целых и шестьдесят семь сотых квадратного километра",
+        "before": "14,67 км²",
+        "count": 1,
+        "following": ",",
+        "prediction": "14,67 км²",
+        "previous": "составляет"
+      },
+      {
+        "after": "сто шестьдесят пять километров",
+        "before": "165 километров.",
+        "count": 1,
+        "following": "<EOS>",
+        "prediction": "165 километров.",
+        "previous": "—"
+      },
+      {
+        "after": "двенадцать минут",
+        "before": "12 минут",
+        "count": 1,
+        "following": "после",
+        "prediction": "12 минут",
+        "previous": "Через"
+      },
+      {
+        "after": "пятьдесят шесть километров",
+        "before": "56 км.",
+        "count": 1,
+        "following": "<EOS>",
+        "prediction": "56 км.",
+        "previous": ":"
+      },
+      {
+        "after": "тридцати километрах",
+        "before": "30 км",
+        "count": 1,
+        "following": "к",
+        "prediction": "30 км",
+        "previous": "в"
+      }
+    ],
+    "ORDINAL": [
+      {
+        "after": "тысяча восемьсот девяносто пятом",
+        "before": "1895",
+        "count": 1,
+        "following": "—1896",
+        "prediction": "тысяча восемьсот девяносто пять",
+        "previous": "в"
+      },
+      {
+        "after": "тысяча восемьсот девяносто шестом",
+        "before": "—1896",
+        "count": 1,
+        "following": "годах",
+        "prediction": "—1896",
+        "previous": "1895"
+      },
+      {
+        "after": "тысяча семьсот девяносто шестого",
+        "before": "1796",
+        "count": 1,
+        "following": "по",
+        "prediction": "тысяча семьсот девяносто шесть",
+        "previous": "с"
+      },
+      {
+        "after": "тысяча восемьсот второй",
+        "before": "1802",
+        "count": 1,
+        "following": "год",
+        "prediction": "тысяча восемьсот два",
+        "previous": "по"
+      },
+      {
+        "after": "тысяча сто девятого",
+        "before": "1109",
+        "count": 1,
+        "following": "—1112",
+        "prediction": "тысяча сто девять",
+        "previous": "период"
+      },
+      {
+        "after": "тысяча сто двенадцатого",
+        "before": "—1112",
+        "count": 1,
+        "following": "годов",
+        "prediction": "—1112",
+        "previous": "1109"
+      },
+      {
+        "after": "тысяча девятьсот двадцать седьмого",
+        "before": "1927",
+        "count": 1,
+        "following": "по",
+        "prediction": "тысяча девятьсот двадцать семь",
+        "previous": "с"
+      },
+      {
+        "after": "тысяча девятьсот сорок второй",
+        "before": "1942",
+        "count": 1,
+        "following": "год",
+        "prediction": "тысяча девятьсот сорок два",
+        "previous": "по"
+      },
+      {
+        "after": "1980",
+        "before": "1980",
+        "count": 1,
+        "following": "-1990-х",
+        "prediction": "тысяча девятьсот восемьдесят",
+        "previous": "период"
+      },
+      {
+        "after": "-1990-х",
+        "before": "-1990-х",
+        "count": 1,
+        "following": "годов",
+        "prediction": "тысяча девятьсот девяностых",
+        "previous": "1980"
+      },
+      {
+        "after": "пятые",
+        "before": "5-е",
+        "count": 1,
+        "following": "региональное",
+        "prediction": "пятое",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "тысяча девятьсот двадцатом",
+        "before": "1920",
+        "count": 1,
+        "following": "-30",
+        "prediction": "тысяча девятьсот двадцать",
+        "previous": "в"
+      },
+      {
+        "after": "тридцатом",
+        "before": "-30",
+        "count": 1,
+        "following": "-",
+        "prediction": "минус тридцать",
+        "previous": "1920"
+      },
+      {
+        "after": "третьего",
+        "before": "III",
+        "count": 1,
+        "following": "века",
+        "prediction": "три",
+        "previous": "начала"
+      },
+      {
+        "after": "тысяча восемьсот шестьдесят четвертого",
+        "before": "1864",
+        "count": 1,
+        "following": "по",
+        "prediction": "тысяча восемьсот шестьдесят четыре",
+        "previous": "с"
+      },
+      {
+        "after": "тысяча восемьсот шестьдесят седьмой",
+        "before": "1867",
+        "count": 1,
+        "following": ",",
+        "prediction": "тысяча восемьсот шестьдесят семь",
+        "previous": "по"
+      },
+      {
+        "after": "тринадцатого",
+        "before": "XIII",
+        "count": 1,
+        "following": "века",
+        "prediction": "x i i i",
+        "previous": "до"
+      },
+      {
+        "after": "тысяча двести двадцать девятом",
+        "before": "1229",
+        "count": 1,
+        "following": "—1246",
+        "prediction": "тысяча двести двадцать девять",
+        "previous": "в"
+      },
+      {
+        "after": "тысяча двести сорок шестом",
+        "before": "—1246",
+        "count": 1,
+        "following": "годах",
+        "prediction": "—1246",
+        "previous": "1229"
+      }
+    ],
+    "PLAIN": [
+      {
+        "after": "с_trans б_trans р_trans и_trans н_trans с_trans",
+        "before": "Sbrinz",
+        "count": 1,
+        "following": "Kase",
+        "prediction": "Sbrinz",
+        "previous": "компания"
+      },
+      {
+        "after": "к_trans е_trans й_trans с_trans",
+        "before": "Kase",
+        "count": 1,
+        "following": "GmbH",
+        "prediction": "Kase",
+        "previous": "Sbrinz"
+      },
+      {
+        "after": "г_trans м_trans б_trans",
+        "before": "GmbH",
+        "count": 1,
+        "following": ".",
+        "prediction": "GmbH",
+        "previous": "Kase"
+      },
+      {
+        "after": "х_trans и_trans л_trans л_trans",
+        "before": "Hill",
+        "count": 1,
+        "following": "(",
+        "prediction": "Hill",
+        "previous": "C. L."
+      },
+      {
+        "after": "э_trans д_trans",
+        "before": "ed",
+        "count": 1,
+        "following": ")",
+        "prediction": "ed",
+        "previous": "("
+      },
+      {
+        "after": "с_trans о_trans с_trans а_trans и_trans т_trans и_trans",
+        "before": "Society",
+        "count": 1,
+        "following": "of",
+        "prediction": "Society",
+        "previous": ","
+      },
+      {
+        "after": "в_trans е_trans р_trans т_trans е_trans б_trans р_trans а_trans т_trans",
+        "before": "Vertebrate",
+        "count": 1,
+        "following": "Paleontology",
+        "prediction": "Vertebrate",
+        "previous": "of"
+      },
+      {
+        "after": "п_trans а_trans л_trans е_trans о_trans н_trans т_trans о_trans л_trans о_trans д_trans ж_trans и_trans",
+        "before": "Paleontology",
+        "count": 1,
+        "following": ",",
+        "prediction": "Paleontology",
+        "previous": "Vertebrate"
+      },
+      {
+        "after": "а_trans н_trans н_trans у_trans а_trans л_trans",
+        "before": "Annual",
+        "count": 1,
+        "following": "Meeting",
+        "prediction": "Annual",
+        "previous": "61st"
+      },
+      {
+        "after": "м_trans и_trans т_trans и_trans н_trans г_trans",
+        "before": "Meeting",
+        "count": 1,
+        "following": ",",
+        "prediction": "Meeting",
+        "previous": "Annual"
+      },
+      {
+        "after": "б_trans о_trans з_trans м_trans а_trans н_trans",
+        "before": "Bozeman",
+        "count": 1,
+        "following": ".",
+        "prediction": "Bozeman",
+        "previous": ","
+      },
+      {
+        "after": "с_trans л_trans а_trans н_trans т_trans",
+        "before": "Slant",
+        "count": 1,
+        "following": "Magazine",
+        "prediction": "Slant",
+        "previous": "в"
+      },
+      {
+        "after": "м_trans э_trans г_trans а_trans з_trans и_trans н_trans",
+        "before": "Magazine",
+        "count": 1,
+        "following": ".",
+        "prediction": "Magazine",
+        "previous": "Slant"
+      },
+      {
+        "after": "м_trans о_trans н_trans д_trans р_trans а_trans г_trans о_trans н_trans",
+        "before": "Mondragon",
+        "count": 1,
+        "following": ":",
+        "prediction": "Mondragon",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "э_trans к_trans о_trans н_trans о_trans м_trans и_trans к_trans",
+        "before": "economic",
+        "count": 1,
+        "following": "analysis",
+        "prediction": "economic",
+        "previous": "An"
+      },
+      {
+        "after": "а_trans н_trans а_trans л_trans и_trans с_trans и_trans с_trans",
+        "before": "analysis",
+        "count": 1,
+        "following": "(",
+        "prediction": "analysis",
+        "previous": "economic"
+      },
+      {
+        "after": "л_trans о_trans г_trans а_trans н_trans",
+        "before": "Logan",
+        "count": 1,
+        "following": "&",
+        "prediction": "Logan",
+        "previous": "C."
+      },
+      {
+        "after": "м_trans и_trans т_trans",
+        "before": "Mit",
+        "count": 1,
+        "following": "je",
+        "prediction": "Mit",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "д_trans ж_trans е_trans",
+        "before": "je",
+        "count": 1,
+        "following": "drei",
+        "prediction": "je",
+        "previous": "Mit"
+      },
+      {
+        "after": "д_trans р_trans е_trans й_trans",
+        "before": "drei",
+        "count": 1,
+        "following": "Abbildungen",
+        "prediction": "drei",
+        "previous": "je"
+      },
+      {
+        "after": "а_trans б_trans б_trans и_trans л_trans д_trans у_trans н_trans г_trans е_trans н_trans",
+        "before": "Abbildungen",
+        "count": 1,
+        "following": "von",
+        "prediction": "Abbildungen",
+        "previous": "drei"
+      },
+      {
+        "after": "л_trans а_trans з_trans л_trans о_trans",
+        "before": "Lazlo",
+        "count": 1,
+        "following": "Lakner",
+        "prediction": "Lazlo",
+        "previous": "von"
+      },
+      {
+        "after": "л_trans е_trans й_trans к_trans н_trans е_trans р_trans",
+        "before": "Lakner",
+        "count": 1,
+        "following": "und",
+        "prediction": "Lakner",
+        "previous": "Lazlo"
+      },
+      {
+        "after": "у_trans н_trans д_trans",
+        "before": "und",
+        "count": 1,
+        "following": "Anselm",
+        "prediction": "und",
+        "previous": "Lakner"
+      },
+      {
+        "after": "а_trans н_trans с_trans е_trans л_trans ь_trans м_trans",
+        "before": "Anselm",
+        "count": 1,
+        "following": "Kiefer",
+        "prediction": "Anselm",
+        "previous": "und"
+      },
+      {
+        "after": "к_trans и_trans ф_trans е_trans р_trans",
+        "before": "Kiefer",
+        "count": 1,
+        "following": ".",
+        "prediction": "Kiefer",
+        "previous": "Anselm"
+      },
+      {
+        "after": "ЭДЕС",
+        "before": "ЭДЕС",
+        "count": 1,
+        "following": ",",
+        "prediction": "э д е с",
+        "previous": "партизан"
+      },
+      {
+        "after": "до",
+        "before": "—",
+        "count": 1,
+        "following": "17",
+        "prediction": "—",
+        "previous": "16"
+      },
+      {
+        "after": "м_trans у_trans р_trans",
+        "before": "Moore",
+        "count": 1,
+        "following": ",",
+        "prediction": "Moore",
+        "previous": "19"
+      },
+      {
+        "after": "до",
+        "before": "—",
+        "count": 1,
+        "following": "65",
+        "prediction": "—",
+        "previous": "64"
+      },
+      {
+        "after": "б_trans а_trans т_trans т_trans е_trans с_trans т_trans и_trans н_trans",
+        "before": "Battestin",
+        "count": 1,
+        "following": "&",
+        "prediction": "Battestin",
+        "previous": "65"
+      },
+      {
+        "after": "б_trans а_trans т_trans т_trans е_trans с_trans т_trans и_trans н_trans",
+        "before": "Battestin",
+        "count": 1,
+        "following": ",",
+        "prediction": "Battestin",
+        "previous": "&"
+      },
+      {
+        "after": "б_trans е_trans р_trans т_trans е_trans л_trans с_trans е_trans н_trans",
+        "before": "Bertelsen",
+        "count": 1,
+        "following": ",",
+        "prediction": "Bertelsen",
+        "previous": "572"
+      },
+      {
+        "after": "л_trans о_trans н_trans д_trans о_trans н_trans",
+        "before": "London",
+        "count": 1,
+        "following": "Daily",
+        "prediction": "London",
+        "previous": "105"
+      },
+      {
+        "after": "д_trans е_trans й_trans л_trans и_trans",
+        "before": "Daily",
+        "count": 1,
+        "following": "Advertiser",
+        "prediction": "Daily",
+        "previous": "London"
+      },
+      {
+        "after": "а_trans д_trans в_trans е_trans р_trans т_trans и_trans з_trans е_trans р_trans",
+        "before": "Advertiser",
+        "count": 1,
+        "following": ".",
+        "prediction": "Advertiser",
+        "previous": "Daily"
+      },
+      {
+        "after": "до",
+        "before": "-",
+        "count": 1,
+        "following": "99",
+        "prediction": "-",
+        "previous": "98"
+      },
+      {
+        "after": "мак-глинн",
+        "before": "McGlynn",
+        "count": 1,
+        "following": "(",
+        "prediction": "McGlynn",
+        "previous": "99"
+      },
+      {
+        "after": "мак-глинн",
+        "before": "McGlynn",
+        "count": 1,
+        "following": "(",
+        "prediction": "McGlynn",
+        "previous": "9"
+      },
+      {
+        "after": "к_trans а_trans с_trans к_trans и_trans",
+        "before": "Caskey",
+        "count": 1,
+        "following": ",",
+        "prediction": "Caskey",
+        "previous": "L."
+      },
+      {
+        "after": "э_trans р_trans л_trans и_trans",
+        "before": "Early",
+        "count": 1,
+        "following": "Helladic",
+        "prediction": "Early",
+        "previous": "The"
+      },
+      {
+        "after": "х_trans е_trans л_trans л_trans а_trans д_trans и_trans к_trans",
+        "before": "Helladic",
+        "count": 1,
+        "following": "Period",
+        "prediction": "Helladic",
+        "previous": "Early"
+      },
+      {
+        "after": "п_trans е_trans р_trans и_trans о_trans д_trans",
+        "before": "Period",
+        "count": 1,
+        "following": "in",
+        "prediction": "Period",
+        "previous": "Helladic"
+      },
+      {
+        "after": "а_trans р_trans г_trans о_trans л_trans и_trans д_trans",
+        "before": "Argolid",
+        "count": 1,
+        "following": "»",
+        "prediction": "Argolid",
+        "previous": "the"
+      },
+      {
+        "after": "х_trans е_trans с_trans п_trans е_trans р_trans и_trans я_trans",
+        "before": "Hesperia",
+        "count": 1,
+        "following": "29",
+        "prediction": "Hesperia",
+        "previous": "»"
+      },
+      {
+        "after": "до",
+        "before": "-",
+        "count": 1,
+        "following": "303",
+        "prediction": "-",
+        "previous": "285"
+      },
+      {
+        "after": "о_trans к_trans с_trans ф_trans о_trans р_trans д_trans",
+        "before": "Oxford",
+        "count": 1,
+        "following": "Dictionary",
+        "prediction": "Oxford",
+        "previous": "The"
+      },
+      {
+        "after": "д_trans и_trans к_trans ш_trans е_trans н_trans а_trans р_trans и_trans",
+        "before": "Dictionary",
+        "count": 1,
+        "following": "of",
+        "prediction": "Dictionary",
+        "previous": "Oxford"
+      },
+      {
+        "after": "к_trans р_trans и_trans с_trans т_trans и_trans а_trans н_trans",
+        "before": "Christian",
+        "count": 1,
+        "following": "Church",
+        "prediction": "Christian",
+        "previous": "the"
+      },
+      {
+        "after": "ч_trans е_trans р_trans ч_trans",
+        "before": "Church",
+        "count": 1,
+        "following": ".",
+        "prediction": "Church",
+        "previous": "Christian"
+      },
+      {
+        "after": "й_trans и_trans ц_trans х_trans а_trans к_trans",
+        "before": "Yitzhak",
+        "count": 1,
+        "following": "Fuchs",
+        "prediction": "Yitzhak",
+        "previous": "."
+      },
+      {
+        "after": "ф_trans у_trans ч_trans с_trans",
+        "before": "Fuchs",
+        "count": 1,
+        "following": ")",
+        "prediction": "Fuchs",
+        "previous": "Yitzhak"
+      },
+      {
+        "after": "а_trans м_trans с_trans т_trans е_trans р_trans д_trans а_trans м_trans",
+        "before": "Amsterdam",
+        "count": 1,
+        "following": ",",
+        "prediction": "Amsterdam",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "до",
+        "before": "—",
+        "count": 1,
+        "following": "765",
+        "prediction": "—",
+        "previous": "751"
+      },
+      {
+        "after": "л_trans е_trans в_trans и_trans",
+        "before": "Levi",
+        "count": 1,
+        "following": "-",
+        "prediction": "Levi",
+        "previous": "."
+      },
+      {
+        "after": "с_trans и_trans в_trans и_trans т_trans а_trans",
+        "before": "Civita",
+        "count": 1,
+        "following": "T.",
+        "prediction": "Civita",
+        "previous": "-"
+      },
+      {
+        "after": "с_trans а_trans л_trans л_trans а_trans",
+        "before": "Sulla",
+        "count": 1,
+        "following": "espressione",
+        "prediction": "Sulla",
+        "previous": "T."
+      },
+      {
+        "after": "э_trans с_trans п_trans р_trans е_trans ш_trans н_trans",
+        "before": "espressione",
+        "count": 1,
+        "following": "analitica",
+        "prediction": "espressione",
+        "previous": "Sulla"
+      },
+      {
+        "after": "а_trans н_trans а_trans л_trans и_trans т_trans и_trans к_trans а_trans",
+        "before": "analitica",
+        "count": 1,
+        "following": "spettante",
+        "prediction": "analitica",
+        "previous": "espressione"
+      },
+      {
+        "after": "с_trans п_trans е_trans т_trans т_trans а_trans н_trans т_trans",
+        "before": "spettante",
+        "count": 1,
+        "following": "al",
+        "prediction": "spettante",
+        "previous": "analitica"
+      },
+      {
+        "after": "т_trans е_trans н_trans с_trans о_trans р_trans",
+        "before": "tensore",
+        "count": 1,
+        "following": "gravitazionale",
+        "prediction": "tensore",
+        "previous": "al"
+      },
+      {
+        "after": "г_trans р_trans е_trans й_trans в_trans и_trans т_trans а_trans з_trans н_trans л_trans",
+        "before": "gravitazionale",
+        "count": 1,
+        "following": "nella",
+        "prediction": "gravitazionale",
+        "previous": "tensore"
+      },
+      {
+        "after": "н_trans е_trans л_trans л_trans а_trans",
+        "before": "nella",
+        "count": 1,
+        "following": "teoria",
+        "prediction": "nella",
+        "previous": "gravitazionale"
+      },
+      {
+        "after": "т_trans е_trans о_trans р_trans и_trans я_trans",
+        "before": "teoria",
+        "count": 1,
+        "following": "Einstein",
+        "prediction": "teoria",
+        "previous": "nella"
+      },
+      {
+        "after": "э_trans и_trans н_trans с_trans т_trans е_trans й_trans н_trans",
+        "before": "Einstein",
+        "count": 1,
+        "following": ".",
+        "prediction": "Einstein",
+        "previous": "teoria"
+      },
+      {
+        "after": "СЭД",
+        "before": "СЭД",
+        "count": 1,
+        "following": ",",
+        "prediction": "с э д",
+        "previous": "любыми"
+      },
+      {
+        "after": "п_trans с_trans и_trans ч_trans и_trans а_trans т_trans р_trans и_trans к_trans",
+        "before": "Psychiatric",
+        "count": 1,
+        "following": "Bulletin",
+        "prediction": "Psychiatric",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "б_trans у_trans л_trans л_trans е_trans т_trans и_trans н_trans",
+        "before": "Bulletin",
+        "count": 1,
+        "following": ".",
+        "prediction": "Bulletin",
+        "previous": "Psychiatric"
+      },
+      {
+        "after": "до",
+        "before": "-",
+        "count": 1,
+        "following": "320",
+        "prediction": "-",
+        "previous": "319"
+      },
+      {
+        "after": "к_trans о_trans л_trans м_trans",
+        "before": "Colm",
+        "count": 1,
+        "following": "Cooney",
+        "prediction": "Colm",
+        "previous": "320"
+      },
+      {
+        "after": "к_trans у_trans н_trans и_trans",
+        "before": "Cooney",
+        "count": 1,
+        "following": ",",
+        "prediction": "Cooney",
+        "previous": "Colm"
+      },
+      {
+        "after": "к_trans о_trans л_trans м_trans",
+        "before": "Colm",
+        "count": 1,
+        "following": ";",
+        "prediction": "Colm",
+        "previous": ","
+      },
+      {
+        "after": "х_trans а_trans м_trans и_trans д_trans",
+        "before": "Hamid",
+        "count": 1,
+        "following": ",",
+        "prediction": "Hamid",
+        "previous": ";"
+      },
+      {
+        "after": "у_trans о_trans л_trans и_trans д_trans",
+        "before": "Walid",
+        "count": 1,
+        "following": ".",
+        "prediction": "Walid",
+        "previous": ","
+      },
+      {
+        "after": "РУССО",
+        "before": "РУССО",
+        "count": 1,
+        "following": "»",
+        "prediction": "р у с с о",
+        "previous": "«"
+      },
+      {
+        "after": "в_trans а_trans г_trans н_trans е_trans р_trans",
+        "before": "Wagner",
+        "count": 1,
+        "following": "concert",
+        "prediction": "Wagner",
+        "previous": "<BOS>"
+      },
+      {
+        "after": "к_trans о_trans н_trans с_trans е_trans р_trans т_trans",
+        "before": "concert",
+        "count": 1,
+        "following": "sparks",
+        "prediction": "concert",
+        "previous": "Wagner"
+      },
+      {
+        "after": "с_trans п_trans а_trans р_trans к_trans с_trans",
+        "before": "sparks",
+        "count": 1,
+        "following": "Israel",
+        "prediction": "sparks",
+        "previous": "concert"
+      },
+      {
+        "after": "и_trans з_trans р_trans а_trans э_trans л_trans",
+        "before": "Israel",
+        "count": 1,
+        "following": "row",
+        "prediction": "Israel",
+        "previous": "sparks"
+      },
+      {
+        "after": "р_trans о_trans у_trans",
+        "before": "row",
+        "count": 1,
+        "following": "(",
+        "prediction": "row",
+        "previous": "Israel"
+      }
+    ],
+    "TELEPHONE": [
+      {
+        "after": "девятьсот семьдесят восемь sil пять sil восемь шесть ноль ноль семь sil семьсот sil три",
+        "before": "978-5-86007-700-3",
+        "count": 1,
+        "following": ".",
+        "prediction": "девятьсот семьдесят восемь sil пять sil восемьдесят шесть тысяч семь sil семьсот sil три",
+        "previous": "ISBN"
+      },
+      {
+        "after": "ноль sil восемьсот семьдесят семь семьдесят восемь sil двести сорок пять sil восемь",
+        "before": "0-87778-245-8",
+        "count": 1,
+        "following": "Banathy",
+        "prediction": "ноль sil восемьдесят семь тысяч семьсот семьдесят восемь sil двести сорок пять sil восемь",
+        "previous": "ISBN"
+      },
+      {
+        "after": "ноль sil четыреста сорок шесть sil шестьсот девяносто три тридцать четыре sil ноль",
+        "before": "0-446-69334-0",
+        "count": 1,
+        "following": ".",
+        "prediction": "ноль sil четыреста сорок шесть sil шестьдесят девять тысяч триста тридцать четыре sil ноль",
+        "previous": "ISBN"
+      },
+      {
+        "after": "ноль sil восемьдесят пятьдесят три sil пятьдесят пятнадцать sil два",
+        "before": "0-8053-5015-2",
+        "count": 1,
+        "following": ".",
+        "prediction": "ноль sil восемь тысяч пятьдесят три sil пять тысяч пятнадцать sil два",
+        "previous": "ISBN"
+      },
+      {
+        "after": "сто пять sil m t",
+        "before": "105-MT",
+        "count": 1,
+        "following": "111",
+        "prediction": "105-MT",
+        "previous": "MT"
+      },
+      {
+        "after": "девятьсот семьдесят три sil девятьсот шестьдесят восемь пятьдесят семь sil семь sil три",
+        "before": "973-96857-7-3",
+        "count": 1,
+        "following": ".",
+        "prediction": "девятьсот семьдесят три sil девяносто шесть тысяч восемьсот пятьдесят семь sil семь sil три",
+        "previous": "ISBN"
+      },
+      {
+        "after": "восемнадцать семьдесят sil тысяча девятьсот",
+        "before": "1870-1900",
+        "count": 1,
+        "following": "(",
+        "prediction": "тысяча восемьсот семьдесят sil тысяча девятьсот",
+        "previous": "POWER"
+      }
+    ],
+    "VERBATIM": [
+      {
+        "after": "и",
+        "before": "ї",
+        "count": 1,
+        "following": "в",
+        "prediction": "ї",
+        "previous": "Ки"
+      },
+      {
+        "after": "в квадрате",
+        "before": "²",
+        "count": 1,
+        "following": ".",
+        "prediction": "²",
+        "previous": "км"
+      }
+    ]
+  },
+  "top_unseen_errors": [
+    {
+      "after": "т_trans о_trans",
+      "before": "to",
+      "count": 3,
+      "inferred_class": "PLAIN",
+      "prediction": "to",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans н_trans д_trans",
+      "before": "und",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "und",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans а_trans т_trans т_trans е_trans с_trans т_trans и_trans н_trans",
+      "before": "Battestin",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Battestin",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "мак-глинн",
+      "before": "McGlynn",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "McGlynn",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "двенадцать тысяч пятьсот",
+      "before": "12 500",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "12 500",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans о_trans л_trans м_trans",
+      "before": "Colm",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Colm",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans о_trans л_trans",
+      "before": "Vol",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Vol",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans а_trans к_trans т_trans с_trans",
+      "before": "Facts",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Facts",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans и_trans с_trans т_trans е_trans м_trans с_trans",
+      "before": "Systems",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Systems",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "США",
+      "before": "США",
+      "count": 2,
+      "inferred_class": "LETTERS",
+      "prediction": "с ш а",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans и_trans б_trans е_trans р_trans",
+      "before": "Cyber",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Cyber",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans о_trans и_trans н_trans г_trans",
+      "before": "Boeing",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Boeing",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "о_trans к_trans т_trans о_trans б_trans е_trans р_trans",
+      "before": "October",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "October",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и_trans н_trans т_trans р_trans о_trans д_trans а_trans к_trans ш_trans е_trans н_trans",
+      "before": "Introduction",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Introduction",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans э_trans м_trans б_trans р_trans и_trans д_trans ж_trans",
+      "before": "Cambridge",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Cambridge",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans р_trans и_trans н_trans с_trans",
+      "before": "Prince",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Prince",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans и_trans л_trans ь_trans я_trans м_trans",
+      "before": "William",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "William",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans и_trans",
+      "before": "by",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "by",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ш_trans а_trans н_trans т_trans а_trans",
+      "before": "Shantae",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Shantae",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "УАТС",
+      "before": "УАТС",
+      "count": 2,
+      "inferred_class": "LETTERS",
+      "prediction": "у а т с",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans а_trans",
+      "before": "ha",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "ha",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans л_trans а_trans й_trans т_trans",
+      "before": "Flight",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "Flight",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans",
+      "before": "an",
+      "count": 2,
+      "inferred_class": "PLAIN",
+      "prediction": "an",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча восемьсот девяносто пятом",
+      "before": "1895",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча восемьсот девяносто пять",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот девяносто шестом",
+      "before": "—1896",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "—1896",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "с_trans б_trans р_trans и_trans н_trans с_trans",
+      "before": "Sbrinz",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Sbrinz",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans е_trans й_trans с_trans",
+      "before": "Kase",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Kase",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "г_trans м_trans б_trans",
+      "before": "GmbH",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "GmbH",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans и_trans л_trans л_trans",
+      "before": "Hill",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hill",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans д_trans",
+      "before": "ed",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "ed",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans о_trans с_trans а_trans и_trans т_trans и_trans",
+      "before": "Society",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Society",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans е_trans р_trans т_trans е_trans б_trans р_trans а_trans т_trans",
+      "before": "Vertebrate",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Vertebrate",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans а_trans л_trans е_trans о_trans н_trans т_trans о_trans л_trans о_trans д_trans ж_trans и_trans",
+      "before": "Paleontology",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Paleontology",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "шестьдесят один стоун",
+      "before": "61st",
+      "count": 1,
+      "inferred_class": "ORDINAL",
+      "prediction": "61st",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "а_trans н_trans н_trans у_trans а_trans л_trans",
+      "before": "Annual",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Annual",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans и_trans т_trans и_trans н_trans г_trans",
+      "before": "Meeting",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Meeting",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans о_trans з_trans м_trans а_trans н_trans",
+      "before": "Bozeman",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bozeman",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "пятисот километров",
+      "before": "500 км",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "500 км",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "тысяча семьсот девяносто шестого",
+      "before": "1796",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча семьсот девяносто шесть",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот второй",
+      "before": "1802",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча восемьсот два",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча сто девятого",
+      "before": "1109",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча сто девять",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча сто двенадцатого",
+      "before": "—1112",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "—1112",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "девятьсот семьдесят восемь sil пять sil восемь шесть ноль ноль семь sil семьсот sil три",
+      "before": "978-5-86007-700-3",
+      "count": 1,
+      "inferred_class": "TELEPHONE",
+      "prediction": "девятьсот семьдесят восемь sil пять sil восемьдесят шесть тысяч семь sil семьсот sil три",
+      "true_class": "TELEPHONE"
+    },
+    {
+      "after": "с_trans л_trans а_trans н_trans т_trans",
+      "before": "Slant",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Slant",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans э_trans г_trans а_trans з_trans и_trans н_trans",
+      "before": "Magazine",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Magazine",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и",
+      "before": "ї",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "ї",
+      "true_class": "VERBATIM"
+    },
+    {
+      "after": "о ц е н т р",
+      "before": "оцентр",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "оцентр",
+      "true_class": "LETTERS"
+    },
+    {
+      "after": "м_trans о_trans н_trans д_trans р_trans а_trans г_trans о_trans н_trans",
+      "before": "Mondragon",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Mondragon",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans к_trans о_trans н_trans о_trans м_trans и_trans к_trans",
+      "before": "economic",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "economic",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans а_trans л_trans и_trans с_trans и_trans с_trans",
+      "before": "analysis",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "analysis",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans о_trans г_trans а_trans н_trans",
+      "before": "Logan",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Logan",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "м_trans и_trans т_trans",
+      "before": "Mit",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Mit",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans ж_trans е_trans",
+      "before": "je",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "je",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans р_trans е_trans й_trans",
+      "before": "drei",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "drei",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans б_trans б_trans и_trans л_trans д_trans у_trans н_trans г_trans е_trans н_trans",
+      "before": "Abbildungen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Abbildungen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans а_trans з_trans л_trans о_trans",
+      "before": "Lazlo",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Lazlo",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans е_trans й_trans к_trans н_trans е_trans р_trans",
+      "before": "Lakner",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Lakner",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans с_trans е_trans л_trans ь_trans м_trans",
+      "before": "Anselm",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Anselm",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans и_trans ф_trans е_trans р_trans",
+      "before": "Kiefer",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Kiefer",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ЭДЕС",
+      "before": "ЭДЕС",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "э д е с",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "шестьдесят тысяч",
+      "before": "60 тысяч",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "60 тысяч",
+      "true_class": "DECIMAL"
+    },
+    {
+      "after": "м_trans у_trans р_trans",
+      "before": "Moore",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Moore",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans е_trans р_trans т_trans е_trans л_trans с_trans е_trans н_trans",
+      "before": "Bertelsen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bertelsen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans о_trans н_trans д_trans о_trans н_trans",
+      "before": "London",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "London",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans е_trans й_trans л_trans и_trans",
+      "before": "Daily",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Daily",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans д_trans в_trans е_trans р_trans т_trans и_trans з_trans е_trans р_trans",
+      "before": "Advertiser",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Advertiser",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девяноста восьми",
+      "before": "98",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "девяносто восемь",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "девяноста девяти",
+      "before": "99",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "девяносто девять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans а_trans с_trans к_trans и_trans",
+      "before": "Caskey",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Caskey",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans р_trans л_trans и_trans",
+      "before": "Early",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Early",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans е_trans л_trans л_trans а_trans д_trans и_trans к_trans",
+      "before": "Helladic",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Helladic",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans е_trans р_trans и_trans о_trans д_trans",
+      "before": "Period",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Period",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans р_trans г_trans о_trans л_trans и_trans д_trans",
+      "before": "Argolid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Argolid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans е_trans с_trans п_trans е_trans р_trans и_trans я_trans",
+      "before": "Hesperia",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hesperia",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "двухсот восьмидесяти пяти",
+      "before": "285",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести восемьдесят пять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "трехсот трех",
+      "before": "303",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста три",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "первое января две тысячи пятнадцатого года",
+      "before": "1 января 2015 года",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "первого января две тысячи пятнадцатого года",
+      "true_class": "DATE"
+    },
+    {
+      "after": "двухсот шестидесяти",
+      "before": "260",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести шестьдесят",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "двухсот",
+      "before": "200",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "двести",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "шесть ноль",
+      "before": "60",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "шестьдесят",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "о_trans к_trans с_trans ф_trans о_trans р_trans д_trans",
+      "before": "Oxford",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Oxford",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans и_trans к_trans ш_trans е_trans н_trans а_trans р_trans и_trans",
+      "before": "Dictionary",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Dictionary",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans р_trans и_trans с_trans т_trans и_trans а_trans н_trans",
+      "before": "Christian",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Christian",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ч_trans е_trans р_trans ч_trans",
+      "before": "Church",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Church",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "пятидесяти девяти",
+      "before": "59",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "пятьдесят девять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "й_trans и_trans ц_trans х_trans а_trans к_trans",
+      "before": "Yitzhak",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Yitzhak",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans у_trans ч_trans с_trans",
+      "before": "Fuchs",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Fuchs",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "сорока двух",
+      "before": "42",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "сорок два",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "а_trans м_trans с_trans т_trans е_trans р_trans д_trans а_trans м_trans",
+      "before": "Amsterdam",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Amsterdam",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "семисот пятидесяти одного",
+      "before": "751",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "семьсот пятьдесят один",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "л_trans е_trans в_trans и_trans",
+      "before": "Levi",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Levi",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans и_trans в_trans и_trans т_trans а_trans",
+      "before": "Civita",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Civita",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans а_trans л_trans л_trans а_trans",
+      "before": "Sulla",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Sulla",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans с_trans п_trans р_trans е_trans ш_trans н_trans",
+      "before": "espressione",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "espressione",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "а_trans н_trans а_trans л_trans и_trans т_trans и_trans к_trans а_trans",
+      "before": "analitica",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "analitica",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans п_trans е_trans т_trans т_trans а_trans н_trans т_trans",
+      "before": "spettante",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "spettante",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans е_trans н_trans с_trans о_trans р_trans",
+      "before": "tensore",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "tensore",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "г_trans р_trans е_trans й_trans в_trans и_trans т_trans а_trans з_trans н_trans л_trans",
+      "before": "gravitazionale",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "gravitazionale",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "н_trans е_trans л_trans л_trans а_trans",
+      "before": "nella",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "nella",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans е_trans о_trans р_trans и_trans я_trans",
+      "before": "teoria",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "teoria",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans и_trans н_trans с_trans т_trans е_trans й_trans н_trans",
+      "before": "Einstein",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Einstein",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "СЭД",
+      "before": "СЭД",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "с э д",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девяти километрах",
+      "before": "9 км",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "9 км",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "трехсот",
+      "before": "300",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "п_trans с_trans и_trans ч_trans и_trans а_trans т_trans р_trans и_trans к_trans",
+      "before": "Psychiatric",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Psychiatric",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans у_trans л_trans л_trans е_trans т_trans и_trans н_trans",
+      "before": "Bulletin",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Bulletin",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "трехсот девятнадцати",
+      "before": "319",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста девятнадцать",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "трехсот двадцати",
+      "before": "320",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "триста двадцать",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "к_trans у_trans н_trans и_trans",
+      "before": "Cooney",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Cooney",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "х_trans а_trans м_trans и_trans д_trans",
+      "before": "Hamid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Hamid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "у_trans о_trans л_trans и_trans д_trans",
+      "before": "Walid",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Walid",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "РУССО",
+      "before": "РУССО",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "р у с с о",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "в_trans а_trans г_trans н_trans е_trans р_trans",
+      "before": "Wagner",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Wagner",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans о_trans н_trans с_trans е_trans р_trans т_trans",
+      "before": "concert",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "concert",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans п_trans а_trans р_trans к_trans с_trans",
+      "before": "sparks",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "sparks",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "и_trans з_trans р_trans а_trans э_trans л_trans",
+      "before": "Israel",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Israel",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans о_trans у_trans",
+      "before": "row",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "row",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ЗАО",
+      "before": "ЗАО",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "з а о",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans о_trans п_trans у_trans л_trans е_trans й_trans ш_trans е_trans н_trans",
+      "before": "Population",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Population",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans е_trans д_trans ж_trans и_trans с_trans т_trans е_trans р_trans",
+      "before": "Register",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Register",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans э_trans н_trans т_trans р_trans",
+      "before": "Center",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Center",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ф_trans и_trans н_trans л_trans е_trans н_trans д_trans",
+      "before": "Finland",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Finland",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "ВСЮР",
+      "before": "ВСЮР",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "в с ю р",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans о_trans м_trans а_trans н_trans и_trans я_trans",
+      "before": "Romania",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Romania",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча девятьсот двадцать седьмого",
+      "before": "1927",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча девятьсот двадцать семь",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча девятьсот сорок второй",
+      "before": "1942",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тысяча девятьсот сорок два",
+      "true_class": "ORDINAL"
+    },
+    {
+      "after": "тысяча восемьсот восемьдесят три тысяча восемьсот восемьдесят четвертых",
+      "before": "1883/1884",
+      "count": 1,
+      "inferred_class": "FRACTION",
+      "prediction": "1883/1884",
+      "true_class": "FRACTION"
+    },
+    {
+      "after": "сто тысяч",
+      "before": "100 000",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "100 000",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "двухсот метров",
+      "before": "200 метров.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "200 метров.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "з_trans у_trans р_trans",
+      "before": "Zur",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Zur",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "э_trans и_trans н_trans г_trans л_trans и_trans е_trans д_trans е_trans р_trans у_trans н_trans г_trans",
+      "before": "Eingliederung",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Eingliederung",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "н_trans ь_trans ю_trans д_trans ж_trans в_trans н_trans н_trans е_trans н_trans е_trans р_trans",
+      "before": "neugewonnener",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "neugewonnener",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans ж_trans б_trans и_trans е_trans т_trans",
+      "before": "Gebiete",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Gebiete",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans е_trans н_trans",
+      "before": "den",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "den",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans р_trans е_trans а_trans с_trans с_trans и_trans ш_trans е_trans н_trans",
+      "before": "preussischen",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "preussischen",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "с_trans т_trans а_trans э_trans т_trans",
+      "before": "Staat",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Staat",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "девять километров",
+      "before": "9 км.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "9 км.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "РИА",
+      "before": "РИА",
+      "count": 1,
+      "inferred_class": "LETTERS",
+      "prediction": "р и а",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "к_trans о_trans н_trans т_trans",
+      "before": "Conte",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Conte",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans о_trans п_trans у_trans л_trans е_trans р_trans",
+      "before": "populaire",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "populaire",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "р_trans а_trans с_trans с_trans е_trans",
+      "before": "Russe",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Russe",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans з_trans к_trans п_trans ф_trans",
+      "before": "PzKpfw",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "PzKpfw",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "т_trans а_trans й_trans г_trans е_trans р_trans",
+      "before": "Tiger",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Tiger",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "триста кубических сантиметров",
+      "before": "300 см3.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "300 см3.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "две тысячи оборотов в минуту",
+      "before": "2000 об/мин.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "2000 об/мин.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "три литра",
+      "before": "3 л.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "3 л.",
+      "true_class": "MEASURE"
+    },
+    {
+      "after": "шести",
+      "before": "6-ти",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "6-ти",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "г л",
+      "before": "Гл",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Гл",
+      "true_class": "LETTERS"
+    },
+    {
+      "after": "тысяча шестьсот двадцать первом году",
+      "before": "1621 г.",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "тысяча шестьсот двадцать первый год",
+      "true_class": "DATE"
+    },
+    {
+      "after": "с_trans т_trans а_trans з_trans з_trans а_trans н_trans о_trans",
+      "before": "Stazzano",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Stazzano",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тысяча девятьсот сорок втором году",
+      "before": "1942 г.",
+      "count": 1,
+      "inferred_class": "DATE",
+      "prediction": "тысяча девятьсот сорок второй год",
+      "true_class": "DATE"
+    },
+    {
+      "after": "а_trans й_trans о_trans б_trans и_trans т_trans",
+      "before": "IObit",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "IObit",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans р_trans а_trans й_trans в_trans е_trans р_trans",
+      "before": "Driver",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Driver",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "б_trans у_trans с_trans т_trans е_trans р_trans",
+      "before": "Booster",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Booster",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "л_trans и_trans б_trans р_trans е_trans й_trans р_trans",
+      "before": "Libraire",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Libraire",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "о_trans р_trans и_trans е_trans н_trans т_trans а_trans л_trans и_trans с_trans т_trans",
+      "before": "orientaliste",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "orientaliste",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "п_trans о_trans л_trans",
+      "before": "Paul",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Paul",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "д_trans ж_trans е_trans а_trans н_trans т_trans е_trans р_trans",
+      "before": "Geunther",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "Geunther",
+      "true_class": "PLAIN"
+    },
+    {
+      "after": "тридцати девяти",
+      "before": "39",
+      "count": 1,
+      "inferred_class": "CARDINAL",
+      "prediction": "тридцать девять",
+      "true_class": "CARDINAL"
+    },
+    {
+      "after": "сорок вольт",
+      "before": "40В.",
+      "count": 1,
+      "inferred_class": "PLAIN",
+      "prediction": "40В.",
+      "true_class": "MEASURE"
+    }
+  ],
+  "unseen_before_accuracy": 0.8756365060712887,
+  "unseen_before_rows": 5106,
+  "bronze_threshold": 0.97592,
+  "grouped_target_accuracy": 0.98,
+  "source_stress_target_accuracy": 0.976,
+  "bronze_passed": false,
+  "grouped_target_passed": false,
+  "source_stress_target_passed": false,
+  "created_at": "2026-07-25T01:05:34.117136+00:00",
+  "local_source_sha256": "d559b9c4812b9f31a80941ec8019c07f999848e753133e0f7dfb85674360dc05",
+  "remote_stderr_type": "empty"
+}

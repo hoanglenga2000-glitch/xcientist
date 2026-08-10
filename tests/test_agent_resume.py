@@ -23,6 +23,7 @@ from research_os.agent.messaging import AssistantTurn, LLMError, ToolCall
 from research_os.agent.session import AgentSession, _drop_dangling_tool_use
 from research_os.agent.tools import ResearchToolbox
 from research_os.evolution_loop import LocalSubprocessRunner
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 from research_os.search_graph import ExperimentNode, SearchGraph
 from research_os.variation_generator import TaskContext
 

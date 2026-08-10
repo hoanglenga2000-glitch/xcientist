@@ -198,6 +198,32 @@ def test_process_execution_requires_allowlisted_argument_arrays(tmp_path: Path):
     runtime.close()
 
 
+def test_shell_exec_preserves_nonzero_exit_code_and_file_round_trip(tmp_path: Path):
+    script = tmp_path / "fails.py"
+    script.write_text(
+        "from pathlib import Path\n"
+        "Path('agent-output.txt').write_text('research-data-ok', encoding='utf-8')\n"
+        "raise SystemExit(7)\n",
+        encoding="utf-8",
+    )
+    runtime = AgentRuntime(tmp_path)
+    session = runtime.create_session(permission_level="workspace-write")
+
+    executed = runtime.invoke_tool(
+        session["id"],
+        "shell_exec",
+        {"argv": [sys.executable, str(script)], "cwd": str(tmp_path), "timeout_seconds": 30},
+    )
+    assert executed["status"] == "failed"
+    assert executed["result"]["content"]["exit_code"] == 7
+    assert executed["result"]["error"] == "nonzero_exit"
+
+    read = runtime.invoke_tool(session["id"], "file_read", {"path": "agent-output.txt"})
+    assert read["status"] == "completed"
+    assert read["result"]["content"]["lines"][0]["text"] == "research-data-ok"
+    runtime.close()
+
+
 def test_store_persists_across_runtime_restart(tmp_path: Path):
     first = AgentRuntime(tmp_path)
     session = first.create_session(objective="durable")

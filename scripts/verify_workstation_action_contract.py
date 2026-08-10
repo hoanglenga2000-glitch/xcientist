@@ -4,9 +4,12 @@ import argparse
 import json
 import re
 import subprocess
+import urllib.error
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from workstation_local_auth import authenticated_headers
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,8 +27,19 @@ EXCLUDED_ACTIONS = {
     "create_task",
     # Triggered through dedicated API routes rather than /api/workstation-actions.
     "run_local_experiment",
+    # Creates a persistent planned workstation run and can displace validated
+    # experiment evidence from the dashboard's bounded recent-run summary.
+    # The workstation-run contract is covered by its dedicated verifier/UI flow.
+    "create_workstation_run",
     "export_code_agent_context",
     "import_agent_patch",
+    # Stateful code-agent lifecycle actions require a valid imported diff, quality gate,
+    # and rollback transaction. They are exercised end-to-end by
+    # verify_code_agent_patch_lifecycle.py and must not reuse an arbitrary task's latest
+    # patch during this generic action-log matrix.
+    "review_agent_patch",
+    "apply_agent_patch",
+    "rollback_agent_patch",
     # Fallback-only action id used when a Panel caller has no explicit action id.
     "panel_action",
 }
@@ -123,11 +137,22 @@ def post_action(base_url: str, action: str, container_name: str | None = None) -
     request = urllib.request.Request(
         f"{base_url.rstrip('/')}/api/workstation-actions",
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=authenticated_headers(
+            base_url,
+            {
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Origin": base_url.rstrip("/"),
+            },
+        ),
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=15) as response:
-        body = json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=15) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        response_body = exc.read().decode("utf-8", errors="replace")[:1000]
+        fail(f"{action} returned HTTP {exc.code}: {response_body}")
     if not body.get("ok"):
         fail(f"{action} did not return ok: {body}")
     artifact = body.get("artifact")

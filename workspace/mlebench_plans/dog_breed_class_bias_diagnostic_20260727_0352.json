@@ -1,0 +1,289 @@
+{
+  "schema": "evomind.dog_breed.class_bias_diagnostic.v1",
+  "created_at": "2026-07-26T19:53:15.037874+00:00",
+  "run_id": "local4060_dog_breed_imagenethead_s42_20260726_201211",
+  "experiment_id": "DB-CALSAFE",
+  "execution": {
+    "device": "cpu",
+    "cuda_visible_devices": "-1",
+    "elapsed_seconds": 2.3595118999946862,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "private_labels_used": false
+  },
+  "inputs": {
+    "npz": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_dog_breed_imagenethead_s42_20260726_201211\\dog-breed-identification\\attempts\\attempt_001\\vision_oof_and_test.npz",
+      "sha256": "743dfa58d96816f6e9e607c191c301e0b9e949237aacc8d0fc09fb1e367ecdcd"
+    },
+    "result": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_dog_breed_imagenethead_s42_20260726_201211\\dog-breed-identification\\attempts\\attempt_001\\result.json",
+      "sha256": "f64460f98a47560856b7da3ce1a032bb222a0619f432961636d09cd1f206f7c7"
+    },
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "sha256": "da643aacc782b4322a194227b040d1f800c33d6ab371faebc7f156011d0d1c3d"
+    },
+    "rows": 9199,
+    "classes": 120,
+    "folds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ]
+  },
+  "checks": {
+    "finite_incumbent": true,
+    "finite_candidate": true,
+    "incumbent_rows_sum_to_one": true,
+    "candidate_rows_sum_to_one": true,
+    "selected_fallback_exact": true
+  },
+  "metrics": {
+    "promotion_threshold": 0.04,
+    "incumbent_oof_log_loss": 0.12175188531885912,
+    "candidate_available_rows_log_loss": 0.12134539954978568,
+    "selected_oof_log_loss": 0.12175188531885912,
+    "absolute_gap_to_gate": 0.08175188531885913
+  },
+  "crossfit_records": [
+    {
+      "outer_fold": 0,
+      "fitting_rows": 7359,
+      "validation_rows": 1840,
+      "selected_l2_penalty": 10.0,
+      "bias_l2_norm": 1.8113719264121104,
+      "incumbent_outer_log_loss": 0.10612146351954875,
+      "candidate_outer_log_loss": 0.10667488068039932,
+      "outer_degradation": 0.0005534171608505695,
+      "penalty_selection": {
+        "selection_contract": "deterministic_nested_inner_holdout_fixed_l2_grid_v1",
+        "l2_grid": [
+          1.0,
+          10.0,
+          100.0
+        ],
+        "inner_validation_fold": 4,
+        "inner_fitting_rows": 5520,
+        "inner_validation_rows": 1839,
+        "candidates": [
+          {
+            "l2_penalty": 1.0,
+            "inner_validation_log_loss": 0.112589285854914,
+            "inner_fit": {
+              "l2_penalty": 1.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 5.947356181786523,
+              "bias_sum": 4.440892098500626e-16,
+              "optimizer_success": true,
+              "optimizer_iterations": 72,
+              "optimizer_objective": 654.4412392371734,
+              "fitting_log_loss": 0.11535429646026381,
+              "private_labels_used": false
+            }
+          },
+          {
+            "l2_penalty": 10.0,
+            "inner_validation_log_loss": 0.10982259781964067,
+            "inner_fit": {
+              "l2_penalty": 10.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 1.7496256507094965,
+              "bias_sum": -3.3306690738754696e-16,
+              "optimizer_success": true,
+              "optimizer_iterations": 37,
+              "optimizer_objective": 698.0273180631315,
+              "fitting_log_loss": 0.12368140733243267,
+              "private_labels_used": false
+            }
+          },
+          {
+            "l2_penalty": 100.0,
+            "inner_validation_log_loss": 0.11027500642528397,
+            "inner_fit": {
+              "l2_penalty": 100.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 0.2580385642068187,
+              "bias_sum": -2.0816681711721685e-17,
+              "optimizer_success": true,
+              "optimizer_iterations": 10,
+              "optimizer_objective": 717.7194748220738,
+              "fitting_log_loss": 0.1294185289476772,
+              "private_labels_used": false
+            }
+          }
+        ],
+        "selected_l2_penalty": 10.0,
+        "final_fit": {
+          "l2_penalty": 10.0,
+          "fitting_rows": 7359,
+          "bias_l2_norm": 1.8113719264121104,
+          "bias_sum": -1.1102230246251565e-16,
+          "optimizer_success": true,
+          "optimizer_iterations": 31,
+          "optimizer_objective": 897.8328565487686,
+          "fitting_log_loss": 0.11977544710827544,
+          "private_labels_used": false
+        },
+        "private_labels_used": false
+      },
+      "private_labels_used": false
+    },
+    {
+      "outer_fold": 1,
+      "fitting_rows": 7359,
+      "validation_rows": 1840,
+      "selected_l2_penalty": 10.0,
+      "bias_l2_norm": 1.5828554268672386,
+      "incumbent_outer_log_loss": 0.13626130184224008,
+      "candidate_outer_log_loss": 0.13367567675220118,
+      "outer_degradation": -0.002585625090038901,
+      "penalty_selection": {
+        "selection_contract": "deterministic_nested_inner_holdout_fixed_l2_grid_v1",
+        "l2_grid": [
+          1.0,
+          10.0,
+          100.0
+        ],
+        "inner_validation_fold": 4,
+        "inner_fitting_rows": 5520,
+        "inner_validation_rows": 1839,
+        "candidates": [
+          {
+            "l2_penalty": 1.0,
+            "inner_validation_log_loss": 0.1106909938815821,
+            "inner_fit": {
+              "l2_penalty": 1.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 5.2229021346008295,
+              "bias_sum": 0.0,
+              "optimizer_success": true,
+              "optimizer_iterations": 46,
+              "optimizer_objective": 617.3130026667017,
+              "fitting_log_loss": 0.1093611683537849,
+              "private_labels_used": false
+            }
+          },
+          {
+            "l2_penalty": 10.0,
+            "inner_validation_log_loss": 0.10968391875627666,
+            "inner_fit": {
+              "l2_penalty": 10.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 1.47437641104506,
+              "bias_sum": 1.1102230246251565e-16,
+              "optimizer_success": true,
+              "optimizer_iterations": 12,
+              "optimizer_objective": 649.2575676589149,
+              "fitting_log_loss": 0.11565011569776891,
+              "private_labels_used": false
+            }
+          },
+          {
+            "l2_penalty": 100.0,
+            "inner_validation_log_loss": 0.11032249162217346,
+            "inner_fit": {
+              "l2_penalty": 100.0,
+              "fitting_rows": 5520,
+              "bias_l2_norm": 0.21874241993105573,
+              "bias_sum": 6.938893903907228e-18,
+              "optimizer_success": true,
+              "optimizer_iterations": 21,
+              "optimizer_objective": 663.2655174065009,
+              "fitting_log_loss": 0.1197233886037384,
+              "private_labels_used": false
+            }
+          }
+        ],
+        "selected_l2_penalty": 10.0,
+        "final_fit": {
+          "l2_penalty": 10.0,
+          "fitting_rows": 7359,
+          "bias_l2_norm": 1.5828554268672386,
+          "bias_sum": 0.0,
+          "optimizer_success": true,
+          "optimizer_iterations": 32,
+          "optimizer_objective": 848.8574735919972,
+          "fitting_log_loss": 0.11364727776602551,
+          "private_labels_used": false
+        },
+        "private_labels_used": false
+      },
+      "private_labels_used": false
+    }
+  ],
+  "crossfit_contract": {
+    "schema": "evomind.dog_breed.class_bias_crossfit.v1",
+    "status": "early_checkpoint_failed",
+    "candidate_complete": false,
+    "processed_rows": 3680,
+    "total_rows": 9199,
+    "early_checkpoint": {
+      "evaluated_outer_folds": [
+        0,
+        1
+      ],
+      "weighted_incumbent_log_loss": 0.12119138268089441,
+      "weighted_candidate_log_loss": 0.12017527871630025,
+      "weighted_improvement": 0.0010161039645941589,
+      "maximum_fold_degradation": 0.0005534171608505695,
+      "passed": false
+    },
+    "final_deployment": null,
+    "private_labels_used": false
+  },
+  "replacement": {
+    "incumbent_oof_log_loss": 0.12175188531885911,
+    "candidate_oof_log_loss": 0.12175188531885911,
+    "aggregate_improvement": 0.0,
+    "minimum_improvement": 0.0005,
+    "worst_fold_degradation": 0.0,
+    "maximum_allowed_fold_degradation": 0.003,
+    "candidate_complete": false,
+    "replacement_selected": false,
+    "fallback_preserved_incumbent_exactly": true,
+    "fold_records": [
+      {
+        "fold": 0,
+        "rows": 1840,
+        "incumbent_log_loss": 0.10612146351954875,
+        "candidate_log_loss": 0.10612146351954875,
+        "degradation": 0.0
+      },
+      {
+        "fold": 1,
+        "rows": 1840,
+        "incumbent_log_loss": 0.13626130184224008,
+        "candidate_log_loss": 0.13626130184224008,
+        "degradation": 0.0
+      },
+      {
+        "fold": 2,
+        "rows": 1840,
+        "incumbent_log_loss": 0.13242488731302374,
+        "candidate_log_loss": 0.13242488731302374,
+        "degradation": 0.0
+      },
+      {
+        "fold": 3,
+        "rows": 1840,
+        "incumbent_log_loss": 0.12333599167273648,
+        "candidate_log_loss": 0.12333599167273648,
+        "degradation": 0.0
+      },
+      {
+        "fold": 4,
+        "rows": 1839,
+        "incumbent_log_loss": 0.11060972672577202,
+        "candidate_log_loss": 0.11060972672577202,
+        "degradation": 0.0
+      }
+    ],
+    "private_labels_used": false
+  },
+  "decision": "stop_db_calsafe",
+  "claim_boundary": "CPU-only public OOF diagnostic; no official score or medal claim."
+}

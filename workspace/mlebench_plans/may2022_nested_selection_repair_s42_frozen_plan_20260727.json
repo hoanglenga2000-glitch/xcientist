@@ -1,0 +1,242 @@
+{
+  "schema": "evomind.mlebench.may2022_nested_selection_repair_plan.v1",
+  "created_at": "2026-07-27T23:39:44+08:00",
+  "status": "frozen_candidate_only_not_deployed",
+  "competition_id": "tabular-playground-series-may-2022",
+  "run_id": "job89941_may2022_nested_refit_s42_candidate_only_20260728",
+  "objective": "Repair canonical May-2022 outer-validation iteration-budget selection leakage with inner-only selection, fresh complete-outer-train refits, untouched outer-fold prediction, and exact OOF provenance.",
+  "authoritative_negative_result": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_may2022_cpu_diagnostic\\may2022_v2_result_audit_current.json",
+    "sha256": "a14a800204ffda25a07964ec18ee25ad533f5e0316e1b193a05d41f1e3305e0e",
+    "run_id": "job89941_may2022_lgbm_fold0_v2_20260727",
+    "status": "verified_negative_result",
+    "metrics": {
+      "diagnostic_same_fold_auc": 0.9963226816645467,
+      "incumbent_same_fold_auc": 0.9971632018569769,
+      "gain_over_incumbent": -0.0008405201924301942,
+      "bronze_reference_auc": 0.99818,
+      "gap_to_bronze": -0.0018573183354532175
+    },
+    "decision": {
+      "promote_lightgbm_candidate": false,
+      "run_three_seed_confirmation_for_lightgbm_candidate": false,
+      "invoke_official_grader_for_lightgbm_candidate": false
+    }
+  },
+  "source_identity": {
+    "adapter": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "sha256": "6b3d4d5e76a9f383db7bd9cb81127a7181f0268473237f54d4f89fe65f237a33"
+    },
+    "runner": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+      "sha256": "384a6763917713b0b69bd58b176292f62493c5e8709df2b95bd7f3c71da9da86"
+    },
+    "wave0_runtime": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    "wave2_runtime": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    "contract_tests": {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_may2022_nested_selection.py",
+      "sha256": "301f975fd887ec9164fb0248dd2554edf5a05c9daf656ddc823ceb39a48e80ad"
+    },
+    "pre_repair_backup": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\.backups\\job89941-preflight-metadata-20260727-2206\\may2022_nested_selection\\mlebench_medal_recovery_adapters.py.pre",
+      "sha256": "863ebf13b88cc189b14bda9aba489462f27434f9c3f78f75146a117c1e1e42f2"
+    }
+  },
+  "public_data_contract": {
+    "visibility_mode": "PUBLIC_ONLY",
+    "expected_train_rows": 800000,
+    "train_sha256": "f0940d6a4c3536752bdc3ba99251fc3020662ea43b28dfad520d810b3cde5514",
+    "full_training_rows_required": true,
+    "train_row_truncation_allowed": false,
+    "private_labels_used": false,
+    "target_derived_features": 0
+  },
+  "cross_validation": {
+    "seed": 42,
+    "outer_folds": 5,
+    "outer_splitter": "StratifiedKFold(shuffle=true, random_state=42)",
+    "inner_validation_fraction": 0.2,
+    "inner_splitter": "StratifiedShuffleSplit(n_splits=1, deterministic fold-derived seed)",
+    "iteration_budget_selection_label_scope": "inner_validation_only",
+    "outer_validation_labels_used_for_iteration_selection": false,
+    "all_component_budgets_frozen_before_first_outer_prediction": true,
+    "refit_mode": "fresh_model_on_complete_outer_train_with_fixed_budget",
+    "outer_validation_prediction_timing": "after_complete_outer_train_refit_only",
+    "outer_oof_coverage_required_per_row": 1,
+    "component_oof_coverage_required_per_row": 1
+  },
+  "requested_budgets": {
+    "residual_mlp": {
+      "max_selection_epochs": 24,
+      "patience": 4,
+      "selected_iteration_basis": "one_based_best_inner_epoch",
+      "refit_budget": "clamp(selected_epoch, 1, 24)",
+      "outer_refit_early_stopping": false
+    },
+    "xgboost": {
+      "max_selection_estimators": 2600,
+      "early_stopping_rounds_inner_only": 180,
+      "selected_iteration_basis": "zero_based_best_iteration_plus_one",
+      "refit_budget": "clamp(best_iteration + 1, 1, 2600)",
+      "outer_refit_early_stopping": false
+    },
+    "catboost": {
+      "max_selection_iterations": 2000,
+      "overfitting_detector_inner_only": {
+        "od_type": "Iter",
+        "od_wait": 180
+      },
+      "selected_iteration_basis": "zero_based_best_iteration_plus_one",
+      "refit_budget": "clamp(best_iteration + 1, 1, 2000)",
+      "outer_refit_eval_set": false,
+      "outer_refit_use_best_model": false
+    }
+  },
+  "model_parameters": {
+    "residual_mlp": {
+      "width": 768,
+      "blocks": 5,
+      "batch_size": 4096,
+      "learning_rate": 0.001,
+      "weight_decay": 0.00001,
+      "dropout": 0.08,
+      "scheduler": "cosine_with_requested_24_epoch_horizon"
+    },
+    "xgboost": {
+      "max_depth": 8,
+      "learning_rate": 0.035,
+      "tree_method": "hist",
+      "device": "cuda",
+      "eval_metric": "auc"
+    },
+    "catboost": {
+      "depth": 8,
+      "learning_rate": 0.035,
+      "task_type": "GPU",
+      "eval_metric": "AUC"
+    }
+  },
+  "required_provenance_artifacts": {
+    "may2022_fold_assignments.npz": [
+      "id",
+      "target",
+      "fold",
+      "seed"
+    ],
+    "may2022_nested_fold_indices.npz": [
+      "outer_train_index_per_fold",
+      "outer_valid_index_per_fold",
+      "inner_train_index_per_fold",
+      "inner_valid_index_per_fold"
+    ],
+    "may2022_nested_selection.json": [
+      "inner_split_seed_and_row_counts",
+      "four_index_sha256_values_per_fold",
+      "model_budget_provenance",
+      "selection_inner_auc",
+      "outer_label_exclusion_contract"
+    ],
+    "may2022_oof_ensemble.npz": [
+      "oof_coverage",
+      "mlp_oof_coverage",
+      "xgboost_oof_coverage",
+      "catboost_oof_coverage",
+      "finite_component_predictions"
+    ],
+    "may2022_ensemble_diagnostics.json": [
+      "nested_selection_contract",
+      "nested_artifact_paths_and_sha256",
+      "fold_records"
+    ],
+    "promotion_gate.json": [
+      "nested_iteration_budget_selection",
+      "outer_validation_labels_excluded_from_iteration_selection",
+      "fixed_budget_complete_outer_train_refit",
+      "exact_component_oof_coverage"
+    ],
+    "may2022_artifact_manifest.json": [
+      "artifact_sha256_inventory",
+      "source_sha256_inventory",
+      "dependency_versions"
+    ]
+  },
+  "fail_closed_contract": {
+    "reject_invalid_or_overlapping_outer_indices": true,
+    "reject_outer_folds_without_exact_one_time_row_coverage": true,
+    "reject_inner_rows_outside_outer_train": true,
+    "reject_outer_validation_rows_in_inner_selection": true,
+    "reject_inner_or_outer_splits_missing_a_target_class": true,
+    "reject_tampered_inner_fraction_or_outer_fold_identity": true,
+    "reject_missing_nonfinite_or_out_of_range_inner_selection_auc": true,
+    "reject_invalid_or_incomplete_model_budget_provenance": true,
+    "reject_inconsistent_selected_iteration_to_refit_budget_mapping": true,
+    "reject_invalid_index_sha256": true,
+    "reject_incomplete_or_duplicate_fold_ids": true,
+    "reject_nonfinite_oof_or_test_predictions": true,
+    "reject_aggregate_or_component_oof_coverage_not_equal_to_one": true
+  },
+  "promotion_policy": {
+    "aggregate_oof_auc_minimum": 0.9985,
+    "every_fold_oof_auc_minimum": 0.99818,
+    "confirmation_seed_auc_minimum": 0.9983,
+    "distinct_confirmation_seeds_required": 3,
+    "single_seed_is_promotion_eligible": false,
+    "candidate_only": true,
+    "official_grader_enabled": false,
+    "kaggle_submission_enabled": false,
+    "human_gate_required": true,
+    "claim_boundary": "Public OOF evidence is not an official score or medal."
+  },
+  "execution_policy": {
+    "substantial_compute_approval_required": true,
+    "substantial_compute_approval_recorded": false,
+    "execution_permitted_by_this_plan": false,
+    "remote_bundle_deployed": false,
+    "gpu_training_started": false,
+    "official_grader_called": false,
+    "kaggle_api_called": false,
+    "process_signals_sent": 0,
+    "local_gpu_allowed": false,
+    "future_gpu_files_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "run_argv_template": [
+      "python3",
+      "RELEASE_ROOT/scripts/run_mlebench_lite_full.py",
+      "--data-root",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+      "--output-root",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs",
+      "--allowed-root",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+      "--official-source-root",
+      "RELEASE_ROOT/upstream_mlebench",
+      "--waves",
+      "Wave0",
+      "--competitions",
+      "tabular-playground-series-may-2022",
+      "--run-id",
+      "job89941_may2022_nested_refit_s42_candidate_only_20260728",
+      "--seed",
+      "42",
+      "--candidate-only",
+      "--optimization-plan",
+      "RELEASE_ROOT/plans/may2022_nested_selection_repair_s42_frozen_plan_20260727.json",
+      "--may-folds",
+      "5",
+      "--may-xgb-estimators",
+      "2600",
+      "--may-catboost-iterations",
+      "2000",
+      "--may-mlp-epochs",
+      "24",
+      "--may-early-stopping",
+      "180"
+    ]
+  }
+}

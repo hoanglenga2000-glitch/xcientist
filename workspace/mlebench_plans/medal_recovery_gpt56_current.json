@@ -1,0 +1,115 @@
+{
+  "schema": "evomind.mlebench_lite.medal_recovery_plan.v1",
+  "created_at": "2026-07-26T03:42:57.023382+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "input_tokens": 2146,
+    "output_tokens": 4431
+  },
+  "conversion_targets": [
+    "jigsaw-toxic-comment-classification-challenge",
+    "spooky-author-identification",
+    "new-york-city-taxi-fare-prediction",
+    "aerial-cactus-identification",
+    "tabular-playground-series-may-2022",
+    "siim-isic-melanoma-classification",
+    "leaf-classification"
+  ],
+  "priority_order": [
+    "jigsaw-toxic-comment-classification-challenge",
+    "spooky-author-identification",
+    "new-york-city-taxi-fare-prediction",
+    "siim-isic-melanoma-classification",
+    "tabular-playground-series-may-2022",
+    "aerial-cactus-identification",
+    "leaf-classification"
+  ],
+  "discarded_out_of_scope_targets": [],
+  "discarded_out_of_scope_priorities": [],
+  "strategies": {
+    "jigsaw-toxic-comment-classification-challenge": [
+      "Treat this as the primary conversion: the official private score is 0.98332 versus the 0.98639 bronze threshold, an absolute AUC gap of 0.00307.",
+      "Build deterministic per-label word-TF-IDF and character-TF-IDF linear models, saving fold indices, vocabulary settings, seeds, out-of-fold predictions, test predictions, and environment metadata under the dedicated HPC root.",
+      "Use identical folds for every component and optimize an out-of-fold rank-average or weighted blend for mean columnwise ROC AUC; do not select weights from private-grader feedback.",
+      "Audit empty text handling, Unicode normalization, label-column order, submission row order, and prediction clipping before official grading.",
+      "Use the observed CV-to-private difference only as a diagnostic: 0.9876189131774998 CV became 0.98332 private, so parity with bronze under the same difference would require approximately 0.9906889131774998 CV. This is a gate, not a claimed future score.",
+      "Execute only through the official MLE-Bench private grader; make no Kaggle submission."
+    ],
+    "spooky-author-identification": [
+      "Use the supplied NB-SVM word-plus-character ensemble upgrade; the private log loss must fall from 0.37367 to at most the 0.29381 bronze threshold, a required reduction of 0.07986.",
+      "Train deterministic author-stratified folds for word and character sparse models, retain out-of-fold class probabilities, and tune nonnegative blend weights strictly against out-of-fold multiclass log loss.",
+      "Add probability calibration and clipping selected on out-of-fold predictions, because the metric directly penalizes overconfident errors.",
+      "Verify author-label mapping, class-column order, text preprocessing consistency, and normalized per-row probabilities before grading.",
+      "The observed private score was 0.0093638530913152 better than CV. If that offset repeated, bronze parity would correspond to CV log loss of approximately 0.3031738530913152; use this only as an advancement gate.",
+      "Persist sparse matrices, fold assignments, model parameters, predictions, and checksums under the dedicated HPC root."
+    ],
+    "new-york-city-taxi-fare-prediction": [
+      "Apply the supplied larger-clean-sample, airport/time/geo-feature, GPU-CatBoost upgrade. The private RMSE must improve from 4.3942 to at most 2.92371, a reduction of 1.47049.",
+      "Create deterministic temporal, passenger-count, pickup/drop-off coordinate, distance, bearing, airport-proximity, and time-of-day features without external leaderboard information.",
+      "Use a fixed validation protocol and compare a GPU CatBoost model with a blend containing a robust distance-based baseline; select only by validation RMSE.",
+      "Audit target units, coordinate order, impossible coordinates, missing values, row identifiers, and prediction finiteness before private grading.",
+      "The current private RMSE is 0.2833261951621905 worse than CV. Under the same difference, bronze parity would require CV RMSE of approximately 2.6403838048378095; use that as a diagnostic gate rather than an expected result.",
+      "Store cleaned-data indices, feature-generation configuration, seeds, model snapshots, and prediction hashes under the dedicated HPC root."
+    ],
+    "siim-isic-melanoma-classification": [
+      "First diagnose the exact 0.5 private ROC AUC as a possible constant-prediction, image-loading, label-direction, row-alignment, or submission-generation failure before spending compute on model scaling.",
+      "After pipeline validation, apply the supplied pretrained-image-plus-metadata blend with deterministic patient-aware folds, fixed seeds, and saved out-of-fold predictions.",
+      "Evaluate image-only, metadata-only, and blended predictions using ROC AUC; use rank averaging and test-time augmentation only when they improve repeated out-of-fold evaluation.",
+      "Check that prediction variance is nonzero, identifiers match one-to-one, positive-class orientation is correct, and all images are decoded through the intended preprocessing path.",
+      "The official gap to bronze is 0.437, from 0.5 to 0.937, and no CV score is available; require a valid reproducible CV result before any official private-grader rerun.",
+      "Persist decoded-image manifests, patient-group folds, checkpoints, metadata transforms, and inference hashes under the dedicated HPC root."
+    ],
+    "tabular-playground-series-may-2022": [
+      "Treat this as a low-probability reserve because the private ROC AUC must rise from 0.91719 to 0.99818, an absolute gap of 0.08099.",
+      "Audit categorical handling, integer and binary feature treatment, target orientation, train/test schema consistency, and row alignment before modeling.",
+      "Compare deterministic boosted-tree, interaction-feature, and neural-tabular components under identical folds, then rank-average only models with complementary out-of-fold errors.",
+      "The current private score is approximately 0.0002499961274484 above CV. Under the same difference, bronze parity would require CV ROC AUC of approximately 0.9979300038725516; do not grade unless validation approaches that gate.",
+      "Save fold assignments, feature manifests, seeds, checkpoints, out-of-fold predictions, and blend weights under the dedicated HPC root."
+    ],
+    "aerial-cactus-identification": [
+      "Use the supplied ImageNet ConvNeXt fine-tune and test-time augmentation upgrade only as a bounded reserve experiment.",
+      "Train deterministic stratified folds with fixed image decoding, augmentations, seeds, checkpoints, and inference transforms; evaluate single models and fold/TTA rank averages by ROC AUC.",
+      "Audit duplicate images, positive-class orientation, filename alignment, and prediction precision before grading.",
+      "The official bronze threshold is exactly 1.0 while the private score is 0.99201, leaving a 0.00799 gap and requiring a perfect private AUC. The observed CV-to-private difference would imply an unattainable CV parity value above 1.0 if repeated.",
+      "Do not allocate repeated private-grader attempts after one fully validated ConvNeXt ensemble because the exact 1.0 threshold makes this structurally low-probability.",
+      "Persist image manifests, folds, augmentation configuration, checkpoints, and prediction hashes under the dedicated HPC root."
+    ],
+    "leaf-classification": [
+      "Begin with a pipeline audit because the private multiclass log loss of 2.43276 is far from the 0.01526 bronze threshold, a required reduction of 2.4175.",
+      "Verify label encoding, class-column order, feature scaling, train/test identifier removal, row alignment, probability normalization, and whether the current model is producing near-uniform or misordered probabilities.",
+      "After correctness checks, compare deterministic standardized linear, kernel, and tree-based classifiers and calibrate or blend them using out-of-fold multiclass log loss.",
+      "The current private score is 0.0347249749380985 better than CV. Under the same difference, bronze parity would require CV log loss of approximately 0.0499849749380985; treat this as a diagnostic gate only.",
+      "Persist preprocessing objects, class maps, folds, seeds, calibrated models, and prediction checksums under the dedicated HPC root."
+    ]
+  },
+  "wave2_expectations": {
+    "jigsaw-toxic-comment-classification-challenge": "likely: smallest actionable official bronze gap, requiring +0.00307 ROC AUC from the current 0.98332 private score; prioritize a deterministic word-plus-character ensemble and require strong CV evidence before grading.",
+    "spooky-author-identification": "stretch: the private score is already above the official median, but bronze requires reducing log loss by 0.07986 from 0.37367 to 0.29381; the supplied NB-SVM ensemble is a concrete upgrade path.",
+    "new-york-city-taxi-fare-prediction": "stretch: bronze requires reducing private RMSE by 1.47049 from 4.3942 to 2.92371; the supplied larger-sample, geo/time/airport-feature GPU-CatBoost path is substantial but the gap is large.",
+    "siim-isic-melanoma-classification": "low-probability: the 0.5 private AUC suggests a potentially broken or non-informative pipeline, but the official bronze gap is 0.437 and there is no CV evidence.",
+    "tabular-playground-series-may-2022": "low-probability: private AUC must increase by 0.08099 to the 0.99818 bronze threshold, and the required score is far above both current CV and private results.",
+    "aerial-cactus-identification": "low-probability: despite an absolute gap of only 0.00799, every medal threshold is exactly 1.0, so conversion requires perfect private ROC AUC.",
+    "leaf-classification": "low-probability: private log loss must fall by 2.4175, from 2.43276 to 0.01526; retain only as a pipeline-repair opportunity."
+  },
+  "stop_rules": [
+    "Run the three remaining unscored competitions through the official MLE-Bench private grader first because all three medals would raise the total only from 12 to 15, still requiring three scored-nonmedal conversions.",
+    "For each conversion target, cap model development at six deterministic training configurations plus one final ensemble configuration before reassessing priority.",
+    "Advance jigsaw-toxic-comment-classification-challenge to official grading only after repeated deterministic validation supports the bronze threshold and the CV result approaches the diagnostic parity value of 0.9906889131774998.",
+    "Advance spooky-author-identification only if out-of-fold log loss reaches at most approximately 0.3031738530913152 and the result is stable across the fixed folds.",
+    "Advance new-york-city-taxi-fare-prediction only if validation RMSE reaches at most approximately 2.6403838048378095 under the fixed protocol; otherwise stop after the supplied CatBoost feature upgrade is evaluated.",
+    "Do not advance tabular-playground-series-may-2022 unless validation AUC approaches approximately 0.9979300038725516; stop after the bounded tree, interaction, and neural blend study if it does not.",
+    "For siim-isic-melanoma-classification, stop immediately if the pipeline audit cannot produce nonconstant, correctly aligned predictions and a valid reproducible CV AUC; do not use private-grader calls for debugging.",
+    "For aerial-cactus-identification, permit at most one official grading of the fully validated ConvNeXt fold-and-TTA ensemble because the bronze threshold is exactly 1.0.",
+    "For leaf-classification, stop after the label, class-order, scaling, and calibration audit unless CV log loss improves to approximately 0.0499849749380985 or better.",
+    "Stop the portfolio once 18 official medals are recorded; do not continue optimization based on projected, CV-only, or ungraded results.",
+    "Use no Kaggle submissions. Every final evaluation must use the official MLE-Bench private grader.",
+    "Require every run to be recoverable from the dedicated HPC root with immutable configuration, seed, fold manifest, dependency manifest, checkpoint, prediction file, and checksum before it can trigger official grading."
+  ],
+  "rationale_summary": "With 12 current medals and only three unscored tasks, even three additional medals yield 15, so at least three existing nonmedals must convert. The evidence-based path is jigsaw first, then stretch attempts on spooky and taxi; SIIM, TPS May 2022, aerial cactus, and leaf are bounded reserves because their official bronze gaps or exact-perfect threshold make conversion low-probability.",
+  "prompt_sha256": "4d761c737e9e8bff5001f3fb24fd24ef8a2fdf05a08f1138695c28f91fd672cf",
+  "response_sha256": "170ce8a7e23da7bf8fa5fdf2382413dec54bb3f0d2ea2e9f561e468fc9ed85f0",
+  "latency_ms": 77907.7,
+  "status": "passed",
+  "ok": true
+}

@@ -1,8 +1,20 @@
 {
-  "schema": "academic_research_os.mle_bench_75_task_registry.v2",
+  "schema": "academic_research_os.benchmark_task_registry.v3",
   "created_at": "2026-06-30",
-  "total_tasks": 75,
-  "scope": "Full MLE-Bench 75 task registry. Tasks marked 'not_started' have no local data or experiments yet. Tasks marked 'ready' have data and at least one experiment. Tasks marked 'completed' have valid official Kaggle submission with response artifact.",
+  "total_tasks": 12,
+  "scope": "Local/proxy task registry used by the workstation. It is not the OpenAI MLE-Bench split75 registry and does not claim 75-task coverage. The pinned official comparison target is recorded separately in mle_bench_reference.",
+  "mle_bench_reference": {
+    "repository": "https://github.com/openai/mle-bench",
+    "commit": "507f92e1138bb6e40dac5c6ee7a6758e6424bf97",
+    "split_path": "experiments/splits/split75.txt",
+    "local_manifest": "benchmark/mle_bench_75/openai_split75_507f92e.txt",
+    "sha256": "aa6a4dbfd19fee0536235be78361968603c84f0d4e06d4ed0ddc9bb212023057",
+    "total_tasks": 75,
+    "locally_registered_official_competitions": [
+      "tabular-playground-series-dec-2021",
+      "tabular-playground-series-may-2022"
+    ]
+  },
   "tasks": [
     {
       "task_id": "spaceship_titanic",
@@ -245,13 +257,7 @@
       "notes": "V4 trainer completed. GroupKFold (f_27). Ensemble OOF 0.924690."
     }
   ],
-  "remaining_tasks_planned": 64,
-  "planned_tasks_summary": [
-    {"modality": "tabular", "count": 36, "status": "planned"},
-    {"modality": "image", "count": 15, "status": "planned"},
-    {"modality": "text", "count": 8, "status": "planned"},
-    {"modality": "time_series", "count": 6, "status": "planned"},
-    {"modality": "multimodal", "count": 3, "status": "planned"}
-  ],
-  "normalization_note": "Tasks 13-75 are planned but not yet registered with individual entries. They will be added incrementally as data becomes available and workstation runs are initiated. The benchmark_task.schema.json governs all entries."
+  "remaining_tasks_planned": 0,
+  "planned_tasks_summary": [],
+  "normalization_note": "All 12 local/proxy task records are explicit. Official MLE-Bench split75 membership is pinned by hash in mle_bench_reference and must not be inferred from this local task list."
 }

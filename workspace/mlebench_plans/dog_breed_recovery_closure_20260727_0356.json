@@ -1,0 +1,95 @@
+{
+  "schema": "evomind.dog_breed.recovery_closure.v1",
+  "created_at": "2026-07-27T03:54:44.714272+08:00",
+  "competition_id": "dog-breed-identification",
+  "status": "closed_no_promotion",
+  "promotion_threshold": 0.04,
+  "best_complete_public_oof": {
+    "run_id": "local4060_dog_breed_imagenethead_s42_20260726_201211",
+    "log_loss": 0.12175188531885915,
+    "gate_passed": false,
+    "valid_submission": true,
+    "official_grader_executed": false
+  },
+  "pre_registered_experiments": [
+    {
+      "id": "DB-TERM",
+      "status": "failed_continuation",
+      "observed_log_loss": 0.12175188531885915,
+      "criterion": "complete leakage-safe OOF log loss <= 0.040"
+    },
+    {
+      "id": "DB-CALSAFE",
+      "status": "early_checkpoint_failed",
+      "weighted_candidate_first_two_folds": 0.12017527871630025,
+      "weighted_improvement_first_two_folds": 0.0010161039645941589,
+      "required_max_log_loss": 0.06,
+      "required_min_improvement": 0.005,
+      "replacement_selected": false,
+      "fallback_exact": true
+    },
+    {
+      "id": "DB-STAB1",
+      "status": "failed_continuation",
+      "fold_zero_epoch_one_log_loss": 0.160533,
+      "required_epoch_one_max_log_loss": 0.09,
+      "result_status": "diagnostic_failed"
+    },
+    {
+      "id": "DB-STAB5",
+      "status": "not_launched",
+      "reason": "DB-STAB1 continuation gate failed"
+    },
+    {
+      "id": "DB-SEED2",
+      "status": "not_launched",
+      "reason": "DB-STAB5 was not eligible"
+    }
+  ],
+  "decision": {
+    "dog_gpu_recovery": "stop",
+    "reason": "All eligible pre-registered continuations failed; further Dog tuning is lower expected value than the active SIIM/Leaf/Spooky/May medal-recovery chain.",
+    "next_serial_priority": [
+      "siim-isic-melanoma-classification",
+      "leaf-classification",
+      "spooky-author-identification",
+      "tabular-playground-series-may-2022"
+    ]
+  },
+  "evidence": {
+    "best_summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_dog_breed_imagenethead_s42_20260726_201211\\summary.json",
+      "sha256": "9892e98df0fe707754aa676e200e7711bb104e16f2538dd3962c35fb9cf18b14"
+    },
+    "db_stab1_summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_dog_breed_dbstab1_s42_20260726_233740\\summary.json",
+      "sha256": "3fc194f0c5ee3fb74260c6f182746a9176ae2f3115a8fab82e738e6b55476065"
+    },
+    "db_calsafe": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\dog_breed_class_bias_diagnostic_20260727_0352.json",
+      "sha256": "cf2ce42dd066f9cab5b0456ff9b2827c55b15d53bf1d7248d7cea195dfa7a861"
+    },
+    "gpt56_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\dog_breed_gpt56_audit_current.json",
+      "sha256": "9cb2d38890a3532d0c9bfea4756402a3e2c800c9181fea2ad2ab22306be287e7"
+    },
+    "official_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_progress\\lite11_current.json",
+      "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+    }
+  },
+  "process_state": {
+    "previous_recovery_pid": 53496,
+    "previous_watcher_pid": 72352,
+    "recovery_alive": false,
+    "watcher_alive": false,
+    "process_signals_sent": 0
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_preserved": true
+  },
+  "claim_boundary": "Dog Breed remains officially unscored; this closes only the bounded public-OOF recovery branch."
+}

@@ -1,0 +1,122 @@
+{
+  "schema": "evomind.mlebench_lite.jigsaw_oof_stacking_diagnostic.v1",
+  "created_at": "2026-07-25T21:28:59.266893+00:00",
+  "artifact": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs/job89441_jigsaw_toxic_s42_parallel_20260726_035500/jigsaw-toxic-comment-classification-challenge/attempts/attempt_001/jigsaw_sparse_oof_and_test.npz",
+  "artifact_sha256": "6dc2d5868dad8f44aa592156159d21b8f2e2d8c0e722f8aa313cc1ebef4fde8d",
+  "rows": 159571,
+  "labels": [
+    "toxic",
+    "severe_toxic",
+    "obscene",
+    "threat",
+    "insult",
+    "identity_hate"
+  ],
+  "folds": 5,
+  "existing_blend": {
+    "mean_columnwise_auc": 0.9855174292532056,
+    "per_label_auc": {
+      "toxic": 0.9808783071095353,
+      "severe_toxic": 0.9861663404131227,
+      "obscene": 0.9915755947383613,
+      "threat": 0.9892498406303074,
+      "insult": 0.9835442750930439,
+      "identity_hate": 0.9816902175348635
+    }
+  },
+  "promotion_threshold": 0.987,
+  "candidates": [
+    {
+      "feature_set": "hybrid30",
+      "feature_count": 30,
+      "c_value": 0.1,
+      "class_weight": "balanced",
+      "mean_columnwise_auc": 0.9875795281766072,
+      "per_label_auc": {
+        "toxic": 0.9819610200351827,
+        "severe_toxic": 0.9900083846711051,
+        "obscene": 0.9929342734987497,
+        "threat": 0.9903868364460492,
+        "insult": 0.9859819832767408,
+        "identity_hate": 0.9842046711318164
+      },
+      "gain_over_existing_blend": 0.0020620989234015896,
+      "crosses_threshold": true,
+      "runtime_seconds": 44.663757090922445
+    },
+    {
+      "feature_set": "hybrid30",
+      "feature_count": 30,
+      "c_value": 0.1,
+      "class_weight": "none",
+      "mean_columnwise_auc": 0.9873773941504393,
+      "per_label_auc": {
+        "toxic": 0.981828682208891,
+        "severe_toxic": 0.9899710114293778,
+        "obscene": 0.9928223697802887,
+        "threat": 0.9897880971544051,
+        "insult": 0.9857731521372449,
+        "identity_hate": 0.9840810521924283
+      },
+      "gain_over_existing_blend": 0.0018599648972337235,
+      "crosses_threshold": true,
+      "runtime_seconds": 32.39283419493586
+    },
+    {
+      "feature_set": "rank18",
+      "feature_count": 18,
+      "c_value": 0.1,
+      "class_weight": "balanced",
+      "mean_columnwise_auc": 0.985240427831204,
+      "per_label_auc": {
+        "toxic": 0.9806257654343093,
+        "severe_toxic": 0.9886029372661346,
+        "obscene": 0.9915155377900341,
+        "threat": 0.9863702783564372,
+        "insult": 0.9850337457399703,
+        "identity_hate": 0.9792943024003385
+      },
+      "gain_over_existing_blend": -0.0002770014220015993,
+      "crosses_threshold": false,
+      "runtime_seconds": 9.3378244782798
+    },
+    {
+      "feature_set": "rank18",
+      "feature_count": 18,
+      "c_value": 0.1,
+      "class_weight": "none",
+      "mean_columnwise_auc": 0.983258234580815,
+      "per_label_auc": {
+        "toxic": 0.9797711657993617,
+        "severe_toxic": 0.9877517782551154,
+        "obscene": 0.9902438882499183,
+        "threat": 0.9809840443053399,
+        "insult": 0.98380769602859,
+        "identity_hate": 0.9769908348465639
+      },
+      "gain_over_existing_blend": -0.002259194672390663,
+      "crosses_threshold": false,
+      "runtime_seconds": 7.740561760962009
+    }
+  ],
+  "best_candidate": {
+    "feature_set": "hybrid30",
+    "feature_count": 30,
+    "c_value": 0.1,
+    "class_weight": "balanced",
+    "mean_columnwise_auc": 0.9875795281766072,
+    "per_label_auc": {
+      "toxic": 0.9819610200351827,
+      "severe_toxic": 0.9900083846711051,
+      "obscene": 0.9929342734987497,
+      "threat": 0.9903868364460492,
+      "insult": 0.9859819832767408,
+      "identity_hate": 0.9842046711318164
+    },
+    "gain_over_existing_blend": 0.0020620989234015896,
+    "crosses_threshold": true,
+    "runtime_seconds": 44.663757090922445
+  },
+  "claim_boundary": "Diagnostic cross-fitted OOF only; candidate selection is not nested and this is not an official private grade or medal.",
+  "runtime_seconds": 100.45365480938926
+}

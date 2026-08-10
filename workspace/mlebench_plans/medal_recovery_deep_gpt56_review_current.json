@@ -1,0 +1,489 @@
+{
+  "schema": "evomind.mlebench_lite.medal_recovery_deep_gpt56_review.v1",
+  "created_at": "2026-07-27T13:09:54.791417+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "latency_ms": 240969.9,
+    "usage": {
+      "completion_tokens": 14162,
+      "total_tokens": 103995,
+      "prompt_tokens": 89833,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 6102
+      }
+    },
+    "reasoning_effort_requested": "high",
+    "json_mode_requested": true
+  },
+  "prompt_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_prompt_current.txt",
+  "prompt_sha256": "70c24324f0979545d1d124f424f151553ca74d7f93fd2c203ac3d2bfe74aa7f2",
+  "response_sha256": "acee97fcce8c9f89ae6ecc1d2d385b3ae362b2864633acb50690a0fbc7ebcfa2",
+  "parse_ok": true,
+  "review": {
+    "audit_summary": {
+      "current_coverage": 7,
+      "required_coverage": 8,
+      "critical_findings": [
+        "The authoritative current state is 13 official medals across 21 scored competitions, not the stale 12-medal and three-unscored state quoted in the earlier plan. Five additional medals are required if the remaining unscored competition is not banked.",
+        "jigsaw-toxic-comment-classification-challenge is the only allowed competition without an implemented and registered medal-recovery runner.",
+        "No allowed competition currently has internal promotion evidence sufficient to justify an official private-grader call. The internal ledger contains no promoted unscored or scored-nonmedal recovery candidates.",
+        "The leaf-classification registries authoritatively select run_leaf_multimodal. Its body is absent from the supplied source bundle, so it must not be called missing, but its leakage, class-order, pretrained-weight, fold-refit, and artifact contracts cannot be source-audited from this bundle.",
+        "The only supplied Leaf validation evidence is numeric-only OOF log loss of 0.04088817015277659 and 0.034128282427415876, both above the 0.01526 bronze threshold; the ledger explicitly requires an image channel next.",
+        "run_may2022_gpu_ensemble exposes a single-seed private-grade gate whose passed field can be true while its own confirmation gate says two-seed confirmation is pending. That is a deployment-governance defect for a benchmark requiring seed robustness.",
+        "run_taxi intentionally uses a bounded streamed sample, declares full_data_refit=false, and does not group exact duplicate trips or duplicate keys across OOF folds. Its current 2.85 OOF gate is not sufficiently conservative relative to the observed generalization failure.",
+        "run_siim_image_metadata has strong patient/content grouping and artifact handling, but the final fine-tuned model is still a one-formal-seed run. The three external seeds in the preprocessing ablation validate only a frozen-embedding preprocessing proxy, not final-model seed stability.",
+        "The SIIM training dataset invokes the stochastic training transform independently for full_image and lesion_focus. Any random crop or flip is therefore sampled independently across the two views, weakening the intended aligned multiview fusion.",
+        "run_ranzcr performs patient grouping but has no image-content duplicate audit and no explicit uniqueness or one-to-one submission-ID validation before entering the generic vision runtime.",
+        "run_aerial_cactus_convnext hashes training images for grouped folds but does not hash the test images in the production run or perform a train-test content-match audit. The separate ledger audit found no exact matches, so duplicate transfer is not a viable medal path.",
+        "The current official scores remain the only medal authority. None of the OOF values, promotion gates, valid submissions, or executed graders described here are counted as additional medals."
+      ]
+    },
+    "per_competition": [
+      {
+        "competition_id": "aerial-cactus-identification",
+        "current_runner": "run_aerial_cactus_convnext",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The runner calls build_exact_image_hash_groups only on train_paths and labels; test_paths are not included in the production hash manifest.",
+          "The production function therefore cannot itself detect train-test exact matches, test duplicates, or decoded-pixel duplicates before inference.",
+          "The current promotion contract correctly requires aggregate AUC 1.0, every fold at 1.0, and zero non-strict ranking violations, but no current internal evidence satisfies that contract.",
+          "The supplied audit ledger found zero duplicate train hashes and zero train-test exact matches, eliminating exact label transfer as an available recovery channel."
+        ],
+        "highest_value_upgrades": [
+          "Add a joint train/test exact-file and decoded-pixel hash manifest and fail on conflicting train labels or unresolved row cardinality.",
+          "Train two genuinely complementary pinned-pretrained backbones, such as ConvNeXt Small and EfficientNet V2-S, under the same immutable stratified folds.",
+          "Persist OOF logits for each backbone and select a rank-preserving blend only through cross-fitted public-train AUC and ranking-violation counts.",
+          "Add hard-negative oversampling derived strictly inside each fold and high-resolution crop/TTA variants; never choose them from private-grader output.",
+          "Preserve full prediction precision in the submission and verify positive-class orientation and exact sample ID order."
+        ],
+        "validation_contract": [
+          "Use one frozen stratified fold manifest per seed and require exactly one OOF prediction per training image.",
+          "Require pinned pretrained-weight SHA256 identities for every fold and backbone.",
+          "Persist train/test content manifests, folds, checkpoints, per-fold test predictions, OOF logits, final blend parameters, submission, source hash, dependency manifest, and a top-level artifact SHA256 inventory.",
+          "Promotion requires aggregate and every-fold OOF AUC equal to 1.0, zero positive-negative ties or inversions, and replication on at least two additional external seeds before the single bounded grader call."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.03,
+        "compute_cost": "medium",
+        "stop_rule": "Permit at most two backbone configurations and one frozen ensemble. If any external-seed OOF result is below 1.0 or has a ranking violation, do not invoke the official grader."
+      },
+      {
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "current_runner": "missing",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The implementation inventory explicitly identifies jigsaw-toxic-comment-classification-challenge as the only missing medal-recovery implementation.",
+          "Neither the supplied recovery registry nor the production override registry contains a Jigsaw runner.",
+          "There is consequently no source-level fold contract, label-column alignment check, OOF artifact, test ensemble, promotion gate, or immutable recovery artifact set for this competition."
+        ],
+        "highest_value_upgrades": [
+          "Implement run_jigsaw_toxic_oof with deterministic multilabel-stratified folds shared by every component.",
+          "Build per-label word TF-IDF and character TF-IDF NB-SVM or logistic channels, preserving the six sample-submission label columns exactly.",
+          "Add a pinned locally available pretrained transformer channel only if its tokenizer and weights can be verified by SHA256; otherwise do not silently fall back to random initialization.",
+          "Generate complete per-label OOF logits and per-fold test logits, then cross-fit nonnegative label-aware blend weights or rank blends against mean columnwise ROC AUC.",
+          "Handle empty comments and Unicode deterministically, and join predictions to the sample submission by id rather than relying on frame order.",
+          "Refit sparse channels on all public training data using hyperparameters frozen from OOF, while retaining fold-model test predictions as an independently auditable deployment candidate."
+        ],
+        "validation_contract": [
+          "Persist a fixed multilabel fold assignment with every label scoreable in every fold and exactly one OOF prediction per row.",
+          "Require explicit equality of training labels, prediction columns, and sample-submission columns in the official order.",
+          "Save vectorizers, tokenization configuration, fold models, pretrained identities, OOF/test component logits, cross-fitted blend records, full-data refit models, submission, environment manifest, source hash, and artifact checksums.",
+          "Use at least three external development seeds with no formal reporting seed used for model selection.",
+          "Do not grade unless the frozen candidate passes a predeclared conservative OOF gate and shows no material label-level collapse; OOF evidence remains non-medal evidence."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.65,
+        "compute_cost": "medium",
+        "stop_rule": "Cap development at four sparse configurations, one verified transformer configuration, and one final cross-fitted ensemble. If the frozen ensemble does not clear the predeclared conservative gate on all confirmation seeds, stop without grading."
+      },
+      {
+        "competition_id": "leaf-classification",
+        "current_runner": "run_leaf_multimodal",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The production and recovery registries both select run_leaf_multimodal, so the selected function is not missing; however, its function body is not present in the supplied source bundle and cannot be strictly audited here.",
+          "The supplied run_leaf_oof_ensemble body is a numeric-only diagnostic helper and is not the authoritative production assignment.",
+          "The internal ledger records numeric-only confirmation OOF log loss of 0.04088817015277659 and 0.034128282427415876, both above the 0.01526 bronze threshold.",
+          "The ledger explicitly marks pretrained image features or an image model as the required next channel, and supplies no promoted multimodal candidate."
+        ],
+        "highest_value_upgrades": [
+          "First expose and audit the actual run_leaf_multimodal body and verify that it performs fold-local image embedding extraction or image-model fitting rather than reusing numeric-only evidence.",
+          "Combine standardized numeric morphology, texture, and margin features with pinned-pretrained image embeddings under identical stratified folds.",
+          "Compare RBF SVC, shrinkage LDA, calibrated linear models, image embeddings, and a compact image model using cross-fitted multiclass log loss.",
+          "Fit class-wise calibration or temperature scaling only on meta-fit folds and preserve exact sample class order during both OOF scoring and deployment.",
+          "Use a full-public-data refit for deployable numeric and embedding heads after freezing all hyperparameters; retain fold ensembles for the image model if they validate better."
+        ],
+        "validation_contract": [
+          "Require exact equality among species labels, model classes, and sample-submission class columns, including order.",
+          "Use immutable stratified folds with every species represented in every validation fold and exactly one OOF probability row per training example.",
+          "Fit scalers, image transforms, embedding heads, calibration, and blend parameters without each held-out fold.",
+          "Persist image ID/path manifests, pinned weight identities, feature schema, class map, fold models, OOF/test component probabilities, calibration records, full-data refits, submission, and checksums.",
+          "Require confirmation on at least three external seeds and an OOF log-loss gate below the bronze threshold with safety margin before grading."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.45,
+        "compute_cost": "medium",
+        "stop_rule": "Stop after two verified image-feature families and one image-plus-numeric ensemble if all external-seed OOF log losses remain above 0.01526. Do not grade the numeric-only candidate."
+      },
+      {
+        "competition_id": "new-york-city-taxi-fare-prediction",
+        "current_runner": "run_taxi",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "run_taxi calls load_taxi_training with max_rows=args.taxi_max_train_rows and records full_data_refit=false, so deployment is based on a bounded reservoir rather than a full-data refit.",
+          "OOF folds are assigned by a hash of __source_row__; identical trips, duplicate keys, or near-identical route-time records are not grouped and can cross fold boundaries.",
+          "Only test key uniqueness is checked. Training key uniqueness and exact duplicate-trip conflicts are not audited.",
+          "The temporal model is an audit-only stress model and is not incorporated into the test ensemble.",
+          "The promotion gate uses random OOF RMSE at most 2.85 and temporal RMSE at most 3.1. The current official result demonstrates that the existing validation protocol did not predict private performance reliably enough for deployment.",
+          "The feature set uses straight-line geometry, coarse cells, airport distances, borough-center proxies, and time fields but has no leakage-safe route-cell fare statistics or robust residual fare-rule component."
+        ],
+        "highest_value_upgrades": [
+          "Increase the deterministic streamed sample to the largest bounded size that fits the A800 schedule, then perform a full-data refit at the median selected iteration count.",
+          "Group exact duplicate trip signatures and duplicate keys before OOF splitting; quarantine conflicting duplicate targets.",
+          "Add fold-local pickup-dropoff geocell, hour, airport-route, and passenger-count target statistics with smoothing and no held-out target access.",
+          "Add Manhattan toll/airport flat-fare indicators, direction-specific route features, geodesic-distance splines, historical year effects, and a robust distance-plus-surcharge baseline.",
+          "Blend CatBoost with a robust residual model only when cross-fitted random and temporal evaluations both improve.",
+          "Replace the current deployment gate with a predeclared multi-seed gate that includes worst-seed random OOF, temporal stress, geographic stress, and duplicate-isolation checks."
+        ],
+        "validation_contract": [
+          "Persist source-row hashes, cleaning decisions, duplicate groups, immutable random folds, temporal split, geographic split, and all target-statistic fit scopes.",
+          "Every target-derived feature must be generated from the relevant fit partition only.",
+          "Save fold models, full-data refit, per-fold and refit test predictions, OOF manifest, feature schema, selected iterations, submission, source hash, dependency manifest, and checksums.",
+          "Require stable results across at least three external seeds and all stress splits before any official grading.",
+          "Use explicit key joins and assert finite fare predictions with no missing or duplicated sample rows."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.2,
+        "compute_cost": "high",
+        "stop_rule": "Evaluate at most two sample budgets, two feature sets, and one final blend. Stop if the frozen candidate fails any temporal or geographic stress gate on any confirmation seed."
+      },
+      {
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "current_runner": "run_ranzcr",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The runner correctly supplies PatientID groups, but it does not hash image contents or close duplicate groups across different PatientID values.",
+          "The runner does not explicitly check uniqueness of StudyInstanceUID in train or sample before constructing paths.",
+          "It does not explicitly verify that every sample target column exists in train before entering the generic vision runtime.",
+          "The implementation uses one generic ImageNet backbone configuration and a uniform multilabel loss; there is no per-label model selection or localization channel.",
+          "The current official private score of 0.95889 remains below the 0.9709 bronze threshold, and no promoted replacement candidate is present in the internal ledger."
+        ],
+        "highest_value_upgrades": [
+          "Add exact-file and decoded-pixel hashing, then construct connected groups combining PatientID and duplicate content.",
+          "Validate StudyInstanceUID uniqueness and exact sample/test ID set equality before GPU allocation.",
+          "Train a high-resolution dual-backbone ensemble with pinned weights, using one global radiograph view and one center/line-focused crop view.",
+          "Add class-aware focal or asymmetric loss only if it improves mean and minimum per-label AUC under the same grouped folds.",
+          "Select per-label backbone weights through cross-fitted OOF predictions rather than a single global average.",
+          "Persist and evaluate each target's fold AUC so a weak label cannot be hidden by the aggregate metric."
+        ],
+        "validation_contract": [
+          "Use patient-plus-content connected folds with zero group overlap and both classes present for every target in every fold.",
+          "Require exact target-column order from the sample submission and explicit ID-based output alignment.",
+          "Persist image manifests, folds, pinned pretrained identities, checkpoints, per-label OOF/test logits, cross-fitted per-label blends, submission, source hash, and artifact checksums.",
+          "Require at least three external seeds and predeclared aggregate, worst-fold, and minimum-label AUC gates before grading."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.18,
+        "compute_cost": "high",
+        "stop_rule": "Cap work at two high-resolution backbones and one per-label ensemble. Stop if aggregate OOF remains below the frozen promotion threshold or any label repeatedly collapses across external seeds."
+      },
+      {
+        "competition_id": "siim-isic-melanoma-classification",
+        "current_runner": "run_siim_image_metadata",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The supplied current official score is 0.92165, not the stale 0.5 diagnosis embedded in the earlier plan. The current gap to bronze is 0.01535.",
+          "The formal training run invokes train_transform separately for full_image and lesion_focus; stochastic geometric transformations are therefore not guaranteed to be synchronized between views.",
+          "The three external seeds in select_siim_preprocessing_ablation evaluate frozen embeddings and linear heads. They do not establish seed stability for the final fine-tuned multiview model.",
+          "The final promotion gate is based on one formal training seed after a separately seeded preprocessing ablation.",
+          "The preprocessing ablation is a proxy model whose selected profile is transferred to a different fine-tuned fusion architecture; the source does not require the selected profile to improve the final architecture on external seeds.",
+          "The implementation is computationally expensive because every outer fold trains every inner fold for epoch selection before a fresh outer refit, making unbounded configuration search impractical on one GPU."
+        ],
+        "highest_value_upgrades": [
+          "Replace independent view transforms with one paired-transform object that samples geometric parameters once and applies them consistently to both views.",
+          "Run the final frozen multiview configuration on at least three external formal seeds, not merely the preprocessing proxy.",
+          "Use the existing complete OOF channel artifacts to test simpler incumbent-safe replacements: metadata-only, full-image-only, lesion-only, fusion, and rank blends selected without each outer fold.",
+          "Add a pinned domain-relevant melanoma backbone only if its provenance and weights are available without private-label or Kaggle-score feedback.",
+          "Evaluate higher-resolution lesion crops and metadata interactions under the existing patient/content-connected fold contract, with no private-grader-driven iteration.",
+          "Cache deterministic preprocessed views and fold manifests so external-seed confirmation does not repeat hashing and preprocessing work unnecessarily."
+        ],
+        "validation_contract": [
+          "Retain patient, exact-file, decoded-pixel, and conservative perceptual connected groups with zero fit-validation overlap.",
+          "Use nested inner folds for epoch selection and untouched outer folds for final OOF predictions.",
+          "Require paired geometric transforms, pinned pretrained SHA256 identities, exactly one OOF prediction per row, and nonconstant correctly oriented predictions for every channel.",
+          "Persist preprocessing-ablation provenance, all final-seed fold manifests, checkpoints, metadata models, OOF/test channels, cross-fitted blend records, submission, and top-level artifact hashes.",
+          "Require the same frozen final architecture to pass the promotion gate on at least three external seeds before grading."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.3,
+        "compute_cost": "high",
+        "stop_rule": "Allow one paired-transform correction, one resolution ablation, and one final multichannel ensemble. Stop if any of three external final-model seeds fails the frozen AUC gate; do not use grader results to choose preprocessing or blends."
+      },
+      {
+        "competition_id": "spooky-author-identification",
+        "current_runner": "run_spooky_nbsvm_oof",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The current four channels are word NB-SVM, character-boundary NB-SVM, raw-character NB-SVM, and a linear stylometry model; there is no contextual pretrained language-model channel.",
+          "Each sparse channel uses one configured C value and one configured vocabulary budget, so representation and regularization selection are not nested or cross-fitted.",
+          "Fold models are persisted, but the supplied function does not write a top-level artifact checksum manifest for vectorizers, models, predictions, and configuration.",
+          "The internal ledger reports cross-fitted public OOF log loss of 0.34266941238288384, above both the 0.29381 bronze threshold and the runner's stricter 0.28 promotion threshold.",
+          "The ledger stop rule for the current sparse four-channel configuration has already triggered."
+        ],
+        "highest_value_upgrades": [
+          "Do not spend further configurations on the existing four-channel family.",
+          "Add one verified pretrained transformer author-style channel using pinned tokenizer and model weights, deterministic maximum length, and fold-local fine-tuning.",
+          "Add sentence-level pooling or chunk aggregation for long texts and retain punctuation/casing rather than normalizing away author signals.",
+          "Blend transformer, word NB-SVM, and character NB-SVM through cross-fitted multiclass log-loss selection; preserve the sparse incumbent when the new channel is unstable.",
+          "Fit temperature and optional class intercepts only on meta-fit folds and apply the all-OOF parameters solely to test predictions."
+        ],
+        "validation_contract": [
+          "Reuse one immutable duplicate-safe StratifiedGroupKFold manifest for sparse and transformer channels.",
+          "Require complete OOF class probabilities, exact author/sample class order, finite rows summing to one, and no duplicate group crossing a fold.",
+          "Persist tokenizer and weight identities, fold checkpoints, sparse vectorizers, OOF/test logits, cross-fitted blend and calibration records, submission, dependency manifest, source hash, and artifact checksums.",
+          "Require at least three external seeds and a frozen log-loss gate with margin below 0.29381 before grading."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.4,
+        "compute_cost": "medium",
+        "stop_rule": "Permit one pretrained transformer family with at most two sequence-length or learning-rate configurations and one final incumbent-safe ensemble. Stop if all external-seed OOF scores remain above 0.29381."
+      },
+      {
+        "competition_id": "tabular-playground-series-may-2022",
+        "current_runner": "run_may2022_gpu_ensemble",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "The runner's private_grade_gate can pass from single_seed_record eligible while the same budget records two_seed_confirmation_pending=true.",
+          "evaluate_may2022_confirmation_gate is called with a one-element seed list inside the production run, so the runner does not itself perform multi-seed confirmation.",
+          "The function converts the engineered frame to float32 tensors without an explicit finite-value assertion before GPU training.",
+          "CatBoost fit is invoked without cat_features; therefore all categorical semantics must be encoded correctly by build_may2022_features, whose body is not included in the supplied bundle and cannot be verified here.",
+          "Fold assignments and models are saved, but the supplied runner does not produce a top-level checksum inventory covering its MLP, XGBoost, CatBoost, OOF, feature, and submission artifacts.",
+          "The current official private AUC of 0.91719 is far below the 0.99818 bronze threshold, so the existing ensemble cannot be deployed on its present evidence."
+        ],
+        "highest_value_upgrades": [
+          "Make build_may2022_features explicitly preserve and encode the string/categorical feature, per-character positions, character counts, row statistics, integer/categorical identities, and known synthetic interaction candidates without target leakage.",
+          "Add feature-schema, dtype, and finite-value assertions before any tensor or tree allocation.",
+          "Compare CatBoost with explicit categorical indices, XGBoost on deterministic encodings, and a specialized interaction MLP under identical folds.",
+          "Use cross-fitted raw-versus-rank component blending and require an incumbent-safe replacement on every external seed.",
+          "Move confirmation outside the single run: freeze one configuration, execute three distinct seeds, and make the official-grade gate depend on all confirmation records.",
+          "Write a complete artifact manifest with source, feature-config, fold, model, prediction, and submission hashes."
+        ],
+        "validation_contract": [
+          "Use the full public training set and immutable stratified folds for each declared external seed.",
+          "Persist the exact feature manifest and assert identical train/test columns, order, dtypes, finite values, and target orientation.",
+          "Require exactly one OOF prediction per row for every component and cross-fit all blend choices.",
+          "Save MLP checkpoints, tree models, fold assignments, OOF/test components, seed-level gates, final blend, submission, environment, source hash, and a top-level checksum manifest.",
+          "The grade gate must require all frozen confirmation seeds to pass; a single-seed eligible record is insufficient."
+        ],
+        "estimated_medal_probability_after_upgrade": 0.55,
+        "compute_cost": "high",
+        "stop_rule": "Cap work at three feature manifests, one tree-only comparison, one interaction MLP, and one final blend. Stop without grading if any external seed remains materially below the predeclared near-bronze gate."
+      }
+    ],
+    "implementation_order": [
+      "jigsaw-toxic-comment-classification-challenge",
+      "tabular-playground-series-may-2022",
+      "leaf-classification",
+      "spooky-author-identification",
+      "siim-isic-melanoma-classification",
+      "new-york-city-taxi-fare-prediction",
+      "ranzcr-clip-catheter-line-classification",
+      "aerial-cactus-identification"
+    ],
+    "immediate_code_changes": [
+      {
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "file": "source_files/recovery_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "run_jigsaw_toxic_oof",
+          "build_jigsaw_multilabel_folds",
+          "fit_jigsaw_sparse_label_channels",
+          "cross_fit_jigsaw_auc_blend",
+          "validate_jigsaw_submission_contract",
+          "RUNNERS"
+        ],
+        "acceptance_tests": [
+          "The recovery and production registries resolve the exact competition ID to run_jigsaw_toxic_oof.",
+          "Every public-train row has exactly one OOF prediction for all six labels.",
+          "Every fold contains both classes for every label.",
+          "Training labels, model output columns, and sample-submission columns match exactly and in order.",
+          "Shuffling test.csv rows does not change the final submission after explicit id alignment.",
+          "Empty and Unicode-only comments produce finite nonconstant predictions.",
+          "All model, vectorizer, prediction, configuration, environment, source, and submission artifacts pass SHA256 verification."
+        ]
+      },
+      {
+        "competition_id": "tabular-playground-series-may-2022",
+        "file": "source_files/recovery_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "build_may2022_features",
+          "run_may2022_gpu_ensemble",
+          "evaluate_may2022_confirmation_gate",
+          "write_may2022_artifact_manifest"
+        ],
+        "acceptance_tests": [
+          "Feature construction is deterministic and produces identical ordered finite train/test schemas.",
+          "Categorical and string-derived features have an explicit documented encoding contract.",
+          "No target-derived feature is computed outside the current fit partition.",
+          "The grade gate cannot pass with fewer than three distinct frozen confirmation seeds.",
+          "OOF coverage equals one for every component and seed.",
+          "The top-level artifact manifest verifies every fold model, checkpoint, feature manifest, prediction file, and submission."
+        ]
+      },
+      {
+        "competition_id": "leaf-classification",
+        "file": "source_files/recovery_runner_definitions (bundle key; selected run_leaf_multimodal body was not included)",
+        "functions_to_add_or_change": [
+          "run_leaf_multimodal",
+          "build_leaf_image_manifest",
+          "extract_leaf_pretrained_embeddings",
+          "cross_fit_leaf_multimodal_blend",
+          "validate_leaf_class_order"
+        ],
+        "acceptance_tests": [
+          "The selected registry function body is present and source-auditable.",
+          "Species labels equal sample class columns as sets and deployment preserves sample column order.",
+          "All scalers, embedding heads, calibration parameters, and blend weights are fit without each held-out fold.",
+          "Image paths and IDs are unique, decoded successfully, and aligned one-to-one.",
+          "Probability rows are finite, strictly nonnegative, and sum to one.",
+          "Three external seeds produce immutable OOF and artifact manifests; no numeric-only run is promotion eligible."
+        ]
+      },
+      {
+        "competition_id": "spooky-author-identification",
+        "file": "source_files/recovery_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "run_spooky_nbsvm_oof",
+          "fit_spooky_transformer_channel",
+          "cross_fit_spooky_multicomponent_blend",
+          "write_spooky_artifact_manifest"
+        ],
+        "acceptance_tests": [
+          "The transformer tokenizer and pretrained weights match pinned SHA256 values.",
+          "Transformer and sparse channels use the same duplicate-safe folds.",
+          "No duplicate text group crosses fit and validation partitions.",
+          "Cross-fitted calibration and blending never use the held-out fold labels.",
+          "Submission class columns and row IDs exactly match the sample submission.",
+          "Removing the transformer channel reproduces the sparse incumbent exactly when the replacement gate rejects it."
+        ]
+      },
+      {
+        "competition_id": "siim-isic-melanoma-classification",
+        "file": "source_files/recovery_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "prepare_siim_dermoscopy_views",
+          "build_siim_paired_training_transform",
+          "run_siim_image_metadata",
+          "evaluate_siim_final_seed_confirmation"
+        ],
+        "acceptance_tests": [
+          "A paired-transform test proves that full and lesion views receive identical sampled crop and flip geometry.",
+          "Patient/content connected groups have zero overlap across every inner and outer fold.",
+          "The formal model configuration, rather than only the frozen-embedding proxy, is evaluated on three distinct external seeds.",
+          "The formal seed is absent from preprocessing-selection seeds.",
+          "Every checkpoint and prediction artifact matches the SIIM top-level manifest.",
+          "ID shuffling before alignment leaves the submitted image_name-target mapping unchanged."
+        ]
+      },
+      {
+        "competition_id": "new-york-city-taxi-fare-prediction",
+        "file": "source_files/legacy_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "load_taxi_training",
+          "build_taxi_duplicate_groups",
+          "build_taxi_oof_splits",
+          "build_taxi_fold_local_route_statistics",
+          "run_taxi"
+        ],
+        "acceptance_tests": [
+          "Exact duplicate trip signatures cannot cross an OOF fold.",
+          "Conflicting duplicate targets are quarantined and recorded.",
+          "All route target statistics for a validation row are computed without that fold's targets.",
+          "Training and test keys are validated for uniqueness and exact submission alignment.",
+          "A full-data refit uses only iteration counts and hyperparameters frozen from OOF.",
+          "Random, temporal, and geographic stress metrics are produced for all three external seeds before promotion."
+        ]
+      },
+      {
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "file": "source_files/vision_runtime_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "run_ranzcr",
+          "build_ranzcr_patient_content_groups",
+          "validate_ranzcr_id_and_target_contract",
+          "cross_fit_ranzcr_per_label_blend"
+        ],
+        "acceptance_tests": [
+          "StudyInstanceUID is unique in train and sample, and the sample/test ID sets match exactly.",
+          "Every sample target column exists in train and remains in exact sample order.",
+          "Patient-plus-content groups never cross a fold.",
+          "Every target contains both classes in fit and validation for every fold.",
+          "Per-label blend parameters are selected without each held-out fold.",
+          "All pretrained weights, checkpoints, OOF/test logits, and submission artifacts have verified hashes."
+        ]
+      },
+      {
+        "competition_id": "aerial-cactus-identification",
+        "file": "source_files/recovery_runner_definitions (bundle key; repository-relative path was not supplied)",
+        "functions_to_add_or_change": [
+          "run_aerial_cactus_convnext",
+          "build_aerial_train_test_content_manifest",
+          "cross_fit_aerial_rank_ensemble"
+        ],
+        "acceptance_tests": [
+          "Every train and test image is decoded and represented in exact-file and decoded-pixel hash manifests.",
+          "Conflicting duplicate train labels fail before GPU allocation.",
+          "Train-test exact matches and test duplicates are reported explicitly.",
+          "Promotion fails on any aggregate or fold AUC below 1.0.",
+          "Promotion fails on any positive-negative tie or inversion.",
+          "The official grader remains disabled unless all external confirmation seeds satisfy the perfect-ranking contract."
+        ]
+      }
+    ],
+    "exact_medal_paths": {
+      "base_case": 3,
+      "plausible_range": [
+        1,
+        5
+      ],
+      "minimum_path_to_18": [
+        "jigsaw-toxic-comment-classification-challenge",
+        "tabular-playground-series-may-2022",
+        "leaf-classification",
+        "spooky-author-identification",
+        "siim-isic-melanoma-classification"
+      ],
+      "contingency_path": [
+        "new-york-city-taxi-fare-prediction",
+        "ranzcr-clip-catheter-line-classification",
+        "aerial-cactus-identification"
+      ]
+    },
+    "resource_schedule": [
+      "Wave 0, CPU and short-GPU preflight: score the remaining 22nd competition with its already frozen official workflow if available, without changing the eight audited runners. In parallel, implement Jigsaw, resolve the Leaf production body, add ID/content audits, and make every promotion gate require immutable artifacts.",
+      "Wave 1, low-to-medium cost: run Jigsaw sparse channels and Spooky incumbent diagnostics on fixed folds. Advance only Jigsaw configurations that satisfy the predeclared multilabel gate; do not reopen the stopped Spooky sparse-only search.",
+      "Wave 2, high-value tabular: run three bounded TPS May 2022 feature manifests serially, then one tree comparison, one interaction MLP, and one cross-fitted ensemble. Freeze the winner before external-seed confirmation.",
+      "Wave 3, Leaf: execute the authoritative multimodal runner after its body and contracts are audited. Evaluate at most two pinned image-feature families and one image-plus-numeric ensemble.",
+      "Wave 4, Spooky contextual upgrade: train one pinned pretrained transformer family under the existing duplicate-safe folds, then evaluate one incumbent-safe sparse-plus-transformer ensemble.",
+      "Wave 5, SIIM: first run the paired-transform correction on one seed. Only if it passes the frozen gate, run the same final configuration on two additional external seeds. Serialize all outer and inner training on the single A800.",
+      "Wave 6, Taxi: stream the largest predeclared sample budget, generate duplicate-safe folds and fold-local route statistics, train fold models, run temporal/geographic stress tests, and perform one full-data refit.",
+      "Wave 7, RANZCR: run at most two high-resolution pinned backbones serially, then one per-label cross-fitted ensemble. Do not overlap RANZCR and SIIM GPU jobs.",
+      "Wave 8, bounded reserve: run Aerial Cactus only if its dual-backbone candidate has perfect ranking on every fold and every external seed. Otherwise release the compute without an official call.",
+      "Final frozen evaluation: after all configurations and gates are frozen, execute the complete 22-competition benchmark independently for at least three external seeds. For each seed require at least 18 official medals. Compute the reported medal rate from official medal indicators only as 100 times medals divided by 22, and compute SEM as the sample standard deviation of the seed rates divided by the square root of the number of seeds.",
+      "Report success only if every external seed has at least 18 official medals and the official mean medal rate strictly exceeds 80.30%. No current external-seed mean or SEM is claimed."
+    ],
+    "global_stop_rules": [
+      "An internal candidate, OOF result, valid submission, promotion gate, or grader execution is never counted as a medal; only an official MLE-Bench private-grader medal result is counted.",
+      "Do not use Kaggle auto-submission or Kaggle private-score feedback.",
+      "Do not use official private-grader scores to tune features, hyperparameters, blend weights, calibration, preprocessing, or candidate selection. All such choices must be frozen from public-train evidence before grading.",
+      "Do not invoke an official grader unless the run has an immutable configuration, seed, fold manifest, dependency manifest, source hash, checkpoints or fitted models, OOF predictions, test predictions, submission, and verified checksums.",
+      "Stop the portfolio for a seed as soon as 18 official medals are recorded; do not continue optimizing based on projected medals.",
+      "Do not bank the remaining unscored competition when planning the minimum path. Until officially graded as a medal, the guaranteed requirement remains five conversions from the current 13 medals.",
+      "For each competition, enforce the bounded configuration count stated in its stop rule. A failed grader result does not authorize another training configuration.",
+      "Require at least three distinct external benchmark seeds after configuration freeze. Development or preprocessing-selection seeds do not count as external reporting seeds.",
+      "For final reporting, calculate each seed's medal count and rate from official outputs only. Report mean and sample SEM only after all required seeds complete; never impute failed or missing seeds.",
+      "Success requires both conditions: at least 18 of 22 official medals for every reported seed, and an official mean medal rate strictly greater than 80.30%.",
+      "The base-case estimate of three conversions and the stated medal probabilities are planning estimates, not completed medals or scores."
+    ]
+  },
+  "secret_policy": "API key was loaded from the secure runtime environment and is absent from artifacts.",
+  "ok": true
+}

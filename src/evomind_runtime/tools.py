@@ -26,6 +26,7 @@ Handler = Callable[[dict[str, Any], "ToolContext"], ToolResult]
 ALLOWED_PROCESS_EXECUTABLES = {
     "git", "git.exe", "node", "node.exe", "python", "python.exe", "python3", "python3.exe",
     "pytest", "pytest.exe", "rg", "rg.exe", "uv", "uv.exe",
+    "powershell", "powershell.exe", "pwsh", "pwsh.exe", "cmd", "cmd.exe",
 }
 ALLOWED_PYTHON_MODULES = {"evomind_runtime.cli", "pytest", "xsci.kaggle"}
 
@@ -130,6 +131,12 @@ def _trusted_argv(args: dict[str, Any], context: ToolContext, key: str = "argv")
                 raise ValueError(f"Python module is not allowlisted: {module or '<missing>'}")
     if basename in {"node", "node.exe"} and any(value in {"-e", "--eval", "-p", "--print"} for value in lowered):
         raise ValueError("inline Node.js code is not allowed; execute a workspace script")
+    if basename in {"powershell", "powershell.exe", "pwsh", "pwsh.exe"} and not any(
+        value in {"-command", "-file"} for value in lowered
+    ):
+        raise ValueError("PowerShell invocation is not allowlisted without an explicit -Command or -File argument")
+    if basename in {"cmd", "cmd.exe"} and not any(value in {"/c", "/k"} for value in lowered):
+        raise ValueError("cmd invocation is not allowlisted without an explicit /c or /k argument")
     if basename in {"git", "git.exe"} and any(value == "-c" or value.startswith("--exec-path") for value in lowered):
         raise ValueError("Git configuration and executable overrides are not allowed")
 
@@ -208,8 +215,61 @@ def _file_search(args: dict[str, Any], context: ToolContext) -> ToolResult:
     limit = max(1, min(int(args.get("limit", 200)), 2000))
     rg = shutil.which("rg")
     if rg:
-        command = [rg, "--line-number", "--column", "--no-heading", "--color", "never", "--fixed-strings", "-g", glob, "-e", query, "--", str(root)]
-        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, check=False)
+        command = [
+            rg,
+            "--line-number",
+            "--column",
+            "--no-heading",
+            "--no-messages",
+            "--color",
+            "never",
+            "--fixed-strings",
+            "--max-filesize",
+            "8M",
+            "--max-depth",
+            "12",
+            "-g",
+            glob,
+            "-g",
+            "!**/node_modules/**",
+            "-g",
+            "!**/.next/**",
+            "-g",
+            "!**/.git/**",
+            "-g",
+            "!**/.claude/worktrees/**",
+            "-e",
+            query,
+            "--",
+            str(root),
+        ]
+        try:
+            completed = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=30,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            stdout = exc.stdout or ""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode("utf-8", "replace")
+            lines = str(stdout).splitlines()
+            return ToolResult(
+                "",
+                True,
+                {
+                    "matches": lines[:limit],
+                    "match_count": len(lines),
+                    "truncated": True,
+                    "timed_out": True,
+                    "root": str(root),
+                },
+                f"search reached the time limit; returned {len(lines[:limit])} partial matches",
+            )
         lines = completed.stdout.splitlines()
         return ToolResult("", completed.returncode in {0, 1}, {"matches": lines[:limit], "match_count": len(lines), "truncated": len(lines) > limit}, f"found {len(lines)} matches", error=completed.stderr[:2000])
     matches = []
@@ -438,13 +498,33 @@ def _shell_exec(args: dict[str, Any], context: ToolContext) -> ToolResult:
     item_result = _process_start(args, context)
     item = PROCESSES.get(item_result.content["process_id"])
     timeout = max(1, min(int(args.get("timeout_seconds", 120)), 3600))
+    raw_argv = args.get("argv")
+    executable = Path(str(raw_argv[0])).name.casefold() if isinstance(raw_argv, list) and raw_argv else ""
+    is_rg = executable in {"rg", "rg.exe"}
     try:
         code = item.process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
-        return ToolResult("", False, {**item_result.content, "running": True}, "command continues in background", error="timeout")
+        PROCESSES.cancel(item)
+        output = item.log_path.read_text(encoding="utf-8", errors="replace") if item.log_path.exists() else ""
+        return ToolResult(
+            "",
+            is_rg,
+            {
+                **item_result.content,
+                "running": False,
+                "timed_out": True,
+                "exit_code": item.process.poll(),
+                "output": output,
+                "partial_result": is_rg,
+            },
+            "search reached the time limit and returned partial output" if is_rg else "command timed out and was terminated",
+            error="" if is_rg else "timeout",
+        )
     PROCESSES.close_log_if_exited(item)
     output = item.log_path.read_text(encoding="utf-8", errors="replace") if item.log_path.exists() else ""
-    return ToolResult("", code == 0, {**item_result.content, "exit_code": code, "output": output}, f"command exited {code}", error="" if code == 0 else "nonzero_exit")
+    ok = code == 0 or (is_rg and code == 1)
+    summary = "search completed with no matches" if is_rg and code == 1 else f"command exited {code}"
+    return ToolResult("", ok, {**item_result.content, "exit_code": code, "output": output}, summary, error="" if ok else "nonzero_exit")
 
 
 def _process_list(_args: dict[str, Any], _context: ToolContext) -> ToolResult:

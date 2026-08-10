@@ -1,0 +1,174 @@
+{
+  "schema": "evomind.siim_nested_selection_implementation.v5",
+  "created_at": "2026-07-26T21:26:12.918063+08:00",
+  "status": "verified_source_iteration_not_yet_training_ready",
+  "competition_id": "siim-isic-melanoma-classification",
+  "official_score_claimed": false,
+  "training_started": false,
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+    "sha256": "16c67c4fbad78407a33d6fc482cee16038ad6f96954dccd1342a636a55c330dd",
+    "bytes": 280728
+  },
+  "runner": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+    "sha256": "bae448bea8741cd059a47849f27868d45198f065246177400b8f3ccf7d3b7e73",
+    "bytes": 91719
+  },
+  "tests": {
+    "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_mlebench_lite_full.py",
+    "sha256": "bb639334b3607c4f2f3471afa6a07efd3ee22b98ec87eb550b28a7e4f1008882",
+    "bytes": 59735
+  },
+  "backup": {
+    "path": "D:\\桌面\\codex\\科研港科技\\backups\\siim-metadata-fold-harmonization-20260726-210105\\backup_manifest.json",
+    "sha256": "0ba81ccbb7ff318b7ed903bc549d046a19987a354fd70540c296fe5b74e84d10",
+    "bytes": 2035,
+    "directory": "D:\\桌面\\codex\\科研港科技\\backups\\siim-metadata-fold-harmonization-20260726-210105"
+  },
+  "contracts": {
+    "outer_validation_role": "final_oof_only",
+    "nested_inner_selection": true,
+    "patient_and_content_connected_groups": true,
+    "exact_file_sha256_grouped": true,
+    "decoded_rgb_pixel_sha256_grouped": true,
+    "perceptual_dhash64_grouped": true,
+    "perceptual_hamming_max_distance": 1,
+    "exact_file_or_decoded_pixel_public_label_conflict_rejected": true,
+    "fresh_outer_fit_refit": true,
+    "independent_pure_image_epoch_selection": true,
+    "independent_image_metadata_fusion_epoch_selection": true,
+    "channel_state_snapshots_captured_from_fresh_outer_refit": true,
+    "fixed_catboost_iteration_refit": true,
+    "fold_scale_harmonization_variants": [
+      "raw_probability",
+      "fold_logit_zscore",
+      "fold_percentile_rank"
+    ],
+    "fold_scale_harmonization_cross_fitted": true,
+    "held_out_outer_labels_used_for_harmonization_or_blend_selection": false,
+    "crossfit_blend_grid_denominator": 10,
+    "final_full_oof_blend_grid_denominator": 20,
+    "redundant_blend_grid_searches_per_selection_before": 9,
+    "blend_grid_searches_per_selection_after": 1,
+    "default_backbone": "convnext_small",
+    "default_image_size": 384,
+    "default_batch_size": 64,
+    "checkpoint_hashes_emitted_at_runtime": true,
+    "metadata_model_hashes_emitted_at_runtime": true,
+    "nested_leakage_group_manifest_emitted_at_runtime": true,
+    "top_level_artifact_sha256_manifest_emitted_at_runtime": true,
+    "private_labels_used_for_training_selection_or_calibration": false,
+    "metadata_test_predictions_by_fold_persisted": true,
+    "metadata_fold_scale_harmonization_cross_fitted": true,
+    "metadata_harmonization_variants": [
+      "raw_probability",
+      "fold_logit_zscore",
+      "fold_percentile_rank"
+    ],
+    "all_final_component_test_predictions_reconstructable_from_fold_arrays": true,
+    "harmonized_channel_count": 3,
+    "harmonization_mode_candidates_compared_per_selection": 9,
+    "metadata_catboost_task_type_default": "GPU",
+    "metadata_catboost_devices": "0",
+    "metadata_catboost_gpu_ram_part": 0.2,
+    "metadata_catboost_border_count": 128,
+    "metadata_catboost_cpu_thread_cap": 24
+  },
+  "pinned_pretrained_weight": {
+    "backbone": "convnext_small",
+    "filename": "convnext_small-0c510722.pth",
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_model_cache/torch/hub/checkpoints/convnext_small-0c510722.pth",
+    "expected_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+    "observed_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+    "size_bytes": 201014929,
+    "verified": true
+  },
+  "validation": {
+    "ruff": "passed",
+    "py_compile": "passed",
+    "focused_siim_tests": {
+      "status": "passed",
+      "selected": 21,
+      "passed": 19,
+      "gpu_rng_tests_skipped_without_torch": 2,
+      "elapsed_seconds": 10.857,
+      "previous_elapsed_seconds_approx": 51.5
+    },
+    "full_ci": {
+      "status": "passed",
+      "gates": "4/4",
+      "tests_collected": 1067,
+      "imports_clean": 155,
+      "plaintext_secret_scan": "passed",
+      "process_priority": "BelowNormal",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\siim_full_ci_20260726_212243.log",
+      "sha256": "4f9da65a19a8a1ae720163fe96c145eaed411fe41e173805403546b23011e99e",
+      "bytes": 888,
+      "stderr_bytes": 0
+    },
+    "rerun_at": "2026-07-26T21:26:12.920065+08:00"
+  },
+  "deployment": {
+    "requested_seed": 42,
+    "confirmation_seed": 43,
+    "promotion_auc": 0.942,
+    "both_confirmation_seeds_required": true,
+    "a800_must_be_idle": true,
+    "duplicate_run_prohibited": true,
+    "current_a800_lane": "a800_jigsaw_toxic_parallel_s42_20260726_143400",
+    "current_a800_lane_state": "running",
+    "current_a800_heartbeat_created_at": "2026-07-26T21:25:26.463155+08:00",
+    "current_a800_gpu_snapshot": {
+      "name": "NVIDIA A800-SXM4-80GB",
+      "memory_total_mib": 81920,
+      "memory_used_mib": 41216,
+      "utilization_percent": 94,
+      "temperature_c": 60,
+      "owned_training_process_count": 1
+    },
+    "local_siim_process_count": 0,
+    "auto_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "process_signals_sent": false,
+    "current_verdict": "NO-GO",
+    "current_verdict_reason": "source gates are green, but dermoscopy multiview/robust preprocessing and second pinned backbone remain unimplemented and the active A800 lane is occupied",
+    "current_a800_heartbeat_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\a800_lane_watch\\a800_jigsaw_toxic_parallel_s42_20260726_143400_heartbeat_current.json",
+    "current_a800_heartbeat_sha256": "042dc30b6b497dd671cca3e8b7acb307e333c44501c022ad0adc75982db16a18",
+    "local_rtx4060_authorized_for_bounded_followup": true,
+    "local_siim_training_started": false
+  },
+  "gpt56_review": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_current.json",
+    "sha256": "6a7d43daa1e31bcc334b9d1f771a4f23083dc7ee1dfbf84d4531881cd7598759",
+    "bytes": 38658,
+    "served_model": "gpt-5.6-sol",
+    "parse_ok": true,
+    "latency_ms": 269233.1,
+    "prompt_tokens": 55348,
+    "completion_tokens": 15057,
+    "reasoning_tokens": 7580,
+    "total_tokens": 70405,
+    "siim_verdict_before_metadata_fold_fix": "NO-GO",
+    "source_changed_since_review": true,
+    "reviewed_source_sha256": "b4abd8d40237ccbf0f1b71d508fd29d44d73f8ef3a9419531da926db84c4c74d",
+    "current_source_sha256": "16c67c4fbad78407a33d6fc482cee16038ad6f96954dccd1342a636a55c330dd",
+    "addressed_review_defect": "metadata_test_by_fold is now persisted and harmonized like image and fusion channels",
+    "review_partially_stale": true,
+    "addressed_review_defects": [
+      "metadata_test_by_fold is now persisted and harmonized like image and fusion channels",
+      "metadata CatBoost now defaults to GPU with bounded GPU RAM"
+    ],
+    "unresolved_high_value_gaps": [
+      "deterministic full-image plus lesion-focused multiview",
+      "color constancy, dark-border crop, and hair robustness",
+      "second pinned EfficientNet-V2-S backbone",
+      "two grouped-seed AUC confirmations at or above promotion thresholds"
+    ]
+  },
+  "validation_fix_backup": {
+    "directory": "D:\\桌面\\codex\\科研港科技\\backups\\post-catboost-gpu-ci-import-fix-20260726-212214",
+    "manifest_path": "D:\\桌面\\codex\\科研港科技\\backups\\post-catboost-gpu-ci-import-fix-20260726-212214\\backup_manifest.json",
+    "manifest_sha256": "1fb44110bd0d9b1a656c558e3cfaf15b0ce01336a209647a06199205ba389f83"
+  }
+}

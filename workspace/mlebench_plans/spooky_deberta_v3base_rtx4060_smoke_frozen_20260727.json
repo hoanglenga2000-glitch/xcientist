@@ -1,0 +1,180 @@
+{
+  "schema": "evomind.spooky.deberta_rtx4060_smoke_frozen_plan.v1",
+  "created_at": "2026-07-27T06:08:09.188510+08:00",
+  "status": "frozen_before_training",
+  "driver": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "audit_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+    "audit_sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce",
+    "ranked_upgrade": "deberta_v3_base_cuda_memory_smoke"
+  },
+  "competition_id": "spooky-author-identification",
+  "public_data_only": true,
+  "private_labels_used": false,
+  "official_grader_feedback_allowed": false,
+  "source": {
+    "runner_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_transformer_oof.py",
+    "runner_sha256": "cc8da93e04df697e1f39063af87c2be9d92097d947712cd71ebbf29674d31c22",
+    "frozen_adapter_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+    "frozen_adapter_sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8"
+  },
+  "inputs": {
+    "public_train_sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf",
+    "public_test_sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5",
+    "public_sample_submission_sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6",
+    "train_rows": 17621,
+    "test_rows": 1958,
+    "class_order": [
+      "EAP",
+      "HPL",
+      "MWS"
+    ],
+    "duplicate_group_report": {
+      "schema": "evomind.spooky.duplicate_groups.v1",
+      "normalization": "NFKC_lower_word_number_tokens_v1",
+      "rows": 17621,
+      "unique_groups": 17613,
+      "duplicate_groups": 8,
+      "duplicate_rows_beyond_first": 8,
+      "maximum_group_size": 2,
+      "conflicting_label_groups": 0,
+      "folds": 5,
+      "seed": 42,
+      "group_isolation": true
+    }
+  },
+  "model": {
+    "repo_id": "microsoft/deberta-v3-base",
+    "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+    "license": "MIT",
+    "generic_pretrained": true,
+    "task_specific_checkpoint": false,
+    "num_labels": 3,
+    "problem_type": "single_label_classification"
+  },
+  "training": {
+    "seed": 42,
+    "folds": 5,
+    "epochs_per_fold": 1,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "max_length": 320,
+    "train_batch_size": 2,
+    "eval_batch_size": 16,
+    "gradient_accumulation_steps": 16,
+    "effective_batch_size": 32,
+    "learning_rate": 2e-05,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "schedule": "cosine",
+    "gradient_checkpointing": true,
+    "mixed_precision": "bf16",
+    "max_grad_norm": 1.0,
+    "num_workers": 0,
+    "tf32": true
+  },
+  "byte_channel": {
+    "encoding": "utf8_bytes_plus_one_zero_pad",
+    "max_length": 768,
+    "embedding_dim": 48,
+    "kernels": [
+      3,
+      5,
+      7
+    ],
+    "channels": 128,
+    "dropout": 0.2,
+    "epochs_per_fold": 1,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "train_batch_size": 64,
+    "eval_batch_size": 128,
+    "learning_rate": 0.001,
+    "weight_decay": 0.0001,
+    "label_smoothing": 0.05
+  },
+  "sparse_channel": {
+    "model": "fold_local_word_raw_char_nbsvm",
+    "word_ngram_range": [
+      1,
+      2
+    ],
+    "raw_char_ngram_range": [
+      2,
+      6
+    ],
+    "word_max_features": 60000,
+    "char_max_features": 120000,
+    "c_value": 4.0,
+    "fixed_channel_weights": {
+      "word": 0.3,
+      "raw_char": 0.7
+    },
+    "fit_scope": "outer_fit_rows_only"
+  },
+  "ensemble": {
+    "components": [
+      "sparse",
+      "byte",
+      "transformer"
+    ],
+    "weight_grid_steps": 4,
+    "temperatures": [
+      0.8,
+      0.9,
+      1.0,
+      1.1,
+      1.2
+    ],
+    "modes": [
+      "probability",
+      "log_probability"
+    ],
+    "selection": "for_each_outer_fold_on_all_other_folds_only",
+    "test_aggregation": "apply_fold_specific_transform_then_average",
+    "exact_deployment_oof_required": true
+  },
+  "promotion_gate": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "bronze_threshold_reference": 0.29381,
+    "single_seed_log_loss_threshold": 0.292,
+    "single_seed_only_is_not_promotable": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "three_seed_mean_threshold": 0.285,
+    "maximum_individual_seed_log_loss": 0.315,
+    "official_medal_claim_requires_private_grader": true
+  },
+  "execution": {
+    "device": "local_rtx4060",
+    "queue_position": "idle_gap_before_siim_staging_completes",
+    "automatic_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "official_private_grader_before_gate": false,
+    "process_signals_allowed": false,
+    "single_gpu_strict_serial": true,
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\scripts\\run_spooky_transformer_oof.py",
+    "run_id": "local4060_spooky_deberta_v3base_smoke_s42_20260727_0610",
+    "public_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_smoke\\runs",
+    "hf_cache": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\model_cache\\huggingface\\hub",
+    "gpu_idle_consecutive_checks": 3,
+    "gpu_idle_max_utilization_percent": 20
+  },
+  "claim_boundary": "Frozen public-data CUDA smoke plan. Diagnostic output is not OOF promotion evidence, an official MLE-Bench score, or a medal claim.",
+  "diagnostic_smoke": {
+    "folds": [
+      0
+    ],
+    "smoke_train_rows": 64,
+    "smoke_valid_rows": 32,
+    "smoke_test_rows": 32,
+    "max_train_updates_per_fold": 2,
+    "purpose": "RTX 4060 CUDA memory and runtime compatibility only",
+    "promotion_evidence": false
+  }
+}

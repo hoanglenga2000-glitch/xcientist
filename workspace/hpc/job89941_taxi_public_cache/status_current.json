@@ -1,0 +1,88 @@
+{
+  "log": {
+    "bytes": 680,
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/logs/job89941_taxi_public_cache_s42_v1_20260728.log",
+    "sha256": "1f1bb3b6e7bb2ba1259aa18291a2060189e7eba738ab0d613b5866d61094ded6"
+  },
+  "log_tail": "{\"build_seconds\": 599.3799366829917, \"cache_seed\": 42, \"gpu_used\": false, \"kaggle_submission_executed\": false, \"manifest\": {\"bytes\": 8528, \"path\": \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json\", \"relative_path\": \"cache_manifest.json\", \"sha256\": \"a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d\"}, \"official_grader_executed\": false, \"private_labels_used\": false, \"schema\": \"evomind.mlebench.taxi_public_feature_cache_build.v1\", \"status\": \"completed_and_verified\", \"test_shape\": [9914, 72], \"train_shape\": [5000000, 72], \"visibility_mode\": \"PUBLIC_ONLY\"}\n",
+  "manifest": {
+    "bytes": 8528,
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json",
+    "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+  },
+  "other_processes_modified": false,
+  "process": {
+    "cmdline_matches": false,
+    "pid": 378665,
+    "running": false
+  },
+  "process_signals_sent": 0,
+  "schema": "evomind.hpc.job89941_taxi_public_cache_status.v1",
+  "state": {
+    "argv": [
+      "python3",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/frozen_source/scripts/precompute_taxi_public_cache.py",
+      "--data-root",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+      "--output-dir",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+      "--allowed-root",
+      "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+      "--max-rows",
+      "5000000",
+      "--chunk-rows",
+      "250000",
+      "--cache-seed",
+      "42",
+      "--folds",
+      "3",
+      "--holdout-fraction",
+      "0.05"
+    ],
+    "created_at_epoch": 1785180845.420266,
+    "launched_at_epoch": 1785180845.4225519,
+    "other_processes_modified": false,
+    "pid": 378665,
+    "plan_sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165",
+    "process_signals_sent": 0,
+    "schema": "evomind.hpc.job89941_taxi_public_cache_state.v1",
+    "status": "running"
+  },
+  "state_errors": [],
+  "status": "completed",
+  "cache_verification": {
+    "exit_code": 0,
+    "passed": true,
+    "stderr_tail": "",
+    "stdout_tail": "{\"cache_seed\": 42, \"gpu_used\": false, \"kaggle_submission_executed\": false, \"manifest\": {\"bytes\": 8528, \"path\": \"/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json\", \"relative_path\": \"cache_manifest.json\", \"sha256\": \"a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d\"}, \"official_grader_executed\": false, \"private_labels_used\": false, \"schema\": \"evomind.mlebench.taxi_public_feature_cache_verification.v1\", \"status\": \"verified\", \"test_shape\": [9914, 72], \"train_shape\": [5000000, 72], \"visibility_mode\": \"PUBLIC_ONLY\"}\n",
+    "verification": {
+      "cache_seed": 42,
+      "gpu_used": false,
+      "kaggle_submission_executed": false,
+      "manifest": {
+        "bytes": 8528,
+        "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json",
+        "relative_path": "cache_manifest.json",
+        "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+      },
+      "official_grader_executed": false,
+      "private_labels_used": false,
+      "schema": "evomind.mlebench.taxi_public_feature_cache_verification.v1",
+      "status": "verified",
+      "test_shape": [
+        9914,
+        72
+      ],
+      "train_shape": [
+        5000000,
+        72
+      ],
+      "visibility_mode": "PUBLIC_ONLY"
+    }
+  },
+  "observed_at": "2026-07-28T03:45:37.348622+08:00",
+  "job_id": 89941,
+  "run_id": "job89941_taxi_public_cache_s42_v1_20260728",
+  "plan_sha256": "6ca6f0c4059b46cfe45177615d653c79a538de58a101271693f70b704f758165",
+  "profile": "job89941_cpu"
+}

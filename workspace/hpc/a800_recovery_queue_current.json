@@ -1,0 +1,13 @@
+{
+  "schema": "evomind.mlebench.a800_recovery_queue.v1",
+  "created_at": "2026-07-26T19:22:35.395356+08:00",
+  "pid": 89484,
+  "status": "launch_retry_pending",
+  "attempt": 3,
+  "error_type": "CalledProcessError",
+  "next_run_id": "a800_spooky_recovery_s42_20260726_192225",
+  "next_competition_id": "spooky-author-identification",
+  "completed": [],
+  "campaign_mutation_enabled": false,
+  "kaggle_submission_enabled": false
+}

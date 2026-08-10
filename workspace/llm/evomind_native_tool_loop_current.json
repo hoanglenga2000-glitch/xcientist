@@ -1,0 +1,31 @@
+{
+  "schema": "evomind.native_tool_loop_smoke.v1",
+  "created_at": "2026-07-27T13:04:21.658703+00:00",
+  "requested_provider": "openai",
+  "requested_model": "gpt-5.6-sol",
+  "strict_provider": true,
+  "secret_policy": "Credentials are environment/DPAPI-only and are not written to this report.",
+  "llm_execution": {
+    "native_tool_loop": true,
+    "requested_provider": "openai",
+    "strict_provider": true,
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "native_tool_calls": 1,
+    "tool_rounds": 2,
+    "input_tokens": 5281,
+    "output_tokens": 63,
+    "stop_reason": "stop",
+    "status": "completed",
+    "reasoning_effort": "low",
+    "service_tier": "priority"
+  },
+  "answer": {
+    "present": true,
+    "characters": 79,
+    "sha256": "4b682c24277464ad21b30d17aa234ce95c99d38b176beb5c7afc16a2241ebbfa"
+  },
+  "ok": true,
+  "status": "passed",
+  "latency_ms": 6154.0
+}

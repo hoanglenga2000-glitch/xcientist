@@ -1,0 +1,90 @@
+{
+  "schema": "evomind.siim.multiview_implementation_closeout.v1",
+  "created_at": "2026-07-27T01:15:53.266278+08:00",
+  "status": "implementation_preflight_passed_waiting_public_data_and_gpu_lane",
+  "competition_id": "siim-isic-melanoma-classification",
+  "official_score_claimed": false,
+  "training_started": false,
+  "implementation": {
+    "multiview_full_and_lesion": true,
+    "dark_border_crop": true,
+    "shades_of_gray_color_constancy": true,
+    "dark_hair_median_repair": true,
+    "skin_deviation_lesion_focus_crop": true,
+    "lesion_edge_guard": true,
+    "distinct_pretrained_backbones": true,
+    "full_backbone": "convnext_small",
+    "lesion_backbone": "efficientnet_v2_s",
+    "metadata_fusion": true
+  },
+  "artifacts": {
+    "adapter_source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8",
+      "bytes": 322949
+    },
+    "ablation_runner": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_siim_preprocessing_ablation.py",
+      "sha256": "750cca207b19fd5fd59f2baac4d44f6d45cbf0a856d7f9377005c7105ca6c645",
+      "bytes": 38623
+    },
+    "preflight_verifier": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_siim_multiview_preflight.py",
+      "sha256": "7b08d83c124429056ad894c485a6184702440d6b5434d58541b9d22c8f9effb4",
+      "bytes": 9754
+    },
+    "preflight_report": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_multiview_preflight_current.json",
+      "sha256": "a438f17ca372d022f2fba07e2aa883193213de9a37acf104c9f404211c3c1469",
+      "bytes": 4926
+    },
+    "focused_test_source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_mlebench_lite_full.py",
+      "sha256": "9c33f80ba3590b24ba3f34075e3d44dd0dfce0f097ae80e8371c5701dde4d792",
+      "bytes": 80307
+    },
+    "ablation_test_source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_siim_preprocessing_ablation.py",
+      "sha256": "3d1fc0bebad99ab30fb6c178b2cda069d6e36f7601b1859214ba41971a17483f",
+      "bytes": 10636
+    },
+    "backup_dir": "D:\\桌面\\codex\\科研港科技\\backups\\siim_lesion_edge_guard_20260727_011418"
+  },
+  "validation": {
+    "py_compile": "passed",
+    "ruff": "passed",
+    "focused_siim_pytest": {
+      "passed": 38,
+      "skipped_without_torch": 2,
+      "failed": 0
+    },
+    "cpu_multiview_preflight": "passed",
+    "preflight_report_sha256": "a438f17ca372d022f2fba07e2aa883193213de9a37acf104c9f404211c3c1469",
+    "full_and_lesion_views_distinct": true,
+    "both_weight_hashes_verified": true
+  },
+  "resource_state": {
+    "local_full_public_siim_data_present": false,
+    "local_gpu_lane": "local4060_jigsaw_xfmr1_s42_20260727_0024",
+    "local_gpu_lane_status": "running",
+    "local_gpu_fold": 1,
+    "local_gpu_epoch": 2,
+    "local_gpu_update": 6300,
+    "second_gpu_job_started": false
+  },
+  "next_gate": {
+    "action": "stage verified public SIIM data, then run frozen five-profile three-seed grouped ablation after GPU lane is idle",
+    "minimum_profile_mean_gain": 0.0005,
+    "maximum_worst_fold_regression": 0.002,
+    "external_evaluation_seed_count": 3,
+    "formal_oof_training_not_started": true
+  },
+  "integrity": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "commit_created": false
+  },
+  "claim_boundary": "Implementation and CPU preflight evidence only; no SIIM public OOF or official medal is claimed."
+}

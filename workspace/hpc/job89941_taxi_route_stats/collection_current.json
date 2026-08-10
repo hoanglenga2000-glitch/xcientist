@@ -1,0 +1,16 @@
+{
+  "schema": "evomind.hpc.job89941_taxi_route_stats_collection.v1",
+  "created_at": 1785184577.6813347,
+  "status": "completed_and_verified",
+  "manifest": {
+    "path": "D:\\\u684c\u9762\\codex\\\u79d1\u7814\u6e2f\u79d1\u6280\\workspace\\hpc\\job89941_taxi_route_stats\\collected\\taxi_route_stats_s42_v1_20260728\\route_stat_manifest.json",
+    "bytes": 3268,
+    "sha256": "2b63f41ba58923f44f789e8ab7df55f96e2f770dd2cb94012f2f251994a746b6"
+  },
+  "remote_cache": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/route_stats",
+  "large_arrays_remain_on_shared_hpc_storage": true,
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

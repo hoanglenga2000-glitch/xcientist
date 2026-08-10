@@ -1,0 +1,131 @@
+{
+  "schema": "evomind.siim.preprocessing_ablation_frozen_plan.v1",
+  "created_at": "2026-08-10T01:40:32.508434+08:00",
+  "status": "frozen_waiting_prerequisites",
+  "competition_id": "siim-isic-melanoma-classification",
+  "objective": {
+    "official_metric": "roc_auc",
+    "historical_official_score": 0.92165,
+    "bronze_threshold": 0.937,
+    "public_oof_continuation_floor": 0.938,
+    "three_seed_mean_promotion_gate": 0.942,
+    "every_seed_floor": 0.94,
+    "official_score_claimed": false
+  },
+  "planner": {
+    "provider": "openai_compatible_local_gateway",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_current.json",
+      "bytes": 40378,
+      "sha256": "c90f066706d92d03c2c22932738714d407bf3d1c1bc76b5c49d70829494a1215"
+    },
+    "response_sha256": "1c00413a235cde787cc9dae03c706e9790ed780498f6abfcb9c25fa35c79d4e0",
+    "parse_ok": true
+  },
+  "training": {
+    "python": "python3",
+    "script": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_siim_preprocessing_ablation.py",
+    "run_id": "hpc88240_siim_preproc5_s42_20260727",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/siim_preprocessing_ablation",
+    "torch_home": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_model_cache/torch",
+    "seed": 42,
+    "evaluation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "folds": 3,
+    "profiles": [
+      "raw_multiview_v1",
+      "border_multiview_v1",
+      "color_multiview_v1",
+      "hair_multiview_v1",
+      "robust_multiview_v1"
+    ],
+    "image_size": 224,
+    "batch_size": 128,
+    "workers": 16,
+    "manifest_workers": 32,
+    "full_backbone": "convnext_small",
+    "lesion_backbone": "efficientnet_v2_s",
+    "linear_alpha": 0.0001,
+    "linear_max_iter": 2000,
+    "minimum_mean_gain": 0.0005,
+    "maximum_worst_fold_regression": 0.002,
+    "maximum_seed_mean_regression": 0.001,
+    "minimum_seed_pass_fraction": 0.6666666666666666,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "data_contract": {
+    "inventory": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/data_contract/public_staging_inventory.json",
+      "bytes": 882,
+      "sha256": "1377dec22a9f3eb4b5eea965eb89684de042301967c7ea85e4443f603e676448"
+    },
+    "manifest_sha256": "8fef392368fcc433f4532129312f3b2ef7118d76cad04dc70f694246c34eff13",
+    "file_count": 33129,
+    "total_bytes": 25765345055,
+    "train_jpeg_count": 28984,
+    "test_jpeg_count": 4142,
+    "remote_public_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/siim-isic-melanoma-classification/prepared/public",
+    "private_paths_requested": false
+  },
+  "implementation": {
+    "runner": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/run_siim_preprocessing_ablation.py",
+      "bytes": 43820,
+      "sha256": "64dc72754b8e1403106838806c844b9baa20168a79bded3d925acfd18130b39a"
+    },
+    "adapter": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 431911,
+      "sha256": "5e939545dea05d676d17245445018cd49ff2df7bae4ec1ddaee74c5b368575a5"
+    },
+    "wave2": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_siim_s42_20260727/scripts/mlebench_wave2_adapters.py",
+      "bytes": 372072,
+      "sha256": "99b3841e972d2a6ad498368af3ef7ba4b5d2410df554ea99305b9fbe22168663"
+    }
+  },
+  "launch_contract": {
+    "gpu_idle_consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10,
+    "no_compute_process_required": true,
+    "process_signals_allowed": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false
+  },
+  "claim_boundary": "Frozen public-data ablation plan and scheduler contract; not an OOF score or official medal.",
+  "serial_dependency": {
+    "leaf_status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/full_leaf_status.json",
+    "accepted_verified_terminal_statuses": [
+      "verification_passed",
+      "verification_complete_gate_failed"
+    ]
+  },
+  "operational_revision": {
+    "created_at": "2026-08-10T01:40:32.512361+08:00",
+    "reason": "Use complete remote SIIM public data directly and move the ablation from RTX 4060 to A40.",
+    "model_data_folds_seeds_profiles_and_thresholds_changed": false,
+    "throughput_only_changes": {
+      "batch_size": 128,
+      "workers": 16,
+      "manifest_workers": 32
+    },
+    "process_signals_sent": 0
+  },
+  "execution_target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "site_packages": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/env/site-packages",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "process_signals_allowed": false
+  }
+}

@@ -1,0 +1,71 @@
+{
+  "schema": "evomind.mlebench_lite.optimization_plan.v1",
+  "created_at": "2026-07-24T19:24:57.373338+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "input_tokens": 356,
+    "output_tokens": 852,
+    "native_tool_loop_evidence_path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\evomind_native_tool_loop_current.json",
+    "native_tool_loop_evidence_sha256": "144358614b908751201abfd5a760f7c7c216f75392fbbe47f5253e909305ecb4"
+  },
+  "wave": "Wave1",
+  "competition_order": [
+    "detecting-insults-in-social-commentary",
+    "random-acts-of-pizza",
+    "leaf-classification",
+    "denoising-dirty-documents",
+    "tabular-playground-series-dec-2021",
+    "dogs-vs-cats-redux-kernels-edition",
+    "new-york-city-taxi-fare-prediction"
+  ],
+  "strategy_notes": {
+    "denoising-dirty-documents": [
+      "Run sampled-pixel ridge across the paired grayscale restoration pipeline.",
+      "Check image reconstruction output and private-grader RMSE."
+    ],
+    "detecting-insults-in-social-commentary": [
+      "Run the word+char TF-IDF logistic baseline first for rapid end-to-end AUC evidence.",
+      "Capture private-grader result, runtime, and resource usage."
+    ],
+    "dogs-vs-cats-redux-kernels-edition": [
+      "Run the A800 CNN with deterministic-runner safety caps.",
+      "Check binary probability output, private-grader log loss, and GPU stability."
+    ],
+    "leaf-classification": [
+      "Run the 990-row shape/margin/texture multiclass baseline.",
+      "Check 99-class probability output and private-grader log loss."
+    ],
+    "new-york-city-taxi-fare-prediction": [
+      "Run chunked ingestion with the bounded 1M sample and GPU CatBoost.",
+      "Record RMSE evidence plus ingestion, memory, and GPU stability."
+    ],
+    "random-acts-of-pizza": [
+      "Run the sparse text+numeric logistic baseline for a second low-cost binary AUC signal.",
+      "Capture private-grader result and sparse-pipeline stability."
+    ],
+    "tabular-playground-series-dec-2021": [
+      "Run bounded 1.2M-row GPU CatBoost after low-cost pipelines pass.",
+      "Record multiclass accuracy evidence and GPU resource stability."
+    ]
+  },
+  "rationale_summary": "Front-load small sparse and tabular baselines for fast private-grader evidence, then validate the compact image-restoration path, and defer bounded GPU workloads in increasing data and ingestion risk. The 5.66 GB taxi task runs last because it presents the highest file-handling and resource-pressure risk.",
+  "risk_controls": [
+    "Use the private grader only; make no Kaggle submissions.",
+    "Keep all runtime files under the dedicated HPC root.",
+    "Leave hyperparameters and safety caps to the deterministic runner.",
+    "Preserve the supplied seven-task set exactly.",
+    "Advance from low-cost pipelines to GPU-heavy workloads to limit cascading resource failures."
+  ],
+  "prompt_sha256": "492088d638aa5f563f5f881bba54ae949c8071300590c20be32378fc3dd8b2b8",
+  "response_sha256": "2b273c7d02be2e97e372fdecfa32b977be72d27140d4c997b6454ee56dd034bd",
+  "latency_ms": 16525.5,
+  "execution_contract": {
+    "ordering_is_model_planned": true,
+    "training_adapters_are_deterministic": true,
+    "hyperparameter_caps_are_runner_owned": true,
+    "kaggle_submission_enabled": false
+  },
+  "status": "passed",
+  "ok": true
+}

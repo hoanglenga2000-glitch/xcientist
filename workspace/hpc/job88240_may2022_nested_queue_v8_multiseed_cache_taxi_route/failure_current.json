@@ -1,0 +1,11 @@
+{
+  "schema": "evomind.hpc88240.may2022_nested_queue_failure.v1",
+  "created_at": "2026-07-28T08:42:28.694106+08:00",
+  "status": "transient_or_contract_failure",
+  "error_type": "MayQueueError",
+  "error": "May queue bundle does not bind the execution plan",
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

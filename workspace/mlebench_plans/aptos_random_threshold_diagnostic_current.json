@@ -1,0 +1,66 @@
+{
+  "schema": "evomind.mlebench_lite.aptos_random_threshold_diagnostic.v1",
+  "created_at": 1785018925.8642943,
+  "method": "cross_fitted_distribution_guided_random_threshold_search",
+  "candidate_count_per_fold": 60000,
+  "artifact_sha256": "aed0281c8e65afbe5421c5f372e76eff8e443579e4385312be3fc151cc548784",
+  "oof_qwk": 0.9148267249830373,
+  "folds": [
+    {
+      "fold": 0,
+      "thresholds": [
+        0.8,
+        1.3800000000000001,
+        2.7,
+        3.5
+      ],
+      "fit_qwk": 0.9223398678197323,
+      "heldout_qwk": 0.9057598128277683
+    },
+    {
+      "fold": 1,
+      "thresholds": [
+        0.8,
+        1.3800000000000001,
+        2.73,
+        3.5
+      ],
+      "fit_qwk": 0.9185065952878243,
+      "heldout_qwk": 0.9236944318231786
+    },
+    {
+      "fold": 2,
+      "thresholds": [
+        0.8,
+        1.3,
+        2.76,
+        3.0
+      ],
+      "fit_qwk": 0.9228806613472785,
+      "heldout_qwk": 0.9021917480293419
+    },
+    {
+      "fold": 3,
+      "thresholds": [
+        0.91,
+        1.3800000000000001,
+        2.73,
+        3.5
+      ],
+      "fit_qwk": 0.918502945541215,
+      "heldout_qwk": 0.9236342964590645
+    },
+    {
+      "fold": 4,
+      "thresholds": [
+        0.8,
+        1.3,
+        2.73,
+        3.5
+      ],
+      "fit_qwk": 0.9197394810319629,
+      "heldout_qwk": 0.9190187485443122
+    }
+  ],
+  "claim_boundary": "internal public-train OOF diagnostic only"
+}

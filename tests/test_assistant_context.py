@@ -71,7 +71,7 @@ def _workspace(tmp_path: Path) -> tuple[Path, Path]:
         "gpu_inventory": [{"name": "NVIDIA A40"}],
         "torch": {"cuda_available": True},
         "user": "secret-user",
-        "pwd": "/secret/path",
+        "pwd": "test-secret-path",
     })
     _write_json(run_dir / "artifact_manifest.json", {
         "review_status": "passed",

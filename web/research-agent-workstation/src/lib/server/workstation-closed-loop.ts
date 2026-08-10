@@ -22,8 +22,10 @@ import {
   type WorkstationArtifactDescriptor
 } from "@/lib/server/workstation-run-contract";
 import { evaluateStrategyExecutionGate } from "@/lib/server/strategy-registry";
+import { writeRunLedger } from "@/lib/server/run-ledger";
 
 type ClosedLoopOptions = {
+  runId?: string;
   allowOfficialSubmitAfterGate?: boolean;
   submitMessage?: string;
   gpuTemplate?: string;
@@ -414,7 +416,18 @@ async function fileExists(relativePath: string) {
   return fs.stat(resolveWorkspacePath(relativePath)).then((stat) => stat.isFile()).catch(() => false);
 }
 
-async function approveExistingGate(input: {
+class GateApprovalRequiredError extends Error {
+  constructor(
+    readonly runId: string,
+    readonly gateType: string,
+    readonly gateId: string | null,
+  ) {
+    super(`Gate pending: ${gateType} must be explicitly approved for run ${runId}.`);
+    this.name = "GateApprovalRequiredError";
+  }
+}
+
+async function requireApprovedGate(input: {
   runId: string;
   gateType: string;
   reviewer: string;
@@ -425,58 +438,32 @@ async function approveExistingGate(input: {
     where: { taskId, runId: input.runId, gateType: input.gateType },
     orderBy: { createdAt: "desc" }
   });
-  const evidence = {
-    reviewer: input.reviewer,
-    reason: input.reason,
-    artifact_path: input.artifactPath ?? null,
-    approved_at: new Date().toISOString()
-  };
-  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
-  await prisma.gate.upsert({
-    where: { id: gateId },
-    update: {
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    },
-    create: {
-      id: gateId,
+  if (!gate || gate.decision !== "approved" || !gate.decidedAt) {
+    await logAction({
+      action: "gate_waiting",
       taskId,
       runId: input.runId,
-      gateType: input.gateType,
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    }
-  });
-  if (input.artifactPath) {
-    try {
-      const artifactFile = resolveWorkspacePath(input.artifactPath);
-      const artifact = JSON.parse(await fs.readFile(artifactFile, "utf-8")) as Record<string, unknown>;
-      await writeJsonArtifact(input.artifactPath, {
-        ...artifact,
-        status: "approved",
-        remote_training_allowed: input.gateType === "hpc_execution_approval" ? true : artifact.remote_training_allowed,
-        approved_by: input.reviewer,
-        approval_reason: input.reason,
-        approved_at: evidence.approved_at,
-        updated_at: new Date().toISOString()
-      });
-    } catch {
-      // Keep DB/action-log approval as the source of truth if an old artifact cannot be parsed.
-    }
+      message: `${input.gateType} is pending explicit approval.`,
+      artifactPath: input.artifactPath,
+      metadata: { gate_id: gate?.id ?? null, gate_type: input.gateType, decision: gate?.decision ?? "missing" }
+    });
+    throw new GateApprovalRequiredError(input.runId, input.gateType, gate?.id ?? null);
   }
   await logAction({
-    action: "approve_gate",
+    action: "gate_approval_consumed",
     taskId,
     runId: input.runId,
-    message: `${input.gateType} approved inside workstation closed-loop supervision.`,
+    message: `${input.gateType} explicit approval consumed by the workstation closed loop.`,
     artifactPath: input.artifactPath,
-    metadata: evidence
+    metadata: {
+      gate_id: gate.id,
+      gate_type: input.gateType,
+      reviewer: gate.reviewer,
+      decided_at: gate.decidedAt.toISOString(),
+      requested_by_stage: input.reason,
+    }
   });
-  return gateId;
+  return gate.id;
 }
 
 async function writeTrace(runRoot: string, event: Record<string, unknown>) {
@@ -1344,7 +1331,7 @@ export async function submitExistingS6E6WorkstationRunToKaggle(input: {
     submission_audit: auditPath,
     approved_at: new Date().toISOString()
   });
-  await approveExistingGate({
+  await requireApprovedGate({
     runId,
     gateType: "submission_approval",
     reviewer: "Research Admin",
@@ -1446,7 +1433,7 @@ export async function submitExistingS6E6RunViaHpcKaggleGateway(input: {
     submission_audit: auditPath,
     approved_at: new Date().toISOString()
   });
-  await approveExistingGate({
+  await requireApprovedGate({
     runId,
     gateType: "submission_approval",
     reviewer: "Research Admin",
@@ -1541,14 +1528,18 @@ export async function submitExistingS6E6RunViaHpcKaggleGateway(input: {
 }
 
 export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = {}) {
-  const created = await createWorkstationRun({
-    taskId,
-    trigger: "closed_loop_workstation_api",
-    configPath: "configs/generated/playground_series_s6e6.yaml",
-    competitionSlug,
-    objective: "Complete S6E6 through workstation agents, gated GPU execution, submission audit, and optional official submit."
-  });
-  const runId = created.run_id;
+  const existingRun = options.runId
+    ? await prisma.experimentRun.findFirst({ where: { id: options.runId, taskId } })
+    : null;
+  if (options.runId && !existingRun) throw new Error("Selected S6E6 run does not exist.");
+  const created = existingRun ? null : await createWorkstationRun({
+      taskId,
+      trigger: "closed_loop_workstation_api",
+      configPath: "configs/generated/playground_series_s6e6.yaml",
+      competitionSlug,
+      objective: "Complete S6E6 through workstation agents, gated GPU execution, submission audit, and optional official submit."
+    });
+  const runId = existingRun?.id ?? created!.run_id;
   const runRoot = `workspace/workstation_runs/${taskId}/${runId}`;
   const artifactDescriptors: WorkstationArtifactDescriptor[] = [];
   await prisma.experimentRun.update({
@@ -1665,12 +1656,21 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
       score_recovery_frontier: buildS6E6ScoreRecoveryFrontier()
     }
   });
-  await approveExistingGate({
+  await requireApprovedGate({
     runId,
     gateType: "plan_approval",
     reviewer: "Research Admin",
     reason: "Current user request authorizes the workstation to start this closed-loop supervised run.",
     artifactPath: plan.artifact_path
+  });
+  await prisma.experimentRun.update({ where: { id: runId }, data: { status: "EXECUTING", validationStatus: "running" } });
+  await writeRunLedger({
+    taskId,
+    runId,
+    status: "EXECUTING",
+    lifecycleState: "EXECUTING",
+    source: "workstation_closed_loop",
+    outputDir: runRoot,
   });
 
   const agentResults: AgentResult[] = [plan];
@@ -1784,7 +1784,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     });
     return { ok: false, run_id: runId, status: "blocked_code_agent", artifact_path: codeQualityPath };
   }
-  await approveExistingGate({
+  await requireApprovedGate({
     runId,
     gateType: "code_quality_approval",
     reviewer: "ReviewerAgent",
@@ -1846,7 +1846,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     }
   }
   const hpcGate = await createHpcExecutionGate({ taskId, runId, template: gpuTemplate });
-  const hpcGateId = await approveExistingGate({
+  const hpcGateId = await requireApprovedGate({
     runId,
     gateType: "hpc_execution_approval",
     reviewer: "Research Admin",
@@ -1998,6 +1998,23 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     };
   }
 
+  await requireApprovedGate({
+    runId,
+    gateType: "result_approval",
+    reviewer: "Research Admin",
+    reason: "Execution, validation, and score Gate evidence are ready for explicit result review.",
+    artifactPath: scoreGate.artifactPath,
+  });
+  await prisma.experimentRun.update({ where: { id: runId }, data: { status: "REPORTING" } });
+  await writeRunLedger({
+    taskId,
+    runId,
+    status: "REPORTING",
+    lifecycleState: "REPORTING",
+    source: "workstation_closed_loop",
+    outputDir: runRoot,
+  });
+
   const reportPath = await writeTextArtifact(`${runRoot}/research_report.md`, [
     "# S6E6 Workstation Closed Loop Report",
     "",
@@ -2058,7 +2075,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
       submission_audit: auditPath,
       approved_at: new Date().toISOString()
     });
-    await approveExistingGate({
+    await requireApprovedGate({
       runId,
       gateType: "submission_approval",
       reviewer: "Research Admin",
@@ -2098,7 +2115,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     }));
   }
 
-  await approveExistingGate({
+  await requireApprovedGate({
     runId,
     gateType: "final_report_approval",
     reviewer: "ReportStudio",
@@ -2116,11 +2133,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
   await prisma.experimentRun.update({
     where: { id: runId },
     data: {
-        status: kaggleSubmission?.status === "submitted"
-        ? "closed_loop_completed"
-        : kaggleSubmission?.status === "failed"
-          ? "closed_loop_submission_failed"
-          : "closed_loop_submission_blocked",
+        status: "COMPLETED",
       validationStatus: audit.status,
       metricsJson: encodeJson({
         workstation_run: true,
@@ -2141,6 +2154,15 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
       finishedAt: new Date()
     }
   });
+  await writeRunLedger({
+    taskId,
+    runId,
+    status: "COMPLETED",
+    lifecycleState: "COMPLETED",
+    source: "workstation_closed_loop",
+    outputDir: runRoot,
+    metadata: { kaggle_submission_status: kaggleSubmission?.status ?? "blocked" },
+  });
   await logAction({
     action: "run_s6e6_workstation_closed_loop",
     taskId,
@@ -2156,11 +2178,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
   return {
     ok: true,
     run_id: runId,
-    status: kaggleSubmission?.status === "submitted"
-      ? "closed_loop_completed"
-      : kaggleSubmission?.status === "failed"
-        ? "closed_loop_submission_failed"
-        : "closed_loop_submission_blocked",
+    status: "COMPLETED",
     report_path: reportPath,
     artifact_manifest_path: artifactManifestPath,
     teacher_bundle: bundle.markdown_path,
@@ -2173,6 +2191,37 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     kaggle_submission: kaggleSubmission
   };
   } catch (error) {
+    if (error instanceof GateApprovalRequiredError) {
+      const waitingStatus = error.gateType === "plan_approval"
+        ? "WAIT_PLAN_GATE"
+        : error.gateType === "result_approval"
+          ? "WAIT_RESULT_GATE"
+        : error.gateType === "final_report_approval"
+          ? "REPORTING"
+          : "EXECUTING";
+      await prisma.experimentRun.update({
+        where: { id: runId },
+        data: { status: waitingStatus, validationStatus: "pending", finishedAt: null }
+      });
+      await writeRunLedger({
+        taskId,
+        runId,
+        status: waitingStatus,
+        lifecycleState: waitingStatus,
+        source: "workstation_closed_loop",
+        outputDir: runRoot,
+        metadata: { required_gate: error.gateType, gate_id: error.gateId },
+      });
+      return {
+        ok: false,
+        run_id: runId,
+        status: waitingStatus,
+        execution_started: false,
+        required_gate: error.gateType,
+        gate_id: error.gateId,
+        error: error.message,
+      };
+    }
     const failurePath = await writeJsonArtifact(`${runRoot}/closed_loop_unhandled_failure.json`, {
       schema: "academic_research_os.closed_loop_unhandled_failure.v1",
       workstation_run_id: runId,
@@ -2195,7 +2244,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     await prisma.experimentRun.update({
       where: { id: runId },
       data: {
-        status: "failed_closed_loop_recoverable",
+        status: "FAILED",
         validationStatus: "blocked",
         metricsJson: encodeJson({
           workstation_run: true,
@@ -2205,6 +2254,15 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
         }),
         finishedAt: new Date()
       }
+    });
+    await writeRunLedger({
+      taskId,
+      runId,
+      status: "FAILED",
+      lifecycleState: "FAILED",
+      source: "workstation_closed_loop",
+      outputDir: runRoot,
+      metadata: { failure_artifact: failurePath },
     });
     await logAction({
       action: "run_s6e6_workstation_closed_loop_failed",
@@ -2220,7 +2278,7 @@ export async function runS6E6WorkstationClosedLoop(options: ClosedLoopOptions = 
     return {
       ok: false,
       run_id: runId,
-      status: "failed_closed_loop_recoverable",
+      status: "FAILED",
       artifact_path: failurePath,
       official_submission_started: false
     };

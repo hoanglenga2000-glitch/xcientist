@@ -1,0 +1,229 @@
+{
+  "task_id": "house_prices",
+  "generated_at": "2026-06-27T19:04:33",
+  "evidence": [
+    {
+      "evidence_id": "evidence_6f6f2a370f",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.json",
+      "hash": "f985b9f17cd11bf580e3ef2c455cba2d62e78b52b30f1f80650d25ed4c09a952",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_2411a4e442",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\house_prices\\scaffold\\scaffold.md",
+      "hash": "02630d86b7876c38102ea5e2c082167a1216ca99ecf34fdaf5908dd989f72bc6",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_c117a7d3d0",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\house_prices\\code\\generated\\baseline_runner.py",
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "generated_by": "LocalTemplateCodeAgent",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_3921e3b849",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\data_quality.json",
+      "hash": "2ce61f0f0ba7b3877917d6f25020efce155e0e7353796d721feb78f5e53a9823",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_d7494a67d5",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\experiment_log.json",
+      "hash": "469524fff61b3e05909122753c175b6fa95d9df2202bf1658c9dbb0452310073",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_ed3c03cfd5",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.docx",
+      "hash": "3a48f9a31aac320ce8b87d6a1aa7a2a9e7236a76d9fa1aa8f2284b04bcf51641",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_360f837472",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\house_prices_local_report.md",
+      "hash": "bf0119816692450d1c39f10abae0913641937ef42171c57e6822987d7178728d",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_61fee4c0ce",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.docx",
+      "hash": "3a48f9a31aac320ce8b87d6a1aa7a2a9e7236a76d9fa1aa8f2284b04bcf51641",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_ffbe8c74e4",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\local_report.md",
+      "hash": "bf0119816692450d1c39f10abae0913641937ef42171c57e6822987d7178728d",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_823e1a3a7e",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\model_results.json",
+      "hash": "5fd84fd9a215c67366888b97c0344867f46091a209c1147fed0bec241ad7bd58",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [
+        "claim_12361d4ed3"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_b74ac2cb17",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.json",
+      "hash": "643001a59ed0574554cfa40dd66421737bb24c67686fb5b0e6d300da31d012f5",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_085d4ad974",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\post_scaffold_improvement.md",
+      "hash": "6e425e36841178f20104ea59bf9e256c7da9a61aa8ddf70368dd2daa7a05f9b8",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_bcef745785",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\submission.csv",
+      "hash": "991858b79d9ab45c4a3cc3b933094ede2f6a883b6ed91727602f2c343d81cab0",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [
+        "claim_12361d4ed3"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_48681b8f70",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.json",
+      "hash": "4f9da73b82fa842608e732c98f0bc07cb4d0f7d88fb84ebe839a73a2994fa280",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_8c61de3d11",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\task_scaffold.md",
+      "hash": "bae48d1b576cc6818be0ab04a489d3f86e9a5a102450cf4be4eb25dbeb788370",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_8bf9fad64a",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.json",
+      "hash": "9a995f78860604dd8ac4400059797b43eb8eaee5294a2473444ac830dabe33a1",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_20da015cfc",
+      "task_id": "house_prices",
+      "run_id": "20260627_190321",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\house_prices\\20260627_190321\\workflow_stage_audit.md",
+      "hash": "91a95a0c5f4d47d0be9fbf767afe0f672f254a5e31bb08d958ffedd437e524b4",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-27T19:04:33",
+      "linked_claims": [],
+      "status": "verified"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim_12361d4ed3",
+      "text": "House Prices - Advanced Regression Techniques local baseline produced validated rmsle results.",
+      "source": "reviewer",
+      "evidence_ids": [
+        "evidence_823e1a3a7e",
+        "evidence_bcef745785"
+      ],
+      "confidence": 0.86,
+      "reviewer_status": "bound",
+      "risk_level": "medium"
+    }
+  ],
+  "needs_evidence": []
+}

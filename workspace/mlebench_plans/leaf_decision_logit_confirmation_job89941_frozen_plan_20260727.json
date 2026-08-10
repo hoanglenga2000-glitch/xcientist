@@ -1,0 +1,198 @@
+{
+  "schema": "evomind.leaf.decision_logit_confirmation_hpc_plan.v1",
+  "created_at": "2026-07-27T22:18:13.740694+08:00",
+  "status": "frozen",
+  "job_id": 89941,
+  "resource_mode": "cpu_only",
+  "visibility_mode": "PUBLIC_ONLY",
+  "run_id": "job89941_leaf_decision_s434445_20260727",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "remote_base": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727",
+  "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+  "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/leaf_confirmation",
+  "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/leaf_confirmation/runs/job89941_leaf_decision_s434445_20260727",
+  "reference_report": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/reference/leaf_multibackbone_current.json",
+  "reference_image_manifest": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/reference/leaf_image_manifest.csv",
+  "embedding_cache_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/embedding_cache",
+  "contract": {
+    "schema": "evomind.leaf.decision_logit_confirmation_contract.v1",
+    "competition_id": "leaf-classification",
+    "device": "cpu_only",
+    "seeds": [
+      43,
+      44,
+      45
+    ],
+    "development_seeds_excluded": [
+      40,
+      41,
+      42
+    ],
+    "folds": 5,
+    "backbones": [
+      "convnext_small",
+      "efficientnet_v2_s"
+    ],
+    "component": "multimodal_group_balanced_rbf_svc_decision_logit",
+    "svc": {
+      "C": 10.0,
+      "gamma": "scale",
+      "kernel": "rbf",
+      "probability": false,
+      "decision_function_shape": "ovr"
+    },
+    "calibration": {
+      "source": "decision_function",
+      "function": "stable_softmax",
+      "temperature": 0.15,
+      "frozen_before_confirmation": true,
+      "confirmation_seed_tuning_allowed": false
+    },
+    "fold_aggregation": "arithmetic_mean_probabilities",
+    "seed_aggregation": "arithmetic_mean_probabilities",
+    "gate": {
+      "per_seed_log_loss_max": 0.0135,
+      "mean_seed_log_loss_max": 0.0135,
+      "maximum_seed_log_loss_max": 0.0135,
+      "ensemble_log_loss_max": 0.0135
+    },
+    "candidate_only": true,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "contract_sha256": "a40dea19b2db48a08479fdf20b0dacb08aa887994b7a0f6de198acc69b4158ef"
+  },
+  "sources": [
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_leaf_decision_logit_confirmation.py",
+      "relative_path": "scripts/run_leaf_decision_logit_confirmation.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/run_leaf_decision_logit_confirmation.py",
+      "bytes": 33239,
+      "sha256": "56ef952b9cc5a7405d241763ad0e36c60707ce928e287632e867700152f7580a"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_leaf_decision_logit_confirmation.py",
+      "relative_path": "scripts/verify_leaf_decision_logit_confirmation.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/verify_leaf_decision_logit_confirmation.py",
+      "bytes": 35904,
+      "sha256": "ff134ef7229b7cf6c0d3d384677ff8413aa593e37e28501edab0291b3434d412"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_leaf_multibackbone_oof.py",
+      "relative_path": "scripts/run_leaf_multibackbone_oof.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/run_leaf_multibackbone_oof.py",
+      "bytes": 37730,
+      "sha256": "4e880d44a6e8c54eafe9802e3e5a0a5da92b4d5ab8d5ddc4a67277ad23449db3"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 329712,
+      "sha256": "863ebf13b88cc189b14bda9aba489462f27434f9c3f78f75146a117c1e1e42f2"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "relative_path": "scripts/mlebench_wave2_adapters.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\russian_transliteration.py",
+      "relative_path": "scripts/russian_transliteration.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+      "relative_path": "src/research_os/mlebench_phase_a.py",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/frozen_source/src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  ],
+  "inputs": [
+    {
+      "name": "reference_report",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\leaf_multibackbone_current.json",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/reference/leaf_multibackbone_current.json",
+      "bytes": 22519,
+      "sha256": "26aeee509b01da503befdddc2acb2f851695ef5633c9a5efb9e1c9adbd15a5ef"
+    },
+    {
+      "name": "image_manifest",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\runs\\local4060_leaf_dualbb_s404142_20260727_0154\\leaf_image_manifest.csv",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/reference/leaf_image_manifest.csv",
+      "bytes": 244252,
+      "sha256": "3b2b283bc278a72de436b487cb59841d965541b3a53800acb81d5ef9c83e76fc"
+    },
+    {
+      "name": "convnext_cache",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\embedding_cache\\convnext_small__50d81574c0edfca2abcf.npy",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/embedding_cache/convnext_small__50d81574c0edfca2abcf.npy",
+      "bytes": 3041408,
+      "sha256": "7ecc2e0e0b56e4bc7fd941aea8b0229225b144b5405e8b090018d1d6c4bab90c"
+    },
+    {
+      "name": "convnext_metadata",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\embedding_cache\\convnext_small__50d81574c0edfca2abcf.json",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/embedding_cache/convnext_small__50d81574c0edfca2abcf.json",
+      "bytes": 1861,
+      "sha256": "099bb90eac725425ca6fa91623f1bb4b1e706fe01ca44ce19dc7a4374553d21f"
+    },
+    {
+      "name": "efficientnet_cache",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\embedding_cache\\efficientnet_v2_s__f07fb149d4eeaab49d72.npy",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/embedding_cache/efficientnet_v2_s__f07fb149d4eeaab49d72.npy",
+      "bytes": 5068928,
+      "sha256": "8c1032e27e53a263109d5b93e3c25155f04851b343f751c8006fa5ce9f1c16e5"
+    },
+    {
+      "name": "efficientnet_metadata",
+      "local_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone\\embedding_cache\\efficientnet_v2_s__f07fb149d4eeaab49d72.json",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_leaf_decision_s434445_20260727/inputs/embedding_cache/efficientnet_v2_s__f07fb149d4eeaab49d72.json",
+      "bytes": 1884,
+      "sha256": "be171999c62b2b5e9a5d6a7d5deecec06c5a361efe0a6af772baf089c24e025f"
+    }
+  ],
+  "public_files": [
+    {
+      "name": "train.csv",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public/train.csv",
+      "bytes": 1481500,
+      "sha256": "14a1f3f49692d0843d556f802b798b089e0d090752526d8a4b4fc476fa7429c3"
+    },
+    {
+      "name": "test.csv",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public/test.csv",
+      "bytes": 164691,
+      "sha256": "0b5165de0f0fcae712900e2a4fae491ec8cd1d1a38b691cbaa59ee6d0b030f39"
+    },
+    {
+      "name": "sample_submission.csv",
+      "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/leaf-classification/prepared/public/sample_submission.csv",
+      "bytes": 208005,
+      "sha256": "eda4dbc07a075c2bc5441e151e20927a7a06a16bdc03abe0d95a031e4f19079c"
+    }
+  ],
+  "runtime": {
+    "python": "python3",
+    "cuda_visible_devices": "",
+    "site_packages": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runtime/unified-py310-sklearn1.7.2/site-packages",
+    "omp_num_threads": 1,
+    "mkl_num_threads": 1,
+    "openblas_num_threads": 1,
+    "numexpr_num_threads": 1
+  },
+  "contracts": {
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "writes_confined_to_remote_root": true,
+    "new_training_on_local_gpu": false
+  },
+  "claim_boundary": "Frozen public-OOF CPU confirmation only; official grading remains behind the Human Gate."
+}

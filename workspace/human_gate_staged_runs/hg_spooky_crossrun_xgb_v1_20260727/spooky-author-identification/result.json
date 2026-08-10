@@ -1,0 +1,85 @@
+{
+  "budget": {
+    "confirmation_model_seeds": [
+      40,
+      41,
+      42
+    ],
+    "seed": 42,
+    "training_executed": false,
+    "training_reused": true
+  },
+  "candidate_only": true,
+  "claim_boundary": "Frozen candidate-only staging; explicit external human approval remains required before one-shot grading.",
+  "competition_id": "spooky-author-identification",
+  "created_at": "2026-07-27T23:43:14.911630+08:00",
+  "cv_score": 0.28159599305517885,
+  "direction": "minimize",
+  "human_gate_preserved": true,
+  "kaggle_submission_executed": false,
+  "metric": "multiclass_log_loss",
+  "official_grader_confirmation_pending": true,
+  "official_grader_executed": false,
+  "official_grader_withheld": true,
+  "private_grader": {
+    "official_mlebench_grader_executed": false,
+    "reason": "explicit_candidate_only_human_confirmation_required",
+    "score": null,
+    "status": "withheld"
+  },
+  "private_labels_used": false,
+  "process_signals_sent": 0,
+  "promotion_gate": {
+    "independent_verification_passed": true,
+    "name": "verified_human_gate_package_confirmation",
+    "package_verification_passed": true,
+    "passed": true,
+    "source_confirmation_gate_passed": true,
+    "source_confirmation_status": "confirmation_passed_human_gate_pending"
+  },
+  "public_submission_validation": {
+    "candidate": {
+      "bytes": 136216,
+      "name": "candidate_submission_withheld.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\candidate_submission_withheld.csv",
+      "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    },
+    "columns": [
+      "id",
+      "EAP",
+      "HPL",
+      "MWS"
+    ],
+    "errors": [],
+    "maximum_probability": 0.9984319312916726,
+    "minimum_probability": 0.0006927938288761264,
+    "prediction_columns": 3,
+    "private_labels_used": false,
+    "rows": 1958,
+    "sample_submission": {
+      "bytes": 121411,
+      "name": "sample_submission.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public\\sample_submission.csv",
+      "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+    },
+    "schema": "evomind.mlebench_lite.public_submission_validation.v1",
+    "valid": true
+  },
+  "schema": "evomind.mlebench_lite.candidate_only_result.v1",
+  "source_human_gate_package": {
+    "all_source_artifacts_hash_verified": true,
+    "confirmation_result_name": "spooky_cross_run_xgb_confirmation_result.json",
+    "confirmation_result_sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742",
+    "frozen_plan_sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1",
+    "independent_verification_sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed",
+    "package_manifest_sha256": "f59b15cb7674391668e9e5a548893bee07292296b0c796b06594df8968b28057",
+    "package_verification_sha256": "fd82525cf8dac993723c4943f4236ceea0a8537b3bbe86a4572715aff2024b85",
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727"
+  },
+  "status": "promotion_gate_passed_confirmation_pending",
+  "submission_path": "submission.csv",
+  "submission_sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec",
+  "training_executed": false,
+  "training_reused": true,
+  "valid_submission": true
+}

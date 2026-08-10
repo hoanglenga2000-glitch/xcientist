@@ -8,6 +8,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+from workstation_local_auth import authenticated_headers, automation_token
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
@@ -21,6 +23,9 @@ def establish_local_session() -> str:
     """Exchange an optional one-time token without printing or persisting it."""
 
     global AUTH_MODE
+    if automation_token(BASE_URL):
+        AUTH_MODE = "local_automation_header"
+        return AUTH_MODE
     token = os.environ.get("WORKSTATION_TEST_BOOTSTRAP_TOKEN", "").strip()
     if not token:
         AUTH_MODE = "missing_bootstrap_token"
@@ -49,7 +54,8 @@ def read(path: Path) -> str:
 def http_ok(path: str) -> dict[str, object]:
     url = f"{BASE_URL}{path}"
     try:
-        with HTTP.open(url, timeout=12) as response:
+        request = urllib.request.Request(url, headers=authenticated_headers(BASE_URL))
+        with HTTP.open(request, timeout=12) as response:
             body = response.read(256).decode("utf-8", errors="replace")
             return {
                 "target": path,

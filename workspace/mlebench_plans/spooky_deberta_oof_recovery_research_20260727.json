@@ -1,0 +1,212 @@
+{
+  "schema": "evomind.spooky.deberta_oof_recovery_research.v1",
+  "created_at": "2026-07-27T05:31:00+08:00",
+  "status": "cuda_smoke_passed_production_oof_runner_pending",
+  "competition_id": "spooky-author-identification",
+  "driver": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "source_audit": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_scored21_20260727.json",
+    "source_audit_sha256": "aa47f3f962e0e1926533988a0df85d9bc9105e4ef4bec6357b0bd0227b802bce"
+  },
+  "authoritative_current_run": {
+    "run_id": "local4060_spooky_xfmrbyte_s42_20260727_0238",
+    "plan_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb",
+    "fold0_component_log_loss": {
+      "transformer": 0.44206131701924833,
+      "byte": 0.5879947569701087,
+      "sparse": 0.5296365916613126
+    },
+    "interpretation": "The frozen DistilRoBERTa plus byte plus separate NB-SVM candidate is healthy operationally but is not yet competitive on public fold 0. The complete five-fold result remains authoritative for its promotion decision.",
+    "status": "single_seed_gate_failed",
+    "candidate_oof_log_loss": 0.3449842458960858,
+    "independent_verification": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_spooky_xfmrbyte_s42_20260727_0238\\independent_verification.json",
+      "sha256": "ecd0a3de192fc7dc4f8be01683e36ce293ae9b2b6d8bdc36902d2874e84c3712",
+      "status": "failed_legacy_object_id_contract",
+      "numeric_probability_reconstruction_passed": true
+    },
+    "confirmation_queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_confirmation_multiseed_calibrated_queue.json",
+      "sha256": "a8de8f424082381edd4d4d3433652893ee93c02e4a3ce06129d84d3440a73870",
+      "status": "seed42_single_seed_gate_failed_no_confirmation",
+      "confirmation_training_launched": false
+    }
+  },
+  "external_research": {
+    "repository": "https://github.com/cgpadwick/saage-spooky-author",
+    "commit": "0e673f40c6",
+    "license": "MIT",
+    "reported_mlebench_private_log_loss": 0.23693,
+    "reported_medal": "silver",
+    "honest_oof_experiment_step": 22,
+    "honest_oof_experiment_log_loss": 0.257451576785908,
+    "boundary": "External scores are research evidence only and are not EvoMind medals or proof that the local candidate passes. No external private labels are available or used.",
+    "sources": [
+      "https://raw.githubusercontent.com/cgpadwick/saage-spooky-author/main/README.md",
+      "https://raw.githubusercontent.com/cgpadwick/saage-spooky-author/main/experiments.jsonl",
+      "https://raw.githubusercontent.com/cgpadwick/saage-spooky-author/main/LICENSE"
+    ]
+  },
+  "local_public_diagnostics": [
+    {
+      "artifact": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_diagnostics\\spooky_tfidf_union_fold0_20260727.json",
+      "sha256": "4cf2dc23009031c161315af74b8b5cfcfdf50a84e7682ed9ed382d68d9163195",
+      "fold0_log_loss": 0.45317572355270386
+    },
+    {
+      "artifact": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_diagnostics\\spooky_tfidf_high_capacity_fold0_20260727.json",
+      "sha256": "d80f60ca790ea51661377e42b4c00989b72a02a6f783b6fb9ca05787e0c75679",
+      "fold0_log_loss": 0.391625314950943,
+      "improvement_over_current_sparse": 0.1380112767103696
+    },
+    {
+      "artifact": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_diagnostics\\spooky_tfidf_style_fold0_20260727.json",
+      "sha256": "e2ac12618c960f37d00a47ee3edfcdbc314c2ff548e8663b5a358df1d4ebe4cb",
+      "fold0_log_loss": 0.3875735402107239,
+      "improvement_over_current_sparse": 0.1420630514505887
+    }
+  ],
+  "candidate_spec": {
+    "model": {
+      "repo_id": "microsoft/deberta-v3-base",
+      "revision": "8ccc9b6f36199bec6961081d44eb72fb3f7353f3",
+      "license": "MIT",
+      "max_length": 320,
+      "dropout": 0.2,
+      "learning_rate": 2e-05,
+      "weight_decay": 0.01,
+      "warmup_ratio": 0.1,
+      "gradient_checkpointing": true,
+      "mixed_precision": "bf16",
+      "rtx4060_initial_micro_batch": 2,
+      "gradient_accumulation_steps": 16,
+      "effective_batch_size": 32
+    },
+    "development_ablations": [
+      "class_weighted_cross_entropy_with_label_smoothing_0.1",
+      "class_weighted_focal_loss_gamma_2.0"
+    ],
+    "sparse_channel": {
+      "word_ngram_range": [
+        1,
+        3
+      ],
+      "word_max_features": 60000,
+      "char_ngram_range": [
+        2,
+        6
+      ],
+      "char_max_features": 120000,
+      "min_df": 2,
+      "multinomial_logistic_c": 4.0
+    },
+    "style_channel": {
+      "features": 28,
+      "families": [
+        "punctuation_density",
+        "stopword_rate",
+        "author_entity_flags",
+        "dialect_and_archaism",
+        "sentence_length",
+        "first_word_indicators",
+        "lexical_diversity"
+      ]
+    },
+    "validation": {
+      "outer_folds": 5,
+      "outer_split": "stratified_duplicate_group_safe",
+      "checkpoint_selection": "inner_split_or_frozen_epoch_budget_only",
+      "meta_selection": "for_each_outer_score_fold_fit_on_all_other_oof_folds_only",
+      "exact_once_oof_required": true,
+      "test_aggregation": "apply_fold_specific_base_and_calibration_then_average",
+      "confirmation_seeds": [
+        40,
+        41,
+        42
+      ]
+    },
+    "meta_models": [
+      "regularized_multinomial_logistic_regression",
+      "early_stopped_xgboost_nested_crossfit"
+    ],
+    "promotion_gate": {
+      "single_seed_log_loss_threshold": 0.292,
+      "three_seed_mean_threshold": 0.285,
+      "maximum_individual_seed_log_loss": 0.315,
+      "official_medal_claim_requires_private_grader": true
+    }
+  },
+  "execution_contract": {
+    "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "single_gpu_strict_serial": true,
+    "preemption_allowed": false,
+    "process_signals_allowed": false,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_preserved": true,
+    "next_action": "Implement a versioned production DeBERTa runner with safe Unicode ID serialization, high-capacity TF-IDF plus 28 style features, and leakage-free OOF meta; freeze its complete five-fold plan before GPU execution."
+  },
+  "implemented_cpu_foundation": {
+    "style_feature_module": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_style_features.py",
+    "leakage_free_meta_module": "D:\\桌面\\codex\\科研港科技\\scripts\\spooky_leakage_free_meta.py",
+    "targeted_tests": 7,
+    "targeted_tests_passed": 7,
+    "full_ci": {
+      "secrets": "passed",
+      "compile": "passed",
+      "imports": "155 modules passed",
+      "tests": "1245 passed",
+      "all_gates": "4/4 passed"
+    }
+  },
+  "updated_at": "2026-07-27T06:20:02.804282+08:00",
+  "cuda_smoke": {
+    "status": "passed",
+    "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+    "first_attempt": {
+      "status": "failed_before_cuda_model_load",
+      "report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_smoke\\runs\\local4060_spooky_deberta_v3base_smoke_s42_20260727_0610\\smoke_attempt_report.json",
+      "sha256": "f5c34c61531eb7b6b076910ec2f8184d3856b19f890bed262d3eac132f942ef9",
+      "cause": "SentencePiece Windows Unicode snapshot path incompatibility"
+    },
+    "retry_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_deberta_v3base_rtx4060_smoke_retry1_frozen_20260727.json",
+      "sha256": "6a1cd00e06a3b558e60fd670236a06719fcece9e5d93602af41ee753cacaf123"
+    },
+    "run_id": "local4060_spooky_deberta_v3base_smoke_retry1_s42_20260727_0618",
+    "summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_smoke\\runs\\local4060_spooky_deberta_v3base_smoke_retry1_s42_20260727_0618\\summary.json",
+      "sha256": "22db0e05d50e2f24aa356d694812d456621429b42681c35bf7dfd94d809483c2"
+    },
+    "verification": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_smoke\\runs\\local4060_spooky_deberta_v3base_smoke_retry1_s42_20260727_0618\\independent_smoke_verification.json",
+      "sha256": "b0d7a0463c5dd1fff066e80806628ff6b33c98c14c52e781df97a8600fc3fcd0",
+      "status": "passed"
+    },
+    "configuration": {
+      "max_length": 320,
+      "micro_batch": 2,
+      "gradient_accumulation_steps": 16,
+      "effective_batch_size": 32,
+      "mixed_precision": "bf16",
+      "gradient_checkpointing": true,
+      "updates": 2,
+      "diagnostic_rows": {
+        "train": 64,
+        "valid": 32,
+        "test": 32
+      }
+    },
+    "observed_gpu": {
+      "memory_used_before_mib": 1217,
+      "memory_used_after_fold_mib": 3730,
+      "memory_delta_mib": 2513,
+      "memory_free_after_fold_mib": 4228,
+      "temperature_before_c": 50,
+      "temperature_after_fold_c": 55
+    },
+    "boundary": "CUDA compatibility and memory evidence only; not OOF promotion evidence and not an official medal."
+  }
+}

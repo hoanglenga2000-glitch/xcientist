@@ -1,0 +1,30 @@
+{
+  "schema": "evomind.mlebench.taxi_route_stat_sidecar_plan.v1",
+  "status": "frozen",
+  "job_id": 89941,
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "run_id": "taxi_route_stats_s42_v1_20260728",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "base_cache": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+  "base_cache_manifest_sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d",
+  "script": {
+    "path": "D:\\\u684c\u9762\\codex\\\u79d1\u7814\u6e2f\u79d1\u6280\\scripts\\precompute_taxi_route_stats.py",
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_route_stats/taxi_route_stats_s42_v1_20260728/frozen_source/precompute_taxi_route_stats.py",
+    "bytes": 8226,
+    "sha256": "2d4f5736aea78990a3efa59d91b93e645a41135234af7be136e13f8910b0f23f"
+  },
+  "cache_seed": 42,
+  "folds": 3,
+  "max_rows": 5000000,
+  "chunk_rows": 250000,
+  "holdout_fraction": 0.05,
+  "contracts": {
+    "validation_targets_used": 0,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false
+  }
+}

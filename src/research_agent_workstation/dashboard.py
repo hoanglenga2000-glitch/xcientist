@@ -3,14 +3,14 @@ from __future__ import annotations
 import argparse
 import json
 import mimetypes
-from json import JSONDecodeError
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from json import JSONDecodeError
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, unquote, urlparse
 
 import yaml
-
 
 ROOT = Path(__file__).resolve().parents[2]
 STATIC_DIR = ROOT / "web" / "dashboard"
@@ -234,8 +234,15 @@ def read_yaml(path: Path, default: Any = None) -> Any:
         return default
 
 
+def configured_experiment_root() -> Path:
+    evidence_root = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    default = Path(evidence_root) / "experiments" if evidence_root else ROOT / "experiments"
+    configured = Path(os.environ.get("RESEARCH_EXPERIMENT_ROOT", default))
+    return (configured if configured.is_absolute() else ROOT / configured).resolve()
+
+
 def latest_experiment(task_name: str) -> Path | None:
-    base = ROOT / "experiments" / task_name
+    base = configured_experiment_root() / task_name
     if not base.exists():
         return None
     candidates = [item for item in base.iterdir() if item.is_dir()]
@@ -260,7 +267,14 @@ def latest_experiment(task_name: str) -> Path | None:
 def rel(path: Path | None) -> str | None:
     if path is None:
         return None
-    return str(path.relative_to(ROOT)).replace("\\", "/")
+    resolved = path.resolve()
+    root = ROOT.resolve()
+    if resolved.is_relative_to(root):
+        return resolved.relative_to(root).as_posix()
+    experiment_root = configured_experiment_root()
+    if resolved.is_relative_to(experiment_root):
+        return f"runtime/experiments/{resolved.relative_to(experiment_root).as_posix()}"
+    return "runtime/external-artifact"
 
 
 def file_info(path: Path) -> dict[str, Any]:
@@ -410,10 +424,14 @@ def summarize_research_sources() -> dict[str, Any]:
 
 
 def summarize_integrity_gate() -> dict[str, Any]:
-    gate_path = ROOT / "docs" / "research_integrity_gate.json"
+    configured_path = Path(
+        os.environ.get("RESEARCH_INTEGRITY_GATE_PATH", ROOT / "docs" / "research_integrity_gate.json")
+    )
+    gate_path = (configured_path if configured_path.is_absolute() else ROOT / configured_path).resolve()
+    root = ROOT.resolve()
     gate = read_json(gate_path, {})
     return {
-        "path": rel(gate_path),
+        "path": rel(gate_path) if gate_path.is_relative_to(root) else "runtime/research_integrity_gate.json",
         "status": gate.get("status", "not_run"),
         "dimensions": gate.get("dimensions", []),
         "tasks": gate.get("tasks", []),

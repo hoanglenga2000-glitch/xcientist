@@ -1,0 +1,45 @@
+{
+  "schema": "evomind.human_gate.package_verification.v1",
+  "created_at": "2026-07-27T17:56:37.292749+08:00",
+  "status": "verified",
+  "files": [
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\candidate_submission_withheld.csv",
+      "bytes": 20461042,
+      "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\frozen_plan.json",
+      "bytes": 8154,
+      "sha256": "4ff2c8eb7af8650d06cccc224941d8c3334ea0567cf014d3d5731b1781098d0d"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\independent_verification.json",
+      "bytes": 1612,
+      "sha256": "c0d2b42b9e2f4a720c28d5ea2fa5dd77526f6d7bb7acd77e49ee188131732f80"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\jigsaw_multiseed_confirmation_result.json",
+      "bytes": 11430,
+      "sha256": "61cb4e1c1a03e77616007e4d38696efc11cd5fbd4f68641eaa47dbf0d3fb5b92"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\manifest.json",
+      "bytes": 3095,
+      "sha256": "2cdf182fbaffb4c93b38f0a3aa019ef657b95fad1c908e8cf85c949cd8c5e6ea"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\README.md",
+      "bytes": 203,
+      "sha256": "895f39fa8308e8be4b385639dc6a41d4d7898a87b2f7bb149579de7753c03081"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\source_completion_evidence.json",
+      "bytes": 5200,
+      "sha256": "11aa61d7a343700835fa5b35f9b8868d380d890ce8fa89eb4461d3f3b432e2d8"
+    }
+  ],
+  "candidate_csv_present": true,
+  "independent_verification_passed": true,
+  "automatic_submission": false
+}

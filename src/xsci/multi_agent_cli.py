@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from dataclasses import replace
 from pathlib import Path
 
@@ -26,19 +27,31 @@ from .config import active_root
 from .user_request import parse_user_request
 
 
-def _bind_siim_allocation(request, *, job_id: int | None, credential_profile: str | None):
+def _bind_hpc_allocation(
+    request,
+    *,
+    job_id: int | None,
+    credential_profile: str | None,
+    resource_profile: str | None,
+    execution_backend: str | None,
+):
     """Persist the exact allocation selected by the API instead of an ambient default."""
 
-    selected_job = str(job_id or os.environ.get("EVOMIND_SIIM_HPC_JOB_ID") or "").strip()
-    selected_profile = str(
-        credential_profile
-        or os.environ.get("EVOMIND_HPC_CREDENTIAL_PROFILE")
-        or ""
-    ).strip()
-    if not selected_job or not selected_profile:
-        raise ValueError(
-            "SIIM run creation requires an explicit hpc job_id and credential_profile"
-        )
+    selected_job = str(job_id or "").strip()
+    selected_profile = str(credential_profile or "").strip()
+    selected_resource = str(resource_profile or "").strip()
+    selected_backend = str(execution_backend or "").strip()
+    values = {
+        "job_id": selected_job,
+        "credential_profile": selected_profile,
+        "resource_profile": selected_resource,
+        "execution_backend": selected_backend,
+    }
+    missing = [name for name, value in values.items() if not value]
+    if missing:
+        raise ValueError(f"Missing HPC execution contract: {', '.join(missing)}")
+    if selected_backend != "hpc" or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", selected_resource):
+        raise ValueError("Invalid HPC execution contract")
     binding = validate_binding(selected_job, selected_profile)
     request.compute_policy = replace(
         request.compute_policy,
@@ -48,6 +61,7 @@ def _bind_siim_allocation(request, *, job_id: int | None, credential_profile: st
         gpu_count=1,
         job_id=binding.job_id,
         credential_profile=binding.credential_profile,
+        resource_profile=selected_resource,
     )
     return request
 
@@ -114,6 +128,8 @@ def main(argv: list[str] | None = None) -> int:
     run_parser.add_argument("--run-id", required=True)
     run_parser.add_argument("--hpc-job-id", type=int)
     run_parser.add_argument("--hpc-credential-profile")
+    run_parser.add_argument("--hpc-resource-profile")
+    run_parser.add_argument("--execution-backend")
     run_parser.add_argument("--parent-run-id")
     snapshot_parser = subparsers.add_parser("snapshot")
     snapshot_parser.add_argument("--run-id")
@@ -155,13 +171,28 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.parent_run_id and not is_siim_request:
             raise ValueError("--parent-run-id is supported only for the SIIM child workflow")
-        if (
+        has_hpc_contract_input = any(
+            value is not None
+            for value in (
+                args.hpc_job_id,
+                args.hpc_credential_profile,
+                args.hpc_resource_profile,
+                args.execution_backend,
+            )
+        )
+        requires_hpc_contract = (
             is_siim_request
-        ):
-            request = _bind_siim_allocation(
+            or request.compute_policy.backend == "hpc"
+            or request.compute_policy.remote_gpu_required
+            or has_hpc_contract_input
+        )
+        if requires_hpc_contract:
+            request = _bind_hpc_allocation(
                 request,
                 job_id=args.hpc_job_id,
                 credential_profile=args.hpc_credential_profile,
+                resource_profile=args.hpc_resource_profile,
+                execution_backend=args.execution_backend,
             )
         if request.task_type == "llm_finetune":
             result = run_llm_finetune(root, request, run_id=args.run_id)

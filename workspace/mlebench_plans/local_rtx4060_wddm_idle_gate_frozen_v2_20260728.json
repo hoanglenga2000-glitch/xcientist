@@ -1,0 +1,53 @@
+{
+  "schema": "evomind.local_gpu.calibrated_idle_gate.v1",
+  "created_at": "2026-07-28T00:39:43.584253+08:00",
+  "status": "frozen_before_use",
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "platform_mode": "Windows_WDDM",
+  "baseline": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728\\5af04692cf5c2fe002daea80ae6b1c7795f49472037a4563e94f396e9a0303f1\\rtx4060_wddm_idle_baseline_20260727_0508.json",
+    "sha256": "5af04692cf5c2fe002daea80ae6b1c7795f49472037a4563e94f396e9a0303f1"
+  },
+  "bound_execution_evidence": {
+    "seed42_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan_v2_20260728.json",
+      "sha256": "3469ad1874ebbbba18b035b78aee9711784b50ad772365ace8cead600b1ef87f"
+    },
+    "confirmation_manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_confirmation_s4041_frozen_manifest_v2_20260728.json",
+      "sha256": "d68497e51edfc830ac8df2da751bbca0bfea6868f934d83a6e0a5a39a3d4174c"
+    }
+  },
+  "legacy_gate": {
+    "gpu_utilization_max_percent": 20,
+    "observed_baseline_min_percent": 22,
+    "classification": "persistent_false_busy_on_WDDM"
+  },
+  "requirements": {
+    "maximum_gpu_utilization_percent": 50,
+    "maximum_memory_utilization_percent": 40,
+    "minimum_memory_free_mib": 6144,
+    "maximum_temperature_c": 65,
+    "allowed_pstates": [
+      "P8"
+    ],
+    "maximum_power_draw_w": 15.0,
+    "maximum_sm_clock_mhz": 600,
+    "python_compute_applications_must_be_empty": true,
+    "consecutive_checks": 3,
+    "minimum_check_interval_seconds": 10
+  },
+  "calibration_scope": "Operational launch-idle classification only. Model, data, folds, seeds, optimizer, and promotion thresholds remain frozen.",
+  "single_gpu_strict_serial": true,
+  "preemption_allowed": false,
+  "process_signals_allowed": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "supersession": {
+    "schema": "evomind.frozen_plan_supersession.v1",
+    "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+    "predecessor_sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1",
+    "reason": "Rebind calibrated thresholds unchanged to content-addressed v2 execution evidence.",
+    "pre_use_correction": true
+  }
+}

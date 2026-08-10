@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,7 +37,7 @@ const pages = {
   report: [
     ["Report Studio", "报告工作室"],
     ["Independent Review"],
-    ["Generate Scientific Report"],
+    ["Generate Scientific Report", "生成科研报告", "科研报告"],
     ["Continue with natural language"]
   ],
   gpu: [["GPU / HPC"], ["HPC Connector Detail", "HPC 连接器详情"], ["Job History", "作业历史"]],
@@ -78,6 +78,40 @@ async function fetchJson(url, timeoutMs = 8000) {
 async function ensureReachable(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new Error(`Dashboard is not reachable: HTTP ${response.status}`);
+}
+
+async function readAutomationToken() {
+  const parsedBase = new URL(baseUrl);
+  if (parsedBase.protocol !== "http:" || parsedBase.hostname !== "127.0.0.1") {
+    throw new Error("Deep-link authentication is restricted to the loopback dashboard.");
+  }
+  const dashboardPort = Number(parsedBase.port || "80");
+  const suffix = dashboardPort === 8088 ? "" : `.${dashboardPort}`;
+  const runtimeDir = process.env.WORKSTATION_RUNTIME_DIR
+    ? path.resolve(process.env.WORKSTATION_RUNTIME_DIR)
+    : path.join(root, "web", "research-agent-workstation", ".runtime-logs");
+  const source = path.join(runtimeDir, `dashboard${suffix}.automation.token`);
+  const token = (await readFile(source, "ascii").catch(() => "")).trim();
+  if (!/^[A-Za-z0-9_-]{24,256}$/.test(token)) {
+    throw new Error("Dashboard local automation token is missing or malformed.");
+  }
+  return token;
+}
+
+async function establishLocalSession(client) {
+  await client.send("Page.navigate", { url: `${baseUrl}/?page=assistant` });
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    await sleep(150);
+    const state = await evalValue(client, `(async () => {
+      if (document.readyState !== 'complete') return { ready: false };
+      const response = await fetch('/api/session/status', { cache: 'no-store', credentials: 'same-origin' }).catch(() => null);
+      if (!response?.ok) return { ready: false, status: response?.status ?? null };
+      const payload = await response.json().catch(() => ({}));
+      return { ready: payload?.authenticated === true || Boolean(payload?.csrf_token), status: response.status };
+    })()`);
+    if (state?.ready === true) return;
+  }
+  throw new Error("Chromium could not establish the dashboard local session.");
 }
 
 async function waitForChrome(portNumber, browserProcess) {
@@ -176,6 +210,7 @@ async function setViewport(client, width, height, mobile) {
 }
 
 async function waitForPage(client, page) {
+  let lastState = null;
   for (let attempt = 0; attempt < 80; attempt += 1) {
     await sleep(150);
     const state = await evalValue(client, `(() => {
@@ -187,19 +222,21 @@ async function waitForPage(client, page) {
         page: pageRoot?.getAttribute('data-ui-page') ?? null,
         task: pageRoot?.getAttribute('data-ui-task') ?? '',
         textSize: document.body?.innerText?.length ?? 0,
-        h1Count: document.querySelectorAll('main h1').length
+        h1Count: document.querySelectorAll('main h1').length,
+        headingCount: document.querySelectorAll('main h1, main h2, main [role="heading"]').length
       };
     })()`);
+    lastState = state;
     const ready = state?.documentReady
       && state.uiReady
       && state.ariaBusy === "false"
       && state.page === page
       && state.task.length > 0
       && state.textSize >= 120
-      && state.h1Count >= 1;
+      && state.headingCount >= 1;
     if (ready) return state;
   }
-  throw new Error(`Page did not reach its UI readiness contract: ${page}`);
+  throw new Error(`Page did not reach its UI readiness contract: ${page}; state=${JSON.stringify(lastState)}`);
 }
 
 async function navigate(client, page) {
@@ -227,6 +264,12 @@ function runtimeErrors(events) {
     const params = event.params ?? {};
     const text = JSON.stringify(params);
     if (/favicon\.ico/.test(text) && /404|Not Found/.test(text)) return false;
+    if (
+      method === "Log.entryAdded"
+      && params.entry?.url === `${baseUrl}/api/session/status`
+      && params.entry?.level === "error"
+      && /status of 401 \(Unauthorized\)/.test(String(params.entry?.text ?? ""))
+    ) return false;
     if (method === "Runtime.exceptionThrown") return true;
     if (method === "Runtime.consoleAPICalled" && params.type === "error") return true;
     if (method === "Log.entryAdded" && params.entry?.level === "error") return true;
@@ -251,6 +294,7 @@ async function run() {
   const browser = findBrowser();
   if (!browser) throw new Error(`No supported Chromium browser found: ${browserCandidates.join(", ")}`);
   await ensureReachable(baseUrl);
+  const automationToken = await readAutomationToken();
   await mkdir(outDir, { recursive: true });
 
   const profileDir = await mkdtemp(path.join(os.tmpdir(), "evomind-deeplinks-"));
@@ -285,6 +329,11 @@ async function run() {
     await client.send("Page.enable");
     await client.send("Runtime.enable");
     await client.send("Log.enable");
+    await client.send("Network.enable");
+    await client.send("Network.setExtraHTTPHeaders", {
+      headers: { "x-evomind-local-automation": automationToken }
+    });
+    await establishLocalSession(client);
 
     const artifacts = [];
     const missing = {};

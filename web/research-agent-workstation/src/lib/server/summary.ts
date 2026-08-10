@@ -2,6 +2,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { prisma } from "@/lib/db";
 import type { ActionLog, ConnectorStatus, Evidence, ExperimentRun, Gate, Report, Workflow } from "@prisma/client";
+import { listHpcJobLineage } from "@/lib/server/hpc-job-lineage";
+import { normalizeConnectorRegistry } from "@/lib/server/connector-health";
+import { readCurrentRunLedger } from "@/lib/server/run-ledger";
 import { claudeApiKeyStatus, deepSeekApiKeyStatus, deepSeekConfig, gpuSshConfig, gpuSshStatus, openAiApiKeyStatus, openAiConfig } from "@/lib/server/capabilities";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
 import { decodeJson, sanitizeClientJson } from "@/lib/server/json";
@@ -1399,7 +1402,7 @@ async function latestCompleteRuntimePath(taskId: string) {
 }
 
 async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown> | null): Promise<RuntimeSummary | null> {
-  if (!pointer || pointer.schema !== "evomind.current_run.v1") return null;
+  if (!pointer || !["evomind.current_run.v1", "evomind.run_ledger_entry.v1"].includes(String(pointer.schema))) return null;
   const runDir = typeof pointer.run_dir === "string" ? pointer.run_dir : "";
   const taskId = typeof pointer.task_id === "string" ? pointer.task_id : "";
   const runId = typeof pointer.run_id === "string" ? pointer.run_id : "";
@@ -1447,7 +1450,22 @@ async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown>
     readJsonFile(`${absoluteRunDir}/training_history.json`),
     readTextFile(`${absoluteRunDir}/hpc_telemetry.jsonl`)
   ]);
-  if (!run || (run as Record<string, unknown>).run_id !== runId) return null;
+  if (!run) {
+    const status = typeof pointer.status === "string" ? pointer.status : "unknown";
+    return {
+      task_id: taskId,
+      latest_experiment_dir: runDir,
+      latest_workstation_run_dir: typeof pointer.output_dir === "string" ? pointer.output_dir : null,
+      task_state: { run_id: runId, status, seq: pointer.last_seq ?? 0 },
+      runtime_snapshot: { schema: "evomind.current_runtime_snapshot.v1", task_id: taskId, run_id: runId, status },
+      current_run: pointer,
+      agent_trace: [],
+      event_log: [],
+    };
+  }
+  if ((run as Record<string, unknown>).run_id !== runId) return null;
+  const canonicalStatus = typeof pointer.status === "string" ? pointer.status : (run as Record<string, unknown>).status;
+  const canonicalRun = { ...(run as Record<string, unknown>), status: canonicalStatus };
   const events = readJsonl(eventsText).filter((event) => event.run_id === runId);
   const handoffs = readJsonl(handoffsText).filter((handoff) => handoff.run_id === runId);
   const tasks = ((run as Record<string, unknown>).tasks ?? {}) as Record<string, Record<string, unknown>>;
@@ -1506,7 +1524,7 @@ async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown>
     schema: "evomind.current_runtime_snapshot.v1",
     task_id: taskId,
     run_id: runId,
-    status: (run as Record<string, unknown>).status,
+    status: canonicalStatus,
     seq: (run as Record<string, unknown>).seq,
     active_agents: activeAgents,
     open_requirements: (run as Record<string, unknown>).open_requirements ?? [],
@@ -1616,7 +1634,7 @@ async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown>
     task_id: taskId,
     latest_experiment_dir: runDir,
     latest_workstation_run_dir: runDir,
-    task_state: run as Record<string, unknown>,
+    task_state: canonicalRun,
     agent_trace: events,
     event_log: events,
     artifact_manifest: artifactManifest as Record<string, unknown> | null,
@@ -1628,7 +1646,7 @@ async function loadMultiAgentRuntimeFromPointer(pointer: Record<string, unknown>
     training_log: trainingLogs,
     current_run: {
       ...pointer,
-      status: (run as Record<string, unknown>).status,
+      status: canonicalStatus,
       last_seq: (run as Record<string, unknown>).seq,
       updated_at: (run as Record<string, unknown>).updated_at ?? pointer.updated_at,
     },
@@ -1652,8 +1670,10 @@ export async function loadMultiAgentRuntimeByRunId(taskId: string, runId: string
 }
 
 async function loadCurrentMultiAgentRuntime(): Promise<RuntimeSummary | null> {
-  const pointerPath = resolveWorkspacePath("workspace/current_run.json");
-  const pointer = await readJsonFile(pointerPath) as Record<string, unknown> | null;
+  const ledger = await readJsonFile(resolveWorkspacePath("workspace/run_ledger/current.json")) as Record<string, unknown> | null;
+  const pointer = ledger?.schema === "evomind.run_ledger_entry.v1"
+    ? ledger
+    : await readJsonFile(resolveWorkspacePath("workspace/current_run.json")) as Record<string, unknown> | null;
   return loadMultiAgentRuntimeFromPointer(pointer);
 }
 
@@ -1774,9 +1794,13 @@ async function loadRuntimeSummary(taskId = "house_prices"): Promise<RuntimeSumma
 
 async function buildFullWorkstationSummary() {
   await ensureWorkstationSeeded();
-  const [tasks, runs, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistTerminalTurn, scientistEngineeringLoop, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate, literatureContext, literatureByTask] = await Promise.all([
+  const [tasks, runs, requiredPassedRuns, connectors, actions, gates, evidence, reports, workflows, runtimes, terminalAgent, scientistAutopilot, scientistActionQueue, scientistContinuationStatus, scientistLoop, scientistLoopLessons, scientistMemoryConsolidation, scientistSelfAudit, scientistReadinessReport, scientistCausalDiagnosis, scientistStrategyOptimizer, scientistContextPacket, scientistReasoningSynthesis, scientistTerminalTurn, scientistEngineeringLoop, scientistInnovationBacklog, scientistHypothesisReview, scientistExperimentBlueprint, scientistSituationModel, scientistTurnPlan, scientistWorkplan, scientistRepairPlan, scientistExecutionContract, scientistTurns, scientistStepTrace, scientistAutopilotStatus, finalDeliveryStatus, kaggleNewCompetitionReadiness, kaggleDpapiReadiness, kaggleExperimentInventory, top30NextEvolutionOrders, mlevolveAlignmentMatrix, mlebenchStyleLeaderboard, verifiedLaunchAudit, launchReadiness, learningLoopReadiness, hpcProbe, liveGpu, s6e6DependencyGate, literatureContext, literatureByTask] = await Promise.all([
     prisma.task.findMany({ orderBy: { updatedAt: "desc" } }),
     prisma.experimentRun.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.experimentRun.findMany({
+      where: { taskId: { in: runtimeTaskIds }, validationStatus: "passed" },
+      orderBy: { createdAt: "desc" }
+    }),
     prisma.connectorStatus.findMany({ orderBy: { provider: "asc" } }),
     prisma.actionLog.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.gate.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
@@ -1826,6 +1850,10 @@ async function buildFullWorkstationSummary() {
     loadLatestLiteratureSummary(),
     loadLiteratureStateForAllTasks()
   ]);
+  const strictResourceReadiness = await readJsonFile(
+    resolveWorkspacePath("docs/launch_resource_readiness.json")
+  ) as Record<string, any> | null;
+  const hpcJobLineage = await listHpcJobLineage();
   const currentMultiAgentRuntime = await loadCurrentMultiAgentRuntime();
   const runtimeByTask = Object.fromEntries(runtimes.map((item) => [item.task_id, item]));
   if (currentMultiAgentRuntime) runtimeByTask[currentMultiAgentRuntime.task_id] = currentMultiAgentRuntime;
@@ -1927,13 +1955,18 @@ async function buildFullWorkstationSummary() {
           : currentMultiAgentRuntime.current_run?.updated_at ?? null,
       }))
     : [];
-  const dbRuns = runs.map((run: any) => {
+  const recentRunIds = new Set(runs.map((run: any) => run.id));
+  const mergedRuns = [...runs, ...requiredPassedRuns.filter((run: any) => !recentRunIds.has(run.id))];
+  const canonicalCurrentRunId = currentMultiAgentRuntime?.current_run?.run_id;
+  const canonicalCurrentStatus = currentMultiAgentRuntime?.current_run?.status;
+  const dbRuns = mergedRuns.map((run: any) => {
     const metrics = decodeJson<Record<string, any>>(run.metricsJson);
+    const status = run.id === canonicalCurrentRunId && canonicalCurrentStatus ? canonicalCurrentStatus : run.status;
     return {
       id: run.id,
       task_id: run.taskId,
       output_dir: run.outputDir,
-      status: run.status,
+      status,
       workstation_run: metrics?.workstation_run === true || run.id.startsWith("wr_"),
       direct_training_allowed: metrics?.direct_training_allowed === true,
       official_submission_allowed: metrics?.official_submission_allowed === true,
@@ -1941,7 +1974,7 @@ async function buildFullWorkstationSummary() {
       artifact_manifest: run.outputDir ? `${run.outputDir}/artifact_manifest.json` : null,
       best_model: run.bestModel,
       best_metrics: metrics,
-      accepted: run.validationStatus === "passed" || run.status === "passed",
+      accepted: run.validationStatus === "passed" || status === "passed" || status === "COMPLETED",
       validation_gate: run.validationStatus ? { status: run.validationStatus } : undefined,
       started_at: run.startedAt?.toISOString() ?? null,
       finished_at: run.finishedAt?.toISOString() ?? null
@@ -1951,6 +1984,7 @@ async function buildFullWorkstationSummary() {
   const gpuCredentialPresent = gpuSshStatus() === "configured";
   const deepSeekConfigured = deepSeekApiKeyStatus() === "configured";
   const openAiConfigured = openAiApiKeyStatus() === "configured";
+  const workstationPythonConfigured = Boolean(process.env.WORKSTATION_PYTHON?.trim());
   const codeAgentConfigured = claudeApiKeyStatus() === "configured" || deepSeekConfigured;
   const deepSeek = deepSeekConfig();
   const openAi = openAiConfig();
@@ -1995,8 +2029,27 @@ async function buildFullWorkstationSummary() {
     : null;
   const gpuCurrentAllocationBlocked = !currentRunHpcReady && !liveGpuPassed && latestGpuAllocationBlockerMetadata?.status === "blocked_current_allocation";
   const kaggleDpapi = await kaggleDpapiProbeStatus(kaggleDpapiReadiness as Record<string, unknown> | null);
+  const strictHpcRuntime = strictResourceReadiness?.external_resources?.hpc_gpu_strict_runtime as Record<string, any> | undefined;
+  const strictHpcProfile = strictHpcRuntime?.profile as Record<string, any> | undefined;
+  const strictHpcProbe = strictHpcRuntime?.live_probe as Record<string, any> | undefined;
+  const strictHpcSmoke = strictHpcRuntime?.bounded_smoke as Record<string, any> | undefined;
+  const latestHpcProfileIdentity = hpcJobLineage.find((identity) => identity.identity_kind === "allocation_profile");
+  const currentHpcProfileName = typeof latestHpcProfileIdentity?.profile === "string" ? latestHpcProfileIdentity.profile : null;
+  const strictHpcProfileName = typeof strictHpcProfile?.profile === "string" ? strictHpcProfile.profile : null;
+  const hpcIdentityBlocked = Boolean(currentHpcProfileName && currentHpcProfileName !== strictHpcProfileName);
+  const strictHpcReady = strictResourceReadiness?.strict_hpc_runtime_status === "ready"
+    && strictHpcRuntime?.configured === true
+    && strictHpcRuntime?.state === "strict_hpc_runtime_verified"
+    && strictHpcProbe?.job_container_verified === true
+    && strictHpcProbe?.samples_requested === 5
+    && strictHpcProbe?.samples_passed === 5
+    && strictHpcSmoke?.status === "passed"
+    && !hpcIdentityBlocked;
+  const strictGpuName = String(strictHpcProbe?.samples?.[0]?.gpu_name ?? "verified GPU");
+  const strictProfileName = String(strictHpcProfile?.profile ?? "named profile");
 
   return {
+    hpc_job_lineage: hpcJobLineage,
     tasks: [
       ...runtimeTasks,
       ...tasks.filter((task: any) => !runtimeTaskIdsSet.has(task.id.replaceAll("-", "_"))).map((task: any) => ({
@@ -2014,7 +2067,7 @@ async function buildFullWorkstationSummary() {
       updated_at: task.updatedAt.toISOString()
       }))
     ],
-    connector_status: Object.fromEntries(
+    connector_status: normalizeConnectorRegistry(Object.fromEntries(
       [
         ...connectors.filter((connector: any) => !["code_agent", "gpu", "kaggle"].includes(connector.provider)).map((connector: any) => [
           connector.provider,
@@ -2025,6 +2078,33 @@ async function buildFullWorkstationSummary() {
             notes: connector.detail
           }
         ] as const),
+        [
+          "llm",
+          {
+            name: "Local reasoning fallback",
+            state: "rule_based",
+            configured: true,
+            notes: "Deterministic local reasoning remains available when an external LLM is not configured."
+          }
+        ] as const,
+        [
+          "storage",
+          {
+            name: "Workspace storage",
+            state: "local_workspace",
+            configured: true,
+            notes: "Artifacts are stored inside the configured local workstation root."
+          }
+        ] as const,
+        [
+          "python_runner",
+          {
+            name: "Workstation Python",
+            state: workstationPythonConfigured ? "local" : "not_configured",
+            configured: workstationPythonConfigured,
+            notes: workstationPythonConfigured ? "WORKSTATION_PYTHON is configured." : "WORKSTATION_PYTHON is not configured."
+          }
+        ] as const,
         [
           "code_agent",
           {
@@ -2071,7 +2151,11 @@ async function buildFullWorkstationSummary() {
           "gpu",
           {
             name: "GPU SSH Gateway",
-            state: currentRunHpcReady
+            state: hpcIdentityBlocked
+              ? `GPU Degraded: current profile ${currentHpcProfileName} has no bound execution job identity`
+              : strictHpcReady
+              ? `GPU SSH Gateway Ready: ${strictProfileName} / ${strictGpuName} / 5 of 5 identity samples and bounded smoke passed`
+              : currentRunHpcReady
               ? `GPU SSH Gateway Ready: ${currentRunGpuSummary} / current-run nvidia-smi and CUDA training passed`
               : gpuCurrentAllocationBlocked
               ? `GPU Blocked: current allocation ${String(latestGpuAllocationBlockerMetadata?.host ?? "unknown")}:${String(latestGpuAllocationBlockerMetadata?.port ?? "unknown")} closed before SSH handshake`
@@ -2088,10 +2172,14 @@ async function buildFullWorkstationSummary() {
                   : hpcProbe.fullyReadyAllowed
                     ? gpuLegacyVerifiedState
                 : gpuPendingState,
-            configured: gpuCredentialPresent,
-            current_allocation_blocked: currentRunHpcReady ? false : gpuCurrentAllocationBlocked || gpuFreshSmokeBlocked || s6e6GatewayBlocked,
-            current_gate_ready: gpuCredentialPresent && (currentRunHpcReady || (!gpuCurrentAllocationBlocked && !gpuFreshSmokeBlocked && !s6e6GatewayBlocked && liveGpu.passed === true)),
-            notes: currentRunHpcReady
+            configured: strictHpcReady || gpuCredentialPresent || Boolean(currentHpcProfileName),
+            current_allocation_blocked: hpcIdentityBlocked ? false : strictHpcReady || currentRunHpcReady ? false : gpuCurrentAllocationBlocked || gpuFreshSmokeBlocked || s6e6GatewayBlocked,
+            current_gate_ready: hpcIdentityBlocked ? false : strictHpcReady || (gpuCredentialPresent && (currentRunHpcReady || (!gpuCurrentAllocationBlocked && !gpuFreshSmokeBlocked && !s6e6GatewayBlocked && liveGpu.passed === true))),
+            notes: hpcIdentityBlocked
+              ? `The newest profile identity ${currentHpcProfileName} is profile-only and execution_eligible=false. Historical ${strictHpcProfileName ?? "HPC"} evidence remains archived but cannot make the current connector READY.`
+              : strictHpcReady
+              ? `Strict HPC runtime evidence verifies ${strictProfileName}, ${strictGpuName}, 5 of 5 job-container identity samples, and a bounded GPU smoke. Remote work remains restricted to the profile-bound allowed root.`
+              : currentRunHpcReady
               ? `The current Multi-Agent run completed on ${currentRunGpuSummary}; hpc_probe.json, per-fold CUDA telemetry, downloaded artifact hashes, and Independent Reviewer checks all passed. Historical connection records remain audit-only.`
               : gpuCurrentAllocationBlocked
               ? `A newer rotating GPU allocation failed fresh SSH validation. Host=${String(latestGpuAllocationBlockerMetadata?.host ?? "unknown")}, port=${String(latestGpuAllocationBlockerMetadata?.port ?? "unknown")}, direct TCP=${String(latestGpuAllocationBlockerMetadata?.tcp_direct ?? "unknown")}, SSH=${String(latestGpuAllocationBlockerMetadata?.ssh_direct ?? "unknown")}. Historical A800 evidence remains archived, but workstation training is blocked until a fresh allocation passes SSH/CUDA smoke.`
@@ -2108,8 +2196,19 @@ async function buildFullWorkstationSummary() {
                   : hpcProbe.fullyReadyAllowed
                     ? "HPC login node + Web Terminal evidence proves 4 x A800, but the workstation does not currently have a loaded SSH credential for automated jobs."
                 : "HPC login node is reachable through the PDF ncat path, but the platform GPU environment SSH endpoint is still external-pending; confirm nvidia-smi in Web Terminal before marking fully ready.",
-            proxy: gpu.socksProxy.host ? "socks5" : "direct",
+            proxy: strictHpcReady || gpu.socksProxy.host ? "socks5" : "direct",
             evidence: {
+              strict_hpc_runtime: strictHpcReady ? {
+                report_path: "docs/launch_resource_readiness.json",
+                profile: strictProfileName,
+                job_id: strictHpcProfile?.job_id ?? null,
+                gpu_name: strictGpuName,
+                samples_passed: strictHpcProbe?.samples_passed ?? null,
+                samples_requested: strictHpcProbe?.samples_requested ?? null,
+                bounded_smoke_status: strictHpcSmoke?.status ?? null,
+                signals_sent: strictHpcProbe?.signals_sent ?? null,
+                other_processes_modified: strictHpcProbe?.other_processes_modified ?? null
+              } : null,
               hpc_probe: hpcProbe,
               current_multi_agent_hpc_probe: currentRunHpcProbe ?? null,
               latest_ssh_connection: liveGpu,
@@ -2173,7 +2272,7 @@ async function buildFullWorkstationSummary() {
           }
         ] as const
       ]
-    ),
+    )),
     runs: [...runtimeRun, ...dbRuns.filter((run: any) => !run.output_dir || !runKeys.has(run.output_dir))],
     actions: actions.map((action: any) => ({
       id: action.id,
@@ -2258,7 +2357,7 @@ async function buildFullWorkstationSummary() {
           status: currentMultiAgentRuntime.task_state?.status ?? "unknown",
           last_seq: currentMultiAgentRuntime.task_state?.seq ?? 0,
           events: currentMultiAgentRuntime.event_log ?? [],
-          source: "workspace/current_run.json"
+          source: "workspace/run_ledger/current.json"
         }
       : terminalAgent,
     literature_context: literatureContext,
@@ -2368,12 +2467,80 @@ async function buildLightweightSummary(): Promise<SummaryRecord> {
     readJsonFile(resolveWorkspacePath("docs/kaggle_dpapi_readiness.json"))
   ]);
 
+  const strictResourceReadiness = await readJsonFile(
+    resolveWorkspacePath("docs/launch_resource_readiness.json")
+  ) as Record<string, any> | null;
+  const hpcJobLineage = await listHpcJobLineage();
+  const currentRunLedger = await readCurrentRunLedger();
+  const strictHpcRuntime = strictResourceReadiness?.external_resources?.hpc_gpu_strict_runtime as Record<string, any> | undefined;
+  const strictHpcProfile = strictHpcRuntime?.profile as Record<string, any> | undefined;
+  const strictHpcProbe = strictHpcRuntime?.live_probe as Record<string, any> | undefined;
+  const strictHpcSmoke = strictHpcRuntime?.bounded_smoke as Record<string, any> | undefined;
+  const latestHpcProfileIdentity = hpcJobLineage.find((identity) => identity.identity_kind === "allocation_profile");
+  const currentHpcProfileName = typeof latestHpcProfileIdentity?.profile === "string" ? latestHpcProfileIdentity.profile : null;
+  const strictHpcProfileName = typeof strictHpcProfile?.profile === "string" ? strictHpcProfile.profile : null;
+  const hpcIdentityBlocked = Boolean(currentHpcProfileName && currentHpcProfileName !== strictHpcProfileName);
+  const strictHpcReady = strictResourceReadiness?.strict_hpc_runtime_status === "ready"
+    && strictHpcRuntime?.configured === true
+    && strictHpcRuntime?.state === "strict_hpc_runtime_verified"
+    && strictHpcProbe?.job_container_verified === true
+    && strictHpcProbe?.samples_requested === 5
+    && strictHpcProbe?.samples_passed === 5
+    && strictHpcSmoke?.status === "passed"
+    && !hpcIdentityBlocked;
+  const kaggleRealApiReady = (kaggleDpapiReadiness as Record<string, any> | null)?.status === "passed"
+    && (kaggleDpapiReadiness as Record<string, any> | null)?.verification_method === "dpapi_real_api"
+    && (kaggleDpapiReadiness as Record<string, any> | null)?.credential_status === "authenticated_real_api";
+
   const connectorStatus: Record<string, Record<string, unknown>> = Object.fromEntries(connectors.map((connector: ConnectorStatus) => [connector.provider, {
     name: connector.name,
     state: connector.state,
     configured: connector.configured,
     notes: connector.detail
   }]));
+  if (hpcIdentityBlocked) {
+    connectorStatus.gpu = {
+      name: "GPU SSH Gateway",
+      state: `GPU Degraded: current profile ${currentHpcProfileName} has no bound execution job identity`,
+      configured: true,
+      current_allocation_blocked: false,
+      current_gate_ready: false,
+      notes: `Historical ${strictHpcProfileName ?? "HPC"} evidence is archive-only until the current profile is bound to a verified execution run.`
+    };
+  } else if (strictHpcReady) {
+    const profile = String(strictHpcProfile?.profile ?? "named profile");
+    const gpuName = String(strictHpcProbe?.samples?.[0]?.gpu_name ?? "verified GPU");
+    connectorStatus.gpu = {
+      name: "GPU SSH Gateway",
+      state: `GPU SSH Gateway Ready: ${profile} / ${gpuName} / 5 of 5 identity samples and bounded smoke passed`,
+      configured: true,
+      current_allocation_blocked: false,
+      current_gate_ready: true,
+      proxy: "socks5",
+      notes: "Strict named-profile container identity and bounded GPU smoke evidence passed.",
+      evidence: {
+        report_path: "docs/launch_resource_readiness.json",
+        profile,
+        job_id: strictHpcProfile?.job_id ?? null,
+        gpu_name: gpuName,
+        samples_passed: 5,
+        bounded_smoke_status: "passed",
+        signals_sent: strictHpcProbe?.signals_sent ?? null,
+        other_processes_modified: strictHpcProbe?.other_processes_modified ?? null
+      }
+    };
+  }
+  if (kaggleRealApiReady) {
+    connectorStatus.kaggle = {
+      name: "Kaggle",
+      state: "Kaggle DPAPI Real API Ready",
+      configured: true,
+      credential_status: "authenticated_real_api",
+      verification_method: "dpapi_real_api",
+      human_gate_required_for_submission: true,
+      notes: "Read-only Kaggle API smoke passed through the Windows DPAPI profile; official submission remains Human Gate controlled."
+    };
+  }
   const openAi = openAiConfig();
   const deepSeek = deepSeekConfig();
   const openAiConfigured = openAiApiKeyStatus() === "configured";
@@ -2397,13 +2564,17 @@ async function buildLightweightSummary(): Promise<SummaryRecord> {
     model: deepSeek.model,
     base_url: deepSeek.baseUrl
   };
-  const latestRun = runs[0];
+  const latestRun = currentRunLedger
+    ? runs.find((run: ExperimentRun) => run.id === currentRunLedger.run_id) ?? runs[0]
+    : runs[0];
 
   return {
+    hpc_job_lineage: hpcJobLineage,
     tasks: tasks.map(serializeTaskLite),
-    connector_status: connectorStatus,
+    connector_status: normalizeConnectorRegistry(connectorStatus),
     runs: runs.map((run: ExperimentRun) => ({
-      id: run.id, task_id: run.taskId, output_dir: run.outputDir, status: run.status,
+      id: run.id, task_id: run.taskId, output_dir: run.outputDir,
+      status: run.id === currentRunLedger?.run_id ? currentRunLedger.status : run.status,
       best_model: run.bestModel, metrics: decodeJson(run.metricsJson), validation_status: run.validationStatus,
       process_id: run.processId, started_at: run.startedAt?.toISOString() ?? null,
       finished_at: run.finishedAt?.toISOString() ?? null, created_at: run.createdAt.toISOString()
@@ -2448,9 +2619,13 @@ async function buildLightweightSummary(): Promise<SummaryRecord> {
     kaggle_new_competition_readiness: kaggleNewCompetitionReadiness,
     kaggle_dpapi_readiness: kaggleDpapiReadiness,
     runtime: latestRun ? {
-      task_id: latestRun.taskId,
-      latest_experiment_dir: latestRun.outputDir,
-      task_state: { status: latestRun.status, updated_at: latestRun.updatedAt.toISOString() },
+      task_id: currentRunLedger?.task_id ?? latestRun.taskId,
+      latest_experiment_dir: currentRunLedger?.output_dir ?? latestRun.outputDir,
+      task_state: {
+        status: currentRunLedger?.status ?? latestRun.status,
+        updated_at: currentRunLedger?.updated_at ?? latestRun.updatedAt.toISOString()
+      },
+      current_run: currentRunLedger,
       agent_trace: [],
       event_log: [],
       training_log: []

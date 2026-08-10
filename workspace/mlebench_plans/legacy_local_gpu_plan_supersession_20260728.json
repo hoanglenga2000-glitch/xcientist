@@ -1,0 +1,67 @@
+{
+  "schema": "evomind.legacy_local_gpu_plan_supersession.v1",
+  "created_at": "2026-07-28T00:39:43.718109+08:00",
+  "status": "v2_plans_corrected_before_use",
+  "frozen_artifact_root": "D:\\桌面\\codex\\科研港科技\\workspace\\frozen_artifacts\\legacy_local_gpu_supersession_20260728",
+  "plans": [
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan.json",
+      "predecessor_sha256": "506f05a1908813aa78e2c484cb2fbad983c28b17179e08869399ce785d6a61fb",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s42_frozen_plan_v2_20260728.json",
+      "successor_sha256": "3469ad1874ebbbba18b035b78aee9711784b50ad772365ace8cead600b1ef87f"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s40_confirmation_frozen_plan.json",
+      "predecessor_sha256": "0c35689e12898a3c3c3a0ba5465b92e58f3fdf64940cc73d80cbb15985b217ce",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s40_confirmation_frozen_plan_v2_20260728.json",
+      "successor_sha256": "d96a6fb135ee875dc5fdcc32073b7b0f528cb945ae1cce3d35b68afaa423247f"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s41_confirmation_frozen_plan.json",
+      "predecessor_sha256": "97026433716d5e2f5763fccd2c671b3e9ef430ffa5fac45c3a879a999a7c70d6",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_transformer_byte_s41_confirmation_frozen_plan_v2_20260728.json",
+      "successor_sha256": "e555d0852694bb7d6026e8dd534535cab400ee8fc83dbfeb021357b6da8e5335"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_confirmation_s4041_frozen_manifest.json",
+      "predecessor_sha256": "9285bd62c29e53c3ab610e4e6e0cbd33024fe287f1dca78835ac48bbc08f87d1",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_confirmation_s4041_frozen_manifest_v2_20260728.json",
+      "successor_sha256": "d68497e51edfc830ac8df2da751bbca0bfea6868f934d83a6e0a5a39a3d4174c"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "predecessor_sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen_v2_20260728.json",
+      "successor_sha256": "216be1dc5347117352bfd0fb6c8fe39b1ba0474e84c01bd7a10a46656649ff67"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_compact_embedding_s42_frozen_plan.json",
+      "predecessor_sha256": "92d4f0ddd20c966328c7e9bb87f148be6d9c9dfcfeb79b19d8e043ad6cc77149",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_compact_embedding_s42_frozen_plan_v2_20260728.json",
+      "successor_sha256": "0384254ea3cbaea74606f961aec30c18a7ac31f907a115b421f9d60d6dd682ed"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan.json",
+      "predecessor_sha256": "7bdf51b2d8f2599acb7646c5fa81e029113af17b76447367eef45ee837ab8cd6",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan_v2_20260728.json",
+      "successor_sha256": "036f87d78a439b607373b693fd621b6ee4712bdacf1a8762bb4fa20e13995907"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_frozen_plan.json",
+      "predecessor_sha256": "65c1a8ca52c6b4ea57d7dfa9fb4c6f6333d404708bcd5077cb18564491bb5012",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_frozen_plan_v2_20260728.json",
+      "successor_sha256": "94507f7f95180907d7de1e86510a8488774c80273d25d67f6b501ed83a780c4e"
+    },
+    {
+      "predecessor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_frozen_plan.json",
+      "predecessor_sha256": "70697c60f5e4e0b6c48f21b3ebf9faddc3de37eddfdb8f0d4b0d314ea928e03e",
+      "successor": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_frozen_plan_v2_20260728.json",
+      "successor_sha256": "b5694f39fee13b66ac8a9a0122f6081068d10b4c4ea9f6c4effc8a5fa3cfdf4c"
+    }
+  ],
+  "model_or_threshold_changes": false,
+  "training_executed": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0
+}

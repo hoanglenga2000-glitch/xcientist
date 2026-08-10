@@ -1,0 +1,61 @@
+{
+  "schema": "evomind.openai_gateway_smoke.v1",
+  "created_at": "2026-07-26T19:25:59.004296+00:00",
+  "provider": "openai",
+  "base_url": "http://127.0.0.1:65068/v1",
+  "requested_model": "gpt-5.6-sol",
+  "secret_policy": "API key loaded from environment or DPAPI and never written to this report.",
+  "models": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 29.4,
+    "model_count": 10,
+    "requested_model_present": true
+  },
+  "nonstream": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 1937.1,
+    "served_model": "gpt-5.6-sol",
+    "content": "GATEWAY_OK",
+    "usage": {
+      "completion_tokens": 8,
+      "total_tokens": 30,
+      "prompt_tokens": 22,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    }
+  },
+  "stream": {
+    "ok": true,
+    "status": 200,
+    "first_delta_ms": 3098.5,
+    "total_ms": 3189.0,
+    "event_count": 3,
+    "content": "STREAM_OK",
+    "usage": {
+      "completion_tokens": 6,
+      "total_tokens": 16,
+      "prompt_tokens": 10,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0
+      }
+    }
+  },
+  "tool_call": {
+    "ok": true,
+    "status": 200,
+    "latency_ms": 1377.9,
+    "tool_call_count": 1,
+    "first_tool": "report_probe"
+  },
+  "ok": true,
+  "status": "passed"
+}

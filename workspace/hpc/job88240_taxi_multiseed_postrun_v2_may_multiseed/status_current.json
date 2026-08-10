@@ -1,0 +1,13 @@
+{
+  "schema": "evomind.hpc88240.taxi_multiseed_postrun.v1",
+  "created_at": "2026-07-28T05:03:51.175345+08:00",
+  "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_source_audited_multiseed_plan_current.json",
+  "plan_sha256": "2cc9fdb562379917494f96d0b1636c11a7ca514c6c83e93ac657747332a1943a",
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "status": "waiting_for_taxi_seeds_terminal",
+  "taxi_queue_status": "waiting_for_may_multiseed_terminal"
+}

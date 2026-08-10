@@ -1,0 +1,51 @@
+{
+  "schema": "evomind.spooky.public_staging.v1",
+  "created_at": "2026-07-27T02:28:51.139718+08:00",
+  "competition_id": "spooky-author-identification",
+  "remote_public_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/spooky-author-identification/prepared/public",
+  "destination": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\spooky-author-identification\\prepared\\public",
+  "status": "verified_complete",
+  "entries": [
+    {
+      "path": "description.md",
+      "size": 6281,
+      "sha256": "35d7de46d74377f997bdc7f5859e36ca3311fb4ae2e37ab63491a9d7c72661bd"
+    },
+    {
+      "path": "sample_submission.csv",
+      "size": 121411,
+      "sha256": "5a9d701524a2659476f62e30fa4e61ecfbeb754e0e9c11a8528a7486992ad1f6"
+    },
+    {
+      "path": "test.csv",
+      "size": 318476,
+      "sha256": "3f68bfa593154a031ee549899f150ccdf2e7a5ed88083e4d9c3ea2fe2cd3dfd5"
+    },
+    {
+      "path": "train.csv",
+      "size": 2882346,
+      "sha256": "87a02befe9c415b976486e4a59b96da0cc907b8645efbb7052256307715ecdbf"
+    }
+  ],
+  "rows": {
+    "train": 17621,
+    "test": 1958,
+    "sample_submission": 1958
+  },
+  "checks": {
+    "train_columns": true,
+    "test_columns": true,
+    "sample_columns": true,
+    "train_ids_unique": true,
+    "test_ids_unique": true,
+    "sample_ids_match_test": true,
+    "classes": true,
+    "no_missing_train_text": true,
+    "no_missing_test_text": true
+  },
+  "private_paths_requested": false,
+  "remote_writes_performed": false,
+  "process_signals_sent": 0,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

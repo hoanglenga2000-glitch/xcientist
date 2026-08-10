@@ -1,0 +1,84 @@
+{
+  "schema": "evomind.hpc.job89771_taxi_distance_band_expert_plan.v1",
+  "created_at": "2026-07-28T11:44:00+08:00",
+  "status": "approved_candidate_diagnostic_only",
+  "job_id": 89771,
+  "profile": "job89771_cpu_nested",
+  "run_id": "taxi_band_3_6_s50_v5_20260728",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "sources": [
+    {
+      "relative_path": "scripts/diagnose_taxi_cpu_distance_band_expert.py",
+      "remote_name": "diagnose_taxi_cpu_distance_band_expert.py",
+      "bytes": 13190,
+      "sha256": "d8cb1f05b9ce72eae1c3a2f16a9ae8cfa8bc885bfeedab527dccfdeb7f9fb4ed"
+    },
+    {
+      "relative_path": "scripts/diagnose_taxi_cpu_longhaul_expert.py",
+      "remote_name": "diagnose_taxi_cpu_longhaul_expert.py",
+      "bytes": 16782,
+      "sha256": "ecdd25f389d354ede3ef2380dabff189a60718e0100ea0f81851dee6049d4286"
+    }
+  ],
+  "inputs": {
+    "cache_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache",
+    "cache_manifest": {
+      "bytes": 8528,
+      "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+    },
+    "predecessor_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_midhaul_s47_v2_20260728/diagnostic",
+    "predecessor_result": {
+      "bytes": 3741,
+      "sha256": "4686fba7346830e35683c4275f680b78aa56953f5297c9b43ad22cb811ab7de0"
+    },
+    "predecessor_bundle": {
+      "bytes": 52242317,
+      "sha256": "04ff0c51e12020ece77551f0aaebafaac4e94de2d88dc52a8cdefa11f28566a8"
+    }
+  },
+  "remote": {
+    "root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728",
+    "source_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/frozen_source",
+    "source": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/frozen_source/diagnose_taxi_cpu_distance_band_expert.py",
+    "plan": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/plans/taxi_cpu_distance_band_expert_job89771_s50_20260728.json",
+    "output_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/diagnostic",
+    "log": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/logs/train.log",
+    "state": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/state.json",
+    "launch_claim": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89771_taxi_longhaul_expert/taxi_band_3_6_s50_v5_20260728/launch_claim.json"
+  },
+  "runtime": {
+    "seed": 50,
+    "iterations": 700,
+    "threads": 60,
+    "minimum_distance_km": 3.0,
+    "maximum_distance_km": 6.0,
+    "exclude_airport": true,
+    "maximum_successor_rmse": 2.85,
+    "minimum_overall_improvement": 0.02,
+    "minimum_band_relative_improvement": 0.03,
+    "cuda_visible_devices": "",
+    "pythonpath": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/.deps:/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runtime/unified-py310-sklearn1.7.2/site-packages",
+    "start_new_session": true
+  },
+  "validation_contract": {
+    "cross_fitted_outer_folds": 3,
+    "expert_selection_uses_inference_features_only": true,
+    "fixed_iterations": true,
+    "predecessor_immutable": true,
+    "diagnostic_only": true,
+    "successor_of": "taxi_midhaul_s47_v2_20260728"
+  },
+  "boundary": {
+    "visibility_mode": "PUBLIC_ONLY",
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "dedicated_remote_root_only": true
+  },
+  "claim_boundary": "A passing diagnostic justifies a nested production candidate; it is not an official score or medal."
+}

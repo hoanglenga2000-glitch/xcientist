@@ -1,0 +1,132 @@
+{
+  "task_id": "titanic",
+  "run_id": "20260701_144612",
+  "artifacts": [
+    {
+      "evidence_id": "ev_918292805f",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_38f8b3f191",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_adac3f6741",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_8287792233",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_31a7b873f5",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_5badd6c06f",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_565fc7b260",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_094ebe480a",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+      "artifact_type": "csv",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_34f30f185f",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_d555ebfdd1",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_102048edd2",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+      "artifact_type": "docx",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_6512de94eb",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_a3d005c0d3",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+      "artifact_type": "json",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    },
+    {
+      "evidence_id": "ev_41b966fc53",
+      "task_id": "titanic",
+      "artifact_path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md",
+      "artifact_type": "md",
+      "source": "local_pipeline",
+      "bound_claims": [],
+      "metadata": {}
+    }
+  ]
+}

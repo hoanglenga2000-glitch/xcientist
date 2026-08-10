@@ -1,0 +1,9 @@
+{
+  "schema": "evomind.mlebench.compute_policy.v1",
+  "updated_at": "2026-07-27T16:20:00+08:00",
+  "compute_backend": "hpc_only",
+  "allow_local_gpu_training": false,
+  "preferred_hpc_job_id": "88240",
+  "hpc_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "process_signals_sent": 0
+}

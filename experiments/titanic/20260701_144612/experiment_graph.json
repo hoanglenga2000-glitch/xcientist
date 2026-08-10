@@ -1,0 +1,61 @@
+{
+  "task_id": "titanic",
+  "nodes": [
+    {
+      "run_id": "20260701_144612",
+      "parent_run_id": null,
+      "branch_id": "baseline",
+      "stage": "training_done",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "plan": {
+        "plan_id": "plan_07ca49a0c4",
+        "task_id": "titanic",
+        "provider": "local_template",
+        "steps": [
+          "load Kaggle-style train/test/sample files",
+          "generate task_profile and EDA summary",
+          "train configured tabular baseline models",
+          "write metrics, submission and evidence manifest",
+          "route submission through validation and human gate"
+        ],
+        "risks": [
+          "demo tasks must not be hard-coded into adapter logic",
+          "generated code must be saved as artifacts before apply",
+          "Kaggle submission remains disabled until credentials and human approval exist"
+        ]
+      },
+      "code_snapshot": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+      "model": "random_forest",
+      "params": {},
+      "metric": "accuracy",
+      "score": 0.8305,
+      "is_buggy": false,
+      "status": "passed",
+      "artifacts": [
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workstation_report.md"
+      ],
+      "reward": 0.8305,
+      "created_at": "2026-07-01T14:46:17"
+    }
+  ],
+  "edges": [],
+  "best_run_id": "20260701_144612",
+  "failed_run_ids": []
+}

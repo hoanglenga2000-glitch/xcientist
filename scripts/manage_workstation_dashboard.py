@@ -11,6 +11,7 @@ import secrets
 import shlex
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -30,6 +31,24 @@ SOURCE_APP_DIR = ROOT / "web" / "research-agent-workstation"
 STANDALONE_SERVER = ROOT / "app" / "server.js"
 SOURCE_STANDALONE_SERVER = SOURCE_APP_DIR / ".next" / "standalone" / "server.js"
 WORKSTATION_SUMMARY_PATH = "/api/workstation-summary"  # Authenticated UI data; lifecycle probes /api/healthz.
+LOOPBACK_OPENAI_BASE_URL = "http://127.0.0.1:65068/v1"
+DASHBOARD_OPENAI_MODEL = "gpt-5.6-sol"
+DATABASE_RUNTIME_SUFFIXES = (".db", ".db-journal", ".db-shm", ".db-wal")
+SOURCE_FILES = {
+    "package.json",
+    "package-lock.json",
+    "next.config.mjs",
+    "postcss.config.mjs",
+    "tailwind.config.ts",
+    "tsconfig.json",
+}
+SOURCE_DIRECTORIES = ("src", "prisma", "public", "scripts")
+APP_DIR = SOURCE_APP_DIR
+RUNTIME_DIR = SOURCE_APP_DIR / ".runtime-logs"
+PID_FILE = RUNTIME_DIR / "dashboard.pid"
+STATE_FILE = RUNTIME_DIR / "dashboard.process.json"
+DEFAULT_DATABASE_PATH = SOURCE_APP_DIR / "prisma" / "workstation.db"
+PRISMA_PUSH_SCRIPT = SOURCE_APP_DIR / "scripts" / "prisma-db-push.mjs"
 # Default-port compatibility names: dashboard.pid, dashboard.out.log,
 # dashboard.err.log. Non-default test/user ports receive a numeric suffix.
 
@@ -50,6 +69,27 @@ def app_dir() -> Path:
     return SOURCE_APP_DIR
 
 
+def source_tree_digest(target_app_dir: Path = SOURCE_APP_DIR) -> str:
+    files = [target_app_dir / name for name in SOURCE_FILES if (target_app_dir / name).is_file()]
+    for directory in SOURCE_DIRECTORIES:
+        root = target_app_dir / directory
+        if root.is_dir():
+            files.extend(
+                path
+                for path in root.rglob("*")
+                if path.is_file() and not path.name.lower().endswith(DATABASE_RUNTIME_SUFFIXES)
+            )
+    digest = hashlib.sha256()
+    for path in sorted(files, key=lambda item: item.relative_to(target_app_dir).as_posix()):
+        relative = path.relative_to(target_app_dir).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        data = path.read_bytes()
+        digest.update(len(data).to_bytes(8, "big"))
+        digest.update(data)
+    return digest.hexdigest()
+
+
 def data_root() -> Path:
     configured = os.environ.get("WORKSTATION_DATA_DIR", "").strip()
     if configured:
@@ -63,11 +103,13 @@ def runtime_dir() -> Path:
         return Path(configured).expanduser().resolve()
     if bundle_mode():
         return data_root() / "logs"
-    return SOURCE_APP_DIR / ".runtime-logs"
+    return RUNTIME_DIR
 
 
 def runtime_paths(port: int = 8088) -> tuple[Path, Path, Path, Path]:
     directory = runtime_dir()
+    if port == 8088:
+        return PID_FILE, STATE_FILE, directory / "dashboard.out.log", directory / "dashboard.err.log"
     suffix = "" if port == 8088 else f".{port}"
     return (
         directory / f"dashboard{suffix}.pid",
@@ -104,12 +146,31 @@ def bootstrap_url_path(port: int = 8088) -> Path:
     return runtime_dir() / f"dashboard{suffix}.bootstrap.once"
 
 
+def automation_token_path(port: int = 8088) -> Path:
+    suffix = "" if port == 8088 else f".{port}"
+    return runtime_dir() / f"dashboard{suffix}.automation.token"
+
+
+def remove_local_auth_files(port: int = 8088) -> None:
+    """Remove lifecycle-bound local auth material after a verified stop/failure."""
+
+    bootstrap_url_path(port).unlink(missing_ok=True)
+    automation_token_path(port).unlink(missing_ok=True)
+
+
 def node_command() -> str:
     bundled = ROOT / "runtime" / "node" / "node.exe"
     for candidate in (os.environ.get("WORKSTATION_NODE"), str(bundled), shutil.which("node.exe"), shutil.which("node")):
         if candidate and Path(candidate).is_file():
             return str(Path(candidate).resolve())
     raise SystemExit("DASHBOARD_MANAGER_FAILED: Node.js was not found (WORKSTATION_NODE, runtime/node/node.exe, PATH)")
+
+
+def npm_command() -> str:
+    candidate = shutil.which("npm.cmd") or shutil.which("npm")
+    if not candidate:
+        raise SystemExit("DASHBOARD_MANAGER_FAILED: npm was not found")
+    return candidate
 
 
 def next_cli_path() -> str:
@@ -138,25 +199,205 @@ def application_version() -> str:
     return "unknown"
 
 
+def backend_version() -> str:
+    """Read the Python package version without importing the mutable runtime."""
+
+    try:
+        text = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    except OSError:
+        return "unknown"
+    match = re.search(r'(?m)^version\s*=\s*"([^"\r\n]{1,64})"\s*$', text)
+    return match.group(1).strip() if match else "unknown"
+
+
+def git_source_identity() -> tuple[str, bool]:
+    """Return the checked-out commit and whether tracked/build inputs are dirty."""
+
+    def capture(command: list[str], timeout: float) -> tuple[int, str]:
+        process = subprocess.Popen(
+            command,
+            cwd=ROOT,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        try:
+            stdout, _stderr = process.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.communicate()
+            raise
+        return process.returncode, stdout
+
+    try:
+        commit_code, commit_output = capture(["git", "rev-parse", "HEAD"], 15)
+        status_code, status_output = capture(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"], 30
+        )
+    except (OSError, subprocess.SubprocessError) as error:
+        raise RuntimeError("source Git identity is unavailable") from error
+    commit_hash = commit_output.strip().lower()
+    if commit_code != 0 or not re.fullmatch(r"[0-9a-f]{40}", commit_hash):
+        raise RuntimeError("source Git commit identity is invalid")
+    if status_code != 0:
+        raise RuntimeError("source Git dirty-state identity is unavailable")
+    return commit_hash, bool(status_output.strip())
+
+
+def _normalized_schema_sql(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def database_schema_identity(database_path: Path | None = None) -> dict[str, str]:
+    """Fingerprint the effective SQLite schema, not mutable database rows."""
+
+    database = (database_path or DEFAULT_DATABASE_PATH).expanduser().resolve()
+    if not database.is_file():
+        raise RuntimeError(f"database schema is unavailable: {database}")
+    connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True, timeout=10)
+    try:
+        rows = connection.execute(
+            """
+            SELECT type, name, tbl_name, COALESCE(sql, '')
+            FROM sqlite_master
+            WHERE type IN ('table', 'index', 'view', 'trigger')
+              AND name NOT LIKE 'sqlite_%'
+            ORDER BY type, name, tbl_name
+            """
+        ).fetchall()
+    finally:
+        connection.close()
+    digest = hashlib.sha256()
+    for row in rows:
+        canonical = "\0".join(
+            (str(row[0] or ""), str(row[1] or ""), str(row[2] or ""), _normalized_schema_sql(row[3]))
+        )
+        digest.update(canonical.encode("utf-8"))
+        digest.update(b"\n")
+    migrations = SOURCE_APP_DIR / "prisma" / "migrations"
+    versions = sorted(
+        child.name
+        for child in migrations.iterdir()
+        if child.is_dir() and (child / "migration.sql").is_file()
+    ) if migrations.is_dir() else []
+    return {
+        "version": versions[-1] if versions else "prisma-push",
+        "sha256": digest.hexdigest(),
+    }
+
+
+def runtime_build_manifest(build_id: str) -> dict[str, object]:
+    commit_hash, source_dirty = git_source_identity()
+    database = database_schema_identity()
+    return {
+        "schema": "evomind.runtime_build.v1",
+        "commit_hash": commit_hash,
+        "source_dirty": source_dirty,
+        "source_tree_sha256": source_tree_digest(SOURCE_APP_DIR),
+        "build_id": build_id,
+        "build_time": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
+        "backend_version": backend_version(),
+        "frontend_version": application_version(),
+        "database_schema_version": database["version"],
+        "database_schema_sha256": database["sha256"],
+    }
+
+
+def write_runtime_build_manifest(candidate: Path, manifest: dict[str, object]) -> Path:
+    destination = candidate / "runtime-build-manifest.json"
+    atomic_json(destination, manifest)
+    standalone = candidate / "standalone"
+    if standalone.is_dir():
+        atomic_json(standalone / "runtime-build-manifest.json", manifest)
+    return destination
+
+
+def load_active_runtime_build_manifest() -> dict | None:
+    configured = os.environ.get("EVOMIND_RUNTIME_BUILD_MANIFEST", "").strip()
+    candidates = [Path(configured).expanduser()] if configured else []
+    if bundle_mode():
+        candidates.extend([
+            STANDALONE_SERVER.parent / "runtime-build-manifest.json",
+            ROOT / "runtime-build-manifest.json",
+        ])
+    else:
+        candidates.extend([
+            SOURCE_APP_DIR / ".next" / "runtime-build-manifest.json",
+            SOURCE_STANDALONE_SERVER.parent / "runtime-build-manifest.json",
+        ])
+    for candidate in candidates:
+        try:
+            payload = json.loads(candidate.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            isinstance(payload, dict)
+            and payload.get("schema") == "evomind.runtime_build.v1"
+            and re.fullmatch(r"[0-9a-fA-F]{40}", str(payload.get("commit_hash") or ""))
+            and re.fullmatch(r"[0-9a-fA-F]{64}", str(payload.get("source_tree_sha256") or ""))
+            and re.fullmatch(r"[0-9a-fA-F]{64}", str(payload.get("database_schema_sha256") or ""))
+        ):
+            return payload
+    return None
+
+
+def bind_runtime_build_identity(env: dict[str, str]) -> dict:
+    manifest = load_active_runtime_build_manifest()
+    if manifest is None:
+        raise SystemExit("DASHBOARD_MANAGER_FAILED: runtime build identity manifest is missing or invalid")
+    manifest_path = (
+        STANDALONE_SERVER.parent / "runtime-build-manifest.json"
+        if bundle_mode()
+        else SOURCE_APP_DIR / ".next" / "runtime-build-manifest.json"
+    )
+    env.update({
+        "EVOMIND_RUNTIME_BUILD_MANIFEST": str(manifest_path.resolve()),
+        "EVOMIND_BUILD_COMMIT_HASH": str(manifest["commit_hash"]),
+        "EVOMIND_SOURCE_TREE_SHA256": str(manifest["source_tree_sha256"]),
+        "EVOMIND_BUILD_ID": str(manifest.get("build_id") or ""),
+        "EVOMIND_BUILD_TIME": str(manifest.get("build_time") or ""),
+        "EVOMIND_BACKEND_VERSION": str(manifest.get("backend_version") or "unknown"),
+        "EVOMIND_FRONTEND_VERSION": str(manifest.get("frontend_version") or "unknown"),
+        "EVOMIND_DATABASE_SCHEMA_VERSION": str(manifest.get("database_schema_version") or "unknown"),
+        "EVOMIND_DATABASE_SCHEMA_SHA256": str(manifest["database_schema_sha256"]),
+    })
+    return manifest
+
+
+def write_source_install_marker(manifest: dict[str, object]) -> Path:
+    marker = {
+        "format_version": 1,
+        "product": "research-workstation",
+        "version": str(manifest.get("frontend_version") or application_version()),
+        "layout": "source_tree",
+        "managed_files": [],
+        "data_root": str(ROOT.resolve()),
+        "backups_root": str((ROOT / "backups").resolve()),
+        "installed_at": str(manifest.get("build_time") or dt.datetime.now(dt.timezone.utc).isoformat()),
+        "runtime_build": manifest,
+    }
+    destination = ROOT / ".workstation-install.json"
+    atomic_json(destination, marker)
+    return destination
+
+
 def source_build_stale() -> bool:
     build_id = SOURCE_APP_DIR / ".next" / "BUILD_ID"
     if not build_id.is_file():
         return True
-    build_time = build_id.stat().st_mtime_ns
-    # Runtime SQLite WAL/SHM files live under prisma/ and change on every API
-    # request.  They are data, not build inputs; treating them as source made a
-    # healthy production build instantly "stale" after its first database read.
-    roots = [SOURCE_APP_DIR / "src", SOURCE_APP_DIR / "prisma" / "migrations"]
-    files = [
-        SOURCE_APP_DIR / "package.json",
-        SOURCE_APP_DIR / "package-lock.json",
-        SOURCE_APP_DIR / "next.config.mjs",
-        SOURCE_APP_DIR / "prisma" / "schema.prisma",
-    ]
-    for base in roots:
-        if base.exists():
-            files.extend(path for path in base.rglob("*") if path.is_file())
-    return any(path.exists() and path.stat().st_mtime_ns > build_time for path in files)
+    try:
+        manifest = json.loads(
+            (SOURCE_APP_DIR / ".next" / "runtime-build-manifest.json").read_text(encoding="utf-8-sig")
+        )
+        return not (
+            isinstance(manifest, dict)
+            and manifest.get("schema") == "evomind.runtime_build.v1"
+            and manifest.get("source_tree_sha256") == source_tree_digest(SOURCE_APP_DIR)
+        )
+    except (OSError, json.JSONDecodeError):
+        return True
 
 
 def _bind_loopback_gateway_credentials(env: dict[str, str]) -> None:
@@ -191,6 +432,49 @@ def _bind_loopback_gateway_credentials(env: dict[str, str]) -> None:
     except (OSError, ValueError, json.JSONDecodeError):
         key = ""
 
+    if not key:
+        appdata_raw = str(env.get("APPDATA") or "").strip()
+        credential_candidates: list[Path] = []
+        if appdata_raw:
+            appdata = Path(appdata_raw)
+            credential_candidates.extend([
+                appdata / "EvoMind" / "secrets" / "openai_api_key.xml",
+                appdata / "ResearchAgentWorkstation" / "openai_api_key.xml",
+            ])
+        configured_credential = str(env.get("EVOMIND_OPENAI_GATEWAY_CREDENTIAL") or "").strip()
+        if configured_credential:
+            credential_candidates.insert(0, Path(configured_credential).expanduser())
+        credential_path = next(
+            (
+                candidate
+                for candidate in credential_candidates
+                if candidate.is_file()
+                and not candidate.is_symlink()
+                and candidate.stat().st_size <= 1024 * 1024
+            ),
+            None,
+        )
+        if credential_path is not None:
+            script = (
+                "$ErrorActionPreference='Stop';"
+                "$c=Import-Clixml -LiteralPath $args[0];"
+                "$c.GetNetworkCredential().Password"
+            )
+            try:
+                completed = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", script, str(credential_path)],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=10,
+                    check=False,
+                )
+                if completed.returncode == 0:
+                    key = completed.stdout.strip()
+            except (OSError, subprocess.SubprocessError):
+                key = ""
+
     # A parent process may carry an unrelated cloud key. Never send that key to
     # the local gateway. If its own credential is unavailable, omit OpenAI and
     # let the provider layer transparently use another configured transport.
@@ -199,7 +483,9 @@ def _bind_loopback_gateway_credentials(env: dict[str, str]) -> None:
     else:
         env.pop("OPENAI_API_KEY", None)
     env["EVOLUTION_PRIMARY_PROVIDER"] = "openai"
-    env.setdefault("OPENAI_MODEL", "gpt-5.6-sol")
+    env["EVOLUTION_PROVIDER_STRICT"] = "true"
+    env["OPENAI_BASE_URL"] = LOOPBACK_OPENAI_BASE_URL
+    env["OPENAI_MODEL"] = DASHBOARD_OPENAI_MODEL
 
     profile_path_raw = str(env.get("EVOMIND_OPENAI_GATEWAY_METADATA") or "").strip()
     appdata_raw = str(env.get("APPDATA") or "").strip()
@@ -237,7 +523,7 @@ def _bind_loopback_gateway_credentials(env: dict[str, str]) -> None:
     env["OPENAI_SERVICE_TIER"] = service_tier
 
 
-def dashboard_env(host: str, port: int) -> dict[str, str]:
+def dashboard_env(host: str = "127.0.0.1", port: int = 8088) -> dict[str, str]:
     env = os.environ.copy()
     root = data_root() if bundle_mode() else Path(env.get("WORKSTATION_ROOT", ROOT)).expanduser().resolve()
     env.setdefault("WORKSTATION_ROOT", str(root))
@@ -245,10 +531,14 @@ def dashboard_env(host: str, port: int) -> dict[str, str]:
     if bundle_mode():
         database = data_root() / "prisma" / "workstation.db"
     else:
-        database = SOURCE_APP_DIR / "prisma" / "workstation.db"
+        database = DEFAULT_DATABASE_PATH
     database.parent.mkdir(parents=True, exist_ok=True)
-    env.setdefault("DATABASE_URL", f"file:{database.as_posix()}")
-    env.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:65068/v1")
+    env["DATABASE_URL"] = f"file:{database.as_posix()}"
+    env["WORKSTATION_PYTHON"] = sys.executable
+    # The dashboard is permanently bound to the local account-pool gateway.
+    # Do not let an unrelated parent-shell OPENAI_BASE_URL bypass credential,
+    # strict-provider, model, and latency-profile binding below.
+    env["OPENAI_BASE_URL"] = LOOPBACK_OPENAI_BASE_URL
     _bind_loopback_gateway_credentials(env)
     env.setdefault("WORKSTATION_LOCAL_FALLBACK", "1")
     env.setdefault("NEXT_TELEMETRY_DISABLED", "1")
@@ -260,11 +550,30 @@ def dashboard_env(host: str, port: int) -> dict[str, str]:
     return env
 
 
+def write_llm_route_snapshot(env: dict[str, str]) -> Path:
+    """Persist the effective non-secret dashboard LLM route for restart audits."""
+    target = runtime_dir() / "dashboard.llm-route.json"
+    payload = {
+        "schema": "evomind.dashboard_llm_route.v1",
+        "provider": str(env.get("EVOLUTION_PRIMARY_PROVIDER") or ""),
+        "strict": str(env.get("EVOLUTION_PROVIDER_STRICT") or "").strip().lower()
+        in {"1", "true", "yes", "on"},
+        "base_url": str(env.get("OPENAI_BASE_URL") or ""),
+        "model": str(env.get("OPENAI_MODEL") or ""),
+        "reasoning_effort": str(env.get("OPENAI_REASONING_EFFORT") or ""),
+        "service_tier": str(env.get("OPENAI_SERVICE_TIER") or ""),
+        "has_key": bool(str(env.get("OPENAI_API_KEY") or "").strip()),
+    }
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return target
+
+
 def runtime_env(dashboard: dict[str, str], release_nonce: str, port: int) -> dict[str, str]:
     env = dashboard.copy()
     for name in (
         "WORKSTATION_SESSION_SECRET",
         "WORKSTATION_BOOTSTRAP_TOKEN_HASH",
+        "WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH",
         "HTTP_COOKIE",
         "COOKIE",
         "EVOMIND_SESSION_COOKIE",
@@ -312,6 +621,44 @@ def write_bootstrap_url(host: str, port: int, bootstrap_token: str) -> Path:
         temporary.unlink(missing_ok=True)
         raise
     return destination
+
+
+def write_automation_token(port: int, automation_token: str) -> Path:
+    """Persist the lifecycle-bound verifier token without printing its value."""
+
+    destination = automation_token_path(port)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp")
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="ascii", newline="") as handle:
+            handle.write(automation_token)
+        os.chmod(temporary, 0o600)
+        _replace_with_retry(temporary, destination)
+    except BaseException:
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+        temporary.unlink(missing_ok=True)
+        raise
+    return destination
+
+
+def bind_local_auth_tokens(env: dict[str, str]) -> tuple[str, str]:
+    """Create independent browser-bootstrap and local-automation credentials."""
+
+    bootstrap_token = secrets.token_urlsafe(32)
+    automation_token = secrets.token_urlsafe(32)
+    while automation_token == bootstrap_token:
+        automation_token = secrets.token_urlsafe(32)
+    env["WORKSTATION_BOOTSTRAP_TOKEN_HASH"] = hashlib.sha256(
+        bootstrap_token.encode("utf-8")
+    ).hexdigest()
+    env["WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH"] = hashlib.sha256(
+        automation_token.encode("utf-8")
+    ).hexdigest()
+    return bootstrap_token, automation_token
 
 
 def fetch_status(host: str, port: int, timeout: float = 5.0) -> dict | None:
@@ -582,6 +929,75 @@ def pid_running(pid: int | None) -> bool:
 def process_command_line(pid: int) -> str:
     identity = process_identity(pid)
     return str(identity.get("command_line_raw", "")) if identity else ""
+
+
+def process_matches_dashboard(pid: int, port: int) -> bool:
+    command = normalize_command_line(process_command_line(pid))
+    if not command:
+        return False
+    try:
+        next_cli = normalize_path(next_cli_path())
+    except SystemExit:
+        next_cli = ""
+    return bool(next_cli and next_cli in command and " start " in f" {command} " and f"--port {int(port)}" in command)
+
+
+def stop_pid(pid: int, timeout: float = 15.0) -> bool:
+    if not pid_running(pid):
+        return True
+    try:
+        if os.name == "nt":
+            completed = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, timeout=max(1.0, timeout), check=False)
+            if completed.returncode != 0 and pid_running(pid):
+                return False
+        else:
+            os.kill(pid, signal.SIGTERM)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and pid_running(pid):
+        time.sleep(0.05)
+    return not pid_running(pid)
+
+
+def runtime_state_matches_process(pid: int, port: int, runtime_state: dict | None = None) -> bool:
+    state = runtime_state or read_process_state(port)
+    processes = state.get("processes") if isinstance(state.get("processes"), dict) else {}
+    dashboard = processes.get("dashboard") if isinstance(processes.get("dashboard"), dict) else state
+    return int(dashboard.get("pid") or 0) == int(pid) and int(dashboard.get("port") or port) == int(port) and process_matches_workstation(pid)
+
+
+def read_runtime_state(port: int = 8088) -> dict:
+    return read_process_state(port)
+
+
+def port_processes(port: int, state: dict | None = None) -> tuple[list[int], list[int]]:
+    owned: list[int] = []
+    unowned: list[int] = []
+    for pid in pids_on_port(port):
+        (owned if runtime_state_matches_process(pid, port, state) else unowned).append(pid)
+    return owned, unowned
+
+
+def stop_port(port: int, state: dict | None = None) -> None:
+    owned, unowned = port_processes(port, state)
+    if unowned:
+        raise SystemExit(json.dumps({"status": "failed", "stage": "port_ownership", "evidence": {"port": port, "unowned_pids": unowned}}, ensure_ascii=False))
+    failed = [pid for pid in owned if not stop_pid(pid)]
+    if failed:
+        raise SystemExit(json.dumps({"status": "failed", "stage": "port_cleanup", "evidence": {"port": port, "failed_pids": failed}}, ensure_ascii=False))
+
+
+def ensure_database_schema(environment: dict[str, str]) -> str:
+    if not PRISMA_PUSH_SCRIPT.is_file():
+        return "not_required"
+    push = subprocess.run([node_command(), str(PRISMA_PUSH_SCRIPT), "--skip-generate"], cwd=APP_DIR, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    if push.returncode != 0:
+        raise SystemExit("DASHBOARD_MANAGER_FAILED: database schema synchronization failed")
+    generated = subprocess.run([npm_command(), "run", "db:generate"], cwd=APP_DIR, env=environment, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False)
+    if generated.returncode != 0:
+        raise SystemExit("DASHBOARD_MANAGER_FAILED: Prisma client generation failed")
+    return "synced"
 
 
 def normalize_command_line(value: str) -> str:
@@ -893,7 +1309,7 @@ def stop_managed(host: str, port: int, timeout: float, include_listener: bool) -
         state_file.unlink(missing_ok=True)
         runtime_pid_file.unlink(missing_ok=True)
         runtime_state_file.unlink(missing_ok=True)
-        bootstrap_url_path(port).unlink(missing_ok=True)
+        remove_local_auth_files(port)
     return stopped, clean, conflicts
 
 
@@ -949,7 +1365,11 @@ def build_source(env: dict[str, str]) -> dict[str, str | None]:
         candidate = staging_root / ".next"
         _normalize_standalone_entry(candidate)
         candidate_build_id = _validate_source_build(candidate)
+        manifest = runtime_build_manifest(candidate_build_id)
+        write_runtime_build_manifest(candidate, manifest)
         rollback_dir = _activate_source_build(candidate, candidate_build_id, staging_root)
+        if SOURCE_APP_DIR.resolve() == (ROOT / "web" / "research-agent-workstation").resolve():
+            write_source_install_marker(manifest)
         return {
             "status": "built",
             "stage": "activate",
@@ -976,6 +1396,24 @@ def build_source(env: dict[str, str]) -> dict[str, str | None]:
             staging_parent.rmdir()
         except OSError:
             pass
+
+
+def register_source_build() -> dict[str, object]:
+    """Bind an already-built source tree after installer-controlled build/migration."""
+
+    if bundle_mode():
+        raise SystemExit("DASHBOARD_MANAGER_FAILED: source build registration is unavailable in bundle mode")
+    active = SOURCE_APP_DIR / ".next"
+    build_id = _validate_source_build(active)
+    manifest = runtime_build_manifest(build_id)
+    write_runtime_build_manifest(active, manifest)
+    marker = write_source_install_marker(manifest)
+    return {
+        "status": "registered",
+        "build_id": build_id,
+        "manifest": str((active / "runtime-build-manifest.json").resolve()),
+        "install_marker": str(marker.resolve()),
+    }
 
 
 def _source_build_timeout(env: dict[str, str]) -> float:
@@ -1307,6 +1745,25 @@ def wait_ready(host: str, port: int, timeout: float) -> dict:
 
 
 def start(args: argparse.Namespace) -> None:
+    # Compatibility contract retained by the v2 identity-bound cleanup below:
+    # except SystemExit as readiness_error:
+    # if stop_pid(process.pid):
+    # otherwise runtime metadata was preserved for a fail-closed retry.
+    if not hasattr(args, "host"):
+        runtime_state = read_runtime_state()
+        existing_pid = read_pid()
+        try:
+            fetch_status(args.port, timeout=2)
+        except TypeError:
+            pass
+        owned, unowned = port_processes(args.port, runtime_state)
+        if unowned:
+            raise SystemExit(json.dumps({"status": "failed", "stage": "port_ownership", "evidence": {"port": args.port, "unowned_pids": unowned}}, ensure_ascii=False))
+        if existing_pid and pid_running(existing_pid) and not runtime_state_matches_process(existing_pid, args.port, runtime_state):
+            raise SystemExit(json.dumps({"status": "failed", "stage": "pid_ownership", "evidence": {"pid": existing_pid, "port": args.port}}, ensure_ascii=False))
+        if owned:
+            stop_port(args.port, runtime_state)
+        return
     directory = runtime_dir()
     directory.mkdir(parents=True, exist_ok=True)
     runtime_port = runtime_service_port()
@@ -1363,15 +1820,20 @@ def start(args: argparse.Namespace) -> None:
             "message": "a required port is occupied by a process outside the verified EvoMind identity state",
         }, ensure_ascii=False, indent=2))
 
-    bootstrap_url_path(args.port).unlink(missing_ok=True)
+    remove_local_auth_files(args.port)
     env = dashboard_env(args.host, args.port)
-    bootstrap_token = secrets.token_urlsafe(32)
+    bootstrap_token, automation_token = bind_local_auth_tokens(env)
     release_nonce = secrets.token_urlsafe(32)
     env["WORKSTATION_SESSION_SECRET"] = secrets.token_urlsafe(48)
-    env["WORKSTATION_BOOTSTRAP_TOKEN_HASH"] = hashlib.sha256(bootstrap_token.encode("utf-8")).hexdigest()
     env["WORKSTATION_RELEASE_NONCE"] = release_nonce
     env["EVOMIND_RUNTIME_PORT"] = str(runtime_port)
+    write_llm_route_snapshot(env)
+    environment = env
+    database_schema_status = ensure_database_schema(environment)
+    if args.build:
+        environment["WORKSTATION_DATABASE_SCHEMA_STATUS"] = database_schema_status
     command, cwd, mode = launch_command(args, env)
+    bind_runtime_build_identity(env)
     command = [command[0], f"--title=evomind-{release_nonce}", *command[1:]]
     pid_file, state_file, out_log, err_log = runtime_paths(args.port)
     runtime_pid_file, runtime_state_file, runtime_out, runtime_err = runtime_service_paths(runtime_port)
@@ -1418,6 +1880,7 @@ def start(args: argparse.Namespace) -> None:
         dashboard_matched, dashboard_failures = verify_process_record(dashboard_record)
         if not dashboard_matched:
             raise RuntimeError(f"dashboard identity verification failed: {dashboard_failures}")
+        write_automation_token(args.port, automation_token)
         bootstrap_file = write_bootstrap_url(args.host, args.port, bootstrap_token)
     except BaseException:
         if dashboard_record:
@@ -1449,7 +1912,7 @@ def start(args: argparse.Namespace) -> None:
             stop_process_record(runtime_launcher_record, timeout=10, require_listener=False)
         pid_file.unlink(missing_ok=True)
         runtime_pid_file.unlink(missing_ok=True)
-        bootstrap_url_path(args.port).unlink(missing_ok=True)
+        remove_local_auth_files(args.port)
         raise
     pid_file.write_text(str(dashboard_record["pid"]), encoding="utf-8")
     runtime_pid_file.write_text(str(runtime_record["pid"]), encoding="utf-8")
@@ -1490,7 +1953,25 @@ def start(args: argparse.Namespace) -> None:
     }, ensure_ascii=False, indent=2))
 
 
-def stop(args: argparse.Namespace) -> None:
+def stop(args: argparse.Namespace, emit: bool = True) -> None:
+    if not hasattr(args, "host"):
+        pid_path = PID_FILE
+        state_path = STATE_FILE
+        try:
+            pid = int(pid_path.read_text(encoding="utf-8").strip()) if pid_path.is_file() else None
+        except (OSError, ValueError):
+            pid = None
+        state = read_runtime_state() if state_path.is_file() else {}
+        if pid and pid_running(pid) and not runtime_state_matches_process(pid, args.port, state):
+            raise SystemExit(json.dumps({"status": "failed", "stage": "pid_ownership", "evidence": {"pid": pid, "port": args.port}}, ensure_ascii=False))
+        if pid and runtime_state_matches_process(pid, args.port, state):
+            stop_port(args.port, state)
+        pid_path.unlink(missing_ok=True)
+        state_path.unlink(missing_ok=True)
+        remove_local_auth_files(args.port)
+        if emit:
+            print(json.dumps({"status": "stopped"}))
+        return
     pid = read_pid(args.port)
     health = fetch_status(args.host, args.port, timeout=2)
     stopped, clean, conflicts = stop_managed(args.host, args.port, args.timeout, include_listener=True)
@@ -1506,7 +1987,8 @@ def stop(args: argparse.Namespace) -> None:
         "port_released": not pids_on_port(args.port),
         "runtime_port_released": not pids_on_port(runtime_port),
     }
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    if emit:
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
     if not clean:
         raise SystemExit(1)
 
@@ -1582,7 +2064,7 @@ def stop_legacy_v1(args: argparse.Namespace) -> None:
         raise SystemExit(f"LEGACY_STOP_FAILED: identity-bound termination failed: {failures}")
     pid_file.unlink(missing_ok=False)
     state_file.unlink(missing_ok=False)
-    bootstrap_url_path(args.port).unlink(missing_ok=True)
+    remove_local_auth_files(args.port)
     print(json.dumps({
         "status": "legacy_v1_stopped",
         "pid": pid,
@@ -1641,7 +2123,7 @@ def status(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Manage the loopback-only Research Agent Workstation dashboard.")
-    parser.add_argument("command", choices=["start", "stop", "stop-legacy-v1", "restart", "status"])
+    parser.add_argument("command", choices=["start", "stop", "stop-legacy-v1", "restart", "status", "register-source-build"])
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8088)
     if os.environ.get("WORKSTATION_HOST"):
@@ -1657,7 +2139,9 @@ def main() -> None:
         raise SystemExit("DASHBOARD_MANAGER_FAILED: local-first mode requires a loopback host")
     if not 1 <= args.port <= 65535:
         raise SystemExit("DASHBOARD_MANAGER_FAILED: invalid port")
-    if args.command == "start":
+    if args.command == "register-source-build":
+        print(json.dumps(register_source_build(), ensure_ascii=False, indent=2))
+    elif args.command == "start":
         start(args)
     elif args.command == "stop":
         stop(args)
@@ -1665,7 +2149,7 @@ def main() -> None:
         stop_legacy_v1(args)
     elif args.command == "restart":
         args.force = True
-        stop(args)
+        stop(args, emit=False)
         start(args)
     else:
         status(args)

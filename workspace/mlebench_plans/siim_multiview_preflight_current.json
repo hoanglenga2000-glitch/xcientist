@@ -1,0 +1,133 @@
+{
+  "schema": "evomind.siim.multiview_preflight.v1",
+  "created_at": "2026-07-27T01:14:54.829691+08:00",
+  "status": "passed",
+  "competition_id": "siim-isic-melanoma-classification",
+  "device": "cpu_preflight_only",
+  "torch_home": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch",
+  "backbones": {
+    "full_image": {
+      "backbone": "convnext_small",
+      "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\convnext_small-0c510722.pth",
+      "filename": "convnext_small-0c510722.pth",
+      "size_bytes": 201014929,
+      "sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+      "expected_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+      "verified": true
+    },
+    "lesion_focus": {
+      "backbone": "efficientnet_v2_s",
+      "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\efficientnet_v2_s-dd5fe13b.pth",
+      "filename": "efficientnet_v2_s-dd5fe13b.pth",
+      "size_bytes": 86721253,
+      "sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+      "expected_sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+      "verified": true
+    }
+  },
+  "model_weight_identity": {
+    "schema": "evomind.siim.multiview_pretrained_weights.v1",
+    "full_image": {
+      "backbone": "convnext_small",
+      "identity": {
+        "backbone": "convnext_small",
+        "enum": "ConvNeXt_Small_Weights.IMAGENET1K_V1",
+        "filename": "convnext_small-0c510722.pth",
+        "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\convnext_small-0c510722.pth",
+        "sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+        "expected_sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a"
+      }
+    },
+    "lesion_focus": {
+      "backbone": "efficientnet_v2_s",
+      "identity": {
+        "backbone": "efficientnet_v2_s",
+        "enum": "EfficientNet_V2_S_Weights.IMAGENET1K_V1",
+        "filename": "efficientnet_v2_s-dd5fe13b.pth",
+        "path": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch\\hub\\checkpoints\\efficientnet_v2_s-dd5fe13b.pth",
+        "sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74",
+        "expected_sha256": "dd5fe13b1d60ec15317ccc8ca158186e134d3366c3dde9cb9a4e301f2dc66c74"
+      }
+    }
+  },
+  "parameter_count": 70297383,
+  "forward_channels": {
+    "full_image": {
+      "shape": [
+        1
+      ],
+      "finite": true,
+      "device": "cpu"
+    },
+    "lesion_focus": {
+      "shape": [
+        1
+      ],
+      "finite": true,
+      "device": "cpu"
+    },
+    "image_metadata_fusion": {
+      "shape": [
+        1
+      ],
+      "finite": true,
+      "device": "cpu"
+    }
+  },
+  "robust_preprocessing_fixture": {
+    "full_image": {
+      "size": [
+        88,
+        88
+      ],
+      "sha256": "115fc560ad1361bae568ed55493a8c8010f837f43d715af4d66224e0054bf328",
+      "deterministic": true
+    },
+    "lesion_focus": {
+      "size": [
+        58,
+        58
+      ],
+      "sha256": "c6f915863133980c6515c7e3208e2c3436ff964a0ccd8eea30c747896723cdba",
+      "deterministic": true
+    }
+  },
+  "profile_steps": [
+    "dark_border_crop",
+    "shades_of_gray_color_constancy",
+    "dark_hair_median_repair",
+    "skin_deviation_lesion_focus_crop"
+  ],
+  "source_hashes": {
+    "medal_recovery_adapters": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "sha256": "7164788bce8acb278a864ba70a3eeb35837da883a4388efbf33ee417cc9ee3d8"
+    },
+    "wave2_adapters": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "sha256": "da643aacc782b4322a194227b040d1f800c33d6ab371faebc7f156011d0d1c3d"
+    },
+    "preflight": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\verify_siim_multiview_preflight.py",
+      "sha256": "7b08d83c124429056ad894c485a6184702440d6b5434d58541b9d22c8f9effb4"
+    }
+  },
+  "checks": {
+    "distinct_backbones": true,
+    "both_pretrained": true,
+    "full_weight_identity": true,
+    "lesion_weight_identity": true,
+    "all_parameters_cpu": true,
+    "three_finite_channels": true,
+    "robust_preprocessing_deterministic": true,
+    "full_and_lesion_views_distinct": true,
+    "private_labels_unused": true,
+    "official_grader_not_executed": true,
+    "kaggle_submission_not_executed": true
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "claim_boundary": "CPU-only architecture, pinned-weight, and preprocessing preflight; not an OOF score or official medal."
+}

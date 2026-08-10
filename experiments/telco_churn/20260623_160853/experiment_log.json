@@ -1,0 +1,504 @@
+{
+  "task": {
+    "name": "telco_churn",
+    "competition": "Telco Customer Churn",
+    "type": "binary_classification",
+    "target": "Churn",
+    "metric": "accuracy",
+    "id_column": "customerID",
+    "prediction_column": "Churn"
+  },
+  "data_quality": {
+    "train_rows": 5634,
+    "train_columns": 21,
+    "test_rows": 1409,
+    "test_columns": 20,
+    "sample_submission_rows": 1409,
+    "sample_submission_columns": [
+      "customerID",
+      "Churn"
+    ],
+    "target": "Churn",
+    "task_type": "binary_classification",
+    "target_summary": {
+      "distribution": {
+        "No": 0.7346,
+        "Yes": 0.2654
+      }
+    },
+    "duplicate_train_rows": 0,
+    "train_test_feature_columns_match": true,
+    "missing_train_top20": {
+      "TotalCharges": 0.0014,
+      "gender": 0.0,
+      "SeniorCitizen": 0.0,
+      "Partner": 0.0,
+      "customerID": 0.0,
+      "Dependents": 0.0,
+      "tenure": 0.0,
+      "MultipleLines": 0.0,
+      "PhoneService": 0.0,
+      "OnlineSecurity": 0.0,
+      "OnlineBackup": 0.0,
+      "DeviceProtection": 0.0,
+      "InternetService": 0.0,
+      "TechSupport": 0.0,
+      "StreamingTV": 0.0,
+      "Contract": 0.0,
+      "StreamingMovies": 0.0,
+      "PaperlessBilling": 0.0,
+      "PaymentMethod": 0.0,
+      "MonthlyCharges": 0.0
+    },
+    "missing_test_top20": {
+      "TotalCharges": 0.0021,
+      "customerID": 0.0,
+      "SeniorCitizen": 0.0,
+      "gender": 0.0,
+      "Partner": 0.0,
+      "Dependents": 0.0,
+      "PhoneService": 0.0,
+      "tenure": 0.0,
+      "InternetService": 0.0,
+      "OnlineSecurity": 0.0,
+      "OnlineBackup": 0.0,
+      "MultipleLines": 0.0,
+      "DeviceProtection": 0.0,
+      "TechSupport": 0.0,
+      "StreamingMovies": 0.0,
+      "StreamingTV": 0.0,
+      "Contract": 0.0,
+      "PaperlessBilling": 0.0,
+      "PaymentMethod": 0.0,
+      "MonthlyCharges": 0.0
+    }
+  },
+  "evaluation": {
+    "metric": "accuracy",
+    "best_model": "gradient_boosting",
+    "selection_direction": "maximize",
+    "model_results": {
+      "logistic_regression": {
+        "cv_accuracy_mean": 0.803869,
+        "cv_accuracy_std": 0.009688,
+        "holdout_accuracy": 0.813665,
+        "holdout_macro_f1": 0.746217,
+        "seconds": 0.2619
+      },
+      "random_forest": {
+        "cv_accuracy_mean": 0.803513,
+        "cv_accuracy_std": 0.007828,
+        "holdout_accuracy": 0.811003,
+        "holdout_macro_f1": 0.731962,
+        "seconds": 2.9964
+      },
+      "extra_trees": {
+        "cv_accuracy_mean": 0.800319,
+        "cv_accuracy_std": 0.006526,
+        "holdout_accuracy": 0.808341,
+        "holdout_macro_f1": 0.732882,
+        "seconds": 2.7576
+      },
+      "gradient_boosting": {
+        "cv_accuracy_mean": 0.807773,
+        "cv_accuracy_std": 0.007051,
+        "holdout_accuracy": 0.809228,
+        "holdout_macro_f1": 0.739197,
+        "seconds": 3.9265
+      }
+    }
+  },
+  "submission_check": {
+    "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+    "rows_match": true,
+    "columns_match": true,
+    "missing_predictions": 0,
+    "prediction_columns": [
+      "Churn"
+    ],
+    "valid": true,
+    "allowed_values": [
+      "No",
+      "Yes"
+    ],
+    "allowed_values_only": true,
+    "prediction_distribution": {
+      "No": 1118,
+      "Yes": 291
+    }
+  },
+  "task_scaffold": {
+    "task": {
+      "name": "telco_churn",
+      "competition": "Telco Customer Churn",
+      "type": "binary_classification",
+      "target": "Churn",
+      "metric": "accuracy",
+      "id_column": "customerID",
+      "prediction_column": "Churn"
+    },
+    "inputs": {
+      "overview": "tasks/telco_churn/overview.txt",
+      "train": "tasks/telco_churn/data/train.csv",
+      "test": "tasks/telco_churn/data/test.csv",
+      "sample_submission": "tasks/telco_churn/data/sample_submission.csv"
+    },
+    "agent_template_mapping": {
+      "orchestrator_planner": {
+        "server_template_id": 16,
+        "server_template_name": "多 Agent 调度主管",
+        "local_role": "Orchestrator/Planner",
+        "workstation_responsibility": [
+          "task_decomposition",
+          "acceptance_criteria",
+          "risk_management",
+          "stage_coordination"
+        ],
+        "prompt_template_summary": "把目标拆解为子任务，指定 Agent 角色，定义验收标准、依赖关系和风险处理方式。"
+      },
+      "analyst": {
+        "server_template_id": 13,
+        "server_template_name": "高级数据分析 Agent",
+        "local_role": "Analyst",
+        "workstation_responsibility": [
+          "tabular_eda",
+          "anomaly_detection",
+          "trend_hypothesis",
+          "validation_plan"
+        ],
+        "prompt_template_summary": "用业务语言解释数据，识别趋势和异常，给出可能原因、置信度和下一步验证方案。"
+      },
+      "developer": {
+        "server_template_id": 14,
+        "server_template_name": "代码开发 Agent",
+        "local_role": "Developer",
+        "workstation_responsibility": [
+          "implementation_plan",
+          "model_training_code",
+          "test_plan",
+          "implementation_risk"
+        ],
+        "prompt_template_summary": "先理解需求和约束，再给出实现方案、关键代码思路、测试点和风险。"
+      },
+      "evidence_summarizer": {
+        "server_template_id": 15,
+        "server_template_name": "知识库 RAG Agent",
+        "local_role": "Evidence/Summarizer",
+        "workstation_responsibility": [
+          "evidence_tracking",
+          "report_grounding",
+          "uncertainty_statement",
+          "context_memory"
+        ],
+        "prompt_template_summary": "优先基于上下文回答，列出依据；没有依据时说明无法确认。"
+      },
+      "reviewer_gate": {
+        "server_template_id": 18,
+        "server_template_name": "流程自动化 Agent",
+        "local_role": "Reviewer/Gate",
+        "workstation_responsibility": [
+          "stage_gate",
+          "approval_points",
+          "exception_handling",
+          "automation_checklist"
+        ],
+        "prompt_template_summary": "整理触发条件、输入输出、执行步骤、审批节点、异常处理和可自动化环节。"
+      }
+    },
+    "server_template_policy": {
+      "public_url": "https://ai.zhjjq.tech/agents",
+      "public_market_api": "https://ai.zhjjq.tech/api/market/agents",
+      "access_policy": "read_only_public_templates",
+      "private_agents_policy": "do_not_read_or_modify_without_login_authorization"
+    },
+    "data_snapshot": {
+      "train_rows": 5634,
+      "test_rows": 1409,
+      "sample_submission_rows": 1409,
+      "target_summary": {
+        "distribution": {
+          "No": 0.7346,
+          "Yes": 0.2654
+        }
+      },
+      "missing_train_top20": {
+        "TotalCharges": 0.0014,
+        "gender": 0.0,
+        "SeniorCitizen": 0.0,
+        "Partner": 0.0,
+        "customerID": 0.0,
+        "Dependents": 0.0,
+        "tenure": 0.0,
+        "MultipleLines": 0.0,
+        "PhoneService": 0.0,
+        "OnlineSecurity": 0.0,
+        "OnlineBackup": 0.0,
+        "DeviceProtection": 0.0,
+        "InternetService": 0.0,
+        "TechSupport": 0.0,
+        "StreamingTV": 0.0,
+        "Contract": 0.0,
+        "StreamingMovies": 0.0,
+        "PaperlessBilling": 0.0,
+        "PaymentMethod": 0.0,
+        "MonthlyCharges": 0.0
+      },
+      "missing_test_top20": {
+        "TotalCharges": 0.0021,
+        "customerID": 0.0,
+        "SeniorCitizen": 0.0,
+        "gender": 0.0,
+        "Partner": 0.0,
+        "Dependents": 0.0,
+        "PhoneService": 0.0,
+        "tenure": 0.0,
+        "InternetService": 0.0,
+        "OnlineSecurity": 0.0,
+        "OnlineBackup": 0.0,
+        "MultipleLines": 0.0,
+        "DeviceProtection": 0.0,
+        "TechSupport": 0.0,
+        "StreamingMovies": 0.0,
+        "StreamingTV": 0.0,
+        "Contract": 0.0,
+        "PaperlessBilling": 0.0,
+        "PaymentMethod": 0.0,
+        "MonthlyCharges": 0.0
+      }
+    },
+    "validation_strategy": "5-fold stratified cross-validation plus stratified holdout validation",
+    "time_budget_minutes": 15,
+    "candidate_models": [
+      "logistic_regression",
+      "random_forest",
+      "extra_trees",
+      "gradient_boosting"
+    ],
+    "feature_plan": [
+      "Use configured drop columns.",
+      "Use median imputation for numeric features.",
+      "Use most-frequent imputation and one-hot encoding for categorical features."
+    ],
+    "risk_points": [
+      "Churn is imbalanced, so validation must use stratified splits.",
+      "customerID is an identifier and must not be used as a model feature.",
+      "TotalCharges has blank-like values in the raw CSV and must be coerced to numeric.",
+      "Submission must keep customerID and Churn columns with business labels No/Yes.",
+      "Local validation is only a proxy before official Kaggle workflow automation."
+    ],
+    "stage_plan": [
+      "task_understanding",
+      "preliminary_eda",
+      "data_quality_check",
+      "feature_engineering",
+      "model_validation",
+      "submission_generation",
+      "report_and_review"
+    ]
+  },
+  "post_scaffold_improvement": {
+    "task": "telco_churn",
+    "decision": "stop_after_local_gate",
+    "rationale": "Local metric thresholds and submission checks passed. Continue only if official Kaggle submission or stronger model comparison is required.",
+    "best_model": "gradient_boosting",
+    "best_metrics": {
+      "cv_accuracy_mean": 0.807773,
+      "cv_accuracy_std": 0.007051,
+      "holdout_accuracy": 0.809228,
+      "holdout_macro_f1": 0.739197,
+      "seconds": 3.9265
+    },
+    "submission_valid": true,
+    "next_iteration_candidates": [
+      "Review high-missing categorical columns and decide whether missing should be a category instead of imputed.",
+      "Add task-specific feature interactions only if they can be explained in the report.",
+      "Add LightGBM/XGBoost/CatBoost after the sklearn baseline remains stable.",
+      "Switch to official Kaggle API submission after credentials are configured."
+    ]
+  },
+  "stage_audit": {
+    "task": {
+      "name": "telco_churn",
+      "competition": "Telco Customer Churn",
+      "type": "binary_classification",
+      "target": "Churn",
+      "metric": "accuracy",
+      "id_column": "customerID",
+      "prediction_column": "Churn"
+    },
+    "experiment_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853",
+    "workflow_version": "v3_generic_tabular",
+    "local_only": true,
+    "server_private_templates_modified": false,
+    "kaggle_api_submission": false,
+    "stages": [
+      {
+        "stage": "task_understanding",
+        "owner_role": "Orchestrator/Planner",
+        "status": "passed",
+        "evidence": [
+          "tasks/telco_churn/overview.txt",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json"
+        ],
+        "checks": {
+          "task_name": "telco_churn",
+          "target": "Churn",
+          "metric": "accuracy",
+          "server_templates_read_only": true
+        }
+      },
+      {
+        "stage": "preliminary_eda",
+        "owner_role": "Analyst",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json"
+        ],
+        "checks": {
+          "train_rows": 5634,
+          "test_rows": 1409,
+          "target_summary_recorded": true,
+          "missing_values_recorded": true
+        }
+      },
+      {
+        "stage": "data_quality_check",
+        "owner_role": "Reviewer/Gate",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json"
+        ],
+        "checks": {
+          "train_test_feature_columns_match": true,
+          "sample_submission_rows": 1409,
+          "sample_submission_columns": [
+            "customerID",
+            "Churn"
+          ]
+        }
+      },
+      {
+        "stage": "feature_engineering",
+        "owner_role": "Developer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json"
+        ],
+        "checks": {
+          "preset": "telco_churn_basic",
+          "feature_plan_recorded": true,
+          "target_transform": null
+        }
+      },
+      {
+        "stage": "model_validation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json"
+        ],
+        "checks": {
+          "best_model": "gradient_boosting",
+          "best_metrics": {
+            "cv_accuracy_mean": 0.807773,
+            "cv_accuracy_std": 0.007051,
+            "holdout_accuracy": 0.809228,
+            "holdout_macro_f1": 0.739197,
+            "seconds": 3.9265
+          },
+          "thresholds": {
+            "min_validation_accuracy": 0.78,
+            "require_submission_schema_valid": true,
+            "require_no_missing_predictions": true,
+            "require_train_test_features_match": true,
+            "expected_submission_rows": 1409,
+            "expected_submission_columns": [
+              "customerID",
+              "Churn"
+            ],
+            "allowed_prediction_values": [
+              "No",
+              "Yes"
+            ]
+          },
+          "candidate_model_count": 4
+        }
+      },
+      {
+        "stage": "submission_generation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv"
+        ],
+        "checks": {
+          "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+          "rows_match": true,
+          "columns_match": true,
+          "missing_predictions": 0,
+          "prediction_columns": [
+            "Churn"
+          ],
+          "valid": true,
+          "allowed_values": [
+            "No",
+            "Yes"
+          ],
+          "allowed_values_only": true,
+          "prediction_distribution": {
+            "No": 1118,
+            "Yes": 291
+          }
+        }
+      },
+      {
+        "stage": "report_and_review",
+        "owner_role": "Evidence/Summarizer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx"
+        ],
+        "checks": {
+          "report_grounded_in_outputs": true,
+          "post_scaffold_written": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+          "local_gate_expected": true
+        }
+      }
+    ],
+    "all_stages_passed": true,
+    "failed_stages": [],
+    "next_actions": [
+      "Configure Kaggle API token before official download/submission.",
+      "Use this generic workflow as the baseline for additional teacher-provided tabular datasets.",
+      "Keep GPU/server work disabled until a task has a clear compute benefit."
+    ]
+  },
+  "accepted": true,
+  "thresholds": {
+    "min_validation_accuracy": 0.78,
+    "require_submission_schema_valid": true,
+    "require_no_missing_predictions": true,
+    "require_train_test_features_match": true,
+    "expected_submission_rows": 1409,
+    "expected_submission_columns": [
+      "customerID",
+      "Churn"
+    ],
+    "allowed_prediction_values": [
+      "No",
+      "Yes"
+    ]
+  },
+  "outputs": {
+    "submission": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+    "scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+    "scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+    "post_scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+    "post_scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+    "report": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+    "report_docx": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+    "stage_audit": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+    "stage_audit_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md"
+  }
+}

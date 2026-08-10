@@ -1,0 +1,47 @@
+{
+  "schema": "evomind.mlebench.nomad_geometry_public_oof_validation.v1",
+  "created_at": "2026-07-25T03:13:53.677532+00:00",
+  "competition_id": "nomad2018-predict-transparent-conductors",
+  "dataset": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/nomad2018-predict-transparent-conductors/prepared/public",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "remote_stderr_type": "",
+  "production_adapter_sha256": "5dd445e062bccebf5e9e00c34c013b1dc75af66c722ed3a483ef66d6057c1065",
+  "remote_source_sha256": "3fa27111885548faededb444b0674814d4eb8b27f464989a4b5c9e27a3cefd72",
+  "bronze_threshold": 0.06582,
+  "target_threshold": 0.0625,
+  "feature_count": 797,
+  "fold_assignment_complete": true,
+  "folds": 5,
+  "geometry_feature_count": 776,
+  "max_features": 0.85,
+  "mean_columnwise_rmsle": 0.05670208077002518,
+  "min_samples_leaf": 1,
+  "rows": 2160,
+  "seed": 42,
+  "targets": {
+    "bandgap_energy_ev": {
+      "fold_rmsle": [
+        0.08548156732688718,
+        0.0821229424342056,
+        0.08904672270167342,
+        0.08436954480563229,
+        0.08696154578974877
+      ],
+      "oof_rmsle": 0.08562841279327077
+    },
+    "formation_energy_ev_natom": {
+      "fold_rmsle": [
+        0.021807692759250052,
+        0.030450495022485605,
+        0.033234171713630974,
+        0.024355876821508988,
+        0.027512434941117873
+      ],
+      "oof_rmsle": 0.02777574874677959
+    }
+  },
+  "trees": 800,
+  "bronze_oriented_gate_passed": true,
+  "target_passed": true
+}

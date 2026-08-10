@@ -1,14 +1,15 @@
 import { spawn } from "node:child_process";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
+import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
-const requireFromWorkstation = createRequire(join(root, "web", "research-agent-workstation", "package.json"));
-const WebSocketClient = globalThis.WebSocket ?? requireFromWorkstation("next/dist/compiled/ws");
+const requireFromWeb = createRequire(new URL("../web/research-agent-workstation/package.json", import.meta.url));
+const WebSocketClient = globalThis.WebSocket ?? requireFromWeb("ws");
 const outJson = join(root, "workspace", "workstation_click_smoke_20260701.json");
 const outMd = join(root, "reports", "WORKSTATION_CLICK_SMOKE_20260701.md");
 
@@ -16,7 +17,35 @@ const baseUrl = process.argv.includes("--base-url")
   ? process.argv[process.argv.indexOf("--base-url") + 1]
   : "http://127.0.0.1:8088";
 const writeReport = process.argv.includes("--write-report");
-const port = Number(process.env.WORKSTATION_CDP_PORT ?? String(9223 + (process.pid % 1000)));
+
+async function allocateCdpPort() {
+  if (process.env.WORKSTATION_CDP_PORT) return Number(process.env.WORKSTATION_CDP_PORT);
+  return await new Promise((resolvePort, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const selected = typeof address === "object" && address ? address.port : 0;
+      server.close((error) => error ? reject(error) : resolvePort(selected));
+    });
+  });
+}
+
+async function localAutomationToken() {
+  const parsed = new URL(baseUrl);
+  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) return "";
+  const suffix = parsed.port === "8088" || parsed.port === "" ? "" : `.${parsed.port}`;
+  const runtimeDir = process.env.WORKSTATION_RUNTIME_DIR
+    ? resolve(process.env.WORKSTATION_RUNTIME_DIR)
+    : join(root, "web", "research-agent-workstation", ".runtime-logs");
+  const target = join(runtimeDir, `dashboard${suffix}.automation.token`);
+  try {
+    const token = (await readFile(target, "ascii")).trim();
+    return /^[A-Za-z0-9_-]{24,256}$/.test(token) ? token : "";
+  } catch {
+    return "";
+  }
+}
 
 const chromeCandidates = [
   process.env.WORKSTATION_BROWSER,
@@ -213,7 +242,14 @@ async function waitForPage(client) {
     if (result.result?.value === true) return;
     await sleep(150);
   }
-  throw new Error("Page shell did not become ready.");
+  const diagnostic = await evalValue(client, `(() => ({
+    url: location.href,
+    title: document.title,
+    readyState: document.readyState,
+    bodyText: document.body?.innerText?.slice(0, 500) ?? "",
+    html: document.documentElement?.outerHTML?.slice(0, 1000) ?? ""
+  }))()`).catch((error) => ({ diagnosticError: String(error) }));
+  throw new Error(`Page shell did not become ready: ${JSON.stringify(diagnostic)}`);
 }
 
 async function evalValue(client, expression) {
@@ -360,6 +396,8 @@ async function run() {
     };
   }
 
+  const port = await allocateCdpPort();
+
   const userDataDir = join(root, "workspace", `.chrome-click-smoke-${Date.now()}`);
   await mkdir(userDataDir, { recursive: true });
   const chromeProcess = spawn(chrome, [
@@ -368,10 +406,13 @@ async function run() {
     "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
+    "--disable-extensions",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     `${baseUrl}/?page=overview`
-  ], { stdio: "ignore" });
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  const chromeStderr = [];
+  chromeProcess.stderr?.on("data", (chunk) => chromeStderr.push(String(chunk)));
 
   let client;
   let cleanupWarning = null;
@@ -382,6 +423,13 @@ async function run() {
     client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
     await client.connect();
     await client.send("Page.enable");
+    await client.send("Network.enable");
+    const automationToken = await localAutomationToken();
+    if (automationToken) {
+      await client.send("Network.setExtraHTTPHeaders", {
+        headers: { "x-evomind-local-automation": automationToken }
+      });
+    }
     await client.send("Runtime.enable");
     await client.send("Log.enable");
 
@@ -420,6 +468,21 @@ async function run() {
       runtime_errors: runtimeErrors.slice(0, 10),
       cleanup_warning: cleanupWarning,
       claim_boundary: "This smoke uses a real headless Chromium browser and safe clicks only. It verifies direct navigation, safe UI actions, and blocked training/submission controls. It does not start training, GPU jobs, Kaggle submission, or Figma writes."
+    };
+  } catch (error) {
+    return {
+      schema: "academic_research_os.workstation_click_smoke.v2",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: "blocked",
+      blocker: "browser_cdp_unavailable",
+      chrome,
+      chrome_stderr_tail: chromeStderr.join("").slice(-4000),
+      error: String(error?.message ?? error),
+      page_results: [], click_results: [], blocked_control_results: [],
+      failed_pages: pageTargets,
+      failed_clicks: safeClicks.map((item) => item.selector),
+      failed_blocked_controls: blockedControls.map((item) => item.selector)
     };
   } finally {
     client?.close();

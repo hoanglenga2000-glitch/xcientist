@@ -1,0 +1,17 @@
+{
+  "schema": "evomind.mlebench.aerial_exact_duplicate_audit.v1",
+  "created_at": "2026-07-25T03:18:26.736964+00:00",
+  "competition_id": "aerial-cactus-identification",
+  "dataset": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/aerial-cactus-identification/prepared/public",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "remote_source_sha256": "9a0da2011004c24151b9eddde6ab0ca9d1616f0fcb67fffbe3b6b0ff778982b9",
+  "remote_stderr_type": "",
+  "test_images": 3325,
+  "train_duplicate_hashes": 0,
+  "train_duplicate_rows": 0,
+  "train_images": 14175,
+  "train_label_conflicts": 0,
+  "train_test_exact_match_count": 0,
+  "exact_label_transfer_available": false
+}

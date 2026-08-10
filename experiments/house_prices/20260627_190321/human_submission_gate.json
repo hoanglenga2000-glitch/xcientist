@@ -1,0 +1,24 @@
+{
+  "gate_id": "gate_2695431f2b",
+  "task_id": "house_prices",
+  "gate_type": "human_submission",
+  "decision": "pending",
+  "required_evidence": [
+    "ev_359b622590",
+    "ev_ac61306425",
+    "ev_6adc01b67c",
+    "ev_8710fbbc29",
+    "ev_e1c2db9ac1",
+    "ev_2feb9a2839",
+    "ev_caf9683964",
+    "ev_71aae6afe9",
+    "ev_2570f05ebf",
+    "ev_831cd90dfa",
+    "ev_3c53eb3a29",
+    "ev_9e66224cb2",
+    "ev_f8a1e1f4d0",
+    "ev_b091a3de33"
+  ],
+  "reviewer": "human",
+  "metadata": {}
+}

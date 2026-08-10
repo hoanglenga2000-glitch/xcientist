@@ -199,3 +199,5 @@ next-*.err.log
 next-*.out.log
 *.QQ*.png
 ScreenShot_*.png
+docs/verified_workstation_launch_audit.json
+docs/verified_workstation_launch_audit.md

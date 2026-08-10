@@ -1,0 +1,164 @@
+{
+  "schema": "evomind.mlebench.dog_breed_frozen_head_after_taxi_plan.v1",
+  "created_at": "2026-07-28T13:21:10.852098+08:00",
+  "status": "frozen_waiting_for_taxi_terminal",
+  "planner": {
+    "model": "gpt-5.6-sol",
+    "decision": "DB-FROZEN-HEAD1",
+    "source_audited": true
+  },
+  "competition_id": "dog-breed-identification",
+  "objective": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "candidate_only": true,
+    "unscored_competition": true,
+    "expected_medal_gain": 1
+  },
+  "visibility_mode": "PUBLIC_ONLY",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "automatic_official_grader": false,
+  "kaggle_submission_enabled": false,
+  "bundle": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\deploy\\mlebench_unified_20260728_134508\\mlebench_unified_bundle.tar.gz",
+    "bytes": 2396228,
+    "sha256": "61f4376427098dca278e2ac708a8e178e87b8301cb856294470699f6adc365ed",
+    "manifest_hash_count": 704,
+    "verification_passed": true,
+    "human_gate_preserved": true
+  },
+  "serial_dependency": {
+    "taxi_plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\taxi_source_audited_multiseed_plan_current.json",
+    "taxi_plan_sha256": "6b63d984c5263b74fd407449730c648d3579b53f8da457863032bc21eb8caac3",
+    "taxi_status_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_taxi_source_audited_queue_v6_may_v8b_final\\status_current.json",
+    "taxi_run_ids": [
+      "hpc88240_taxi_source_audited_route_s43_20260728",
+      "hpc88240_taxi_source_audited_route_s44_20260728",
+      "hpc88240_taxi_source_audited_route_s45_20260728"
+    ],
+    "taxi_seeds": [
+      43,
+      44,
+      45
+    ],
+    "required_taxi_status": "all_seeds_terminal",
+    "all_taxi_seeds_terminal_before_dog": true,
+    "natural_completion_only": true,
+    "process_signals_allowed": false,
+    "taxi_plan_bytes": 8994
+  },
+  "public_inputs": {
+    "root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public",
+    "train_count": 9199,
+    "test_count": 1023,
+    "private_paths_read": [],
+    "labels.csv": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public/labels.csv",
+      "bytes": 433685,
+      "sha256": "79791b843071f193d207b5c289f739d74a2d67fb84965082285cf1f7ee8be664"
+    },
+    "sample_submission.csv": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public/sample_submission.csv",
+      "bytes": 2613433,
+      "sha256": "9e02a595300e98f61fbdf6451a63774b582a16dac7e26f714f757b1ca8b62421"
+    },
+    "train": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public/train",
+      "count": 9199,
+      "bytes": 325166830
+    },
+    "test": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public/test",
+      "count": 1023,
+      "bytes": 36533540
+    }
+  },
+  "pretrained_weight": {
+    "backbone": "convnext_small",
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_model_cache/torch/hub/checkpoints/convnext_small-0c510722.pth",
+    "bytes": 201014929,
+    "sha256": "0c510722adfd92966a2bd72b92f785ca05966bbac03cafe2f7a90b1f54bfab9a",
+    "check_hash_required": true
+  },
+  "diagnostic": {
+    "diagnostic_id": "DB-FROZEN-HEAD1",
+    "run_id": "hpc88240_dog_frozen_head_diag_s46_20260728",
+    "seed": 46,
+    "backbone": "convnext_small",
+    "training_mode": "frozen_backbone_head",
+    "head_learning_rate": 0.001,
+    "head_weight_decay": 0.0001,
+    "bias_weight_decay": 0.0,
+    "backbone_frozen": true,
+    "classifier_layernorm_frozen": true,
+    "fold_limit": 1,
+    "fixed_fold": 0,
+    "folds": 5,
+    "epochs": 4,
+    "batch_size": 32,
+    "parent_fold0_epoch1_log_loss": 0.156225621700287,
+    "parent_fold0_top1_accuracy": 0.946195652173913,
+    "continuation_max_log_loss": 0.055,
+    "minimum_top1_improvement": 0.005,
+    "continuation_requires_pretrained_identity": true,
+    "continuation_requires_optimizer_partition_integrity": true
+  },
+  "confirmation": {
+    "seeds": [
+      46,
+      47
+    ],
+    "run_ids": [
+      "hpc88240_dog_frozen_head_s46_20260728",
+      "hpc88240_dog_frozen_head_s47_20260728"
+    ],
+    "epochs": 8,
+    "folds": 5,
+    "batch_size": 32,
+    "every_seed_oof_log_loss_maximum": 0.04,
+    "aggregate_oof_log_loss_maximum": 0.04,
+    "all_seeds_terminal_before_aggregation": true,
+    "full_public_refit_required": true
+  },
+  "execution_contract": {
+    "candidate_only": true,
+    "dedicated_remote_root_only": true,
+    "local_gpu_allowed": false,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "wait_for_fresh_gpu_idle_gate": true,
+    "diagnostic_must_pass_before_confirmation": true,
+    "one_gpu_run_at_a_time": true,
+    "human_gate_preserved": true
+  },
+  "human_gate": {
+    "official_private_grader_approved": false,
+    "kaggle_submission_approved": false,
+    "package_only_after_aggregate_verification": true,
+    "automatic_promotion_to_official_medal": false
+  },
+  "claim_boundary": "Candidate-only public-data training. CV/OOF and generated submission files are not official scores, medals, or leaderboard proof.",
+  "public_sample_submission": {
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/dog-breed-identification/prepared/public/sample_submission.csv",
+    "bytes": 2613433,
+    "sha256": "9e02a595300e98f61fbdf6451a63774b582a16dac7e26f714f757b1ca8b62421"
+  },
+  "confirmation_gate": {
+    "confirmation_seeds": [
+      46,
+      47
+    ],
+    "every_seed_oof_log_loss_maximum": 0.04,
+    "aggregate_oof_log_loss_maximum": 0.04
+  },
+  "boundaries": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_sent": 0,
+    "human_gate_preserved": true
+  }
+}

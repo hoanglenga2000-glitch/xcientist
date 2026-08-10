@@ -1,0 +1,65 @@
+{
+  "train_rows": 5634,
+  "train_columns": 21,
+  "test_rows": 1409,
+  "test_columns": 20,
+  "sample_submission_rows": 1409,
+  "sample_submission_columns": [
+    "customerID",
+    "Churn"
+  ],
+  "target": "Churn",
+  "task_type": "binary_classification",
+  "target_summary": {
+    "distribution": {
+      "No": 0.7346,
+      "Yes": 0.2654
+    }
+  },
+  "duplicate_train_rows": 0,
+  "train_test_feature_columns_match": true,
+  "missing_train_top20": {
+    "TotalCharges": 0.0014,
+    "gender": 0.0,
+    "SeniorCitizen": 0.0,
+    "Partner": 0.0,
+    "customerID": 0.0,
+    "Dependents": 0.0,
+    "tenure": 0.0,
+    "MultipleLines": 0.0,
+    "PhoneService": 0.0,
+    "OnlineSecurity": 0.0,
+    "OnlineBackup": 0.0,
+    "DeviceProtection": 0.0,
+    "InternetService": 0.0,
+    "TechSupport": 0.0,
+    "StreamingTV": 0.0,
+    "Contract": 0.0,
+    "StreamingMovies": 0.0,
+    "PaperlessBilling": 0.0,
+    "PaymentMethod": 0.0,
+    "MonthlyCharges": 0.0
+  },
+  "missing_test_top20": {
+    "TotalCharges": 0.0021,
+    "customerID": 0.0,
+    "SeniorCitizen": 0.0,
+    "gender": 0.0,
+    "Partner": 0.0,
+    "Dependents": 0.0,
+    "PhoneService": 0.0,
+    "tenure": 0.0,
+    "InternetService": 0.0,
+    "OnlineSecurity": 0.0,
+    "OnlineBackup": 0.0,
+    "MultipleLines": 0.0,
+    "DeviceProtection": 0.0,
+    "TechSupport": 0.0,
+    "StreamingMovies": 0.0,
+    "StreamingTV": 0.0,
+    "Contract": 0.0,
+    "PaperlessBilling": 0.0,
+    "PaymentMethod": 0.0,
+    "MonthlyCharges": 0.0
+  }
+}

@@ -1,0 +1,513 @@
+{
+  "schema": "evomind.mlebench_lite.unscored8_deep_gpt56_review.v1",
+  "created_at": "2026-07-25T12:52:18.581797+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "latency_ms": 268750.3,
+    "usage": {
+      "completion_tokens": 15373,
+      "total_tokens": 51208,
+      "prompt_tokens": 35835,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 7943
+      }
+    },
+    "reasoning_effort_requested": "high",
+    "json_mode_requested": true
+  },
+  "prompt_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\unscored8_deep_gpt56_prompt_current.txt",
+  "prompt_sha256": "29805f79cf978677e19a64f059066fbed00ce06ca62fe6964dee9d49431cc6ee",
+  "source_path": "scripts/mlebench_wave2_adapters.py",
+  "source_sha256": "db255a8f08b6a0dc242432b19e991a9af61360e0cc66e2b7eb89ff8ccf4a4dd2",
+  "extracted_source_sha256": "004defc2f6e15a305b0399621e7424d12b03908d818e50998f74b4e69bbc0042",
+  "response_sha256": "7c0cbcb926957012fa7e3b2efb34f016174230e0282aab9afd9675c46d78a75a",
+  "audited_competition_ids": [
+    "aptos2019-blindness-detection",
+    "dog-breed-identification",
+    "histopathologic-cancer-detection",
+    "jigsaw-toxic-comment-classification-challenge",
+    "mlsp-2013-birds",
+    "plant-pathology-2020-fgvc7",
+    "ranzcr-clip-catheter-line-classification",
+    "the-icml-2013-whale-challenge-right-whale-redux"
+  ],
+  "parse_ok": true,
+  "review": {
+    "audit_summary": {
+      "current_coverage": 8,
+      "required_coverage": 8,
+      "confirmed_current_findings": [
+        "run_histopath declares a histopath_duplicate_aware_auc promotion contract but passes no group_values to _run_vision, so make_vision_splits currently returns stratified_kfold rather than a duplicate-aware split.",
+        "_run_vision selects checkpoints without TTA for the current ordinal, multiclass, multilabel, and binary-AUC runners, then produces final OOF and test predictions with TTA when tta_flips=True; checkpoint selection and deployment recipes therefore differ.",
+        "run_ranzcr passes PatientID groups when available, but make_vision_splits uses ordinary GroupKFold for multilabel grouped data; it does not balance labels and does not preflight whether every label is scoreable in every fold before expensive training.",
+        "build_jigsaw_promotion_gate compares a fold-locally rank-normalized blend against raw-probability base AUCs, so its claimed minimum blend improvement is not an apples-to-apples component-blend comparison.",
+        "run_birds trains the 19 per-species CatBoost channels on CPU before starting the GPU pair channel, leaving an allocated A40 unused unless CPU feature/species work is separated into a reusable precompute stage.",
+        "run_aptos uses the generic square resize and random crop pipeline without retina-specific black-border removal or illumination normalization.",
+        "run_dog_breed uses row-stratified folds without checking or grouping exact duplicate images, leaving duplicate leakage unmeasured and missing a low-cost exact-match deployment path.",
+        "_run_vision always trains every configured epoch and has no bounded early-stopping rule, which is especially inefficient for the 1821-image Plant Pathology task and other expensive vision folds.",
+        "run_whale protects exact waveform duplicates with SHA256 grouping and test overrides, but has no fold-clean near-duplicate acoustic fingerprint channel."
+      ],
+      "stale_findings_rejected": [
+        "Rejected: the current vision runners silently fall back to random initialization. _vision_model requires pinned pretrained weights, verifies each cache-file SHA256, and fails closed if loading fails.",
+        "Rejected: the current vision tasks use a single holdout. _run_vision constructs complete multi-fold OOF predictions through make_vision_splits.",
+        "Rejected: the current RANZCR runner is non-grouped. run_ranzcr supplies PatientID and make_vision_splits selects GroupKFold when those groups are present; the remaining defect is lack of multilabel-stratified grouping and preflight.",
+        "Rejected: the current Jigsaw evidence is non-OOF. run_jigsaw uses iterative multilabel folds, predicts each training row only from its held-out model, and verifies the fold manifest.",
+        "Rejected: the current Whale CV ignores exact duplicates. make_whale_duplicate_aware_splits uses waveform SHA256 groups and fails on conflicting labels.",
+        "Rejected: current Bird and Whale test predictions come from a single fold. Both runners average predictions from all fold models."
+      ],
+      "campaign_arithmetic": {
+        "official_medals_now": 6,
+        "unscored_tasks": 8,
+        "maximum_official_medals_after_scoring_all_eight": 14,
+        "target": 18,
+        "additional_medals_still_required_after_an_eight_for_eight outcome": 4,
+        "conclusion": "The eight supplied tasks alone cannot produce 18/22. Reaching 18 requires converting at least four of the eight previously scored non-medals. Their current source was not supplied and is therefore not audited or optimized here."
+      },
+      "estimate_boundary": "All probabilities below are planning priors for the incremental upgrades, not medal claims. Only private-grader output can establish an official medal."
+    },
+    "per_competition": [
+      {
+        "competition_id": "aptos2019-blindness-detection",
+        "current_runner": "run_aptos",
+        "deployment_verdict": "GO",
+        "confirmed_source_defects": [
+          "run_aptos has no retina-specific preprocessing; it sends uncropped images through the generic forced-square resize and RandomResizedCrop path.",
+          "_run_vision selects the best APTOS checkpoint using a single-view validation score but computes final OOF predictions with flip TTA.",
+          "_run_vision has no early stopping, so every APTOS fold runs all configured epochs even after its best checkpoint is established."
+        ],
+        "already_implemented_strengths": [
+          "run_aptos uses the pinned EfficientNet-V2-S ImageNet weights and fails closed on a missing or mismatched weight file.",
+          "APTOS uses stratified multi-fold OOF predictions rather than a single holdout.",
+          "Ordinal thresholds are cross-fitted for promotion scoring and refitted on all OOF predictions only for test deployment.",
+          "The gate checks that all five classes occur in every validation fold.",
+          "Vertical flips are disabled for retinal images."
+        ],
+        "highest_value_upgrades": [
+          "Add deterministic retina cropping based only on image pixels: remove near-black borders, pad to a square, and apply bounded illumination normalization before the existing train/evaluation transforms.",
+          "Make checkpoint validation use the same TTA recipe as final OOF inference, or disable TTA consistently for both selection and deployment.",
+          "Add patience-two early stopping after a minimum of four epochs while retaining the best host-memory checkpoint.",
+          "Do not add a larger backbone; EfficientNet-V2-S at 512 pixels already provides the better A40-hour tradeoff and fits the 48GB limit."
+        ],
+        "expected_incremental_medal_probability": 0.18,
+        "estimated_gpu_hours": 2.8,
+        "medal_probability_gain_per_gpu_hour": 0.064286,
+        "validation_contract": [
+          "A synthetic retina image with a black frame must be cropped to the non-black support without changing its label or reading any test metadata.",
+          "Every training row must have exactly one fold assignment and one finite OOF probability vector.",
+          "Every validation fold must contain classes [0,1,2,3,4].",
+          "Cross-fitted threshold records must fit thresholds on rows outside the scored fold.",
+          "Checkpoint-selection TTA must equal final-OOF TTA in the recorded budget.",
+          "The submission diagnosis column must contain only integers from 0 through 4 in sample-submission order."
+        ],
+        "stop_rule": "Run only seed 42, at most five folds and ten epochs per fold, with patience two after epoch four; stop APTOS optimization after one retina-preprocessing comparison or 3.0 A40 hours, whichever comes first."
+      },
+      {
+        "competition_id": "dog-breed-identification",
+        "current_runner": "run_dog_breed",
+        "deployment_verdict": "GO",
+        "confirmed_source_defects": [
+          "run_dog_breed does not hash or group duplicate training images before row-stratified CV.",
+          "run_dog_breed has no exact train-to-test image match channel even though such a channel can be implemented without private labels.",
+          "_run_vision selects Dog Breed checkpoints without flip TTA and deploys them with flip TTA.",
+          "_run_vision has no early stopping across the expensive five-fold, ten-epoch ConvNeXt-Small run."
+        ],
+        "already_implemented_strengths": [
+          "The runner derives the exact 120-class output order from the sample submission.",
+          "It uses pinned ConvNeXt-Small pretrained weights, 384-pixel inputs, channels-last tensors, AMP, fused AdamW when available, and A40 fast kernels.",
+          "It disables label smoothing for the log-loss objective.",
+          "OOF and test probability rows are checked to sum to one.",
+          "Vertical flips are disabled."
+        ],
+        "highest_value_upgrades": [
+          "Compute train and test SHA256 image manifests before splitting; pass training hashes as groups and record duplicate counts and fold-overlap assertions.",
+          "For exact train-test image matches with one unambiguous breed, blend a clipped one-hot match prediction through a predeclared fold-clean validation protocol.",
+          "Add a bounded penultimate-embedding nearest-neighbor component and select its blend weight from a fixed five-value grid using only OOF fitting rows.",
+          "Align checkpoint-selection TTA with final inference and add patience-two early stopping.",
+          "Keep ConvNeXt-Small rather than escalating the backbone; a larger model would increase the already high 384-pixel five-fold A40 cost."
+        ],
+        "expected_incremental_medal_probability": 0.18,
+        "estimated_gpu_hours": 4.0,
+        "medal_probability_gain_per_gpu_hour": 0.045,
+        "validation_contract": [
+          "No SHA256 image group may occur in both the fitting and validation rows of a fold.",
+          "Every label.csv breed must map to exactly one sample-submission class.",
+          "Every training row must receive one finite 120-class OOF vector whose sum is one within 1e-6.",
+          "Every test row must receive one finite 120-class vector whose sum is one within 1e-6.",
+          "Any exact-match override must have one and only one public training breed and must be clipped away from zero and one.",
+          "The embedding blend weight for each held-out fold must be selected without using that fold's labels."
+        ],
+        "stop_rule": "Use seed 42 only; evaluate at most the logits-only baseline and one fixed five-weight embedding blend, stop after 4.5 A40 hours, and do not escalate to a larger backbone."
+      },
+      {
+        "competition_id": "histopathologic-cancer-detection",
+        "current_runner": "run_histopath",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "run_histopath supplies no group_values, so its current split strategy is stratified_kfold despite the promotion contract being named histopath_duplicate_aware_auc.",
+          "run_histopath caps training at 174464 rows by balanced random subsampling and discards the remaining public labeled images.",
+          "_run_vision selects Histopath checkpoints without TTA and computes final OOF and test predictions with TTA.",
+          "Duplicate safety is not represented as a required promotion check, allowing a nominally duplicate-aware gate to pass with row-wise folds."
+        ],
+        "already_implemented_strengths": [
+          "The transform preserves center geometry by taking a fixed center crop before augmentation.",
+          "The runner uses pinned EfficientNet-V2-S weights, three folds, mixed precision, and a large A40-compatible batch.",
+          "The output uses a complete fold ensemble and finite clipped probabilities.",
+          "The gate requires both aggregate AUC and every-fold AUC thresholds."
+        ],
+        "highest_value_upgrades": [
+          "Hash every public training image and pass exact-image hashes as group_values to _run_vision; require a grouped split in the promotion gate.",
+          "Use all public training rows unless a predeclared wall-clock cap is reached; if a cap remains necessary, sample complete hash groups rather than individual rows.",
+          "Add an exact public train-to-test hash override only when the public training labels within the hash group are unanimous.",
+          "Use identical TTA for checkpoint selection and final inference, with patience-two early stopping.",
+          "Retain EfficientNet-V2-S at 192 pixels; the primary gain is duplicate-safe data use, not a larger backbone."
+        ],
+        "expected_incremental_medal_probability": 0.23,
+        "estimated_gpu_hours": 2.5,
+        "medal_probability_gain_per_gpu_hour": 0.092,
+        "validation_contract": [
+          "The recorded split strategy must contain group and the group manifest must be based on public image SHA256 values.",
+          "No image hash may occur in both train and validation partitions of any fold.",
+          "Every training row selected for the run must receive exactly one finite OOF probability.",
+          "Both target classes must occur in every validation fold.",
+          "The promotion gate must contain and pass an explicit duplicate_group_disjoint check.",
+          "Any exact test override must map to one unanimous public label and remain clipped to [1e-6,0.999999]."
+        ],
+        "stop_rule": "Do not execute the current runner. After the duplicate-aware patch, run seed 42 once with at most three folds, six epochs, and patience two; stop after 3.0 A40 hours even if the internal gate misses its threshold."
+      },
+      {
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "current_runner": "run_jigsaw",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "cross_fit_multilabel_rank_blend creates held-out blend predictions from ranks recomputed within each held-out fold, while build_jigsaw_promotion_gate compares that blend against raw-probability base AUCs.",
+          "The reported minimum blend improvement can therefore include fold-rank normalization effects instead of only word/character blending.",
+          "run_jigsaw serializes both large vectorizers, all models, and all ratios for every fold even though only final submission generation and compact reproducibility evidence are required."
+        ],
+        "already_implemented_strengths": [
+          "The target contract is explicitly restricted to the exact six official toxicity columns.",
+          "The runner uses iterative multilabel stratification and verifies complete OOF coverage.",
+          "Word and character TF-IDF vectorizers are fitted only on each fold's training rows.",
+          "Blend weights are selected away from each held-out fold.",
+          "Submission predictions are aligned to sample order through an explicit one-to-one ID join.",
+          "The model is CPU-based and consumes effectively no A40 training time."
+        ],
+        "highest_value_upgrades": [
+          "Normalize word, character, and blended OOF components under the same cross-fitted rank protocol before computing base AUCs and blend improvement.",
+          "Make deployment normalization mirror OOF normalization by ranking each fold model's test component before averaging, then applying the final predeclared blend.",
+          "Evaluate a bounded NB-SVM C grid of [1.0,2.0,4.0] using only fold-clean OOF fitting rows and retain one selected C per label/analyzer.",
+          "Store compact vectorizer hashes, model coefficients, ratios, fold indices, and predictions instead of repeatedly compressing complete redundant fold objects."
+        ],
+        "expected_incremental_medal_probability": 0.12,
+        "estimated_gpu_hours": 0.05,
+        "medal_probability_gain_per_gpu_hour": 2.4,
+        "validation_contract": [
+          "The target columns must equal [toxic,severe_toxic,obscene,threat,insult,identity_hate] in that order.",
+          "Every training row must occur in exactly one held-out fold and every label must contain both classes in every validation fold.",
+          "Word, character, and blend promotion AUCs must all be computed from predictions processed by the same fold-clean normalization function.",
+          "No C value or blend weight may be selected using labels from the fold it predicts.",
+          "Sample and test ID sets must be equal, unique, and aligned by an explicit one-to-one join.",
+          "All six submission columns must be finite and strictly between zero and one."
+        ],
+        "stop_rule": "Perform one seed-42 run over the fixed three-value C grid and 21-value blend grid; stop after that run or 0.1 A40-equivalent hours, with no transformer escalation and no private-score-driven retry."
+      },
+      {
+        "competition_id": "mlsp-2013-birds",
+        "current_runner": "run_birds",
+        "deployment_verdict": "GO",
+        "confirmed_source_defects": [
+          "run_birds performs all per-species CatBoost training on CPU inside the same runner before using the A40 for pair models, reducing medal conversion per reserved A40 hour.",
+          "cross_fit_binary_auc_blend uses fold-specific deployment weights for OOF rows but a single all-OOF weight for test rows; although fold-clean, this can create fold-dependent score scales under the pooled pair metric.",
+          "The independently trained species probabilities are blended directly into a pooled recording-species AUC despite potentially different probability scales across species."
+        ],
+        "already_implemented_strengths": [
+          "The runner verifies the official fold-0/fold-1 recording manifest and complete recording-species sample grid.",
+          "It skips unknown labels and fails if observed train or test IDs diverge from the official split.",
+          "Supplemental features are aligned by explicit recording IDs and declare that private labels are unused.",
+          "Audio feature extraction is cached across runs.",
+          "Both species and pair channels produce complete OOF predictions, and blend selection is cross-fitted.",
+          "The official pooled recording-species binary AUC reduction is implemented explicitly."
+        ],
+        "highest_value_upgrades": [
+          "Separate audio feature extraction and CPU species-channel fitting into a resumable CPU-only precompute artifact, then request the A40 only for pair-channel folds.",
+          "Add fold-clean monotonic calibration or pooled rank normalization so species-channel predictions are comparable across species before blending.",
+          "Evaluate one additional predeclared pair model with depth 6 and class-balanced training, then cross-fit a two-component pair blend.",
+          "Do not increase feature width or add an audio neural network until the current cached-feature CatBoost variants have been exhausted."
+        ],
+        "expected_incremental_medal_probability": 0.14,
+        "estimated_gpu_hours": 0.8,
+        "medal_probability_gain_per_gpu_hour": 0.175,
+        "validation_contract": [
+          "Observed train IDs must exactly equal official fold-0 IDs and test IDs must exactly equal official fold-1 IDs.",
+          "The sample must contain exactly one row for every test-recording and species-0-through-18 pair.",
+          "No unknown or fold-1 label may enter truth construction.",
+          "Every training recording must receive exactly one finite 19-column OOF prediction.",
+          "Calibration and blend parameters for a held-out fold must be fitted only on other folds.",
+          "The CPU precompute artifact must be keyed by source feature fingerprints, seed 42, fold manifest, and target manifest."
+        ],
+        "stop_rule": "Reuse one seed-42 CPU precompute, run at most two predeclared GPU pair configurations, and stop after 0.9 A40 hours or after one configuration clears the frozen internal gate."
+      },
+      {
+        "competition_id": "plant-pathology-2020-fgvc7",
+        "current_runner": "run_plant",
+        "deployment_verdict": "GO",
+        "confirmed_source_defects": [
+          "_run_vision trains all five Plant folds for all ten epochs without early stopping despite the small training set.",
+          "_run_vision selects Plant checkpoints from single-view validation predictions but computes final OOF and test predictions with flip TTA.",
+          "The generic forced-square resize and random crop can remove edge lesions or distort the original aspect ratio; no plant-specific full-frame transform is present."
+        ],
+        "already_implemented_strengths": [
+          "The runner derives the exact four target columns from the sample submission and maps one-hot training labels explicitly.",
+          "It uses pinned ConvNeXt-Small weights at 448 pixels with mixed precision and A40 fast kernels.",
+          "The promotion gate checks exact four-class mean AUC and a minimum AUC for every class.",
+          "Final test rows are explicitly normalized to sum to one.",
+          "The fold ensemble provides complete OOF and test coverage."
+        ],
+        "highest_value_upgrades": [
+          "Use a lesion-preserving transform that resizes while preserving aspect ratio and obtains a full-frame padded square rather than relying only on RandomResizedCrop.",
+          "Reduce to three stratified folds, retain ten as a hard epoch cap, and add patience-two early stopping after epoch three.",
+          "Use the same horizontal/vertical TTA recipe for checkpoint selection and final inference.",
+          "Keep ConvNeXt-Small; the small dataset does not justify a larger A40-expensive backbone."
+        ],
+        "expected_incremental_medal_probability": 0.13,
+        "estimated_gpu_hours": 1.6,
+        "medal_probability_gain_per_gpu_hour": 0.08125,
+        "validation_contract": [
+          "Every training row must have exactly one of the four target columns equal to one.",
+          "Every stratified validation fold must contain all four classes.",
+          "Every OOF and test row must contain four finite probabilities summing to one within 1e-6.",
+          "Per-class OOF AUC must be defined for all four classes.",
+          "Checkpoint-selection and final-inference TTA flags must match.",
+          "The full-frame transform must retain all four original image corners in a synthetic geometry test."
+        ],
+        "stop_rule": "Run seed 42 with three folds, at most ten epochs, and patience two; stop after 1.8 A40 hours and do not evaluate another backbone."
+      },
+      {
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "current_runner": "run_ranzcr",
+        "deployment_verdict": "NO-GO",
+        "confirmed_source_defects": [
+          "make_vision_splits uses GroupKFold rather than multilabel-stratified group assignment for RANZCR.",
+          "Scoreability of every label in every fold is checked only after model training; validation_score can fail earlier if GroupKFold creates a single-class label partition.",
+          "_run_vision selects RANZCR checkpoints without TTA but computes final OOF and test predictions with TTA.",
+          "_run_vision has no early stopping for the five-fold, eight-epoch, 512-pixel workload."
+        ],
+        "already_implemented_strengths": [
+          "run_ranzcr passes PatientID as group_values when the canonical column is present.",
+          "The promotion gate explicitly requires a grouped split and checks that every label is scoreable in every fold.",
+          "The runner uses pinned EfficientNet-V2-S weights, monochrome conversion, 512-pixel inputs, mixed precision, and A40-compatible batch size.",
+          "Vertical flips are disabled and test predictions are averaged across all folds.",
+          "Class-specific positive weights are computed from each fold's fitting rows."
+        ],
+        "highest_value_upgrades": [
+          "Add deterministic iterative multilabel stratification at the PatientID group level, balancing group capacities and per-label positive counts.",
+          "Preflight all folds before constructing any model; fail closed unless every target has both classes in each training and validation partition.",
+          "Align checkpoint TTA with final horizontal-flip TTA and add patience-two early stopping after epoch three.",
+          "Retain EfficientNet-V2-S at 512 pixels; do not increase resolution or backbone size until the grouped OOF protocol clears its frozen gate."
+        ],
+        "expected_incremental_medal_probability": 0.2,
+        "estimated_gpu_hours": 7.0,
+        "medal_probability_gain_per_gpu_hour": 0.028571,
+        "validation_contract": [
+          "PatientID must exist, be non-null, and be supplied as the split group; absence must fail closed rather than falling back to row-level CV.",
+          "No PatientID may occur in both fitting and validation rows of any fold.",
+          "Every target column must contain both zero and one in every fitting and validation partition before GPU allocation.",
+          "Every training row must receive exactly one finite OOF vector with the exact sample target-column order.",
+          "Checkpoint-selection and final-inference TTA recipes must match.",
+          "The promotion gate must record and pass patient_grouped_split and every_label_scoreable_in_every_fold."
+        ],
+        "stop_rule": "Do not run the current GroupKFold implementation. After the grouped multilabel patch, run seed 42 once with at most five folds, eight epochs, patience two, and a 7.5 A40-hour hard cap; do not raise resolution or backbone size."
+      },
+      {
+        "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+        "current_runner": "run_whale",
+        "deployment_verdict": "GO",
+        "confirmed_source_defects": [
+          "make_whale_duplicate_aware_splits groups only byte-identical waveform SHA256 values; acoustically identical clips with different containers or encodings remain separate.",
+          "run_whale evaluates only one CatBoost depth and learning-rate configuration, leaving a cheap model-diversity opportunity unused.",
+          "All waveform hashes are recomputed independently of the audio feature cache rather than stored in a shared manifest artifact."
+        ],
+        "already_implemented_strengths": [
+          "Training and test archives are extracted into an atomic shared cache.",
+          "The expensive 1572-wide audio feature matrix is fingerprinted and reused.",
+          "Exact duplicate waveform groups cannot cross CV folds, and conflicting duplicate labels fail closed.",
+          "Every fold must contain both classes and produces a complete OOF/test ensemble.",
+          "Exact public train-to-test waveform matches receive the corresponding public label before finite clipping.",
+          "No private labels are used."
+        ],
+        "highest_value_upgrades": [
+          "Cache waveform SHA256 values with the audio path manifest to remove repeated full-file hashing.",
+          "Add a deterministic near-duplicate acoustic fingerprint based only on cached public audio features and group only pairs above a predeclared similarity threshold validated on exact duplicates.",
+          "Evaluate one additional CatBoost configuration with depth 6 and otherwise frozen settings, then select or rank-blend it using fold-clean OOF AUC.",
+          "Keep the cached-feature CatBoost approach; a spectrogram neural network is not justified before these low-cost variants are exhausted."
+        ],
+        "expected_incremental_medal_probability": 0.14,
+        "estimated_gpu_hours": 0.4,
+        "medal_probability_gain_per_gpu_hour": 0.35,
+        "validation_contract": [
+          "No exact waveform SHA256 group may cross a fitting/validation boundary.",
+          "Any near-duplicate grouping threshold must be frozen before scoring and must not combine public training clips with conflicting labels.",
+          "Every validation fold must contain both binary classes and every training row must receive one finite OOF prediction.",
+          "Every sample clip must map to exactly one existing test AIF file.",
+          "Exact test overrides must come only from unanimous public training hash groups.",
+          "Any second-model blend weight must be selected without using labels from the fold it predicts."
+        ],
+        "stop_rule": "Run seed 42 only, evaluate at most the current depth-8 model and one depth-6 model, and stop after 0.5 A40 hours or after the first configuration clears the frozen internal gate."
+      }
+    ],
+    "implementation_order": [
+      "jigsaw-toxic-comment-classification-challenge",
+      "the-icml-2013-whale-challenge-right-whale-redux",
+      "mlsp-2013-birds",
+      "histopathologic-cancer-detection",
+      "plant-pathology-2020-fgvc7",
+      "aptos2019-blindness-detection",
+      "dog-breed-identification",
+      "ranzcr-clip-catheter-line-classification"
+    ],
+    "immediate_code_changes": [
+      {
+        "competition_id": "jigsaw-toxic-comment-classification-challenge",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "cross_fit_multilabel_rank_blend",
+          "build_jigsaw_promotion_gate",
+          "run_jigsaw"
+        ],
+        "acceptance_tests": [
+          "Test that base and blend AUCs use the same fold-clean rank-normalization protocol.",
+          "Test that changing held-out labels cannot change the weight selected for that held-out fold.",
+          "Test exact six-column ID-aligned submission generation."
+        ]
+      },
+      {
+        "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "load_or_compute_audio_feature_matrix",
+          "make_whale_duplicate_aware_splits",
+          "run_whale"
+        ],
+        "acceptance_tests": [
+          "Test zero exact-hash overlap between every fold's train and validation partitions.",
+          "Test that cached waveform hashes are invalidated by a path-manifest change.",
+          "Test that an exact test hash receives only its unanimous public training label."
+        ]
+      },
+      {
+        "competition_id": "mlsp-2013-birds",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "cross_fit_binary_auc_blend",
+          "run_birds"
+        ],
+        "acceptance_tests": [
+          "Test reusable CPU precompute identity against feature, seed, and fold fingerprints.",
+          "Test complete 19-species sample grid and official split equality.",
+          "Test fold-clean calibration and pooled-AUC blending."
+        ]
+      },
+      {
+        "competition_id": "histopathologic-cancer-detection",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "_run_vision",
+          "run_histopath"
+        ],
+        "acceptance_tests": [
+          "Test that image SHA256 groups never cross fold boundaries.",
+          "Test that the promotion gate fails when split_strategy is not grouped.",
+          "Test unanimous exact-match overrides and full OOF coverage."
+        ]
+      },
+      {
+        "competition_id": "plant-pathology-2020-fgvc7",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "_image_transforms",
+          "_run_vision",
+          "run_plant"
+        ],
+        "acceptance_tests": [
+          "Test plant full-frame transform corner retention.",
+          "Test early-stopping checkpoint restoration.",
+          "Test identical checkpoint-selection and final TTA flags and four-class probability normalization."
+        ]
+      },
+      {
+        "competition_id": "aptos2019-blindness-detection",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "_image_transforms",
+          "_run_vision",
+          "run_aptos"
+        ],
+        "acceptance_tests": [
+          "Test deterministic black-border removal on a synthetic retinal image.",
+          "Test fold-clean ordinal threshold fitting and five-class coverage.",
+          "Test identical checkpoint-selection and final TTA flags."
+        ]
+      },
+      {
+        "competition_id": "dog-breed-identification",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "_run_vision",
+          "run_dog_breed"
+        ],
+        "acceptance_tests": [
+          "Test duplicate-image group disjointness.",
+          "Test fold-clean embedding blend selection.",
+          "Test 120-class sample ordering and probability row sums."
+        ]
+      },
+      {
+        "competition_id": "ranzcr-clip-catheter-line-classification",
+        "file": "scripts/mlebench_wave2_adapters.py",
+        "functions_to_add_or_change": [
+          "make_vision_splits",
+          "_run_vision",
+          "run_ranzcr"
+        ],
+        "acceptance_tests": [
+          "Test PatientID disjointness for every fold.",
+          "Test both-class scoreability for every label before any model is allocated on CUDA.",
+          "Test deterministic grouped multilabel fold assignment for seed 42.",
+          "Test identical checkpoint-selection and final TTA flags."
+        ]
+      }
+    ],
+    "resource_schedule": [
+      "Do not launch against the currently busy A40. First deploy the reviewed release under the pinned bundle SHA256 and retain the dedicated writable remote root.",
+      "Before each GPU stage, require the existing three consecutive idle samples to pass; do not weaken the utilization, memory, or compute-process checks.",
+      "After the release and source tests pass, run the corrected Jigsaw task as a CPU-only stage without reserving the A40.",
+      "Precompute and cache Whale and Bird audio features, hashes, supplemental alignment, and Bird CPU species artifacts before reserving the A40 for their CatBoost GPU stages.",
+      "Run Whale next with a 0.5-hour A40 cap, followed by Birds with a 0.9-hour cap.",
+      "Patch and run duplicate-aware Histopath with a 3.0-hour cap, then the three-fold Plant run with a 1.8-hour cap.",
+      "Run retina-preprocessed APTOS with a 3.0-hour cap, followed by duplicate-audited Dog Breed with a 4.5-hour cap.",
+      "Run RANZCR last because it has the lowest estimated incremental gain per A40 hour; require grouped multilabel preflight before its 7.5-hour capped stage.",
+      "After each task, validate and freeze its submission, OOF artifact, fold manifest, source hash, weight hashes, seed 42, and budget record before deleting checkpoints or moving to the next task.",
+      "Present all valid frozen submissions and internal gates to the Human Gate. No automatic Kaggle or private-grader submission is permitted.",
+      "Record official private-grader outputs only as campaign outcomes; do not feed them back into model, hyperparameter, fold, calibration, or blend selection.",
+      "After all eight are officially scored, recompute the official medal count. Even an eight-for-eight result reaches only 14/22, so request authoritative current source for previously scored non-medals before proposing the four additional conversions required for 18/22."
+    ],
+    "global_stop_rules": [
+      "Preserve seed 42 for every external run; derived fold seeds already used by the source are allowed, but no external seed sweep is allowed.",
+      "Never start a GPU task until the three-sample idle gate passes and the dedicated remote root remains writable.",
+      "Stop all execution if the deployed source hash, pinned bundle hash, pretrained-weight hash, official data manifest, or sample-submission contract differs from the frozen record.",
+      "Do not promote any vision result with incomplete OOF coverage, train-validation group overlap, non-finite predictions, or a mismatch between checkpoint-selection and final inference recipes.",
+      "Use only predeclared bounded model grids and task-specific GPU-hour caps; do not escalate backbone size on the A40 during this wave.",
+      "An internal promotion-gate failure stops further optimization for that task but is not interpreted as an official non-medal; a valid submission may proceed only through the Human Gate.",
+      "An internal promotion-gate pass is not a medal claim and must retain official_grader_executed=false until an actual official grader result exists.",
+      "Make at most one Human-approved official scoring action per frozen task artifact in this campaign; do not use the returned private score to choose or retrain a model.",
+      "Do not claim that the eight unscored tasks can achieve 18/22: their mathematical ceiling is 14/22 from the current 6 medals.",
+      "Do not audit or recommend changes for the previously scored tasks until their authoritative current source is supplied; stale historical findings are not admissible."
+    ]
+  },
+  "secret_policy": "API key was loaded from the secure runtime environment and is absent from artifacts.",
+  "ok": true
+}

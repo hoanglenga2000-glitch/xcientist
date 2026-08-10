@@ -77,11 +77,9 @@ class EnsembleTemplateRegistry:
             template_id="sklearn_rf_hgb_et_ensemble",
             name="Sklearn RF+HGB+ET Ensemble with Logistic Stacking",
             model_family=["random_forest", "hist_gradient_boosting", "extra_trees"],
-            description="Local sklearn ensemble: RF+HGB+ET with 5-fold CV, multi-seed, "
-            "logistic regression stacking, and OOF blend grid search. "
-            "No HPC required; runs on local CPU.",
+            description="HPC-governed sklearn ensemble: RF+HGB+ET with 5-fold CV, multi-seed, logistic regression stacking, and OOF blend grid search.",
             validation_strategy="5fold_stratified_cv_multiseed",
-            hpc_required=False,
+            hpc_required=True,
             command_template=(
                 "python scripts/run_local_sklearn_ensemble.py "
                 "--config {config_path} "
@@ -165,7 +163,7 @@ class EnsembleTemplateRegistry:
 
     @classmethod
     def list_local(cls) -> list[EnsembleTemplate]:
-        return [t for t in cls.TEMPLATES.values() if not t.hpc_required]
+        return []
 
     @classmethod
     def list_hpc(cls) -> list[EnsembleTemplate]:

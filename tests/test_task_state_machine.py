@@ -31,6 +31,9 @@ def test_hpc_job_stays_manifest_prepared_until_dispatch_receipt_arrives():
         TaskState.UNDERSTOOD,
         TaskState.PLANNING,
         TaskState.PLAN_WAITING_APPROVAL,
+        TaskState.PLAN_APPROVED,
+        TaskState.CODE_GENERATING,
+        TaskState.CODE_READY,
         TaskState.MANIFEST_PREPARED,
     ):
         machine.transition(state, "fixture")
@@ -48,3 +51,21 @@ def test_hpc_job_stays_manifest_prepared_until_dispatch_receipt_arrives():
     )
     assert machine.state == TaskState.TRAINING_QUEUED
     assert not machine.can_transition(TaskState.TRAINING_DONE)
+
+
+def test_task_cannot_execute_without_gate():
+    machine = TaskStateMachine("task_plan_gate")
+    for state in (
+        TaskState.IMPORTED,
+        TaskState.UNDERSTANDING,
+        TaskState.UNDERSTOOD,
+        TaskState.PLANNING,
+        TaskState.PLAN_WAITING_APPROVAL,
+    ):
+        machine.transition(state, "fixture")
+
+    assert machine.state == TaskState.PLAN_WAITING_APPROVAL
+    assert not machine.can_transition(TaskState.MANIFEST_PREPARED)
+    assert not machine.can_transition(TaskState.TRAINING_QUEUED)
+    with pytest.raises(ValueError, match="Illegal transition"):
+        machine.transition(TaskState.MANIFEST_PREPARED, "direct dispatch bypass")

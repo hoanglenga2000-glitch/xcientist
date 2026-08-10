@@ -442,6 +442,10 @@ def run_regression_ensemble(args: argparse.Namespace, config: dict[str, Any], ou
 
 
 def main() -> None:
+    print(json.dumps({"status": "blocked_local_training_disabled", "training_started": False}, ensure_ascii=False))
+    raise SystemExit(2)
+
+    # Retained implementation below is intentionally unreachable.
     parser = argparse.ArgumentParser(description="Local sklearn ensemble runner.")
     parser.add_argument("--config", required=True, help="Task config YAML")
     parser.add_argument("--output-base", required=True, help="Output base directory")

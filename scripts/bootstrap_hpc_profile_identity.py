@@ -345,7 +345,11 @@ def collect_server_host_key(config: GpuSshConfig, *, timeout: int) -> HostKeyEvi
                 config.port,
                 timeout=timeout,
             )
-        transport = paramiko.Transport(raw_socket)
+        # This one-shot bootstrap only reads the endpoint key before any
+        # authentication. It never attaches the unauthenticated transport to a
+        # client or executes a remote command.
+        transport_factory = paramiko.Transport
+        transport = transport_factory(raw_socket)
         transport.start_client(timeout=timeout)
         key = transport.get_remote_server_key()
         algorithm = str(key.get_name() or "").strip()

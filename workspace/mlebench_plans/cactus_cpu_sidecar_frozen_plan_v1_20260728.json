@@ -1,0 +1,35 @@
+{
+  "schema": "evomind.cactus.cpu_sidecar_frozen_plan.v1",
+  "status": "frozen",
+  "competition_id": "aerial-cactus-identification",
+  "evaluator": {
+    "path": "D:\\\u684c\u9762\\codex\\\u79d1\u7814\u6e2f\u79d1\u6280\\scripts\\evaluate_cactus_cpu_sidecar.py",
+    "bytes": 5942,
+    "sha256": "e3857436d3bb60e064c2fd2e8f53d1e5b8dd7e45f86888004925fcccbc3f5535"
+  },
+  "cpu_collection": {
+    "path": "D:\\\u684c\u9762\\codex\\\u79d1\u7814\u6e2f\u79d1\u6280\\workspace\\hpc\\job89941_cactus_cpu_diagnostic\\collection_current.json",
+    "bytes": 4686,
+    "sha256": "3618175311f9799848678ca4bee22c8caaa716510cf1132dcd9cf42a7f2bc0be"
+  },
+  "remote_status": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/full_cactus_status_v2.json",
+  "gpu_bundle": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/multiseed_candidate/cactus_multiseed_oof_and_test.npz",
+  "cpu_bundle": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_cactus_cpu_diagnostic/cactus_cpu_hog_xgb_et_s42_v1_20260728/output/cactus_cpu_oof_and_test.npz",
+  "remote_output": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_cpu_sidecar_v1/output",
+  "weights": [
+    0.0,
+    0.025,
+    0.05,
+    0.1,
+    0.2
+  ],
+  "promotion_auc": 0.9997,
+  "contracts": {
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false
+  }
+}

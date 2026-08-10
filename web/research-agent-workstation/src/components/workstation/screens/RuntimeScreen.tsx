@@ -199,7 +199,9 @@ export function RuntimeScreen(props: ScreenProps) {
   const beforeDomain = llm?.before_after_eval?.before?.domain_composite;
   const afterDomain = llm?.before_after_eval?.after?.domain_composite;
   const adapterReloadPassed = llm?.adapter_reload?.passed === true;
-  const runCompleted = replayEnabled ? replayState.finished : currentRun?.status === "completed";
+  const canonicalRunStatus = String(currentRun?.status ?? runtime?.task_state?.status ?? "unknown");
+  const displayedRunStatus = replayEnabled ? (replayState.finished ? "completed" : "running") : canonicalRunStatus;
+  const runCompleted = displayedRunStatus.toLowerCase() === "completed";
   const replayTelemetry = telemetry[Math.min(replayState.telemetryIndex, Math.max(0, telemetry.length - 1))] as Record<string, unknown> | undefined;
   const replayGpu = Array.isArray(replayTelemetry?.gpu)
     ? replayTelemetry?.gpu?.[0] as Record<string, unknown> | undefined
@@ -284,7 +286,7 @@ export function RuntimeScreen(props: ScreenProps) {
         title={t(locale, "Current Run", "当前运行")}
         description={publicPresentation
           ? t(locale, "Anonymized public alias; the private evidence ledger remains unchanged.", "公开别名展示；原始证据账本保持不变。")
-          : t(locale, "Bound to workspace/current_run.json; historical tasks cannot replace this view.", "绑定 workspace/current_run.json，历史任务不会覆盖此视图。")}
+          : t(locale, "Bound to the Run Ledger; historical tasks cannot replace this view.", "绑定 Run Ledger，历史任务不会覆盖此视图。")}
         accent={hasCurrentRun ? "green" : "amber"}
         icon={Workflow}
       >
@@ -292,7 +294,7 @@ export function RuntimeScreen(props: ScreenProps) {
           <div className="grid min-w-0 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(260px,0.65fr)]">
             <div className="min-w-0 space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <StatusBadgeV2 tone={runtimeTone(runCompleted ? "completed" : "running")}>{runCompleted ? "completed" : "running"}</StatusBadgeV2>
+                <StatusBadgeV2 tone={runtimeTone(displayedRunStatus)}>{displayedRunStatus}</StatusBadgeV2>
                 <span className="text-xs font-semibold text-ink-secondary">{publicPresentation ? publicTaskId : currentRun?.task_id}</span>
                 <span className="text-2xs text-ink-muted">seq {eventCount}</span>
               </div>

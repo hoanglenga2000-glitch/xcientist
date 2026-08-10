@@ -1,0 +1,105 @@
+{
+  "schema": "evomind.mlebench.taxi_route_stat_sidecar.v1",
+  "status": "completed",
+  "competition_id": "new-york-city-taxi-fare-prediction",
+  "visibility_mode": "PUBLIC_ONLY",
+  "cache_seed": 42,
+  "folds": 3,
+  "max_rows": 5000000,
+  "chunk_rows": 250000,
+  "holdout_fraction": 0.05,
+  "train_rows": 5000000,
+  "test_rows": 9914,
+  "route_input_columns": [
+    "pickup_cell_id",
+    "dropoff_cell_id",
+    "hour",
+    "airport_route_code",
+    "passenger_count",
+    "pickup_borough_proxy",
+    "dropoff_borough_proxy"
+  ],
+  "route_output_columns": [
+    "route_stat_route_cell",
+    "route_stat_route_hour",
+    "route_stat_airport_route",
+    "route_stat_borough_route"
+  ],
+  "algorithm_source_sha256": "3ed99ec69b4071498b14493b41044ff7430e02fca5a7c376fa2792c7f38bb7e4",
+  "base_cache_manifest": {
+    "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_taxi_public_cache/job89941_taxi_public_cache_s42_v1_20260728/cache/cache_manifest.json",
+    "relative_path": "cache_manifest.json",
+    "bytes": 8528,
+    "sha256": "a7099d7dc47cb844baca3e6a77060ef152f926229dd2379b473b0203d3c5032d"
+  },
+  "artifacts": [
+    {
+      "relative_path": "oof_fold_00_train.npy",
+      "bytes": 80000128,
+      "sha256": "a69a790d21e0cc46fa61786e0d4fb2c9de41d62d6d8f3c1287e40a90612be629"
+    },
+    {
+      "relative_path": "oof_fold_00_test.npy",
+      "bytes": 158752,
+      "sha256": "42ec53b9a5c7b38d106f71e622f4ff11cc1f84b3eb0c1a2c6ab6a312deca21dc"
+    },
+    {
+      "relative_path": "oof_fold_01_train.npy",
+      "bytes": 80000128,
+      "sha256": "571ca7f6aa990040dff9329fd791470cde8cdd283ce6491a1f9c2776073a07cb"
+    },
+    {
+      "relative_path": "oof_fold_01_test.npy",
+      "bytes": 158752,
+      "sha256": "4999fb68c58b382478f0f8b983baa2dcacaf60c142d8a6875f1fc6e87c66dfbc"
+    },
+    {
+      "relative_path": "oof_fold_02_train.npy",
+      "bytes": 80000128,
+      "sha256": "57199007c355ff790b7597047b84650d98c2b5e3eee704de90fc8829456dcba3"
+    },
+    {
+      "relative_path": "oof_fold_02_test.npy",
+      "bytes": 158752,
+      "sha256": "6c9c4443d5273b1a0e2e8a69bd772ace34ceff4e39d2d9980da8b80ff3d2816c"
+    },
+    {
+      "relative_path": "temporal_train.npy",
+      "bytes": 80000128,
+      "sha256": "69658695277f197e800d8c7fcb8e2fda29ed26b9bdafdefd528ac674e51fb1c5"
+    },
+    {
+      "relative_path": "geographic_train.npy",
+      "bytes": 80000128,
+      "sha256": "e3799ab11c2e332e4632e86c3e5a2cda64ceefba5dee61e4fcec9ab6e6aac7fb"
+    },
+    {
+      "relative_path": "refit_train.npy",
+      "bytes": 80000128,
+      "sha256": "31dd74bbf8b5f92197ec77868b518a62f8206863c3acffd885ad53d24d98d03f"
+    },
+    {
+      "relative_path": "refit_test.npy",
+      "bytes": 158752,
+      "sha256": "f7fa25e906c559ee67e631f4ba1a20e4d984628daad6641594cda44a7cd87d40"
+    }
+  ],
+  "contexts": [
+    "oof_fold_00",
+    "oof_fold_01",
+    "oof_fold_02",
+    "temporal",
+    "geographic",
+    "refit"
+  ],
+  "contracts": {
+    "validation_targets_used": 0,
+    "private_files_read": [],
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "manifest_written_last": true
+  },
+  "claim_boundary": "PUBLIC_ONLY throughput sidecar; not a score or medal."
+}

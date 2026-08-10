@@ -1,0 +1,133 @@
+{
+  "schema": "evomind.mlebench.may2022_public_cache_plan.v1",
+  "created_at": "2026-07-28T01:16:41.144487+08:00",
+  "status": "frozen",
+  "job_id": 89941,
+  "cluster": "AI-X86_NVIDIA",
+  "competition_id": "tabular-playground-series-may-2022",
+  "resource_mode": "cpu_only",
+  "visibility_mode": "PUBLIC_ONLY",
+  "run_id": "job89941_may2022_public_cache_s42_v1_20260728",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+  "cache_output": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_may2022_public_cache/job89941_may2022_public_cache_s42_v1_20260728/cache",
+  "seed": 42,
+  "folds": 5,
+  "threads": 48,
+  "inputs": [
+    {
+      "bytes": 283303880,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/tabular-playground-series-may-2022/prepared/public/train.csv",
+      "relative_path": "prepared/public/train.csv",
+      "sha256": "f0940d6a4c3536752bdc3ba99251fc3020662ea43b28dfad520d810b3cde5514"
+    },
+    {
+      "bytes": 35229612,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/tabular-playground-series-may-2022/prepared/public/test.csv",
+      "relative_path": "prepared/public/test.csv",
+      "sha256": "6e758d247d1212a0b31733f751b9ce3f97e4704687294e11aa4290bbab0131ec"
+    },
+    {
+      "bytes": 1100010,
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/tabular-playground-series-may-2022/prepared/public/sample_submission.csv",
+      "relative_path": "prepared/public/sample_submission.csv",
+      "sha256": "9f557b7177f5983dedabfc538aea050561bb4e4a362bfe4a35040959c26a6f6a"
+    }
+  ],
+  "sources": [
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 383917,
+      "sha256": "b6f99eee719c6e5af0a230137ec47c19b80d96d42f90fc46591bf15166956882"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "relative_path": "scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\precompute_may2022_public_cache.py",
+      "relative_path": "scripts/precompute_may2022_public_cache.py",
+      "bytes": 3705,
+      "sha256": "04ebb02ad1281b65236767c1ea4ec4c0c78bfbad447617c7297f811e05843169"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+      "relative_path": "scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43703,
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\scripts\\russian_transliteration.py",
+      "relative_path": "scripts/russian_transliteration.py",
+      "bytes": 11016,
+      "sha256": "1223440eebe36a21bd14faefd63ba393d40f8de519f44684976126c782422f8d"
+    },
+    {
+      "local_path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+      "relative_path": "src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    }
+  ],
+  "authorization": {
+    "source": "active_thread_goal_user_provided",
+    "full_training_approved": true,
+    "candidate_generation_approved": true,
+    "official_private_grader_approved": false,
+    "kaggle_submission_approved": false
+  },
+  "performance_contract": {
+    "cpu_model": "Intel Xeon Platinum 8358P",
+    "logical_cpus_available": 64,
+    "threads_reserved_for_cache_build": 48,
+    "gpu_time_saved_scope": [
+      "CSV parsing",
+      "f_27 expansion",
+      "float32 matrix materialization",
+      "outer folds",
+      "nested inner splits"
+    ],
+    "before_after_measurement_required": true
+  },
+  "outputs": [
+    "train_features.npy",
+    "test_features.npy",
+    "train_id.npy",
+    "test_id.npy",
+    "target.npy",
+    "feature_names.json",
+    "may2022_fold_assignments.npz",
+    "may2022_nested_fold_indices.npz",
+    "feature_diagnostics.json",
+    "cache_manifest.json"
+  ],
+  "contracts": {
+    "full_public_training_rows": true,
+    "public_files_read": [
+      "sample_submission.csv",
+      "test.csv",
+      "train.csv"
+    ],
+    "private_files_read": [],
+    "target_derived_features": 0,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "gpu_used": false,
+    "cuda_visible_devices": "",
+    "cache_manifest_written_last": true,
+    "writes_confined_to_remote_root": true
+  },
+  "next_stage": {
+    "target_job_id": 88240,
+    "requires_verified_cache": true,
+    "candidate_only": true,
+    "human_gate_required_before_official_grader": true
+  },
+  "claim_boundary": "A verified public feature cache improves throughput but is not a score or medal."
+}

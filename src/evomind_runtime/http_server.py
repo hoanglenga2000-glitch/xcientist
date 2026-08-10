@@ -94,7 +94,17 @@ def make_handler(runtime: AgentRuntime, token: str):
             parts = parsed.path.strip("/").split("/")
             try:
                 if parsed.path == "/v1/health":
-                    return self._json(200, {"status": "ready", "version": "0.3.0"})
+                    backend_version = os.environ.get("EVOMIND_BACKEND_VERSION", "0.3.0").strip() or "0.3.0"
+                    return self._json(
+                        200,
+                        {
+                            "status": "ready",
+                            "version": backend_version,
+                            "backend_version": backend_version,
+                            "commit_hash": os.environ.get("EVOMIND_BUILD_COMMIT_HASH", "").strip(),
+                            "source_tree_sha256": os.environ.get("EVOMIND_SOURCE_TREE_SHA256", "").strip(),
+                        },
+                    )
                 if parsed.path == "/v1/tools":
                     return self._json(200, {"tools": runtime.tools()})
                 if parsed.path == "/v1/sessions":

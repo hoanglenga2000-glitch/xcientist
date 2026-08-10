@@ -1,0 +1,56 @@
+{
+  "schema": "evomind.leaf.early_after_jigsaw_control.v1",
+  "created_at": "2026-07-27T11:30:41.135594+08:00",
+  "status": "frozen_waiting_jigsaw_confirmation",
+  "competition_id": "leaf-classification",
+  "objective": "Run the already-frozen, local-data-ready Leaf candidate after Jigsaw confirmation so SIIM HTTP-429 staging cannot block it.",
+  "planner": {
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "reason": "Leaf public data and plan are ready; original scheduling waits for SIIM final verification."
+  },
+  "source": {
+    "path": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_leaf_after_jigsaw_confirmation.py",
+    "sha256": "e9bce5c0ae3be7cd2b959c55cf50259f2a566154f2ab9fd553eae986ea9841d2"
+  },
+  "base_leaf_plan": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_frozen_plan.json",
+    "sha256": "70697c60f5e4e0b6c48f21b3ebf9faddc3de37eddfdb8f0d4b0d314ea928e03e"
+  },
+  "jigsaw_dependency": {
+    "status_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_early_queue.json",
+    "status_schema": "evomind.jigsaw.early_confirmation_queue.v1",
+    "control_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_early_confirmation_after_may_control_frozen_plan.json",
+      "sha256": "df9234fe3ec923d72c41dd0f9926774dcf9cc141072cb88624132cb78464bdc9"
+    },
+    "accepted_terminal_statuses": [
+      "confirmation_failed",
+      "confirmation_passed_human_gate_pending",
+      "training_failed"
+    ]
+  },
+  "original_after_siim_queue_status": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_training_queue_calibrated.json",
+  "shared_artifact_contract": {
+    "same_leaf_plan": true,
+    "same_run_id": true,
+    "same_training_command": true,
+    "same_independent_verifier": true,
+    "original_queue_target_exists_guard": true
+  },
+  "launch_contract": {
+    "strict_single_gpu_serial": true,
+    "fresh_idle_samples": 3,
+    "final_gpu_requery_immediately_before_launch": true,
+    "original_queue_must_remain_waiting_for_prerequisites": true,
+    "supersede_if_original_queue_advances": true,
+    "preemption_allowed": false,
+    "process_signals_allowed": false
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_allowed": false,
+  "human_gate_preserved": true,
+  "claim_boundary": "Scheduling optimization only; model, folds, seeds, OOF gates, and official medal status are unchanged."
+}

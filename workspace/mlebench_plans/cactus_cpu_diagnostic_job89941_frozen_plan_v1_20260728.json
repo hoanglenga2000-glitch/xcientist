@@ -1,0 +1,28 @@
+{
+  "schema": "evomind.mlebench.cactus_cpu_diagnostic_plan.v1",
+  "status": "frozen",
+  "job_id": 89941,
+  "competition_id": "aerial-cactus-identification",
+  "visibility_mode": "PUBLIC_ONLY",
+  "run_id": "cactus_cpu_hog_xgb_et_s42_v1_20260728",
+  "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+  "script": {
+    "local_path": "D:\\\u684c\u9762\\codex\\\u79d1\u7814\u6e2f\u79d1\u6280\\scripts\\diagnose_cactus_cpu_ensemble.py",
+    "remote_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job89941_cactus_cpu_diagnostic/cactus_cpu_hog_xgb_et_s42_v1_20260728/frozen_source/diagnose_cactus_cpu_ensemble.py",
+    "bytes": 11348,
+    "sha256": "bf8412688be8037a4388993b18a315add08ac2ef48fab2af9476f5bd88d2926d"
+  },
+  "seed": 42,
+  "folds": 5,
+  "trees": 700,
+  "threads": 48,
+  "promotion_auc": 0.9997,
+  "contracts": {
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "gpu_used": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false
+  }
+}

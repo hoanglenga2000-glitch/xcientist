@@ -1,0 +1,229 @@
+{
+  "task_id": "telco_churn",
+  "generated_at": "2026-06-23T16:09:04",
+  "evidence": [
+    {
+      "evidence_id": "evidence_1d62272303",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.json",
+      "hash": "d8363ba41d5880413d94fc789c76f60fbdf611f49e226932e9b821cb9fda9ba8",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_4b8debdc74",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\telco_churn\\scaffold\\scaffold.md",
+      "hash": "d502394a52a81546cc7b4e7b1154c4317a8f236e74ab3f08942756aabf5d7c86",
+      "generated_by": "PlannerAgent",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_ec273a614e",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\telco_churn\\code\\generated\\baseline_runner.py",
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "generated_by": "LocalTemplateCodeAgent",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_f2dffbc749",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\data_quality.json",
+      "hash": "2d0ef65bc4d8cdace0368a2d992812c78ddbf5d419a3b18aa67afa3f9727c9db",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_3b7388c0d1",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\experiment_log.json",
+      "hash": "8435fc979506bcc4a308ae6f2fc8e42f8ff8d18339e0d5c2671bb339ad600912",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_29eb8b17dc",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.docx",
+      "hash": "0b074c49e64f9b0e36882d65cd7532d54d0dad2d5e5a65da602f6f79172c3c40",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_4bb568d492",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\local_report.md",
+      "hash": "a777ba4c7d744d5f859794dd119d1975a27cec50ff012d4046545c228eda1f68",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_7cb66b99de",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\model_results.json",
+      "hash": "4030893921bd88a8249065ee82f6437bf2bb6dc40d329f9f272047bb83f6f3a1",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [
+        "claim_89a094fb55"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_3877bdb8df",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.json",
+      "hash": "ae83f4961a8c4583e68356d930ec510767acd2c334b96808ffcbbdc228891935",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_af409b01ac",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\post_scaffold_improvement.md",
+      "hash": "bdb8eaeb3b3e1a372257b21be3e741e68dcd1e049810f23a3bf6cca3b8901ee4",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_fb407517f1",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+      "hash": "c1f58233515beab552ac646571dffac194902a2a0440e67d6cbcf40d41bd1c80",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [
+        "claim_89a094fb55"
+      ],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_28c557caca",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.json",
+      "hash": "697b35ea75c99c205bea22f87201611d6c27dc1bbd2772c132e7e6ac33ffe13f",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_6f9fbf5350",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\task_scaffold.md",
+      "hash": "0cbf662fe44659f170950dd00bc43dd4ea6ca7f2b548e029a1a89c6036c7dcbc",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_7a75b5dde0",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.docx",
+      "hash": "0b074c49e64f9b0e36882d65cd7532d54d0dad2d5e5a65da602f6f79172c3c40",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_0444f7d7cd",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\telco_churn_local_report.md",
+      "hash": "a777ba4c7d744d5f859794dd119d1975a27cec50ff012d4046545c228eda1f68",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_265c1bf688",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.json",
+      "hash": "a4bd0cc3b2b870e0665485e56af9d275384dcd17709670854df1e17cbe583fd9",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    },
+    {
+      "evidence_id": "evidence_53c2e8df87",
+      "task_id": "telco_churn",
+      "run_id": "20260623_160853",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\workflow_stage_audit.md",
+      "hash": "ce1d7f41595ef99d2cd44db1b3a74beea88a89601f7f7bc5f1f3adb57f6c9d74",
+      "generated_by": "local_pipeline",
+      "generated_at": "2026-06-23T16:09:04",
+      "linked_claims": [],
+      "status": "verified"
+    }
+  ],
+  "claims": [
+    {
+      "claim_id": "claim_89a094fb55",
+      "text": "Telco Customer Churn local baseline produced validated accuracy results.",
+      "source": "reviewer",
+      "evidence_ids": [
+        "evidence_7cb66b99de",
+        "evidence_fb407517f1"
+      ],
+      "confidence": 0.86,
+      "reviewer_status": "bound",
+      "risk_level": "medium"
+    }
+  ],
+  "needs_evidence": []
+}

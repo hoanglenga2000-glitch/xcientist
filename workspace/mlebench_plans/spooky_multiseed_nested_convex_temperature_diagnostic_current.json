@@ -1,0 +1,62 @@
+{
+  "schema": "evomind.spooky.multiseed_nested_convex_temperature_diagnostic.v1",
+  "baseline_log_loss": 0.28159599305517885,
+  "nested_log_loss": 0.2817263292236532,
+  "selected": [
+    {
+      "fold": 0,
+      "fit_log_loss": 0.27898847913414543,
+      "weights": [
+        0.2,
+        0.8,
+        0.0
+      ],
+      "temperature": 1.0
+    },
+    {
+      "fold": 1,
+      "fit_log_loss": 0.2840890894559144,
+      "weights": [
+        0.7,
+        0.0,
+        0.3
+      ],
+      "temperature": 1.0
+    },
+    {
+      "fold": 2,
+      "fit_log_loss": 0.2857348785943404,
+      "weights": [
+        0.1,
+        0.6,
+        0.3
+      ],
+      "temperature": 1.0
+    },
+    {
+      "fold": 3,
+      "fit_log_loss": 0.27766012583685334,
+      "weights": [
+        0.7,
+        0.3,
+        0.0
+      ],
+      "temperature": 1.0
+    },
+    {
+      "fold": 4,
+      "fit_log_loss": 0.2813788832893164,
+      "weights": [
+        0.4,
+        0.6,
+        0.0
+      ],
+      "temperature": 1.0
+    }
+  ],
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "claim_boundary": "Public OOF nested diagnostic only; not an official score or medal.",
+  "gain_positive_is_better": -0.00013033616847435425
+}

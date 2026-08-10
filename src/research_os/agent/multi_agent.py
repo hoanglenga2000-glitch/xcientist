@@ -11,8 +11,12 @@ import copy
 import hashlib
 import json
 import os
+import platform
+import re
+import sys
 import threading
 import time
+import traceback
 import uuid
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from dataclasses import asdict, dataclass, field
@@ -54,6 +58,18 @@ def _atomic_json(path: Path, payload: Any) -> None:
     with temp.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, ensure_ascii=False, indent=2, default=_jsonable)
         handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp, path)
+
+
+def _atomic_text(path: Path, value: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temp = path.with_name(f".{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    with temp.open("w", encoding="utf-8", newline="\n") as handle:
+        handle.write(value)
+        if value and not value.endswith("\n"):
+            handle.write("\n")
         handle.flush()
         os.fsync(handle.fileno())
     os.replace(temp, path)
@@ -192,6 +208,8 @@ def _classify_task_failure(exc: Exception) -> str:
         return "oom"
     if any(term in message for term in ("socks", "ssh", "banner", "socket", "network unreachable")):
         return "connection"
+    if "provider" in message:
+        return "provider"
     return type(exc).__name__
 
 
@@ -364,6 +382,107 @@ class MultiAgentStore:
         path = self.run_dir / "results" / f"{result.task_id}.json"
         _atomic_json(path, {"schema": f"{SCHEMA_PREFIX}.result.v1", **result.to_dict()})
         return str(path.relative_to(self.run_dir)).replace("\\", "/")
+
+    def write_failure_bundle(
+        self,
+        run: SupervisorRun,
+        task: AgentTask,
+        exc: Exception,
+        *,
+        failure_type: str,
+        retry_scheduled: bool,
+    ) -> str:
+        """Persist the complete, non-secret recovery contract for one failed node."""
+
+        safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task.task_id).strip("._") or "unknown_task"
+        failure_root = self.run_dir / "failure" / safe_task_id
+        detected_at = _now()
+        error_message = f"{type(exc).__name__}: {exc}"[:4000]
+        error_payload = {
+            "schema": "evomind.failure_error.v1",
+            "run_id": run.run_id,
+            "task_id": task.task_id,
+            "agent": task.role,
+            "failure_type": failure_type,
+            "error_type": type(exc).__name__,
+            "message": str(exc)[:4000],
+            "attempt": task.attempts,
+            "detected_at": detected_at,
+        }
+        environment_payload = {
+            "schema": "evomind.failure_environment.v1",
+            "run_id": run.run_id,
+            "task_id": task.task_id,
+            "python_version": platform.python_version(),
+            "python_implementation": platform.python_implementation(),
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "os_name": os.name,
+            "process_id": os.getpid(),
+            "thread_id": threading.get_ident(),
+            "captured_at": detected_at,
+            "environment_policy": "non_secret_runtime_facts_only",
+        }
+        node_payload = {
+            "schema": "evomind.failure_node_status.v1",
+            "run_id": run.run_id,
+            "task_id": task.task_id,
+            "role": task.role,
+            "goal": task.goal,
+            "status": task.status,
+            "dependencies": list(task.dependencies),
+            "attempts": task.attempts,
+            "max_retries": task.max_retries,
+            "error": error_message,
+            "result_ref": task.result_ref or None,
+            "captured_at": detected_at,
+        }
+        repair_strategy = {
+            "connection": "Revalidate the bound connector/profile and retry the same idempotent node after readiness is restored.",
+            "connection_auth": "Revalidate the named credential profile and allocation binding before retry.",
+            "timeout": "Inspect the execution log and resource state, then retry with the same bounded contract or revise the timeout through Gate review.",
+            "oom": "Reduce the resource request through a reviewed plan change; do not silently change the experiment contract.",
+            "dependency": "Repair the declared runtime dependency and rerun the same node with unchanged evidence inputs.",
+            "provider": "Restore the configured provider route, preserve the request, and retry through the same idempotency key.",
+        }.get(failure_type, "Analyze the captured traceback, prepare a reviewed repair, and retry the same idempotent node.")
+        recovery_payload = {
+            "schema": "evomind.failure_recovery_plan.v1",
+            "run_id": run.run_id,
+            "task_id": task.task_id,
+            "recovery_agent": "RecoveryAgent",
+            "failure_type": failure_type,
+            "repair_strategy": repair_strategy,
+            "retry_scheduled": retry_scheduled,
+            "retry_policy": "bounded_same_node" if retry_scheduled else "manual_repair_then_resume",
+            "idempotency_key": task.idempotency_key,
+            "actions": ["detect", "analyze", "repair", "retry"],
+            "created_at": detected_at,
+        }
+        _atomic_json(failure_root / "error.json", error_payload)
+        _atomic_text(failure_root / "traceback.txt", traceback.format_exc())
+        _atomic_json(failure_root / "environment.json", environment_payload)
+        _atomic_json(failure_root / "node_status.json", node_payload)
+        _atomic_json(failure_root / "recovery_plan.json", recovery_payload)
+        relative_root = str(failure_root.relative_to(self.run_dir)).replace("\\", "/")
+        action_records = (
+            ("detect", "completed", "Failure captured at the scheduler exception boundary."),
+            ("analyze", "completed", f"Failure classified as {failure_type}."),
+            ("repair", "plan_generated", repair_strategy),
+            ("retry", "scheduled" if retry_scheduled else "manual_required", "Bounded retry decision recorded."),
+        )
+        for action, status, message in action_records:
+            self._append("action_log.jsonl", {
+                "schema": "evomind.recovery_action.v1",
+                "run_id": run.run_id,
+                "task_id": task.task_id,
+                "agent": "RecoveryAgent",
+                "action": action,
+                "status": status,
+                "message": message,
+                "artifact_path": relative_root,
+                "created_at": _now(),
+            })
+        return relative_root
 
     def consume_control(self) -> str:
         path = self.run_dir / "control.json"
@@ -752,6 +871,13 @@ class MultiAgentSupervisor:
                         failure_type = _classify_task_failure(exc)
                         if task.attempts <= task.max_retries:
                             self._transition(task, "retry_wait")
+                            failure_ref = self.store.write_failure_bundle(
+                                self.run,
+                                task,
+                                exc,
+                                failure_type=failure_type,
+                                retry_scheduled=True,
+                            )
                             self.store.emit(
                                 self.run,
                                 "task.retry",
@@ -760,9 +886,17 @@ class MultiAgentSupervisor:
                                 status="retry_wait",
                                 attempt=task.attempts,
                                 error=task.error,
+                                evidence_refs=[failure_ref],
                             )
                         else:
                             self._transition(task, "failed")
+                            failure_ref = self.store.write_failure_bundle(
+                                self.run,
+                                task,
+                                exc,
+                                failure_type=failure_type,
+                                retry_scheduled=False,
+                            )
                             self.store.emit(
                                 self.run,
                                 "task.failed",
@@ -771,6 +905,7 @@ class MultiAgentSupervisor:
                                 status="failed",
                                 failure_type=failure_type,
                                 error=task.error,
+                                evidence_refs=[failure_ref],
                             )
 
         failed = [task.task_id for task in self.run.tasks.values() if task.status == "failed"]

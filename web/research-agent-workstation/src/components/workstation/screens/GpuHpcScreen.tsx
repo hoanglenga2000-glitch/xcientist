@@ -77,6 +77,7 @@ export function GpuHpcScreen(props: ScreenProps) {
   const { summary, locale = "zh-CN" } = props;
   const hpcEntry = connectorEntry(summary, "local_hpc");
   const runs = summary?.runs ?? [];
+  const lineage = summary?.hpc_job_lineage ?? [];
   const runningJobs = runs.filter((r) => String(r.status ?? "").toLowerCase().includes("running"));
 
   return (
@@ -156,6 +157,35 @@ export function GpuHpcScreen(props: ScreenProps) {
         ) : (
           <div className="py-4 text-center text-sm text-ink-muted">
             {t(locale, "No HPC connector data. Resource may be unverified or blocked.", "无 HPC 连接器数据。资源可能未验证或被阻断。")}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title={t(locale, "HPC Job Lineage", "HPC 作业血缘")}>
+        {lineage.length === 0 ? (
+          <div className="py-4 text-center text-sm text-ink-muted">
+            {t(locale, "No governed HPC job identity is recorded.", "尚无受治理的 HPC 作业身份记录。")}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-edge text-left text-ink-muted">
+                <th className="pb-2 pr-3 font-medium">Job</th>
+                <th className="pb-2 pr-3 font-medium">Run</th>
+                <th className="pb-2 pr-3 font-medium">Cluster</th>
+                <th className="pb-2 pr-3 font-medium">Owner</th>
+                <th className="pb-2 font-medium">Status</th>
+              </tr></thead>
+              <tbody>{lineage.map((job) => (
+                <tr key={`${job.cluster}:${job.job_id}`} className="border-b border-edge/50">
+                  <td className="py-2 pr-3 font-mono font-semibold text-ink">{job.job_id ?? "—"}</td>
+                  <td className="max-w-[280px] truncate py-2 pr-3 font-mono text-ink-secondary" title={job.run_id}>{job.run_id ?? "—"}</td>
+                  <td className="py-2 pr-3 text-ink-secondary">{job.cluster ?? "—"}</td>
+                  <td className="py-2 pr-3 text-ink-secondary">{job.owner ?? "—"}</td>
+                  <td className="py-2"><StatusBadgeV2 tone={job.status === "COMPLETED" ? "verified" : job.status === "FAILED" ? "failed" : "pending"} size="xs">{job.status ?? "unknown"}</StatusBadgeV2></td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
       </Panel>

@@ -22,3 +22,20 @@ def test_launcher_writes_current_audit_before_self_verification() -> None:
     assert write_index < verify_index < output_index
     assert "output_excerpt" not in source
     assert "Write-PendingAuditReport -RunId $runId" in source
+
+
+def test_launcher_runs_full_acceptance_only_through_the_audit_aware_path() -> None:
+    source = (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
+
+    marker = '$smokeResults += Invoke-JsonCommand -Label "full_acceptance"'
+    assert source.count(marker) == 1
+    acceptance_block = source[source.index(marker) : source.index("$dashboardStatus =", source.index(marker))]
+    assert '"--skip-verified-launch-audit"' in acceptance_block
+    assert "if ($ShouldRunFullAcceptance)" in source
+
+
+def test_launcher_preserves_kaggle_configured_not_invoked_signal() -> None:
+    source = (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
+
+    assert '$payload.verification_state -eq "configured_not_invoked"' in source
+    assert "$signals.kaggle_configured_not_invoked = $true" in source

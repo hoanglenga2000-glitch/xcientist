@@ -1,0 +1,584 @@
+{
+  "schema": "evomind.mlebench.russian_transliteration_oof.v1",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "created_at": "2026-07-25T01:54:49.633249+00:00",
+  "remote_stderr_type": "nonempty",
+  "base_accuracy": 0.95189,
+  "candidate_accuracy": 0.96689,
+  "candidate_applied_rows": 2276,
+  "candidate_gain": 1500,
+  "candidate_loss": 0,
+  "epochs": 40,
+  "fold_sizes": [
+    100001,
+    100001,
+    99999,
+    99999,
+    100000
+  ],
+  "folds": 5,
+  "held_out_fold": 4,
+  "loss_history": [
+    1.824720292413073,
+    0.6785034077890647,
+    0.49002601633056786,
+    0.39271963554100675,
+    0.32903632101070135,
+    0.2954713970816511,
+    0.26550074467319423,
+    0.23865762345703082,
+    0.22657036933183936,
+    0.21490346489850037,
+    0.20160740921458223,
+    0.19436592886436663,
+    0.18586946787570202,
+    0.17873888012583777,
+    0.1728836193453099,
+    0.17254498627810985,
+    0.16434551723679303,
+    0.16161927798508247,
+    0.15021235996550733,
+    0.149508657302406,
+    0.14493246432762583,
+    0.143559352568196,
+    0.14034519994533937,
+    0.13771642293742906,
+    0.1359345048928511,
+    0.13187697416096222,
+    0.1294677901865159,
+    0.12871543147720682,
+    0.12451183326119959,
+    0.12292458515952863,
+    0.11712446555674141,
+    0.11843097023269042,
+    0.11488215637075853,
+    0.11009647732840915,
+    0.11075079747265297,
+    0.10701445667665038,
+    0.109105857153628,
+    0.1051026753682837,
+    0.1026312847602041,
+    0.10194723784187129
+  ],
+  "rows": 500000,
+  "target_vocabulary": [
+    "а",
+    "б",
+    "в",
+    "г",
+    "д",
+    "е",
+    "ж",
+    "з",
+    "и",
+    "й",
+    "к",
+    "л",
+    "м",
+    "н",
+    "о",
+    "п",
+    "р",
+    "с",
+    "т",
+    "у",
+    "ф",
+    "х",
+    "ц",
+    "ч",
+    "ш",
+    "ь",
+    "э",
+    "ю",
+    "я"
+  ],
+  "top_unseen_errors": [
+    {
+      "before": "Vancouver",
+      "count": 4,
+      "prediction": "ванкаувер",
+      "target": "ванкувер"
+    },
+    {
+      "before": "Friday",
+      "count": 3,
+      "prediction": "фридей",
+      "target": "фрайдей"
+    },
+    {
+      "before": "BakerChlorophytum",
+      "count": 3,
+      "prediction": "бейкерчлорофитум",
+      "target": "бейкерчлорофичум"
+    },
+    {
+      "before": "Region",
+      "count": 2,
+      "prediction": "реджин",
+      "target": "риджен"
+    },
+    {
+      "before": "Designing",
+      "count": 2,
+      "prediction": "дезигнинг",
+      "target": "десайнинг"
+    },
+    {
+      "before": "Ages",
+      "count": 2,
+      "prediction": "агес",
+      "target": "ажс"
+    },
+    {
+      "before": "wake",
+      "count": 2,
+      "prediction": "вейк",
+      "target": "уэйк"
+    },
+    {
+      "before": "Jr",
+      "count": 2,
+      "prediction": "дже",
+      "target": "джр"
+    },
+    {
+      "before": "Powiat",
+      "count": 2,
+      "prediction": "пауиат",
+      "target": "пауиэт"
+    },
+    {
+      "before": "Williamson",
+      "count": 2,
+      "prediction": "уиллиамсон",
+      "target": "уильямсон"
+    },
+    {
+      "before": "Tracks",
+      "count": 2,
+      "prediction": "тракс",
+      "target": "трекс"
+    },
+    {
+      "before": "Navy",
+      "count": 2,
+      "prediction": "нави",
+      "target": "нейви"
+    },
+    {
+      "before": "Pasquale",
+      "count": 2,
+      "prediction": "пасквал",
+      "target": "пасквейл"
+    },
+    {
+      "before": "Marijuana",
+      "count": 2,
+      "prediction": "марижуана",
+      "target": "марихуана"
+    },
+    {
+      "before": "Widnau",
+      "count": 2,
+      "prediction": "уидно",
+      "target": "уиднау"
+    },
+    {
+      "before": "Nigeria",
+      "count": 2,
+      "prediction": "нигерия",
+      "target": "найгерия"
+    },
+    {
+      "before": "Thyreophora",
+      "count": 2,
+      "prediction": "тиреофора",
+      "target": "тирофора"
+    },
+    {
+      "before": "Wireless",
+      "count": 2,
+      "prediction": "уирелсс",
+      "target": "уирлесс"
+    },
+    {
+      "before": "Gaudichaud",
+      "count": 2,
+      "prediction": "гаудичауд",
+      "target": "гаудичод"
+    },
+    {
+      "before": "Gauquelin",
+      "count": 2,
+      "prediction": "гавкелин",
+      "target": "гоклин"
+    },
+    {
+      "before": "Stirtonia",
+      "count": 2,
+      "prediction": "стиртония",
+      "target": "стертония"
+    },
+    {
+      "before": "small",
+      "count": 2,
+      "prediction": "смалл",
+      "target": "смол"
+    },
+    {
+      "before": "orithyioides",
+      "count": 2,
+      "prediction": "оритииос",
+      "target": "оритиеидс"
+    },
+    {
+      "before": "Scigliano",
+      "count": 2,
+      "prediction": "сайиглиано",
+      "target": "шиглиано"
+    },
+    {
+      "before": "sus",
+      "count": 2,
+      "prediction": "сас",
+      "target": "сус"
+    },
+    {
+      "before": "BakerAsparagus",
+      "count": 2,
+      "prediction": "бакераспарагус",
+      "target": "бейкераспарагус"
+    },
+    {
+      "before": "Ranger",
+      "count": 2,
+      "prediction": "рангер",
+      "target": "рейнджер"
+    },
+    {
+      "before": "Palearctic",
+      "count": 1,
+      "prediction": "палеарктик",
+      "target": "палирктик"
+    },
+    {
+      "before": "Wagner",
+      "count": 1,
+      "prediction": "уогнер",
+      "target": "вагнер"
+    },
+    {
+      "before": "neugewonnener",
+      "count": 1,
+      "prediction": "ньюгевонненер",
+      "target": "ньюджвнненер"
+    },
+    {
+      "before": "preussischen",
+      "count": 1,
+      "prediction": "преуссишен",
+      "target": "преассишен"
+    },
+    {
+      "before": "populaire",
+      "count": 1,
+      "prediction": "популейр",
+      "target": "популер"
+    },
+    {
+      "before": "Driver",
+      "count": 1,
+      "prediction": "дривер",
+      "target": "драйвер"
+    },
+    {
+      "before": "Buena",
+      "count": 1,
+      "prediction": "буена",
+      "target": "буэна"
+    },
+    {
+      "before": "everyone",
+      "count": 1,
+      "prediction": "иверион",
+      "target": "эверион"
+    },
+    {
+      "before": "Featured",
+      "count": 1,
+      "prediction": "фетуред",
+      "target": "фетеред"
+    },
+    {
+      "before": "Castle",
+      "count": 1,
+      "prediction": "кастл",
+      "target": "касл"
+    },
+    {
+      "before": "Infarktove",
+      "count": 1,
+      "prediction": "инфарктов",
+      "target": "инфарктав"
+    },
+    {
+      "before": "Meazey",
+      "count": 1,
+      "prediction": "мизи",
+      "target": "меазей"
+    },
+    {
+      "before": "Liege",
+      "count": 1,
+      "prediction": "лиедж",
+      "target": "лиидж"
+    },
+    {
+      "before": "Luxemburg",
+      "count": 1,
+      "prediction": "лу",
+      "target": "лаксемберг"
+    },
+    {
+      "before": "Macieira",
+      "count": 1,
+      "prediction": "макьейра",
+      "target": "масиейра"
+    },
+    {
+      "before": "Graceful",
+      "count": 1,
+      "prediction": "грасефул",
+      "target": "грейсфул"
+    },
+    {
+      "before": "Watchman",
+      "count": 1,
+      "prediction": "уотчман",
+      "target": "уотчмен"
+    },
+    {
+      "before": "launched",
+      "count": 1,
+      "prediction": "лаунчед",
+      "target": "лаанчед"
+    },
+    {
+      "before": "Rosewater",
+      "count": 1,
+      "prediction": "розьюэтер",
+      "target": "розуотер"
+    },
+    {
+      "before": "Moriyasu",
+      "count": 1,
+      "prediction": "мориясу",
+      "target": "морияж"
+    },
+    {
+      "before": "acetylhexosaminidase",
+      "count": 1,
+      "prediction": "асетилхексомининиайетининдиасососайдисайньексети",
+      "target": "асетилхексосаминидас"
+    },
+    {
+      "before": "Sachs",
+      "count": 1,
+      "prediction": "сакс",
+      "target": "сачс"
+    },
+    {
+      "before": "Creators",
+      "count": 1,
+      "prediction": "креторс",
+      "target": "криторс"
+    },
+    {
+      "before": "Sales",
+      "count": 1,
+      "prediction": "салс",
+      "target": "сейлс"
+    },
+    {
+      "before": "etrangeres",
+      "count": 1,
+      "prediction": "этранджерес",
+      "target": "этрангерс"
+    },
+    {
+      "before": "Treasure",
+      "count": 1,
+      "prediction": "трисур",
+      "target": "треже"
+    },
+    {
+      "before": "Chaminadour",
+      "count": 1,
+      "prediction": "чаминадоур",
+      "target": "чаминадор"
+    },
+    {
+      "before": "Hajime",
+      "count": 1,
+      "prediction": "хейджи",
+      "target": "хаджим"
+    },
+    {
+      "before": "Licenses",
+      "count": 1,
+      "prediction": "лисензис",
+      "target": "лисензес"
+    },
+    {
+      "before": "Audioslave",
+      "count": 1,
+      "prediction": "одиослев",
+      "target": "одиослейв"
+    },
+    {
+      "before": "Treatment",
+      "count": 1,
+      "prediction": "третмент",
+      "target": "тритмент"
+    },
+    {
+      "before": "foucaudii",
+      "count": 1,
+      "prediction": "фаукодии",
+      "target": "фоодии"
+    },
+    {
+      "before": "Foucaud",
+      "count": 1,
+      "prediction": "фаукод",
+      "target": "фоод"
+    },
+    {
+      "before": "Nationalbibliothek",
+      "count": 1,
+      "prediction": "нейшеналбиблионел",
+      "target": "нешнелбиблиотек"
+    },
+    {
+      "before": "Pavoraja",
+      "count": 1,
+      "prediction": "павоража",
+      "target": "павораджа"
+    },
+    {
+      "before": "Arhynchobatidae",
+      "count": 1,
+      "prediction": "архинкобатида",
+      "target": "аринчобатида"
+    },
+    {
+      "before": "Morawitz",
+      "count": 1,
+      "prediction": "моравиц",
+      "target": "мороиц"
+    },
+    {
+      "before": "Gastroenterology",
+      "count": 1,
+      "prediction": "гастроентерологи",
+      "target": "гастроентеролоджи"
+    },
+    {
+      "before": "que",
+      "count": 1,
+      "prediction": "кв",
+      "target": "кви"
+    },
+    {
+      "before": "dificultades",
+      "count": 1,
+      "prediction": "дификалтадс",
+      "target": "дификалтэдс"
+    },
+    {
+      "before": "Chevaline",
+      "count": 1,
+      "prediction": "чевалин",
+      "target": "чевалайн"
+    },
+    {
+      "before": "leaves",
+      "count": 1,
+      "prediction": "ливс",
+      "target": "ливес"
+    },
+    {
+      "before": "Tapahtumia",
+      "count": 1,
+      "prediction": "тапатумия",
+      "target": "тапахчумия"
+    },
+    {
+      "before": "Depeche",
+      "count": 1,
+      "prediction": "депек",
+      "target": "депеч"
+    },
+    {
+      "before": "Filatelie",
+      "count": 1,
+      "prediction": "филейтли",
+      "target": "филатели"
+    },
+    {
+      "before": "Featuring",
+      "count": 1,
+      "prediction": "фетуринг",
+      "target": "фетеринг"
+    },
+    {
+      "before": "Due",
+      "count": 1,
+      "prediction": "ду",
+      "target": "дю"
+    },
+    {
+      "before": "PromotionsFin",
+      "count": 1,
+      "prediction": "промошеншен",
+      "target": "промошенсфин"
+    },
+    {
+      "before": "Recommendations",
+      "count": 1,
+      "prediction": "рекомендейшенс",
+      "target": "рекоммендейшенс"
+    },
+    {
+      "before": "Revealed",
+      "count": 1,
+      "prediction": "ревелед",
+      "target": "ревеалед"
+    },
+    {
+      "before": "Refueled",
+      "count": 1,
+      "prediction": "рефуэлед",
+      "target": "рефьюлед"
+    },
+    {
+      "before": "Chatterjee",
+      "count": 1,
+      "prediction": "четтерджиж",
+      "target": "чаттержи"
+    },
+    {
+      "before": "Weidhase",
+      "count": 1,
+      "prediction": "вейдхас",
+      "target": "вейдейз"
+    }
+  ],
+  "training_pairs": 9903,
+  "transliteration_exact_accuracy": 0.33237314424994463,
+  "transliteration_rows": 4513,
+  "unseen_transliteration_exact_accuracy": 0.7009345794392523,
+  "unseen_transliteration_rows": 2140,
+  "validation_rows": 100000
+}

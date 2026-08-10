@@ -1,0 +1,123 @@
+{
+  "approved": false,
+  "candidate_only": true,
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "created_at": "2026-07-27T23:43:15.729967+08:00",
+  "frozen": true,
+  "kaggle_submission_executed": false,
+  "official_grader_executed": false,
+  "private_labels_used": false,
+  "process_signals_sent": 0,
+  "public_submission_validation": {
+    "candidate": {
+      "bytes": 20461042,
+      "name": "candidate_submission_withheld.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\candidate_submission_withheld.csv",
+      "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43"
+    },
+    "columns": [
+      "id",
+      "toxic",
+      "severe_toxic",
+      "obscene",
+      "threat",
+      "insult",
+      "identity_hate"
+    ],
+    "errors": [],
+    "maximum_probability": 1.0,
+    "minimum_probability": 6.5289493614687515e-06,
+    "prediction_columns": 6,
+    "private_labels_used": false,
+    "rows": 153164,
+    "sample_submission": {
+      "bytes": 6279782,
+      "name": "sample_submission.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\sample_submission.csv",
+      "sha256": "81dc6e1f9eeb89ebb9e651a9ea6a3c971980ae9d12e29c687adcadfe610813b5"
+    },
+    "schema": "evomind.mlebench_lite.public_submission_validation.v1",
+    "valid": true
+  },
+  "run_id": "hg_jigsaw_multiseed_v3_20260727",
+  "schema": "evomind.mlebench_lite.frozen_candidate_manifest.v1",
+  "source_human_gate_package": {
+    "all_hashes_verified": true,
+    "files": [
+      {
+        "bytes": 203,
+        "copied_as_submission": false,
+        "name": "README.md",
+        "sha256": "895f39fa8308e8be4b385639dc6a41d4d7898a87b2f7bb149579de7753c03081",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\README.md",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/README.md"
+      },
+      {
+        "bytes": 20461042,
+        "copied_as_submission": true,
+        "name": "candidate_submission_withheld.csv",
+        "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\candidate_submission_withheld.csv",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/submission.csv"
+      },
+      {
+        "bytes": 8154,
+        "copied_as_submission": false,
+        "name": "frozen_plan.json",
+        "sha256": "4ff2c8eb7af8650d06cccc224941d8c3334ea0567cf014d3d5731b1781098d0d",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\frozen_plan.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/frozen_plan.json"
+      },
+      {
+        "bytes": 1612,
+        "copied_as_submission": false,
+        "name": "independent_verification.json",
+        "sha256": "c0d2b42b9e2f4a720c28d5ea2fa5dd77526f6d7bb7acd77e49ee188131732f80",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\independent_verification.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/independent_verification.json"
+      },
+      {
+        "bytes": 11430,
+        "copied_as_submission": false,
+        "name": "jigsaw_multiseed_confirmation_result.json",
+        "sha256": "61cb4e1c1a03e77616007e4d38696efc11cd5fbd4f68641eaa47dbf0d3fb5b92",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\jigsaw_multiseed_confirmation_result.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/jigsaw_multiseed_confirmation_result.json"
+      },
+      {
+        "bytes": 3095,
+        "copied_as_submission": false,
+        "name": "manifest.json",
+        "sha256": "2cdf182fbaffb4c93b38f0a3aa019ef657b95fad1c908e8cf85c949cd8c5e6ea",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\manifest.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/manifest.json"
+      },
+      {
+        "bytes": 2290,
+        "copied_as_submission": false,
+        "name": "package_verification.json",
+        "sha256": "7b58cfda9cf47774b0335a0933161f66fe32484aced925ec11e7f522eb594845",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\package_verification.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/package_verification.json"
+      },
+      {
+        "bytes": 5200,
+        "copied_as_submission": false,
+        "name": "source_completion_evidence.json",
+        "sha256": "11aa61d7a343700835fa5b35f9b8868d380d890ce8fa89eb4461d3f3b432e2d8",
+        "source_path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727\\source_completion_evidence.json",
+        "staged_path": "jigsaw-toxic-comment-classification-challenge/source_package/source_completion_evidence.json"
+      }
+    ],
+    "independent_verification_schema": "evomind.jigsaw.multiseed_probability_confirmation_verification.v1",
+    "package_manifest_schema": "evomind.human_gate.candidate_package.v1",
+    "package_verification_schema": "evomind.human_gate.package_verification.v1",
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727"
+  },
+  "source_result_sha256": "41a40c369bbb24139a850f8986feeed39ae0c3305f867b48516b4da485f2857a",
+  "submission": {
+    "path": "submission.csv",
+    "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43",
+    "size_bytes": 20461042
+  }
+}

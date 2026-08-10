@@ -1,0 +1,105 @@
+{
+  "schema": "evomind.mlebench_lite.wave2_thresholds.v1",
+  "source": "official MLE-Bench leaderboard.csv rank_score contract",
+  "rows": [
+    {
+      "competition_id": "aptos2019-blindness-detection",
+      "teams": 2929,
+      "is_lower_better": false,
+      "gold_threshold": 0.930508,
+      "silver_threshold": 0.919654,
+      "bronze_threshold": 0.914492,
+      "median_threshold": 0.888912
+    },
+    {
+      "competition_id": "dog-breed-identification",
+      "teams": 1281,
+      "is_lower_better": true,
+      "gold_threshold": 0.0005,
+      "silver_threshold": 0.00539,
+      "bronze_threshold": 0.04598,
+      "median_threshold": 0.47205
+    },
+    {
+      "competition_id": "histopathologic-cancer-detection",
+      "teams": 1149,
+      "is_lower_better": false,
+      "gold_threshold": 0.9835,
+      "silver_threshold": 0.9798,
+      "bronze_threshold": 0.9738,
+      "median_threshold": 0.9477
+    },
+    {
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "teams": 4539,
+      "is_lower_better": false,
+      "gold_threshold": 0.9874,
+      "silver_threshold": 0.98668,
+      "bronze_threshold": 0.98639,
+      "median_threshold": 0.98079
+    },
+    {
+      "competition_id": "mlsp-2013-birds",
+      "teams": 81,
+      "is_lower_better": false,
+      "gold_threshold": 0.93527,
+      "silver_threshold": 0.90038,
+      "bronze_threshold": 0.87372,
+      "median_threshold": 0.86572
+    },
+    {
+      "competition_id": "nomad2018-predict-transparent-conductors",
+      "teams": 879,
+      "is_lower_better": true,
+      "gold_threshold": 0.05589,
+      "silver_threshold": 0.06229,
+      "bronze_threshold": 0.06582,
+      "median_threshold": 0.06988
+    },
+    {
+      "competition_id": "plant-pathology-2020-fgvc7",
+      "teams": 1318,
+      "is_lower_better": false,
+      "gold_threshold": 0.97836,
+      "silver_threshold": 0.97465,
+      "bronze_threshold": 0.97361,
+      "median_threshold": 0.94852
+    },
+    {
+      "competition_id": "ranzcr-clip-catheter-line-classification",
+      "teams": 1547,
+      "is_lower_better": false,
+      "gold_threshold": 0.97357,
+      "silver_threshold": 0.97152,
+      "bronze_threshold": 0.9709,
+      "median_threshold": 0.9675
+    },
+    {
+      "competition_id": "text-normalization-challenge-english-language",
+      "teams": 261,
+      "is_lower_better": false,
+      "gold_threshold": 0.99724,
+      "silver_threshold": 0.99135,
+      "bronze_threshold": 0.99038,
+      "median_threshold": 0.99037
+    },
+    {
+      "competition_id": "text-normalization-challenge-russian-language",
+      "teams": 163,
+      "is_lower_better": false,
+      "gold_threshold": 0.99012,
+      "silver_threshold": 0.98232,
+      "bronze_threshold": 0.97592,
+      "median_threshold": 0.97591
+    },
+    {
+      "competition_id": "the-icml-2013-whale-challenge-right-whale-redux",
+      "teams": 129,
+      "is_lower_better": false,
+      "gold_threshold": 0.98961,
+      "silver_threshold": 0.95017,
+      "bronze_threshold": 0.90521,
+      "median_threshold": 0.86521
+    }
+  ]
+}

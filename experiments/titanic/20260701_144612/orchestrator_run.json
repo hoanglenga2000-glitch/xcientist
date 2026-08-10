@@ -1,0 +1,1131 @@
+{
+  "task": {
+    "task_id": "titanic",
+    "name": "Titanic - Machine Learning from Disaster",
+    "task_type": "binary_classification",
+    "target": "Survived",
+    "metric": "accuracy",
+    "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic",
+    "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\train.csv",
+    "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\test.csv",
+    "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\sample_submission.csv",
+    "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\overview.txt",
+    "metadata": {
+      "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\titanic.yaml",
+      "id_column": null,
+      "prediction_column": null
+    }
+  },
+  "run": {
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612",
+    "accepted": true,
+    "best_model": "random_forest",
+    "best_metrics": {
+      "cv_accuracy_mean": 0.8305,
+      "cv_accuracy_std": 0.021618,
+      "holdout_accuracy": 0.798883,
+      "holdout_macro_f1": 0.777916,
+      "seconds": 1.8782
+    }
+  },
+  "experiment_record": {
+    "run_id": "20260701_144612",
+    "task_id": "titanic",
+    "source_type": "local_template",
+    "code_agent_provider": "local_template",
+    "code_patch_id": null,
+    "runner_provider": "local_pipeline",
+    "gpu_provider": "mock",
+    "llm_provider": "rule_based",
+    "dataset_version": "titanic",
+    "code_commit": null,
+    "seed": 42,
+    "metric": {
+      "cv_accuracy_mean": 0.8305,
+      "cv_accuracy_std": 0.021618,
+      "holdout_accuracy": 0.798883,
+      "holdout_macro_f1": 0.777916,
+      "seconds": 1.8782
+    },
+    "artifacts": [
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+      "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md"
+    ],
+    "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612"
+  },
+  "connector_status": {
+    "code_agent": {
+      "name": "Code Agent",
+      "state": "local_template",
+      "configured": true,
+      "notes": "External code agents use export/import patch flow."
+    },
+    "python_runner": {
+      "name": "Python Runner",
+      "state": "local",
+      "configured": true,
+      "notes": "Local subprocess adapter is available for scripts."
+    },
+    "gpu": {
+      "name": "GPU",
+      "state": "mock",
+      "configured": false,
+      "notes": "Mock adapter reserves SSH/Slurm/Docker/Kubernetes/Cloud GPU slots."
+    },
+    "kaggle": {
+      "name": "Kaggle",
+      "state": "Not Configured",
+      "configured": false,
+      "notes": "Kaggle submission requires credentials and Human Gate."
+    },
+    "llm": {
+      "name": "LLM",
+      "state": "rule_based",
+      "configured": true,
+      "notes": "No API key required for rule-based mode; API adapters can replace it later."
+    },
+    "storage": {
+      "name": "Storage",
+      "state": "local_workspace",
+      "configured": true,
+      "notes": "S3/OSS/MinIO reserved."
+    },
+    "env_keys": {
+      "CODE_AGENT_PROVIDER": "local_template",
+      "PYTHON_RUNNER": "local",
+      "GPU_PROVIDER": "mock",
+      "KAGGLE_ENABLED": "false",
+      "LLM_PROVIDER": "rule_based"
+    }
+  },
+  "stages": [
+    {
+      "stage": "task_understanding",
+      "status": "passed",
+      "details": {
+        "task_id": "titanic",
+        "name": "Titanic - Machine Learning from Disaster",
+        "task_type": "binary_classification",
+        "target": "Survived",
+        "metric": "accuracy",
+        "task_dir": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic",
+        "train_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\train.csv",
+        "test_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\test.csv",
+        "sample_submission_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\data\\sample_submission.csv",
+        "overview_path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\overview.txt",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\titanic.yaml",
+          "id_column": null,
+          "prediction_column": null
+        }
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "eda",
+      "status": "passed",
+      "details": {
+        "summary": "Data contract checked for titanic; train file exists=True.",
+        "risk_flags": []
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "experiment_planning",
+      "status": "passed",
+      "details": {
+        "plan": {
+          "plan_id": "plan_07ca49a0c4",
+          "task_id": "titanic",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "scaffold": {
+          "research_question": "Can a reproducible binary_classification baseline improve accuracy for Titanic - Machine Learning from Disaster?",
+          "task_type": "binary_classification",
+          "dataset_type": "tabular",
+          "target_column": "Survived",
+          "id_column": null,
+          "metric": "accuracy",
+          "validation_strategy": {
+            "strategy": "holdout_or_cv"
+          },
+          "baseline_strategy": "local_template_sklearn_baseline",
+          "preprocessing_strategy": "numeric/categorical automatic preprocessing with missing-value handling",
+          "candidate_models": [
+            "linear_or_logistic_baseline",
+            "tree_ensemble_baseline"
+          ],
+          "risk_points": [
+            "data leakage",
+            "submission column mismatch",
+            "missing predictions",
+            "metric mismatch",
+            "unapproved plan or patch"
+          ],
+          "required_gates": [
+            "PLAN_APPROVAL",
+            "SUBMISSION_APPROVAL",
+            "FINAL_CLAIM_APPROVAL",
+            "REPORT_EXPORT_APPROVAL"
+          ],
+          "expected_artifacts": [
+            "task_profile.json",
+            "scaffold.json",
+            "data_quality.json",
+            "model_results.json",
+            "submission.csv",
+            "validation_gate.json",
+            "agent_trace.jsonl",
+            "artifact_manifest.json",
+            "evidence_index.json",
+            "report.md",
+            "reflection.json"
+          ],
+          "first_run_plan": [
+            "inspect input files",
+            "train local baseline",
+            "write metrics and submission",
+            "run validation gate",
+            "bind evidence and draft report"
+          ],
+          "fallback_plan": [
+            "if training fails, enter WAITING_FIX and export context for Codex/Claude Code",
+            "if validation fails, block submission approval and request reviewer evidence"
+          ]
+        }
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "human_plan_gate",
+      "status": "approved",
+      "details": {
+        "gate_id": "gate_ab1630b3d1",
+        "task_id": "titanic",
+        "run_id": null,
+        "gate_type": "PLAN_APPROVAL",
+        "triggered_by": "PlannerAgent",
+        "reason": "Scaffold must be reviewed before code generation and training.",
+        "required_evidence": [
+          "scaffold.json",
+          "scaffold.md"
+        ],
+        "risk_level": "medium",
+        "status": "approved",
+        "reviewer": "Research Admin (local MVP)",
+        "decision_comment": "Auto-approved for local closed-loop demo; production requires explicit reviewer action.",
+        "created_at": "2026-07-01T14:46:10",
+        "decided_at": "2026-07-01T14:46:10"
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "code_generation",
+      "status": "passed",
+      "details": {
+        "provider": "local_template",
+        "files": [
+          "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py"
+        ]
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "code_review",
+      "status": "passed",
+      "details": {
+        "status": "passed",
+        "findings": []
+      },
+      "at": "2026-07-01T14:46:10"
+    },
+    {
+      "stage": "training",
+      "status": "passed",
+      "details": {
+        "summary": {
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612",
+          "accepted": true,
+          "best_model": "random_forest",
+          "best_metrics": {
+            "cv_accuracy_mean": 0.8305,
+            "cv_accuracy_std": 0.021618,
+            "holdout_accuracy": 0.798883,
+            "holdout_macro_f1": 0.777916,
+            "seconds": 1.8782
+          }
+        },
+        "runner": {
+          "run_id": "run_9bebd116cd",
+          "command": [
+            "C:\\codex-python\\python.exe",
+            "D:\\桌面\\codex\\科研港科技\\src\\research_agent_workstation\\tabular_pipeline.py",
+            "--config",
+            "D:\\桌面\\codex\\科研港科技\\configs\\titanic.yaml",
+            "--output-dir",
+            "D:\\桌面\\codex\\科研港科技\\experiments",
+            "--random-state",
+            "42"
+          ],
+          "cwd": "D:\\桌面\\codex\\科研港科技",
+          "return_code": 0,
+          "stdout_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_9bebd116cd\\train_log.txt",
+          "stderr_path": "D:\\桌面\\codex\\科研港科技\\workspace\\runs\\run_9bebd116cd\\error_log.txt",
+          "output_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612"
+        }
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "submission_check",
+      "status": "passed",
+      "details": {
+        "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+        "rows_match": true,
+        "columns_match": true,
+        "missing_predictions": 0,
+        "prediction_columns": [
+          "Survived"
+        ],
+        "valid": true,
+        "allowed_values": [
+          0,
+          1
+        ],
+        "allowed_values_only": true,
+        "prediction_distribution": {
+          "0": 277,
+          "1": 141
+        }
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "validation_review",
+      "status": "passed",
+      "details": {
+        "evidence_count": 14
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "human_submission_gate",
+      "status": "pending",
+      "details": {
+        "gate_id": "gate_908a7a1a0f",
+        "task_id": "titanic",
+        "gate_type": "human_submission",
+        "decision": "pending",
+        "required_evidence": [
+          "ev_918292805f",
+          "ev_38f8b3f191",
+          "ev_adac3f6741",
+          "ev_8287792233",
+          "ev_31a7b873f5",
+          "ev_5badd6c06f",
+          "ev_565fc7b260",
+          "ev_094ebe480a",
+          "ev_34f30f185f",
+          "ev_d555ebfdd1",
+          "ev_102048edd2",
+          "ev_6512de94eb",
+          "ev_a3d005c0d3",
+          "ev_41b966fc53"
+        ],
+        "reviewer": "human",
+        "metadata": {}
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "report_generation",
+      "status": "passed",
+      "details": {
+        "report": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workstation_report.md"
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "human_final_gate",
+      "status": "pending",
+      "details": {
+        "reason": "final academic review remains manual"
+      },
+      "at": "2026-07-01T14:46:17"
+    },
+    {
+      "stage": "reflection",
+      "status": "passed",
+      "details": {
+        "next": [
+          "Try CatBoost with same preprocessing.",
+          "Compare LightGBM with XGBoost under same folds.",
+          "Check leakage risk before leaderboard submission.",
+          "Add feature importance report before final conclusion."
+        ],
+        "memory_record": "memory_93d77d4c6f"
+      },
+      "at": "2026-07-01T14:46:17"
+    }
+  ],
+  "task_state": {
+    "task_id": "titanic",
+    "state": "FINAL_WAITING_APPROVAL",
+    "history": [
+      {
+        "from_state": "CREATED",
+        "to_state": "IMPORTED",
+        "reason": "Task config imported.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {
+          "config_path": "D:\\桌面\\codex\\科研港科技\\configs\\titanic.yaml"
+        }
+      },
+      {
+        "from_state": "IMPORTED",
+        "to_state": "UNDERSTANDING",
+        "reason": "TaskReaderAgent started task understanding.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTANDING",
+        "to_state": "UNDERSTOOD",
+        "reason": "Imported binary_classification task with target=Survived, metric=accuracy.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "UNDERSTOOD",
+        "to_state": "EDA_RUNNING",
+        "reason": "DataAgent checks data contract before planning.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_RUNNING",
+        "to_state": "EDA_DONE",
+        "reason": "Data contract checked for titanic; train file exists=True.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "EDA_DONE",
+        "to_state": "PLANNING",
+        "reason": "PlannerAgent creates scaffold.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLANNING",
+        "to_state": "PLAN_WAITING_APPROVAL",
+        "reason": "Scaffold and first baseline plan created. No related memory yet.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_WAITING_APPROVAL",
+        "to_state": "PLAN_APPROVED",
+        "reason": "PLAN_APPROVAL approved.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "PLAN_APPROVED",
+        "to_state": "CODE_GENERATING",
+        "reason": "LocalTemplateCodeAgent generating baseline runner.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_GENERATING",
+        "to_state": "CODE_READY",
+        "reason": "Code artifact generated and reviewed.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "CODE_READY",
+        "to_state": "TRAINING_RUNNING",
+        "reason": "LocalPythonRunner starts tabular baseline.",
+        "at": "2026-07-01T14:46:10",
+        "metadata": {}
+      },
+      {
+        "from_state": "TRAINING_RUNNING",
+        "to_state": "TRAINING_DONE",
+        "reason": "Training completed and output directory created.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {
+          "run_id": "20260701_144612"
+        }
+      },
+      {
+        "from_state": "TRAINING_DONE",
+        "to_state": "REVIEWING",
+        "reason": "ReviewerAgent checks metrics, evidence and submission contract.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEWING",
+        "to_state": "REVIEW_DONE",
+        "reason": "Reviewed 17 artifacts; metric artifact found=True.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      },
+      {
+        "from_state": "REVIEW_DONE",
+        "to_state": "SUBMISSION_WAITING_APPROVAL",
+        "reason": "Submission approval is pending human review.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      },
+      {
+        "from_state": "SUBMISSION_WAITING_APPROVAL",
+        "to_state": "REPORT_GENERATING",
+        "reason": "WriterAgent generates evidence-bound report.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_GENERATING",
+        "to_state": "REPORT_DONE",
+        "reason": "Report generated from registered artifacts.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      },
+      {
+        "from_state": "REPORT_DONE",
+        "to_state": "FINAL_WAITING_APPROVAL",
+        "reason": "Final claim approval remains pending.",
+        "at": "2026-07-01T14:46:17",
+        "metadata": {}
+      }
+    ]
+  },
+  "agent_trace": [
+    {
+      "timestamp": "2026-07-01T14:46:10.779",
+      "agent": "TaskReaderAgent",
+      "stage": "task_understanding",
+      "action": "run",
+      "input_summary": "task=titanic; stage=task_understanding; artifacts=0",
+      "output_summary": "Imported binary_classification task with target=Survived, metric=accuracy.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-07-01T14:46:10.779",
+      "agent": "DataAgent",
+      "stage": "eda",
+      "action": "run",
+      "input_summary": "task=titanic; stage=eda; artifacts=0",
+      "output_summary": "Data contract checked for titanic; train file exists=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-07-01T14:46:10.791",
+      "agent": "PlannerAgent",
+      "stage": "experiment_planning",
+      "action": "run",
+      "input_summary": "task=titanic; stage=experiment_planning; artifacts=1",
+      "output_summary": "Scaffold and first baseline plan created. No related memory yet.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "waiting_gate",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": null
+    },
+    {
+      "timestamp": "2026-07-01T14:46:17.540",
+      "agent": "TrainerAgent",
+      "stage": "training",
+      "action": "run",
+      "input_summary": "task=titanic; stage=training; artifacts=17",
+      "output_summary": "Local Python runner completed baseline training and produced metric artifacts.",
+      "artifacts_generated": [
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+        "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md"
+      ],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260701_144612"
+    },
+    {
+      "timestamp": "2026-07-01T14:46:17.540",
+      "agent": "ReviewerAgent",
+      "stage": "validation_review",
+      "action": "run",
+      "input_summary": "task=titanic; stage=validation_review; artifacts=17",
+      "output_summary": "Reviewed 17 artifacts; metric artifact found=True.",
+      "artifacts_generated": [],
+      "evidence_linked": [
+        "artifact_2a6c9b967d"
+      ],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260701_144612"
+    },
+    {
+      "timestamp": "2026-07-01T14:46:17.540",
+      "agent": "WriterAgent",
+      "stage": "report_generation",
+      "action": "run",
+      "input_summary": "task=titanic; stage=report_generation; artifacts=17",
+      "output_summary": "Report draft generated from 17 registered artifacts.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260701_144612"
+    },
+    {
+      "timestamp": "2026-07-01T14:46:17.540",
+      "agent": "ReflectionAgent",
+      "stage": "reflection",
+      "action": "run",
+      "input_summary": "task=titanic; stage=reflection; artifacts=17",
+      "output_summary": "Generated retrospective memory and next experiment suggestions from metrics, artifacts and reviewer output.",
+      "artifacts_generated": [],
+      "evidence_linked": [],
+      "status": "success",
+      "duration_ms": 0,
+      "error": null,
+      "run_id": "20260701_144612"
+    }
+  ],
+  "artifact_registry": [
+    {
+      "artifact_id": "artifact_6da09e906b",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "scaffold.json",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.json",
+      "size": 1623,
+      "hash": "c3a273350e13c1941fdcecf8615cf89819a7610cf16b7ae82e634b33398804b5",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_ccd01d35bc",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "scaffold.md",
+      "type": "scaffold",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.md",
+      "size": 530,
+      "hash": "ac0acbd5c9f0fb0e3fd8f300c92e0dbe735d7d823944a3f12149e49aca8c1b20",
+      "created_by": "PlannerAgent",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "experiment_planning",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_10a4b43ffb",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "baseline_runner.py",
+      "type": "code",
+      "path": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+      "size": 249,
+      "hash": "4f01dd741c1cde072d968c997e31e059adc4367ac89ceaeae03a0bfc17d99f0a",
+      "created_by": "LocalTemplateCodeAgent",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "code_generation",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_a131e66c31",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "data_quality.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+      "size": 974,
+      "hash": "41262870f5bc31ce3a83f013579b8a68221013dfcef48baa3fa8529ee858dbca",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_2d06fcfe11",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "experiment_log.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+      "size": 12556,
+      "hash": "87da01d238a243e2b2bca1cbb2f11c907dfe487545ae1caa55e503890736119c",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_6349b52ca9",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+      "size": 38049,
+      "hash": "7b6e18a5e5b29a46828f80cd9e174dae779faa5514d3b9d676d291f2fc8cab64",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_cc9c797735",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+      "size": 2146,
+      "hash": "5adb8711a92f5b55b80b3d853081b8450b28ea54d2cb9316ce68f179f023bbbf",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_2a6c9b967d",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "model_results.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+      "size": 947,
+      "hash": "b13b75d5b4dcdd87b85357cf5fc36f634c4657d06c4d4fea231fb2a97ad30072",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_50c41397f5",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "post_scaffold_improvement.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+      "size": 885,
+      "hash": "81ba37836428a35e857cd74835072556860563166384abe73a73e513bd0ed071",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_b2c4a84e90",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "post_scaffold_improvement.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+      "size": 832,
+      "hash": "f728890102458d657571c1df097a2a12a6259b0e5433b59c0eb0ceccbc13d8a1",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_749f27156c",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "submission.csv",
+      "type": "csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+      "size": 3258,
+      "hash": "6d64db1f757f8c265cefbb4f866e33d11ef75947d4d5e0026a8eee1fb1d83e55",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_fe6a373cc5",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "task_scaffold.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+      "size": 2230,
+      "hash": "c25ce2907d999a44a1e1715242fe97b74321dbd32f080c7a2d372861d7686a51",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_d5e4a4893b",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "task_scaffold.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+      "size": 1049,
+      "hash": "e0ae9717c6505fd407bedef4bbcf0934cf357bada9e5d98680011898f93b22a5",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_23d63d689e",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "titanic_local_report.docx",
+      "type": "docx",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+      "size": 38049,
+      "hash": "7b6e18a5e5b29a46828f80cd9e174dae779faa5514d3b9d676d291f2fc8cab64",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": false,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_a91dc4877d",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "titanic_local_report.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+      "size": 2146,
+      "hash": "5adb8711a92f5b55b80b3d853081b8450b28ea54d2cb9316ce68f179f023bbbf",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_fd92482490",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "workflow_stage_audit.json",
+      "type": "json",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+      "size": 4752,
+      "hash": "921ff7d8a40d070aa9af5d26690b6e8dd6f3d4d0de2df7d3e72101f09f894877",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_f9e4876b9e",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "workflow_stage_audit.md",
+      "type": "md",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md",
+      "size": 3367,
+      "hash": "1552a326472fe74560c2e16b4742fa7ffa578ea20586c849ab5e151d6e07e348",
+      "created_by": "local_pipeline",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "training",
+      "linked_claims": [],
+      "preview_available": true,
+      "metadata": {}
+    },
+    {
+      "artifact_id": "artifact_ce52474dc4",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "name": "workstation_report.md",
+      "type": "report",
+      "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workstation_report.md",
+      "size": 252,
+      "hash": "d7aa1069ef6025b2c1da00edb5b4c0ec9d9b09b70a1f596b6921d21f73d6d901",
+      "created_by": "WriterAgent",
+      "created_at": "2026-07-01T14:46:17",
+      "linked_stage": "report_generation",
+      "linked_claims": [
+        "claim_b77be61b8c"
+      ],
+      "preview_available": true,
+      "metadata": {}
+    }
+  ],
+  "evidence_graph": {
+    "evidence_count": 17,
+    "claims": [
+      {
+        "claim_id": "claim_b77be61b8c",
+        "text": "Titanic - Machine Learning from Disaster local baseline produced validated accuracy results.",
+        "source": "reviewer",
+        "evidence_ids": [
+          "evidence_3cb63065a6",
+          "evidence_949f3f872a"
+        ],
+        "confidence": 0.86,
+        "reviewer_status": "bound",
+        "risk_level": "medium"
+      }
+    ]
+  },
+  "experiment_graph": {
+    "nodes": [
+      {
+        "run_id": "20260701_144612",
+        "parent_run_id": null,
+        "branch_id": "baseline",
+        "stage": "training_done",
+        "hypothesis": "Local template baseline establishes a reproducible reference run.",
+        "plan": {
+          "plan_id": "plan_07ca49a0c4",
+          "task_id": "titanic",
+          "provider": "local_template",
+          "steps": [
+            "load Kaggle-style train/test/sample files",
+            "generate task_profile and EDA summary",
+            "train configured tabular baseline models",
+            "write metrics, submission and evidence manifest",
+            "route submission through validation and human gate"
+          ],
+          "risks": [
+            "demo tasks must not be hard-coded into adapter logic",
+            "generated code must be saved as artifacts before apply",
+            "Kaggle submission remains disabled until credentials and human approval exist"
+          ]
+        },
+        "code_snapshot": "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+        "model": "random_forest",
+        "params": {},
+        "metric": "accuracy",
+        "score": 0.8305,
+        "is_buggy": false,
+        "status": "passed",
+        "artifacts": [
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\workspace\\tasks\\titanic\\scaffold\\scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\experiment_log.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.docx",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\titanic_local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workstation_report.md"
+        ],
+        "reward": 0.8305,
+        "created_at": "2026-07-01T14:46:17"
+      }
+    ],
+    "edges": []
+  },
+  "memory": [
+    {
+      "record_id": "memory_93d77d4c6f",
+      "task_type": "binary_classification",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "random_forest with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.8305,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "accuracy",
+        "titanic"
+      ],
+      "evidence_refs": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "created_at": "2026-07-01T14:46:17"
+    }
+  ],
+  "reflection": {
+    "what_changed": "Local baseline run completed and artifacts were registered through the runtime.",
+    "metric_change": {
+      "before": null,
+      "after": 0.8305,
+      "metric": "accuracy"
+    },
+    "why_it_might_help": "It creates a reproducible baseline before Codex/Claude Code optimization.",
+    "failure_reason": null,
+    "next_experiment_suggestion": [
+      "Try CatBoost with same preprocessing.",
+      "Compare LightGBM with XGBoost under same folds.",
+      "Check leakage risk before leaderboard submission.",
+      "Add feature importance report before final conclusion."
+    ],
+    "memory_record": {
+      "record_id": "memory_93d77d4c6f",
+      "task_type": "binary_classification",
+      "dataset_type": "tabular",
+      "hypothesis": "Local template baseline establishes a reproducible reference run.",
+      "method_summary": "random_forest with local tabular pipeline.",
+      "code_summary": "Generated baseline runner at D:\\桌面\\codex\\科研港科技\\tasks\\titanic\\code\\generated\\baseline_runner.py.",
+      "metric_before": null,
+      "metric_after": 0.8305,
+      "success_label": "success",
+      "failure_reason": null,
+      "useful_for": [
+        "tabular_baseline",
+        "accuracy",
+        "titanic"
+      ],
+      "evidence_refs": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "created_at": "2026-07-01T14:46:17"
+    },
+    "whether_continue_this_branch": true,
+    "whether_try_new_branch": true
+  },
+  "pending_gates": [
+    {
+      "gate_id": "gate_2c475bd5c3",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "gate_type": "SUBMISSION_APPROVAL",
+      "triggered_by": "ReviewerAgent",
+      "reason": "Submission can only proceed after submission_check passed and evidence is bound.",
+      "required_evidence": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-07-01T14:46:17",
+      "decided_at": null
+    },
+    {
+      "gate_id": "gate_0099971bab",
+      "task_id": "titanic",
+      "run_id": "20260701_144612",
+      "gate_type": "FINAL_CLAIM_APPROVAL",
+      "triggered_by": "WriterAgent",
+      "reason": "Final claims require reviewer approval and evidence binding.",
+      "required_evidence": [
+        "evidence_3cb63065a6",
+        "evidence_949f3f872a"
+      ],
+      "risk_level": "medium",
+      "status": "pending",
+      "reviewer": null,
+      "decision_comment": null,
+      "created_at": "2026-07-01T14:46:17",
+      "decided_at": null
+    }
+  ],
+  "evidence_count": 14,
+  "kaggle": {
+    "configured": false,
+    "provider": "kaggle",
+    "message": "Kaggle API not configured"
+  },
+  "gpu": {
+    "available": false,
+    "devices": [],
+    "message": "GPU interface reserved; no remote GPU connected."
+  }
+}

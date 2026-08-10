@@ -1,0 +1,76 @@
+{
+  "schema": "evomind.mlebench_lite.optimization_plan.v1",
+  "created_at": "2026-07-25T08:11:42.203383+00:00",
+  "planner": {
+    "provider": "openai",
+    "model": "gpt-5.6-sol",
+    "input_tokens": 409,
+    "output_tokens": 793,
+    "native_tool_loop_evidence_path": "workspace/llm/evomind_native_tool_loop_current.json",
+    "native_tool_loop_evidence_sha256": "0b4be6bd2369a35803d35e31acdefbed0dec71255f44d29fffdcbb1f63dbfc78"
+  },
+  "wave": "Wave2",
+  "competition_order": [
+    "mlsp-2013-birds",
+    "the-icml-2013-whale-challenge-right-whale-redux",
+    "plant-pathology-2020-fgvc7",
+    "jigsaw-toxic-comment-classification-challenge",
+    "aptos2019-blindness-detection",
+    "dog-breed-identification",
+    "ranzcr-clip-catheter-line-classification",
+    "histopathologic-cancer-detection"
+  ],
+  "strategy_notes": {
+    "aptos2019-blindness-detection": [
+      "Test the pretrained vision backbone on ordinal five-class prediction.",
+      "Preserve QWK-focused validation evidence for later vision tuning."
+    ],
+    "dog-breed-identification": [
+      "Test multiclass log-loss behavior across 120 classes.",
+      "Reuse pretrained-backbone evidence while monitoring class-probability output."
+    ],
+    "histopathologic-cancer-detection": [
+      "Defer the largest image set until ingestion, CNN, and scoring paths are established.",
+      "Measure binary-AUC evidence for the pretrained CNN and center-aware crop."
+    ],
+    "jigsaw-toxic-comment-classification-challenge": [
+      "Exercise the sparse text workflow before larger CNN runs.",
+      "Capture separate word, character, and combined multilabel evidence."
+    ],
+    "mlsp-2013-birds": [
+      "Validate the small-audio ingestion and binary-AUC path quickly.",
+      "Record evidence from log-mel summary features and the boosted classifier."
+    ],
+    "plant-pathology-2020-fgvc7": [
+      "Validate the pretrained vision workflow on the smallest image dataset.",
+      "Check four-column prediction structure and mean-AUC evidence."
+    ],
+    "ranzcr-clip-catheter-line-classification": [
+      "Run the larger eleven-label radiograph model after smaller vision paths are validated.",
+      "Capture multilabel mean-AUC evidence under the runner's resource caps."
+    ],
+    "the-icml-2013-whale-challenge-right-whale-redux": [
+      "Reuse the validated audio and binary-AUC workflow.",
+      "Compare spectral-summary evidence with the earlier small-audio result."
+    ]
+  },
+  "rationale_summary": "The order front-loads small audio tasks for rapid failure discovery and reusable feature-pipeline evidence, then validates vision on the smallest image task and sparse multilabel text before progressively larger or more demanding vision workloads. The largest pathology dataset runs last to protect early evidence collection and resource stability.",
+  "risk_controls": [
+    "Use the deterministic runner's fixed hyperparameters and safety caps.",
+    "Keep all runtime files under the dedicated HPC root.",
+    "Use only private-grader evaluation and make no Kaggle submissions.",
+    "Stop failed runs cleanly before advancing to higher-resource competitions.",
+    "Retain per-competition validation and resource evidence for reuse."
+  ],
+  "prompt_sha256": "d9cae0dfd9478de5e83b4808cd5339ae02d44de7cc6c0bc78b7c0810aaabf3c0",
+  "response_sha256": "45c802ba24ef28b5d08ee99add383ee904a18a9db69cbb14e5c323a8e83fd153",
+  "latency_ms": 16256.7,
+  "execution_contract": {
+    "ordering_is_model_planned": true,
+    "training_adapters_are_deterministic": true,
+    "hyperparameter_caps_are_runner_owned": true,
+    "kaggle_submission_enabled": false
+  },
+  "status": "passed",
+  "ok": true
+}

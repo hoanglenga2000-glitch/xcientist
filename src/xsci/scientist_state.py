@@ -1193,6 +1193,7 @@ def build_scientist_repair_plan(session: SessionState, root: Path, *,
     memory = checkpoint.get("memory", {}) if isinstance(checkpoint.get("memory"), dict) else {}
     turn_summary = memory.get("scientist_turns", {}) if isinstance(memory.get("scientist_turns"), dict) else {}
     step_trace = _recent_step_trace_records(root, limit=16)
+    data_state = checkpoint.get("data", {}) if isinstance(checkpoint.get("data"), dict) else {}
 
     issues: list[dict[str, Any]] = []
     if not task:
@@ -1208,6 +1209,12 @@ def build_scientist_repair_plan(session: SessionState, root: Path, *,
         if _root_cause_from_text(warning) == "data_missing" and task:
             severity = "blocker"
         issues.append(_repair_issue(severity, "checkpoint_warning", warning))
+    if task and not (data_state.get("train_csv") or data_state.get("remote_data_dir")):
+        issues.append(_repair_issue(
+            "blocker", "data_contract", "Selected task has no verified train data source.",
+            root_cause="data_missing",
+            recommendation="Register local train/test data or an explicit approved HPC data path before training."
+        ))
     if task and not can_execute and not blockers and not any(_root_cause_from_text(w) == "data_missing" for w in warnings):
         issues.append(_repair_issue(
             "blocker", "execution_gate",

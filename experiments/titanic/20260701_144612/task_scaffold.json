@@ -1,0 +1,83 @@
+{
+  "task": {
+    "name": "titanic",
+    "competition": "Titanic - Machine Learning from Disaster",
+    "type": "binary_classification",
+    "target": "Survived",
+    "metric": "accuracy"
+  },
+  "inputs": {
+    "overview": "tasks/titanic/overview.txt",
+    "train": "tasks/titanic/data/train.csv",
+    "test": "tasks/titanic/data/test.csv",
+    "sample_submission": "tasks/titanic/data/sample_submission.csv"
+  },
+  "agent_template_mapping": {},
+  "server_template_policy": {},
+  "data_snapshot": {
+    "train_rows": 891,
+    "test_rows": 418,
+    "sample_submission_rows": 418,
+    "target_summary": {
+      "distribution": {
+        "0": 0.6162,
+        "1": 0.3838
+      }
+    },
+    "missing_train_top20": {
+      "Cabin": 0.771,
+      "Age": 0.1987,
+      "Embarked": 0.0022,
+      "PassengerId": 0.0,
+      "Name": 0.0,
+      "Pclass": 0.0,
+      "Survived": 0.0,
+      "Sex": 0.0,
+      "Parch": 0.0,
+      "SibSp": 0.0,
+      "Fare": 0.0,
+      "Ticket": 0.0
+    },
+    "missing_test_top20": {
+      "Cabin": 0.7823,
+      "Age": 0.2057,
+      "Fare": 0.0024,
+      "Name": 0.0,
+      "Pclass": 0.0,
+      "PassengerId": 0.0,
+      "Sex": 0.0,
+      "Parch": 0.0,
+      "SibSp": 0.0,
+      "Ticket": 0.0,
+      "Embarked": 0.0
+    }
+  },
+  "validation_strategy": "5-fold stratified cross-validation plus stratified holdout validation",
+  "time_budget_minutes": 10,
+  "candidate_models": [
+    "logistic_regression",
+    "random_forest",
+    "extra_trees",
+    "gradient_boosting"
+  ],
+  "feature_plan": [
+    "Use configured drop columns.",
+    "Use median imputation for numeric features.",
+    "Use most-frequent imputation and one-hot encoding for categorical features."
+  ],
+  "risk_points": [
+    "Age and Cabin have high missing rates.",
+    "Train/test feature columns must stay aligned.",
+    "Submission must keep PassengerId and Survived columns.",
+    "Local validation is only a proxy before official Kaggle submission."
+  ],
+  "stage_plan": [
+    "task_understanding",
+    "preliminary_eda",
+    "data_quality_check",
+    "feature_engineering",
+    "model_validation",
+    "submission_generation",
+    "report_and_review"
+  ]
+}

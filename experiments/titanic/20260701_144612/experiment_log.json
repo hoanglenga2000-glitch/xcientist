@@ -1,0 +1,379 @@
+{
+  "task": {
+    "name": "titanic",
+    "competition": "Titanic - Machine Learning from Disaster",
+    "type": "binary_classification",
+    "target": "Survived",
+    "metric": "accuracy"
+  },
+  "data_quality": {
+    "train_rows": 891,
+    "train_columns": 12,
+    "test_rows": 418,
+    "test_columns": 11,
+    "sample_submission_rows": 418,
+    "sample_submission_columns": [
+      "PassengerId",
+      "Survived"
+    ],
+    "target": "Survived",
+    "task_type": "binary_classification",
+    "target_summary": {
+      "distribution": {
+        "0": 0.6162,
+        "1": 0.3838
+      }
+    },
+    "duplicate_train_rows": 0,
+    "train_test_feature_columns_match": true,
+    "missing_train_top20": {
+      "Cabin": 0.771,
+      "Age": 0.1987,
+      "Embarked": 0.0022,
+      "PassengerId": 0.0,
+      "Name": 0.0,
+      "Pclass": 0.0,
+      "Survived": 0.0,
+      "Sex": 0.0,
+      "Parch": 0.0,
+      "SibSp": 0.0,
+      "Fare": 0.0,
+      "Ticket": 0.0
+    },
+    "missing_test_top20": {
+      "Cabin": 0.7823,
+      "Age": 0.2057,
+      "Fare": 0.0024,
+      "Name": 0.0,
+      "Pclass": 0.0,
+      "PassengerId": 0.0,
+      "Sex": 0.0,
+      "Parch": 0.0,
+      "SibSp": 0.0,
+      "Ticket": 0.0,
+      "Embarked": 0.0
+    }
+  },
+  "evaluation": {
+    "metric": "accuracy",
+    "best_model": "random_forest",
+    "selection_direction": "maximize",
+    "model_results": {
+      "logistic_regression": {
+        "cv_accuracy_mean": 0.793516,
+        "cv_accuracy_std": 0.019285,
+        "holdout_accuracy": 0.804469,
+        "holdout_macro_f1": 0.787922,
+        "seconds": 0.0619
+      },
+      "random_forest": {
+        "cv_accuracy_mean": 0.8305,
+        "cv_accuracy_std": 0.021618,
+        "holdout_accuracy": 0.798883,
+        "holdout_macro_f1": 0.777916,
+        "seconds": 1.8782
+      },
+      "extra_trees": {
+        "cv_accuracy_mean": 0.81032,
+        "cv_accuracy_std": 0.010396,
+        "holdout_accuracy": 0.798883,
+        "holdout_macro_f1": 0.770447,
+        "seconds": 2.0375
+      },
+      "gradient_boosting": {
+        "cv_accuracy_mean": 0.821537,
+        "cv_accuracy_std": 0.011073,
+        "holdout_accuracy": 0.793296,
+        "holdout_macro_f1": 0.772601,
+        "seconds": 0.585
+      }
+    }
+  },
+  "submission_check": {
+    "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+    "rows_match": true,
+    "columns_match": true,
+    "missing_predictions": 0,
+    "prediction_columns": [
+      "Survived"
+    ],
+    "valid": true,
+    "allowed_values": [
+      0,
+      1
+    ],
+    "allowed_values_only": true,
+    "prediction_distribution": {
+      "0": 277,
+      "1": 141
+    }
+  },
+  "task_scaffold": {
+    "task": {
+      "name": "titanic",
+      "competition": "Titanic - Machine Learning from Disaster",
+      "type": "binary_classification",
+      "target": "Survived",
+      "metric": "accuracy"
+    },
+    "inputs": {
+      "overview": "tasks/titanic/overview.txt",
+      "train": "tasks/titanic/data/train.csv",
+      "test": "tasks/titanic/data/test.csv",
+      "sample_submission": "tasks/titanic/data/sample_submission.csv"
+    },
+    "agent_template_mapping": {},
+    "server_template_policy": {},
+    "data_snapshot": {
+      "train_rows": 891,
+      "test_rows": 418,
+      "sample_submission_rows": 418,
+      "target_summary": {
+        "distribution": {
+          "0": 0.6162,
+          "1": 0.3838
+        }
+      },
+      "missing_train_top20": {
+        "Cabin": 0.771,
+        "Age": 0.1987,
+        "Embarked": 0.0022,
+        "PassengerId": 0.0,
+        "Name": 0.0,
+        "Pclass": 0.0,
+        "Survived": 0.0,
+        "Sex": 0.0,
+        "Parch": 0.0,
+        "SibSp": 0.0,
+        "Fare": 0.0,
+        "Ticket": 0.0
+      },
+      "missing_test_top20": {
+        "Cabin": 0.7823,
+        "Age": 0.2057,
+        "Fare": 0.0024,
+        "Name": 0.0,
+        "Pclass": 0.0,
+        "PassengerId": 0.0,
+        "Sex": 0.0,
+        "Parch": 0.0,
+        "SibSp": 0.0,
+        "Ticket": 0.0,
+        "Embarked": 0.0
+      }
+    },
+    "validation_strategy": "5-fold stratified cross-validation plus stratified holdout validation",
+    "time_budget_minutes": 10,
+    "candidate_models": [
+      "logistic_regression",
+      "random_forest",
+      "extra_trees",
+      "gradient_boosting"
+    ],
+    "feature_plan": [
+      "Use configured drop columns.",
+      "Use median imputation for numeric features.",
+      "Use most-frequent imputation and one-hot encoding for categorical features."
+    ],
+    "risk_points": [
+      "Age and Cabin have high missing rates.",
+      "Train/test feature columns must stay aligned.",
+      "Submission must keep PassengerId and Survived columns.",
+      "Local validation is only a proxy before official Kaggle submission."
+    ],
+    "stage_plan": [
+      "task_understanding",
+      "preliminary_eda",
+      "data_quality_check",
+      "feature_engineering",
+      "model_validation",
+      "submission_generation",
+      "report_and_review"
+    ]
+  },
+  "post_scaffold_improvement": {
+    "task": "titanic",
+    "decision": "stop_after_local_gate",
+    "rationale": "Local metric thresholds and submission checks passed. Continue only if official Kaggle submission or stronger model comparison is required.",
+    "best_model": "random_forest",
+    "best_metrics": {
+      "cv_accuracy_mean": 0.8305,
+      "cv_accuracy_std": 0.021618,
+      "holdout_accuracy": 0.798883,
+      "holdout_macro_f1": 0.777916,
+      "seconds": 1.8782
+    },
+    "submission_valid": true,
+    "next_iteration_candidates": [
+      "Review high-missing categorical columns and decide whether missing should be a category instead of imputed.",
+      "Add task-specific feature interactions only if they can be explained in the report.",
+      "Add LightGBM/XGBoost/CatBoost after the sklearn baseline remains stable.",
+      "Switch to official Kaggle API submission after credentials are configured."
+    ]
+  },
+  "stage_audit": {
+    "task": {
+      "name": "titanic",
+      "competition": "Titanic - Machine Learning from Disaster",
+      "type": "binary_classification",
+      "target": "Survived",
+      "metric": "accuracy"
+    },
+    "experiment_dir": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612",
+    "workflow_version": "v3_generic_tabular",
+    "local_only": true,
+    "server_private_templates_modified": false,
+    "kaggle_api_submission": false,
+    "stages": [
+      {
+        "stage": "task_understanding",
+        "owner_role": "Orchestrator/Planner",
+        "status": "passed",
+        "evidence": [
+          "tasks/titanic/overview.txt",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json"
+        ],
+        "checks": {
+          "task_name": "titanic",
+          "target": "Survived",
+          "metric": "accuracy",
+          "server_templates_read_only": true
+        }
+      },
+      {
+        "stage": "preliminary_eda",
+        "owner_role": "Analyst",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json"
+        ],
+        "checks": {
+          "train_rows": 891,
+          "test_rows": 418,
+          "target_summary_recorded": true,
+          "missing_values_recorded": true
+        }
+      },
+      {
+        "stage": "data_quality_check",
+        "owner_role": "Reviewer/Gate",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\data_quality.json"
+        ],
+        "checks": {
+          "train_test_feature_columns_match": true,
+          "sample_submission_rows": 418,
+          "sample_submission_columns": [
+            "PassengerId",
+            "Survived"
+          ]
+        }
+      },
+      {
+        "stage": "feature_engineering",
+        "owner_role": "Developer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json"
+        ],
+        "checks": {
+          "preset": "generic",
+          "feature_plan_recorded": true,
+          "target_transform": null
+        }
+      },
+      {
+        "stage": "model_validation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\model_results.json"
+        ],
+        "checks": {
+          "best_model": "random_forest",
+          "best_metrics": {
+            "cv_accuracy_mean": 0.8305,
+            "cv_accuracy_std": 0.021618,
+            "holdout_accuracy": 0.798883,
+            "holdout_macro_f1": 0.777916,
+            "seconds": 1.8782
+          },
+          "thresholds": {
+            "min_validation_accuracy": 0.78,
+            "require_submission_schema_valid": true,
+            "require_no_missing_predictions": true,
+            "require_train_test_features_match": true
+          },
+          "candidate_model_count": 4
+        }
+      },
+      {
+        "stage": "submission_generation",
+        "owner_role": "Developer/Reviewer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv"
+        ],
+        "checks": {
+          "path": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+          "rows_match": true,
+          "columns_match": true,
+          "missing_predictions": 0,
+          "prediction_columns": [
+            "Survived"
+          ],
+          "valid": true,
+          "allowed_values": [
+            0,
+            1
+          ],
+          "allowed_values_only": true,
+          "prediction_distribution": {
+            "0": 277,
+            "1": 141
+          }
+        }
+      },
+      {
+        "stage": "report_and_review",
+        "owner_role": "Evidence/Summarizer",
+        "status": "passed",
+        "evidence": [
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+          "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx"
+        ],
+        "checks": {
+          "report_grounded_in_outputs": true,
+          "post_scaffold_written": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+          "local_gate_expected": true
+        }
+      }
+    ],
+    "all_stages_passed": true,
+    "failed_stages": [],
+    "next_actions": [
+      "Configure Kaggle API token before official download/submission.",
+      "Use this generic workflow as the baseline for additional teacher-provided tabular datasets.",
+      "Keep GPU/server work disabled until a task has a clear compute benefit."
+    ]
+  },
+  "accepted": true,
+  "thresholds": {
+    "min_validation_accuracy": 0.78,
+    "require_submission_schema_valid": true,
+    "require_no_missing_predictions": true,
+    "require_train_test_features_match": true
+  },
+  "outputs": {
+    "submission": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\submission.csv",
+    "scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.json",
+    "scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\task_scaffold.md",
+    "post_scaffold": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.json",
+    "post_scaffold_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\post_scaffold_improvement.md",
+    "report": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.md",
+    "report_docx": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\local_report.docx",
+    "stage_audit": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.json",
+    "stage_audit_markdown": "D:\\桌面\\codex\\科研港科技\\experiments\\titanic\\20260701_144612\\workflow_stage_audit.md"
+  }
+}

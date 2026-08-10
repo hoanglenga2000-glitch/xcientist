@@ -15,11 +15,12 @@ import pytest
 from research_os.evolution_loop import (
     EvolutionConfig,
     EvolutionLoop,
-    LocalSubprocessRunner,
+    LocalSubprocessRunner as ProductionLocalSubprocessRunner,
     RunResult,
     _classify_failure,
     _parse_cv_score,
 )
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 from research_os.llm_client import LLMClient, LLMError, LLMResponse, _env
 from research_os.variation_generator import (
     TaskContext,
@@ -85,7 +86,11 @@ def test_llm_response_repr_hides_prompt():
 
 
 def test_llm_client_raises_when_no_providers(monkeypatch):
-    for var in ("ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_FILE", "DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY_FILE"):
+    for var in (
+        "ANTHROPIC_API_KEY", "ANTHROPIC_API_KEY_FILE",
+        "DEEPSEEK_API_KEY", "DEEPSEEK_API_KEY_FILE",
+        "OPENAI_API_KEY", "OPENAI_API_KEY_FILE",
+    ):
         monkeypatch.delenv(var, raising=False)
     client = LLMClient()
     assert client.available_providers() == []
@@ -256,11 +261,12 @@ class _FakeSSH:
         return _SFTP()
 
 
-def test_gpu_runner_does_not_fabricate_score_from_stale_metrics_on_kill():
+def test_gpu_runner_does_not_fabricate_score_from_stale_metrics_on_kill(monkeypatch):
     """no-fabrication invariant: a killed run (rc=124, no CV_SCORE) must NOT adopt
     the metrics.json a prior successful run left in the reused remote out dir.
     Regression for phantom cv_score=0.812 attached to a RUN_EXIT=124 failure."""
     from research_os.gpu_runner import GPURunner, GPURunnerConfig
+    monkeypatch.setenv("EVOMIND_HPC_REMOTE_WORKSPACE", "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra")
     ssh = _FakeSSH(run_rc=124, run_out="loading data\n[fold 3] done",
                    stale_metrics='{"cv_score": 0.812769}')
     runner = GPURunner("essay", config=GPURunnerConfig(timeout=60), connect=lambda: ssh)
@@ -353,19 +359,20 @@ def test_local_runner_runs_and_parses(tmp_path):
         "json.dump({'cv_score':0.83,'metric':'accuracy'}, open(os.path.join(a.out_dir,'metrics.json'),'w'))\n"
         "print('CV_SCORE=0.83')\n"
     )
-    runner = LocalSubprocessRunner(tmp_path, timeout=60)
+    runner = ProductionLocalSubprocessRunner(tmp_path, timeout=60)
     (tmp_path / "data").mkdir()
-    res = runner.run(code, data_dir=str(tmp_path / "data"), out_dir=str(tmp_path / "out"), exp_id="EXP000")
-    assert res.success and res.cv_score == pytest.approx(0.83)
-    assert any(a.endswith("submission.csv") for a in res.artifacts)
+    from research_os.hpc_policy import HPCPolicyError
+    with pytest.raises(HPCPolicyError):
+        runner.run(code, data_dir=str(tmp_path / "data"), out_dir=str(tmp_path / "out"), exp_id="EXP000")
 
 
 def test_local_runner_reports_failure_on_bad_code(tmp_path):
-    runner = LocalSubprocessRunner(tmp_path, timeout=60)
+    runner = ProductionLocalSubprocessRunner(tmp_path, timeout=60)
     (tmp_path / "data").mkdir()
-    res = runner.run("raise SystemExit('boom')", data_dir=str(tmp_path / "data"),
-                     out_dir=str(tmp_path / "out"), exp_id="EXP000")
-    assert not res.success and res.cv_score is None
+    from research_os.hpc_policy import HPCPolicyError
+    with pytest.raises(HPCPolicyError):
+        runner.run("raise SystemExit('boom')", data_dir=str(tmp_path / "data"),
+                   out_dir=str(tmp_path / "out"), exp_id="EXP000")
 
 
 # ── full loop behavior with fake generator + fake runner ──────────────────────

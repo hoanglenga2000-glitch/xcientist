@@ -1,0 +1,15 @@
+{
+  "rows_scanned": 55413942,
+  "accepted_after_rules": 53939774,
+  "rejected_fare": 25619,
+  "rejected_passenger_count": 195487,
+  "rejected_pickup_longitude": 1099327,
+  "rejected_dropoff_longitude": 1094497,
+  "rejected_pickup_latitude": 1088332,
+  "rejected_dropoff_latitude": 1085967,
+  "rejected_zero_distance_high_fare": 216649,
+  "rejected_implausible_distance": 115995,
+  "reservoir_rows_retained": 5000000,
+  "reservoir_rows_discarded": 48939774,
+  "rules_are_nonexclusive": true
+}

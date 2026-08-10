@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "task": "telco_churn",
+  "experiment_dir": "experiments\\telco_churn\\20260623_160853",
+  "best_model": "gradient_boosting",
+  "cv_accuracy_mean": 0.807773,
+  "holdout_accuracy": 0.809228,
+  "metric_gate_mode": "threshold",
+  "submission_rows": 1409,
+  "submission_columns": [
+    "customerID",
+    "Churn"
+  ],
+  "submission_path": "D:\\桌面\\codex\\科研港科技\\experiments\\telco_churn\\20260623_160853\\submission.csv",
+  "scaffold_present": true,
+  "post_scaffold_present": true,
+  "reports_present": true,
+  "workflow_version": "v3_generic_tabular",
+  "stage_audit_present": true,
+  "all_stages_passed": true
+}

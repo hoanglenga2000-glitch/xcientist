@@ -1,0 +1,132 @@
+{
+  "schema": "evomind.jigsaw.transformer_confirmation_plan.v2",
+  "created_at": "2026-07-27T12:52:20.627193+08:00",
+  "status": "frozen_before_training",
+  "driver": {
+    "model": "gpt-5.6-sol",
+    "audit_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/plans/jigsaw_gpt56_audit_current.json",
+    "audit_sha256": "9ad605287679e02b3267cda0291019efac92971c4772304bbf31322ea6b43b81",
+    "ranked_upgrade": "generic-xfmr-oof-multiseed-confirmation"
+  },
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "public_data_only": true,
+  "private_labels_used": false,
+  "official_grader_feedback_allowed": false,
+  "model": {
+    "repo_id": "distilbert/distilroberta-base",
+    "revision": "fb53ab8802853c8e4fbdbcd0529f21fc6f459b2b",
+    "generic_pretrained": true,
+    "task_specific_checkpoint": false,
+    "num_labels": 6,
+    "problem_type": "multi_label_classification"
+  },
+  "training": {
+    "seed": 41,
+    "fold_seed": 42,
+    "model_seed": 41,
+    "folds": 5,
+    "epochs_per_fold": 2,
+    "epoch_selection": "fixed_final_epoch_no_outer_fold_selection",
+    "max_length": 192,
+    "train_batch_size": 8,
+    "eval_batch_size": 32,
+    "gradient_accumulation_steps": 4,
+    "effective_batch_size": 32,
+    "learning_rate": 2e-05,
+    "weight_decay": 0.01,
+    "warmup_ratio": 0.1,
+    "schedule": "cosine",
+    "gradient_checkpointing": true,
+    "mixed_precision": "bf16",
+    "max_grad_norm": 1.0,
+    "num_workers": 2,
+    "tf32": true
+  },
+  "seed_contract": {
+    "fold_assignment_seed": 42,
+    "model_seed": 41,
+    "fold_model_seeds": [
+      41,
+      1050,
+      2059,
+      3068,
+      4077
+    ],
+    "reason": "reuse immutable seed42 sparse OOF folds while varying model initialization and data order"
+  },
+  "resume": {
+    "fold_prediction_checkpoints": true,
+    "model_checkpoints": true,
+    "content_addressed_inputs": true,
+    "shared_token_cache": true
+  },
+  "ensemble": {
+    "base": "existing_hybrid30_sparse_oof",
+    "candidate": "fold_clean_rank_blend_sparse_plus_transformer",
+    "weight_grid": [
+      0.25,
+      0.35,
+      0.45,
+      0.55,
+      0.65,
+      0.75
+    ],
+    "weight_definition": "transformer_fraction",
+    "selection": "for each outer fold and label choose weight only on other folds",
+    "tie_break": "closest_to_0.5_then_lower_transformer_weight",
+    "test_aggregation": "matching_transformer_outer_fold_prediction_plus_public_sparse_test_then_mean_and_rank"
+  },
+  "promotion_gate": {
+    "metric": "mean_columnwise_roc_auc",
+    "operator": ">=",
+    "threshold": 0.987,
+    "minimum_gain_over_strongest_public_oof_base": 0.0003,
+    "exact_once_oof": true,
+    "all_six_labels_scoreable": true,
+    "prediction_provenance_required": true,
+    "private_labels_unused": true
+  },
+  "execution": {
+    "device": "hpc_job_88240_nvidia_a40",
+    "run_id": "hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+    "token_cache_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/cache/token_cache",
+    "automatic_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "official_private_grader_before_gate": false,
+    "max_configuration_count": 1,
+    "process_signals_allowed": false
+  },
+  "implementation": {
+    "runner": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/scripts/run_jigsaw_transformer_oof.py",
+      "sha256": "3b5dfbc0bb2e92ff038e048823ba9b93a90c87d40936a4c8dc9b2d3c7ba515fd"
+    },
+    "verifier": {
+      "path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/scripts/verify_jigsaw_transformer_oof_run.py",
+      "sha256": "8e73bbbdd16645ff60e22789e4a6c4806a18d94606ccf4123073aea6f0a38d00"
+    }
+  },
+  "inputs": {
+    "public_train_sha256": "36e730b9b0852edced41616b0fb53962939d678ac54f170f6d5b1a6a35af1bfd",
+    "public_test_sha256": "c31ef2c52864c3305e3dd82b7ac643b90b5d2f4c39a041480c3835379e93101d",
+    "public_sample_submission_sha256": "81dc6e1f9eeb89ebb9e651a9ea6a3c971980ae9d12e29c687adcadfe610813b5",
+    "sparse_bundle_sha256": "857bec2eea7d57557afbee407f4987ca94446d527aabd05bcd1421bb5791810a",
+    "sparse_bundle_numeric_arrays_loaded_without_pickle": true,
+    "legacy_object_id_arrays_ignored": true,
+    "order_contract": "fixed_seed42_outer_folds_plus_public_truth_exact_match"
+  },
+  "claim_boundary": "Frozen public-data HPC confirmation experiment. Public OOF is not an official medal.",
+  "migration": {
+    "schema": "evomind.hpc_plan_migration.v1",
+    "created_at": "2026-07-27T12:52:20.627193+08:00",
+    "source_plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_s41_frozen_plan.json",
+    "source_plan_sha256": "baea9bee680fbbb539642825edca299dfb14b98a0fc72a2e14f07a8d081ce243",
+    "job_id": 88240,
+    "gpu_expected": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "remote_base": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727",
+    "reason": "User-directed migration of the next distinct confirmation seed from local RTX 4060 to the idle HPC allocation.",
+    "local_seed40_process_signaled": false,
+    "duplicate_run_id": false
+  }
+}

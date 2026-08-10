@@ -1,0 +1,223 @@
+{
+  "schema": "evomind.mlebench.may2022_nested_selection_execution_plan.v1",
+  "created_at": "2026-07-28T00:47:34.530777+08:00",
+  "status": "approved_waiting_for_hpc_gpu_and_serial_queue",
+  "competition_id": "tabular-playground-series-may-2022",
+  "run_id": "hpc88240_may2022_nested_s42_candidate_20260728",
+  "seed": 42,
+  "parent_plan": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_nested_selection_repair_s42_frozen_plan_20260727.json",
+    "relative_path": "workspace/mlebench_plans/may2022_nested_selection_repair_s42_frozen_plan_20260727.json",
+    "bytes": 9296,
+    "sha256": "283e0ce4267256c0d844132aa22f2b3dfe61ced0fa21cbfb39ff3fe0af71b9c4"
+  },
+  "parent_plan_sha256": "283e0ce4267256c0d844132aa22f2b3dfe61ced0fa21cbfb39ff3fe0af71b9c4",
+  "authorization": {
+    "source": "active_thread_goal_user_provided",
+    "objective_sha256": "d34dd6469e7ad474feb2f9c2a2effc128430f9c2cd5c4f105557e62a0e055437",
+    "full_training_approved": true,
+    "substantial_compute_approval_recorded": true,
+    "candidate_generation_approved": true,
+    "official_private_grader_approved": false,
+    "kaggle_submission_approved": false
+  },
+  "planner": {
+    "model": "gpt-5.6-sol",
+    "controller_evidence": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_loop_current.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_loop_current.json",
+      "bytes": 16830,
+      "sha256": "06c62aa8ec1131cb5aac3c8c9450f9acc201d96ce145057737ae5da21e20204c"
+    },
+    "claim_boundary": "The controller selects and audits candidate work; deterministic runners execute and gate it."
+  },
+  "target": {
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "data_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "output_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs",
+    "current_gate": "blocked_existing_compute_process",
+    "job89941_role": "cpu_only_evidence_and_precompute; no CUDA runtime exposed"
+  },
+  "source_identity": [
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_medal_recovery_adapters.py",
+      "relative_path": "scripts/mlebench_medal_recovery_adapters.py",
+      "bytes": 357503,
+      "sha256": "6b3d4d5e76a9f383db7bd9cb81127a7181f0268473237f54d4f89fe65f237a33"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\mlebench_wave2_adapters.py",
+      "relative_path": "scripts/mlebench_wave2_adapters.py",
+      "bytes": 358066,
+      "sha256": "5f4f4a323ce5f48274971a0be03073ece96e5c38c4bcba663d62c90fbc360566"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_full.py",
+      "relative_path": "scripts/run_mlebench_lite_full.py",
+      "bytes": 97773,
+      "sha256": "384a6763917713b0b69bd58b176292f62493c5e8709df2b95bd7f3c71da9da86"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_mlebench_lite_wave0.py",
+      "relative_path": "scripts/run_mlebench_lite_wave0.py",
+      "bytes": 43703,
+      "sha256": "fc4ccdb7a709746f966083d4cce6172c87232b1692909ee438a20e978dc4341f"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\src\\research_os\\mlebench_phase_a.py",
+      "relative_path": "src/research_os/mlebench_phase_a.py",
+      "bytes": 35480,
+      "sha256": "0edc6084f3b2364603ce4540c2bf0b3b42788c87f7be28fd0945e1670c05a772"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\tests\\test_may2022_nested_selection.py",
+      "relative_path": "tests/test_may2022_nested_selection.py",
+      "bytes": 13942,
+      "sha256": "301f975fd887ec9164fb0248dd2554edf5a05c9daf656ddc823ceb39a48e80ad"
+    }
+  ],
+  "frozen_evidence": [
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_progress\\lite11_current.json",
+      "relative_path": "workspace/mlebench_progress/lite11_current.json",
+      "bytes": 20052,
+      "sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\llm\\mlebench_gpt56_adaptive_loop_current.json",
+      "relative_path": "workspace/llm/mlebench_gpt56_adaptive_loop_current.json",
+      "bytes": 16830,
+      "sha256": "06c62aa8ec1131cb5aac3c8c9450f9acc201d96ce145057737ae5da21e20204c"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\mlebench_remote_ops\\gpu_gate_current.json",
+      "relative_path": "workspace/hpc/mlebench_remote_ops/gpu_gate_current.json",
+      "bytes": 1956,
+      "sha256": "850d0bae6513f4720bad7f9467d3abbb7297aeb8d700958a5e1200b7e8a8c2fb"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_gpu_gate_current.json",
+      "relative_path": "workspace/hpc/job89941_gpu_gate_current.json",
+      "bytes": 887,
+      "sha256": "310d514ef761750141d145a9240e6973b7a6b90ffe3db373e146d46b5baae940"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_cactus_continuation_deployment_current.json",
+      "relative_path": "workspace/hpc/job88240_cactus_continuation_deployment_current.json",
+      "bytes": 6660,
+      "sha256": "e2d02ae684c2bc248c0766746daaab45d35cd5111f5b3af48e87a251365b6d27"
+    },
+    {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job89941_leaf_decision_confirmation\\collection_current.json",
+      "relative_path": "workspace/hpc/job89941_leaf_decision_confirmation/collection_current.json",
+      "bytes": 18474,
+      "sha256": "61745b422099f1640a99a1b174aaf28fb21f747623f1b3665f052c3c47ba9025"
+    }
+  ],
+  "execution_contract": {
+    "visibility_mode": "PUBLIC_ONLY",
+    "candidate_only": true,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "process_signals_allowed": false,
+    "other_processes_may_be_modified": false,
+    "allowed_remote_root_only": true,
+    "read_only_three_sample_gpu_gate_required": true,
+    "gpu_gate_samples": 3,
+    "gpu_gate_interval_seconds": 5,
+    "root_runner_concurrency_limit": 1,
+    "immutable_release_required": true,
+    "exact_source_hash_verification_required": true
+  },
+  "model_contract": {
+    "outer_folds": 5,
+    "inner_validation_fraction": 0.2,
+    "models": [
+      "residual_mlp",
+      "xgboost_gpu",
+      "catboost_gpu"
+    ],
+    "residual_mlp": {
+      "epochs": 24,
+      "width": 768,
+      "blocks": 5,
+      "batch_size": 4096
+    },
+    "xgboost": {
+      "estimators": 2600,
+      "depth": 8,
+      "learning_rate": 0.035,
+      "device": "cuda",
+      "tree_method": "hist"
+    },
+    "catboost": {
+      "iterations": 2000,
+      "depth": 8,
+      "learning_rate": 0.035,
+      "task_type": "GPU"
+    },
+    "inner_only_iteration_selection": true,
+    "fresh_complete_outer_train_refit": true,
+    "outer_validation_labels_used_for_budget_selection": false
+  },
+  "launch_argv_template": [
+    "python3",
+    "RELEASE_ROOT/scripts/run_mlebench_lite_full.py",
+    "--data-root",
+    "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data",
+    "--output-root",
+    "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_lite_runs",
+    "--allowed-root",
+    "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "--official-source-root",
+    "RELEASE_ROOT/upstream_mlebench",
+    "--waves",
+    "Wave0",
+    "--competitions",
+    "tabular-playground-series-may-2022",
+    "--run-id",
+    "hpc88240_may2022_nested_s42_candidate_20260728",
+    "--seed",
+    "42",
+    "--candidate-only",
+    "--wave2-fast-kernels",
+    "--optimization-plan",
+    "RELEASE_ROOT/plans/may2022_nested_selection_execution_s42_hpc88240_v2_20260728.json"
+  ],
+  "promotion_contract": {
+    "aggregate_oof_auc_minimum": 0.9985,
+    "every_fold_oof_auc_minimum": 0.99818,
+    "confirmation_seed_auc_minimum": 0.9983,
+    "distinct_external_seeds_required": 3,
+    "confirmation_seeds": [
+      42,
+      43,
+      44
+    ],
+    "single_seed_is_official_medal": false,
+    "human_gate_required_before_official_grader": true
+  },
+  "serial_queue": {
+    "mode": "do_not_race_existing_wrappers",
+    "current_chain": [
+      "leaf_multibackbone",
+      "siim_final",
+      "ranzcr_highres",
+      "cactus_multiseed"
+    ],
+    "dependency_status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_cactus_after_ranzcr_s404142_20260727/full_cactus_status_v2.json",
+    "launch_only_after_dependency_terminal_and_gpu_idle": true,
+    "natural_retirement_only": true
+  },
+  "claim_boundary": "A completed candidate and public OOF score are not an official score or medal. Official grading remains behind Human Gate.",
+  "supersession": {
+    "schema": "evomind.may2022.execution_plan_supersession.v1",
+    "predecessor_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_nested_selection_execution_s42_hpc88240_20260728.json",
+    "predecessor_sha256": "860b0980f19276d6a641edc55530628f20b31bdbf795a6cf916d0009bc100de4",
+    "reason": "Correct the observed Cactus v2 status filename from full_cactus_v2_status.json to full_cactus_status_v2.json before any May deployment or training."
+  }
+}

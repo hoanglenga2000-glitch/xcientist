@@ -2,20 +2,23 @@ param(
   [ValidateSet("install-credential", "start", "stop", "status", "test")]
   [string]$Command = "status",
   [string]$ProxyUser = "",
-  [string]$ProxyPassword = "",
+  [System.Security.SecureString]$SecureProxyPassword,
+  [switch]$SecretFromStdin,
   [int]$ListenPort = 7890,
+  [string]$UpstreamHost = "",
+  [int]$UpstreamPort = 0,
   [ValidateSet("upstream", "direct")]
   [string]$RouteMode = "upstream"
 )
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
-$StateDir = Join-Path $env:APPDATA "ResearchAgentWorkstation"
-$CredentialPath = Join-Path $StateDir "hpc_socks_credential.xml"
-$MetadataPath = Join-Path $StateDir "hpc_ssh_metadata.json"
-$PidPath = Join-Path $StateDir "hpc_socks_bridge.pid"
-$OutLog = Join-Path $StateDir "hpc_socks_bridge.out.log"
-$ErrLog = Join-Path $StateDir "hpc_socks_bridge.err.log"
+$StateDir = $null
+$CredentialPath = $null
+$MetadataPath = $null
+$PidPath = $null
+$OutLog = $null
+$ErrLog = $null
 $BridgeScript = Join-Path $Root "scripts\hpc_socks_bridge.py"
 
 function Get-PythonExe {
@@ -37,7 +40,7 @@ function Get-PythonExe {
 
 function Import-HpcCredential {
   if (-not (Test-Path $CredentialPath)) {
-    throw "HPC SOCKS credential is not installed. Run: powershell -ExecutionPolicy Bypass -File scripts\manage_hpc_proxy_bridge.ps1 install-credential -ProxyUser <user> -ProxyPassword <password>"
+    throw "HPC SOCKS credential is not installed. Use install-credential with SecretFromStdin."
   }
   Import-Clixml -Path $CredentialPath
 }
@@ -89,15 +92,29 @@ function Stop-Bridge {
   }
 }
 
-New-Item -ItemType Directory -Path $StateDir -Force | Out-Null
+. (Join-Path $PSScriptRoot "dpapi_credential_store.ps1")
+$StateDir = Initialize-EvoMindCredentialStateDirectory
+$CredentialPath = Join-Path $StateDir "hpc_socks_credential.xml"
+$MetadataPath = Join-Path $StateDir "hpc_ssh_metadata.json"
+$PidPath = Join-Path $StateDir "hpc_socks_bridge.pid"
+$OutLog = Join-Path $StateDir "hpc_socks_bridge.out.log"
+$ErrLog = Join-Path $StateDir "hpc_socks_bridge.err.log"
 
 if ($Command -eq "install-credential") {
-  if (-not $ProxyUser -or -not $ProxyPassword) {
-    throw "ProxyUser and ProxyPassword are required for install-credential."
+  if ([string]::IsNullOrWhiteSpace($ProxyUser)) {
+    throw "ProxyUser is required for install-credential."
   }
-  $secure = ConvertTo-SecureString $ProxyPassword -AsPlainText -Force
-  $credential = [pscredential]::new($ProxyUser, $secure)
-  $credential | Export-Clixml -Path $CredentialPath
+  $secure = Read-EvoMindSecureInput -Provided $SecureProxyPassword -Prompt "HPC proxy password" -FromStdin:$SecretFromStdin
+  if ($secure.Length -eq 0) { throw "Credential input was empty." }
+  try {
+    $credential = [pscredential]::new($ProxyUser, $secure)
+    $temporaryPath = Write-EvoMindCredentialTemp -Credential $credential -StateDirectory $StateDir -Prefix "hpc-socks"
+    Commit-EvoMindCredentialFiles @(
+      [ordered]@{ TemporaryPath = $temporaryPath; DestinationPath = $CredentialPath }
+    )
+  } finally {
+    $secure.Dispose()
+  }
   Write-Output (@{ status = "installed"; credential_path = $CredentialPath } | ConvertTo-Json -Depth 4)
   exit 0
 }
@@ -115,6 +132,9 @@ if ($Command -eq "start") {
     exit 0
   }
   $credential = if ($RouteMode -eq "upstream") { Import-HpcCredential } else { $null }
+  if ($RouteMode -eq "upstream" -and ([string]::IsNullOrWhiteSpace($UpstreamHost) -or $UpstreamPort -lt 1 -or $UpstreamPort -gt 65535)) {
+    throw "UpstreamHost and a valid UpstreamPort are required for upstream mode."
+  }
   $target = if ($RouteMode -eq "direct") { Get-CurrentHpcTarget } else { $null }
   $python = Get-PythonExe
   $oldProxyUser = [Environment]::GetEnvironmentVariable("HPC_SOCKS_USER", "Process")
@@ -135,14 +155,14 @@ if ($Command -eq "start") {
     )
     if ($RouteMode -eq "direct") {
       $bridgeArguments += @("--disable-upstream", "--direct-destination", "$($target.host):$($target.port)")
+    } else {
+      $bridgeArguments += @("--upstream-host", $UpstreamHost, "--upstream-port", [string]$UpstreamPort)
     }
     $process = Start-Process `
       -FilePath $python `
       -ArgumentList $bridgeArguments `
       -WorkingDirectory $Root `
       -WindowStyle Hidden `
-      -RedirectStandardOutput $OutLog `
-      -RedirectStandardError $ErrLog `
       -PassThru
   } finally {
     if ($null -eq $oldProxyUser) { Remove-Item Env:\HPC_SOCKS_USER -ErrorAction SilentlyContinue } else { $env:HPC_SOCKS_USER = $oldProxyUser }

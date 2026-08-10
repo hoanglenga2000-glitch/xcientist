@@ -1,0 +1,127 @@
+{
+  "schema": "evomind.mlebench_lite.jigsaw_iterative_fold_validation.v1",
+  "created_at": "2026-07-25T00:04:25.340795+00:00",
+  "remote_data_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/mlebench_official_data/jigsaw-toxic-comment-classification-challenge/prepared/public/train.csv",
+  "public_labels_only": true,
+  "private_answers_read": false,
+  "gpu_used": false,
+  "seed": 42,
+  "requested_folds": 5,
+  "adapter_sha256": "3dff0e51515d48981b15e8d63de3080bae495b550f712dedf880ddcc895fed29",
+  "report": {
+    "rows": 159571,
+    "unique_ids": 159571,
+    "fold_sizes": [
+      31914,
+      31915,
+      31914,
+      31914,
+      31914
+    ],
+    "labels": {
+      "toxic": {
+        "total_positive": 15294,
+        "positive_by_fold": [
+          3059,
+          3058,
+          3059,
+          3059,
+          3059
+        ],
+        "negative_by_fold": [
+          28855,
+          28857,
+          28855,
+          28855,
+          28855
+        ]
+      },
+      "severe_toxic": {
+        "total_positive": 1595,
+        "positive_by_fold": [
+          319,
+          319,
+          319,
+          319,
+          319
+        ],
+        "negative_by_fold": [
+          31595,
+          31596,
+          31595,
+          31595,
+          31595
+        ]
+      },
+      "obscene": {
+        "total_positive": 8449,
+        "positive_by_fold": [
+          1689,
+          1690,
+          1690,
+          1690,
+          1690
+        ],
+        "negative_by_fold": [
+          30225,
+          30225,
+          30224,
+          30224,
+          30224
+        ]
+      },
+      "threat": {
+        "total_positive": 478,
+        "positive_by_fold": [
+          95,
+          96,
+          96,
+          96,
+          95
+        ],
+        "negative_by_fold": [
+          31819,
+          31819,
+          31818,
+          31818,
+          31819
+        ]
+      },
+      "insult": {
+        "total_positive": 7877,
+        "positive_by_fold": [
+          1576,
+          1575,
+          1575,
+          1575,
+          1576
+        ],
+        "negative_by_fold": [
+          30338,
+          30340,
+          30339,
+          30339,
+          30338
+        ]
+      },
+      "identity_hate": {
+        "total_positive": 1405,
+        "positive_by_fold": [
+          281,
+          281,
+          281,
+          281,
+          281
+        ],
+        "negative_by_fold": [
+          31633,
+          31634,
+          31633,
+          31633,
+          31633
+        ]
+      }
+    }
+  },
+  "passed": true
+}

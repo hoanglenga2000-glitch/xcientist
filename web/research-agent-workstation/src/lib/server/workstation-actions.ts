@@ -8,7 +8,7 @@ import { prisma } from "@/lib/db";
 import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
 import { cancelRunningJob, runManagedCommand } from "@/lib/server/job-registry";
 import { logAction } from "@/lib/server/actions";
-import { encodeJson } from "@/lib/server/json";
+import { decodeJson, encodeJson } from "@/lib/server/json";
 import { bootstrapS6E6BoostingEnvironment, submitGpuJob, testS6E6BoostingDependencies } from "@/lib/server/gpu-ssh-gateway";
 import { latestExperimentPath, latestScoreGatedWorkstationRunPath, normalizeTaskId, readJsonFile, resolveWorkspacePath, stamp, workspaceRoot, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
 import {
@@ -34,6 +34,14 @@ import {
   isLiteratureAgentAction,
   writeLiteratureActionReceipt
 } from "@/lib/server/literature-agent-actions";
+import {
+  buildHpcSubprocessEnvironment,
+  parseHpcExecutionContract,
+  taskRequiresHpcExecutionContract,
+} from "@/lib/server/hpc-execution-contract";
+import { canExecuteRun } from "@/lib/server/run-lifecycle";
+import { writeRunLedger } from "@/lib/server/run-ledger";
+import { bindHpcJobIdentity } from "@/lib/server/hpc-job-lineage";
 
 export type WorkstationActionPayload = {
   action?: string;
@@ -79,6 +87,73 @@ function pythonExecutable() {
   if (process.env.WORKSTATION_PYTHON) return process.env.WORKSTATION_PYTHON;
   if (process.platform !== "win32") return "python3";
   return "C:\\codex-python\\python.exe";
+}
+
+async function writeDispatchFailureBundle(input: {
+  taskId: string;
+  runId: string;
+  error: unknown;
+}) {
+  const failureRoot = `workspace/workstation_runs/${input.taskId}/${input.runId}/failure/dispatcher`;
+  const createdAt = new Date().toISOString();
+  const error = input.error instanceof Error ? input.error : new Error(String(input.error));
+  await writeJsonArtifact(`${failureRoot}/error.json`, {
+    schema: "evomind.failure_error.v1",
+    task_id: input.taskId,
+    run_id: input.runId,
+    node_id: "dispatcher",
+    failure_type: "dispatch_process",
+    error_type: error.name,
+    message: error.message.slice(0, 4000),
+    detected_at: createdAt,
+  });
+  await writeTextArtifact(`${failureRoot}/traceback.txt`, error.stack ?? `${error.name}: ${error.message}`);
+  await writeJsonArtifact(`${failureRoot}/environment.json`, {
+    schema: "evomind.failure_environment.v1",
+    task_id: input.taskId,
+    run_id: input.runId,
+    node_version: process.version,
+    platform: process.platform,
+    architecture: process.arch,
+    process_id: process.pid,
+    environment_policy: "non_secret_runtime_facts_only",
+    captured_at: createdAt,
+  });
+  await writeJsonArtifact(`${failureRoot}/node_status.json`, {
+    schema: "evomind.failure_node_status.v1",
+    task_id: input.taskId,
+    run_id: input.runId,
+    node_id: "dispatcher",
+    agent: "SchedulerAgent",
+    status: "FAILED",
+    captured_at: createdAt,
+  });
+  await writeJsonArtifact(`${failureRoot}/recovery_plan.json`, {
+    schema: "evomind.failure_recovery_plan.v1",
+    task_id: input.taskId,
+    run_id: input.runId,
+    recovery_agent: "RecoveryAgent",
+    actions: ["detect", "analyze", "repair", "retry"],
+    repair_strategy: "Inspect the captured subprocess error and child failure artifacts, repair the exact failed node, then resume the same run.",
+    retry_policy: "manual_repair_then_resume",
+    created_at: createdAt,
+  });
+  for (const [action, status] of [
+    ["detect", "completed"],
+    ["analyze", "completed"],
+    ["repair", "plan_generated"],
+    ["retry", "manual_required"],
+  ] as const) {
+    await logAction({
+      action,
+      taskId: input.taskId,
+      runId: input.runId,
+      message: `RecoveryAgent ${action}: ${status}.`,
+      artifactPath: failureRoot,
+      metadata: { agent: "RecoveryAgent", status, failure_node: "dispatcher" },
+    });
+  }
+  return failureRoot;
 }
 
 const safeTaskIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
@@ -973,7 +1048,7 @@ async function prepareS6E6HpcApprovalRequired(input: {
     required_next_actions: [
       "Review the generated hpc_execution_gate_manifest.json in the workstation.",
       "Approve the hpc_execution_approval gate from the workstation UI or API.",
-      "Rerun the selected workstation action with metadata.hpc_execution_approved=true only after approval."
+      "Rerun the selected workstation action with the exact metadata.run_id after approval."
     ],
     direct_codex_training_allowed: false,
     training_started: false,
@@ -1008,61 +1083,62 @@ async function prepareS6E6HpcApprovalRequired(input: {
   };
 }
 
-async function approveActionGate(input: {
+async function resolveApprovedHpcActionRun(input: {
+  payload: WorkstationActionPayload;
+  action: string;
   taskId: string;
-  runId: string;
-  gateType: string;
-  reviewer: string;
-  reason: string;
-  artifactPath?: string;
-}) {
+  requestedTemplate: string;
+  selectedStrategy: Record<string, unknown>;
+  submitMessage: string;
+}): Promise<{ run: any; gateId: string } | { response: Record<string, unknown> }> {
+  const runId = typeof input.payload.metadata?.run_id === "string" && input.payload.metadata.run_id.trim()
+    ? input.payload.metadata.run_id.trim()
+    : null;
+  if (!runId) {
+    return {
+      response: await prepareS6E6HpcApprovalRequired({
+        action: input.action,
+        taskId: input.taskId,
+        requestedTemplate: input.requestedTemplate,
+        selectedStrategy: input.selectedStrategy,
+        submitMessage: input.submitMessage,
+      }),
+    };
+  }
+  const run = await prisma.experimentRun.findFirst({ where: { id: runId, taskId: input.taskId } });
   const gate = await prisma.gate.findFirst({
-    where: { taskId: input.taskId, runId: input.runId, gateType: input.gateType },
-    orderBy: { createdAt: "desc" }
+    where: { taskId: input.taskId, runId, gateType: "hpc_execution_approval" },
+    orderBy: { createdAt: "desc" },
   });
-  const evidence = {
-    reviewer: input.reviewer,
-    reason: input.reason,
-    artifact_path: input.artifactPath ?? null,
-    approved_at: new Date().toISOString()
-  };
-  const gateId = gate?.id ?? `${input.runId}_${input.gateType}`;
-  await prisma.gate.upsert({
-    where: { id: gateId },
-    update: {
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    },
-    create: {
-      id: gateId,
-      taskId: input.taskId,
-      runId: input.runId,
-      gateType: input.gateType,
-      decision: "approved",
-      reviewer: input.reviewer,
-      evidenceJson: encodeJson(evidence),
-      decidedAt: new Date()
-    }
-  });
-  await logAction({
-    action: "approve_gate",
-    taskId: input.taskId,
-    runId: input.runId,
-    message: `${input.gateType} approved for workstation action execution.`,
-    artifactPath: input.artifactPath,
-    metadata: evidence
-  });
-  return gateId;
+  const evidence = decodeJson<Record<string, unknown>>(gate?.evidenceJson);
+  const templateMatches = evidence?.requested_template === input.requestedTemplate;
+  if (!run || !gate || gate.decision !== "approved" || !gate.decidedAt || !templateMatches) {
+    return {
+      response: {
+        ok: false,
+        run_id: runId,
+        status: "blocked_hpc_execution_approval_required",
+        execution_started: false,
+        required_gate: "hpc_execution_approval",
+        gate_id: gate?.id ?? null,
+        gate_decision: gate?.decision ?? "missing",
+        requested_template: input.requestedTemplate,
+        approved_template: evidence?.requested_template ?? null,
+        error: run
+          ? "The exact run and HPC template require an explicit approved hpc_execution_approval Gate."
+          : "The selected workstation run does not exist.",
+      },
+    };
+  }
+  return { run, gateId: gate.id };
 }
 
 async function runS6E6Exp018LgbmOptunaAction(payload: WorkstationActionPayload) {
   const taskId = "playground_series_s6e6";
   const requestedTemplate = "playground_s6e6_lgbm_optuna";
   const fullSearch = payload.metadata?.full_search === true;
-  if (payload.metadata?.hpc_execution_approved !== true) {
-    return prepareS6E6HpcApprovalRequired({
+  const approval = await resolveApprovedHpcActionRun({
+      payload,
       action: payload.action ?? "run_s6e6_exp018_lgbm_optuna",
       taskId,
       requestedTemplate,
@@ -1072,30 +1148,10 @@ async function runS6E6Exp018LgbmOptunaAction(payload: WorkstationActionPayload) 
         gpu_template: requestedTemplate,
         official_submit_policy: "needs_validation"
       },
-      submitMessage: "EXP018 LightGBM Optuna challenger is evidence-only until score gate promotion."
-    });
-  }
-
-  const run = await createWorkstationRun({
-    taskId,
-    trigger: fullSearch ? "run_s6e6_exp018_lgbm_optuna_full_search" : "run_s6e6_exp018_lgbm_optuna_dryrun",
-    configPath: "configs/generated/playground_series_s6e6.yaml",
-    competitionSlug: "playground-series-s6e6",
-    objective: fullSearch
-      ? "Run an EXP018 full-data LightGBM Optuna challenger through the workstation-controlled HPC gateway."
-      : "Run a bounded EXP018 LightGBM Optuna dry-run through the workstation-controlled HPC gateway."
+      submitMessage: "EXP018 LightGBM Optuna challenger is evidence-only until score gate promotion.",
   });
-  const hpcGate = await createHpcExecutionGate({ taskId, runId: run.run_id, template: requestedTemplate });
-  const hpcGateId = await approveActionGate({
-    taskId,
-    runId: run.run_id,
-    gateType: "hpc_execution_approval",
-    reviewer: "Research Admin",
-    reason: fullSearch
-      ? "Current user goal authorizes a workstation-controlled EXP018 full-data LightGBM Optuna challenger."
-      : "Current user goal authorizes a workstation-controlled EXP018 dry-run to validate the next challenger route.",
-    artifactPath: hpcGate.manifest_path
-  });
+  if ("response" in approval) return approval.response;
+  const { run, gateId: hpcGateId } = approval;
   const resourceRequest = {
     allow_evidence_only: true,
     mode: fullSearch ? "lgbm_optuna_full_search" : "lgbm_optuna_dryrun",
@@ -2047,8 +2103,8 @@ async function runS6E6Exp025SingleModelDiversityAction(payload: WorkstationActio
     : model === "xgboost"
       ? "playground_s6e6_xgboost"
       : "playground_s6e6_catboost";
-  if (payload.metadata?.hpc_execution_approved !== true) {
-    return prepareS6E6HpcApprovalRequired({
+  const approval = await resolveApprovedHpcActionRun({
+      payload,
       action: payload.action ?? "run_s6e6_exp025_single_model_diversity",
       taskId,
       requestedTemplate,
@@ -2058,26 +2114,10 @@ async function runS6E6Exp025SingleModelDiversityAction(payload: WorkstationActio
         gpu_template: requestedTemplate,
         official_submit_policy: "evidence_only_until_frontier_gate"
       },
-      submitMessage: `EXP025 ${model} diversity challenger is evidence-only until score/risk frontier promotion.`
-    });
-  }
-
-  const run = await createWorkstationRun({
-    taskId,
-    trigger: `run_s6e6_exp025_${model}_single_model_diversity`,
-    configPath: "configs/generated/playground_series_s6e6.yaml",
-    competitionSlug: "playground-series-s6e6",
-    objective: `Run an EXP025 ${model} independent single-model challenger through the workstation-controlled HPC gateway and pull back reusable probability assets.`
+      submitMessage: `EXP025 ${model} diversity challenger is evidence-only until score/risk frontier promotion.`,
   });
-  const hpcGate = await createHpcExecutionGate({ taskId, runId: run.run_id, template: requestedTemplate });
-  const hpcGateId = await approveActionGate({
-    taskId,
-    runId: run.run_id,
-    gateType: "hpc_execution_approval",
-    reviewer: "Research Admin",
-    reason: `Current user goal authorizes workstation-controlled EXP025 ${model} single-model diversity evidence generation.`,
-    artifactPath: hpcGate.manifest_path
-  });
+  if ("response" in approval) return approval.response;
+  const { run, gateId: hpcGateId } = approval;
   const sampleRows = numberValue(payload.metadata?.sample_rows) ?? 12000;
   const accelerator = typeof payload.metadata?.accelerator === "string" && ["auto", "cpu", "gpu"].includes(payload.metadata.accelerator)
     ? payload.metadata.accelerator
@@ -2809,68 +2849,361 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
     }
     case "tasks_create_workstation_run":
     case "create_workstation_run": {
+      const createMetadata = payload.metadata ?? {};
+      const hasHpcContractInput = Object.keys(createMetadata).some((key) => [
+        "hpc_execution_contract", "job_id", "credential_profile", "resource_profile", "execution_backend",
+      ].includes(key));
+      const hpcExecutionContract = hasHpcContractInput
+        ? parseHpcExecutionContract(createMetadata, { required: false })
+        : null;
+      const objective = typeof createMetadata.objective === "string" ? createMetadata.objective : undefined;
       const created = await createWorkstationRun({
         taskId,
-        trigger: String(payload.metadata?.trigger ?? "frontend_action"),
-        configPath: typeof payload.metadata?.config_path === "string" ? payload.metadata.config_path : undefined,
-        competitionSlug: typeof payload.metadata?.competition_slug === "string" ? payload.metadata.competition_slug : undefined,
-        objective: typeof payload.metadata?.objective === "string" ? payload.metadata.objective : undefined
+        trigger: String(createMetadata.trigger ?? "frontend_action"),
+        configPath: typeof createMetadata.config_path === "string" ? createMetadata.config_path : undefined,
+        competitionSlug: typeof createMetadata.competition_slug === "string" ? createMetadata.competition_slug : undefined,
+        objective,
+        executionBackend: typeof createMetadata.execution_backend === "string" ? createMetadata.execution_backend : undefined,
+        requiresHpc: taskRequiresHpcExecutionContract(taskId, createMetadata),
+        hpcExecutionContract,
       });
       return created;
     }
     case "tasks_dispatch_agents":
     case "dispatch_task_agents": {
-      const objective = typeof payload.metadata?.objective === "string" && payload.metadata.objective.trim()
-        ? payload.metadata.objective.trim().slice(0, 6000)
-        : `Execute the local research workflow for task ${taskId}. Produce a bounded plan, durable evidence, gate decisions, and a report-ready result without invoking irreversible external actions.`;
-      const created = await createWorkstationRun({
-        taskId,
-        trigger: "tasks_screen_agent_dispatch",
-        objective
+      const dispatchMetadata = payload.metadata ?? {};
+      const requestedRunId = typeof dispatchMetadata.run_id === "string" && dispatchMetadata.run_id.trim()
+        ? dispatchMetadata.run_id.trim()
+        : null;
+      let run = requestedRunId
+        ? await prisma.experimentRun.findFirst({ where: { id: requestedRunId, taskId } })
+        : await prisma.experimentRun.findFirst({
+            where: { taskId, status: { in: ["APPROVED", "WAIT_PLAN_GATE", "PLANNING", "EXECUTING"] } },
+            orderBy: { createdAt: "desc" },
+          });
+      const storedMetrics = decodeJson<Record<string, unknown>>(run?.metricsJson) ?? {};
+      const storedContract = storedMetrics.hpc_execution_contract;
+      const contractInput = Object.keys(dispatchMetadata).some((key) => [
+        "hpc_execution_contract", "job_id", "credential_profile", "resource_profile", "execution_backend",
+      ].includes(key)) ? dispatchMetadata : (storedContract ?? dispatchMetadata);
+      const hpcContract = parseHpcExecutionContract(contractInput, {
+        required: taskRequiresHpcExecutionContract(taskId, {
+          ...storedMetrics,
+          ...dispatchMetadata,
+          hpc_execution_contract: contractInput,
+        }),
       });
-      const runId = created.run_id;
-      const requestPath = `workspace/evomind_requests/${runId}.txt`;
-      await writeTextArtifact(requestPath, objective);
-      const pythonPath = [resolveWorkspacePath("src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
-      const executionDisabled = process.env.WORKSTATION_DISABLE_AGENT_EXECUTION === "1";
-      if (!executionDisabled) {
-        void runManagedCommand({
-          command: pythonExecutable(),
-          args: ["-m", "xsci.multi_agent_cli", "run", "--request-file", resolveWorkspacePath(requestPath), "--run-id", runId],
-          cwd: workspaceRoot,
-          env: { ...process.env, PYTHONPATH: pythonPath },
-          timeout: 45 * 60 * 1000,
+      const objective = typeof dispatchMetadata.objective === "string" && dispatchMetadata.objective.trim()
+        ? dispatchMetadata.objective.trim().slice(0, 6000)
+        : typeof storedMetrics.objective === "string" && storedMetrics.objective.trim()
+          ? storedMetrics.objective.trim().slice(0, 6000)
+          : `Execute the governed research workflow for task ${taskId}. Produce a bounded plan, durable evidence, gate decisions, and a report-ready result without invoking irreversible external actions.`;
+
+      if (!run) {
+        const created = await createWorkstationRun({
+          taskId,
+          trigger: "tasks_screen_agent_dispatch",
+          objective,
+        });
+        run = await prisma.experimentRun.findUniqueOrThrow({ where: { id: created.run_id } });
+      }
+
+      const runId = run.id;
+      const requestPath = typeof storedMetrics.request_path === "string"
+        ? storedMetrics.request_path
+        : `workspace/evomind_requests/${runId}.txt`;
+      const requestText = hpcContract
+        ? [
+            objective,
+            "",
+            `Dataset: ${taskId}.`,
+            "Execution backend: HPC. Do not use local GPU.",
+            "Official submission is forbidden.",
+          ].join("\n")
+        : objective;
+      await writeTextArtifact(requestPath, requestText);
+      const hpcCluster = hpcContract ? (hpcContract.resource_profile.split("_")[0] || "hpc") : null;
+      const hpcDispatchContractPath = hpcContract
+        ? await writeJsonArtifact(`${run.outputDir ?? `workspace/workstation_runs/${taskId}/${runId}`}/hpc_dispatch_contract.json`, {
+            schema: "evomind.hpc_dispatch_contract.v1",
+            run_id: runId,
+            task_id: taskId,
+            job_id: hpcContract.job_id,
+            cluster: hpcCluster,
+            credential_profile: hpcContract.credential_profile,
+            resource_profile: hpcContract.resource_profile,
+            execution_backend: hpcContract.execution_backend,
+            status: "RESERVED",
+            remote_job_receipt: null,
+            created_at: new Date().toISOString(),
+          })
+        : null;
+      if (hpcContract && hpcCluster && hpcDispatchContractPath) {
+        await bindHpcJobIdentity({
+          runId,
+          taskId,
+          jobId: hpcContract.job_id,
+          cluster: hpcCluster,
+          owner: "workstation_orchestrator",
+          status: "RESERVED",
+          credentialProfile: hpcContract.credential_profile,
+          resourceProfile: hpcContract.resource_profile,
+          executionBackend: hpcContract.execution_backend,
+          dispatchContractPath: hpcDispatchContractPath,
+        });
+      }
+      const stateHistory = Array.isArray(storedMetrics.state_history)
+        ? storedMetrics.state_history.map(String)
+        : ["CREATED", "PLANNING", "WAIT_PLAN_GATE"];
+      const persistedMetrics = {
+        ...storedMetrics,
+        workstation_run: true,
+        direct_training_allowed: false,
+        official_submission_allowed: false,
+        objective,
+        request_path: requestPath,
+        hpc_execution_contract: hpcContract,
+        hpc_dispatch_contract: hpcDispatchContractPath,
+        run_state: run.status,
+        state_history: stateHistory,
+      };
+      await prisma.experimentRun.update({
+        where: { id: runId },
+        data: { metricsJson: encodeJson(persistedMetrics) },
+      });
+
+      const planGate = await prisma.gate.findFirst({
+        where: { taskId, runId, gateType: "plan_approval" },
+        orderBy: { createdAt: "desc" },
+      });
+      if (!canExecuteRun(run.status, planGate?.decision ?? "pending")) {
+        const record = await logAction({
+          action: "dispatch_wait_plan_gate",
           taskId,
           runId,
-          onStart: async (pid) => {
-            await prisma.experimentRun.update({ where: { id: runId }, data: { status: "running", processId: pid, startedAt: new Date() } });
-          }
-        }).then(async () => {
-          await prisma.experimentRun.update({ where: { id: runId }, data: { status: "completed", processId: null, finishedAt: new Date() } }).catch(() => undefined);
-        }).catch(async (error) => {
-          await prisma.experimentRun.update({
-            where: { id: runId },
-            data: { status: "failed", processId: null, finishedAt: new Date(), metricsJson: encodeJson({ dispatch_error: error instanceof Error ? error.message : String(error) }) }
-          }).catch(() => undefined);
+          message: "Agent execution is waiting for plan_approval.",
+          artifactPath: requestPath,
+          metadata: {
+            execution_started: false,
+            run_state: run.status,
+            gate_id: planGate?.id ?? null,
+            gate_decision: planGate?.decision ?? "missing",
+            hpc_execution_contract: hpcContract,
+          },
         });
-      } else {
-        await prisma.experimentRun.update({ where: { id: runId }, data: { status: "queued" } });
+        return {
+          ok: true,
+          ...record,
+          run_id: runId,
+          status: run.status === "APPROVED" ? "APPROVED" : "WAIT_PLAN_GATE",
+          request_path: requestPath,
+          execution_started: false,
+          required_gate: "plan_approval",
+          gate_id: planGate?.id ?? null,
+          hpc_execution_contract: hpcContract,
+        };
       }
+
+      const pythonPath = [resolveWorkspacePath("src"), process.env.PYTHONPATH].filter(Boolean).join(path.delimiter);
+      const executionDisabled = process.env.WORKSTATION_DISABLE_AGENT_EXECUTION === "1";
+      if (executionDisabled) {
+        return {
+          ok: true,
+          run_id: runId,
+          status: "APPROVED",
+          request_path: requestPath,
+          execution_started: false,
+          execution_disabled: true,
+          hpc_execution_contract: hpcContract,
+        };
+      }
+
+      const claimed = await prisma.experimentRun.updateMany({
+        where: { id: runId, taskId, status: "APPROVED" },
+        data: {
+          status: "EXECUTING",
+          metricsJson: encodeJson({
+            ...persistedMetrics,
+            run_state: "EXECUTING",
+            state_history: [...stateHistory, "EXECUTING"],
+          }),
+        },
+      });
+      if (claimed.count !== 1) {
+        throw new Error(`Run ${runId} is not in the APPROVED state.`);
+      }
+      await writeRunLedger({
+        taskId,
+        runId,
+        status: "EXECUTING",
+        lifecycleState: "EXECUTING",
+        source: "workstation_database",
+        outputDir: run.outputDir,
+      });
+
+      const commandArgs = ["-m", "xsci.multi_agent_cli", "run", "--request-file", resolveWorkspacePath(requestPath), "--run-id", runId];
+      if (hpcContract) {
+        commandArgs.push(
+          "--hpc-job-id", String(hpcContract.job_id),
+          "--hpc-credential-profile", hpcContract.credential_profile,
+          "--hpc-resource-profile", hpcContract.resource_profile,
+          "--execution-backend", hpcContract.execution_backend,
+        );
+      }
+      const managedEnvironment = (
+        hpcContract
+          ? buildHpcSubprocessEnvironment(process.env, hpcContract)
+          : { ...process.env }
+      ) as unknown as NodeJS.ProcessEnv;
+      managedEnvironment.PYTHONPATH = pythonPath;
+      void runManagedCommand({
+        command: pythonExecutable(),
+        args: commandArgs,
+        cwd: workspaceRoot,
+        env: managedEnvironment,
+        timeout: 45 * 60 * 1000,
+        taskId,
+        runId,
+        onStart: async (pid) => {
+          await prisma.experimentRun.update({ where: { id: runId }, data: { processId: pid, startedAt: new Date() } });
+          await writeRunLedger({
+            taskId,
+            runId,
+            status: "EXECUTING",
+            lifecycleState: "EXECUTING",
+            source: "workstation_database",
+            processId: pid,
+            outputDir: run.outputDir,
+          });
+          if (hpcContract && hpcCluster) {
+            await bindHpcJobIdentity({
+              runId,
+              taskId,
+              jobId: hpcContract.job_id,
+              cluster: hpcCluster,
+              owner: "workstation_orchestrator",
+              status: "DISPATCHED",
+              credentialProfile: hpcContract.credential_profile,
+              resourceProfile: hpcContract.resource_profile,
+              executionBackend: hpcContract.execution_backend,
+              dispatchContractPath: hpcDispatchContractPath,
+            });
+          }
+        },
+      }).then(async () => {
+        let hpcReceiptPath: string | null = null;
+        if (hpcContract && hpcCluster) {
+          hpcReceiptPath = `workspace/evomind_runs/${runId}/hpc_job_receipt.json`;
+          const receipt = await readJsonFile(resolveWorkspacePath(hpcReceiptPath));
+          if (
+            receipt?.schema !== "evomind.hpc_job_receipt.v1"
+            || receipt.run_id !== runId
+            || String(receipt.job_id) !== String(hpcContract.job_id)
+            || receipt.verified !== true
+          ) {
+            throw new Error("Missing verified HPC remote job receipt");
+          }
+          await bindHpcJobIdentity({
+            runId,
+            taskId,
+            jobId: hpcContract.job_id,
+            cluster: hpcCluster,
+            owner: "workstation_orchestrator",
+            status: "COMPLETED",
+            credentialProfile: hpcContract.credential_profile,
+            resourceProfile: hpcContract.resource_profile,
+            executionBackend: hpcContract.execution_backend,
+            dispatchContractPath: hpcDispatchContractPath,
+            remoteReceiptPath: hpcReceiptPath,
+          });
+        }
+        const transitioned = await prisma.experimentRun.updateMany({
+          where: { id: runId, status: "EXECUTING" },
+          data: {
+            status: "WAIT_RESULT_GATE",
+            processId: null,
+            finishedAt: new Date(),
+            metricsJson: encodeJson({
+              ...persistedMetrics,
+              run_state: "WAIT_RESULT_GATE",
+              state_history: [...stateHistory, "EXECUTING", "WAIT_RESULT_GATE"],
+            }),
+          },
+        }).catch(() => ({ count: 0 }));
+        if (transitioned.count === 1) {
+          await writeRunLedger({
+            taskId,
+            runId,
+            status: "WAIT_RESULT_GATE",
+            lifecycleState: "WAIT_RESULT_GATE",
+            source: "workstation_database",
+            processId: null,
+            outputDir: run.outputDir,
+          });
+        }
+      }).catch(async (error) => {
+        const failureArtifact = await writeDispatchFailureBundle({ taskId, runId, error }).catch(() => null);
+        await prisma.experimentRun.update({
+          where: { id: runId },
+          data: {
+            status: "FAILED",
+            processId: null,
+            finishedAt: new Date(),
+            metricsJson: encodeJson({
+              ...persistedMetrics,
+              run_state: "FAILED",
+              state_history: [...stateHistory, "EXECUTING", "FAILED"],
+              dispatch_error: error instanceof Error ? error.message : String(error),
+              failure_artifact: failureArtifact,
+            }),
+          },
+        }).catch(() => undefined);
+        await writeRunLedger({
+          taskId,
+          runId,
+          status: "FAILED",
+          lifecycleState: "FAILED",
+          source: "workstation_database",
+          processId: null,
+          outputDir: run.outputDir,
+          metadata: { failure_artifact: failureArtifact },
+        }).catch(() => undefined);
+        if (hpcContract && hpcCluster) {
+          await bindHpcJobIdentity({
+            runId,
+            taskId,
+            jobId: hpcContract.job_id,
+            cluster: hpcCluster,
+            owner: "workstation_orchestrator",
+            status: "FAILED",
+            credentialProfile: hpcContract.credential_profile,
+            resourceProfile: hpcContract.resource_profile,
+            executionBackend: hpcContract.execution_backend,
+            dispatchContractPath: hpcDispatchContractPath,
+          }).catch(() => undefined);
+        }
+      });
       const record = await logAction({
         action: "dispatch_task_agents",
         taskId,
         runId,
-        message: executionDisabled ? "Agent dispatch queued with execution disabled for isolated verification." : "Local multi-agent execution dispatched.",
+        message: "Approved multi-agent execution dispatched.",
         artifactPath: requestPath,
-        metadata: { objective, execution_started: !executionDisabled, irreversible_actions: "human_gate" }
+        metadata: {
+          objective,
+          execution_started: true,
+          irreversible_actions: "human_gate",
+          hpc_execution_contract: hpcContract,
+        }
       });
       return {
         ok: true,
         ...record,
         run_id: runId,
-        status: executionDisabled ? "queued" : "starting",
+        status: "EXECUTING",
         request_path: requestPath,
-        execution_started: !executionDisabled,
+        execution_started: true,
+        hpc_execution_contract: hpcContract,
         snapshot_url: `/api/multi-agent/runs/${encodeURIComponent(runId)}`,
         events_url: `/api/multi-agent/runs/${encodeURIComponent(runId)}/events?after_seq=0`
       };
@@ -2902,6 +3235,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
     }
     case "run_s6e6_workstation_closed_loop": {
       return runS6E6WorkstationClosedLoop({
+        runId: typeof payload.metadata?.run_id === "string" ? payload.metadata.run_id : undefined,
         allowOfficialSubmitAfterGate: payload.metadata?.allow_official_submit_after_gate === true,
         submitMessage: typeof payload.metadata?.submit_message === "string" ? payload.metadata.submit_message : undefined,
         gpuTemplate: typeof payload.metadata?.gpu_template === "string" ? payload.metadata.gpu_template : undefined
@@ -2953,15 +3287,8 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
       };
     }
     case "run_s6e6_boosting_ensemble": {
-      if (payload.metadata?.hpc_execution_approved !== true) {
-        return prepareS6E6HpcApprovalRequired({
-          action,
-          taskId: "playground_series_s6e6",
-          requestedTemplate: "playground_s6e6_boosting_ensemble",
-          submitMessage: "Research Agent Workstation Boosting Ensemble LGB+XGB+CAT no fallback"
-        });
-      }
       return runS6E6WorkstationClosedLoop({
+        runId: typeof payload.metadata?.run_id === "string" ? payload.metadata.run_id : undefined,
         allowOfficialSubmitAfterGate: false,
         gpuTemplate: "playground_s6e6_boosting_ensemble",
         submitMessage: "Research Agent Workstation Boosting Ensemble LGB+XGB+CAT no fallback",
@@ -3010,7 +3337,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
         return { ok: false, status: "blocked", error: "No strategies recommended for this task.", profile: strategies.profile };
       }
       const top = strategies.recommendations[0];
-      const forceFreshTraining = payload.metadata?.fresh_training === true || payload.metadata?.force_fresh_training === true || payload.metadata?.hpc_execution_approved === true;
+      const forceFreshTraining = payload.metadata?.fresh_training === true || payload.metadata?.force_fresh_training === true;
       if (!forceFreshTraining && taskId === "playground_series_s6e6") {
         return runS6E6ArtifactReplayCandidate({
           experiment_id: "EXP017",
@@ -3020,23 +3347,8 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
           policy: "score_safe_replay_before_fresh_training"
         });
       }
-      if (payload.metadata?.hpc_execution_approved !== true) {
-        return prepareS6E6HpcApprovalRequired({
-          action,
-          taskId,
-          requestedTemplate: top.strategy.gpu_template,
-          selectedStrategy: {
-            rank: top.rank,
-            score: top.score,
-            strategy_id: top.strategy.strategy_id,
-            label: top.strategy.label,
-            gpu_template: top.strategy.gpu_template,
-            score_gate: top.score_gate
-          },
-          submitMessage: `Research Agent Workstation Strategy: ${top.strategy.label} (rank=${top.rank} score=${top.score})`
-        });
-      }
       return runS6E6WorkstationClosedLoop({
+        runId: typeof payload.metadata?.run_id === "string" ? payload.metadata.run_id : undefined,
         allowOfficialSubmitAfterGate: false,
         gpuTemplate: top.strategy.gpu_template,
         submitMessage: `Research Agent Workstation Strategy: ${top.strategy.label} (rank=${top.rank} score=${top.score})`
@@ -3474,15 +3786,23 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
     case "approve_submission":
     case "reject_submission": {
       const decision = action.includes("approve") ? "approved" : "rejected";
-      const runId = await latestRunId(taskId);
+      const runId = typeof payload.metadata?.run_id === "string" && payload.metadata.run_id.trim()
+        ? payload.metadata.run_id.trim()
+        : await latestRunId(taskId);
       const requestedGateId = typeof payload.metadata?.gate_id === "string" ? payload.metadata.gate_id : undefined;
       const requestedGateType = typeof payload.metadata?.gate_type === "string" ? payload.metadata.gate_type : undefined;
       const gateType = action.includes("submission") ? "submission_approval" : (requestedGateType ?? "manual_gate");
-      const existingGate = requestedGateId
+      let existingGate = requestedGateId
         ? await prisma.gate.findUnique({ where: { id: requestedGateId } })
         : requestedGateType
           ? await prisma.gate.findFirst({ where: { taskId, runId, gateType: requestedGateType }, orderBy: { createdAt: "desc" } })
           : null;
+      if (existingGate && (existingGate.taskId !== taskId || existingGate.runId !== runId)) {
+        throw new Error("Gate identity does not match the selected task and run.");
+      }
+      if ((requestedGateId || requestedGateType) && !existingGate) {
+        throw new Error("The requested Gate does not exist for the selected run.");
+      }
       const artifact = await writeJsonArtifact(`workspace/gates/${gateType}_${stamp()}.json`, {
         task_id: taskId,
         gate_type: gateType,
@@ -3519,6 +3839,117 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
             decidedAt: new Date()
           }
         });
+      let runStatus: string | null = null;
+      if (gate.gateType === "plan_approval" && runId) {
+        const currentRun = await prisma.experimentRun.findFirst({ where: { id: runId, taskId } });
+        if (!currentRun) throw new Error("The plan Gate run does not exist.");
+        if (decision === "approved") {
+          const transitioned = await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: "WAIT_PLAN_GATE" },
+            data: { status: "APPROVED" },
+          });
+          if (transitioned.count !== 1 && currentRun.status !== "APPROVED") {
+            throw new Error(`Plan approval requires WAIT_PLAN_GATE; current state is ${currentRun.status}.`);
+          }
+          runStatus = "APPROVED";
+          await writeRunLedger({
+            taskId,
+            runId,
+            status: "APPROVED",
+            lifecycleState: "APPROVED",
+            source: "workstation_database",
+            outputDir: currentRun.outputDir,
+            metadata: { gate_id: gate.id, gate_type: gate.gateType, decision },
+          });
+        } else {
+          await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: { in: ["WAIT_PLAN_GATE", "APPROVED"] } },
+            data: { status: "FAILED", finishedAt: new Date() },
+          });
+          runStatus = "FAILED";
+          await writeRunLedger({
+            taskId,
+            runId,
+            status: "FAILED",
+            lifecycleState: "FAILED",
+            source: "workstation_database",
+            outputDir: currentRun.outputDir,
+            metadata: { gate_id: gate.id, gate_type: gate.gateType, decision },
+          });
+        }
+      } else if (gate.gateType === "result_approval" && runId) {
+        const currentRun = await prisma.experimentRun.findFirst({ where: { id: runId, taskId } });
+        if (!currentRun) throw new Error("The result Gate run does not exist.");
+        if (decision === "approved") {
+          const transitioned = await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: "WAIT_RESULT_GATE" },
+            data: { status: "REPORTING" },
+          });
+          if (transitioned.count !== 1 && currentRun.status !== "REPORTING") {
+            throw new Error(`Result approval requires WAIT_RESULT_GATE; current state is ${currentRun.status}.`);
+          }
+          runStatus = "REPORTING";
+        } else {
+          await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: { in: ["WAIT_RESULT_GATE", "REPORTING"] } },
+            data: { status: "FAILED", finishedAt: new Date() },
+          });
+          runStatus = "FAILED";
+        }
+        await writeRunLedger({
+          taskId,
+          runId,
+          status: runStatus,
+          lifecycleState: runStatus,
+          source: "workstation_database",
+          outputDir: currentRun.outputDir,
+          metadata: { gate_id: gate.id, gate_type: gate.gateType, decision },
+        });
+      } else if (gate.gateType === "final_report_approval" && runId) {
+        const currentRun = await prisma.experimentRun.findFirst({ where: { id: runId, taskId } });
+        if (!currentRun) throw new Error("The final report Gate run does not exist.");
+        if (decision === "approved") {
+          const resultGate = await prisma.gate.findFirst({
+            where: { taskId, runId, gateType: "result_approval", decision: "approved" },
+            orderBy: { decidedAt: "desc" },
+          });
+          if (!resultGate) throw new Error("Final report approval requires an approved result_approval Gate.");
+          const report = await prisma.report.findFirst({ where: { taskId, runId }, orderBy: { updatedAt: "desc" } });
+          const candidatePaths = [
+            report?.markdownPath,
+            `workspace/evomind_runs/${runId}/research_report.md`,
+            currentRun.outputDir ? `${currentRun.outputDir}/research_report.md` : null,
+          ].filter((value): value is string => Boolean(value));
+          const reportPath = (await Promise.all(candidatePaths.map(async (candidate) => ({
+            candidate,
+            exists: await fs.access(resolveWorkspacePath(candidate)).then(() => true).catch(() => false),
+          })))).find((item) => item.exists)?.candidate;
+          if (!reportPath) throw new Error("Final report approval requires a durable research report artifact.");
+          const transitioned = await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: "REPORTING" },
+            data: { status: "COMPLETED", finishedAt: new Date() },
+          });
+          if (transitioned.count !== 1 && currentRun.status !== "COMPLETED") {
+            throw new Error(`Final report approval requires REPORTING; current state is ${currentRun.status}.`);
+          }
+          runStatus = "COMPLETED";
+        } else {
+          await prisma.experimentRun.updateMany({
+            where: { id: runId, taskId, status: "REPORTING" },
+            data: { status: "FAILED", finishedAt: new Date() },
+          });
+          runStatus = "FAILED";
+        }
+        await writeRunLedger({
+          taskId,
+          runId,
+          status: runStatus,
+          lifecycleState: runStatus,
+          source: "workstation_database",
+          outputDir: currentRun.outputDir,
+          metadata: { gate_id: gate.id, gate_type: gate.gateType, decision },
+        });
+      }
       const record = await logAction({
         action,
         taskId,
@@ -3532,7 +3963,7 @@ export async function handleWorkstationAction(payload: WorkstationActionPayload)
           target_gate_found: Boolean(existingGate)
         }
       });
-      return { ok: true, ...record, decision, gate_id: gate.id, gate_type: gate.gateType, target_gate_found: Boolean(existingGate) };
+      return { ok: true, ...record, decision, gate_id: gate.id, gate_type: gate.gateType, target_gate_found: Boolean(existingGate), run_status: runStatus };
     }
     case "audit_s6e6_submission": {
       const runId = typeof payload.metadata?.run_id === "string" && payload.metadata.run_id.trim()

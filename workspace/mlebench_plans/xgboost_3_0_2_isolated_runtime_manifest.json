@@ -1,0 +1,29 @@
+{
+  "schema": "evomind.isolated_python_package_runtime.v1",
+  "created_at": "2026-07-27T08:31:40.565571+08:00",
+  "status": "hash_verified_import_smoke_passed",
+  "python": "D:\\桌面\\codex\\科研港科技\\workspace\\release-venv\\Scripts\\python.exe",
+  "package_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\runtime_packages\\xgboost_3_0_2",
+  "package": "xgboost",
+  "version": "3.0.2",
+  "module": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\runtime_packages\\xgboost_3_0_2\\xgboost\\__init__.py",
+  "tree_sha256": "66e116db1a91e549bf6a82711607aad6f4487d9e3601787025433c600d8d818e",
+  "file_count": 82,
+  "total_bytes": 212664961,
+  "important_files": {
+    "xgboost/lib/xgboost.dll": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\runtime_packages\\xgboost_3_0_2\\xgboost\\lib\\xgboost.dll",
+      "bytes": 211156480,
+      "sha256": "ab7e76f1d4ea3a1d96b02d86f7be7b507217eb0afd304b3884cfd360a602d3fb"
+    },
+    "xgboost-3.0.2.dist-info/METADATA": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\runtime_packages\\xgboost_3_0_2\\xgboost-3.0.2.dist-info\\METADATA",
+      "bytes": 2070,
+      "sha256": "151271116936eb4d5ffc6fcbc87748cf7eb20aeb6bbb335e0bd0631d7adbf9a5"
+    }
+  },
+  "installation": "pip --no-deps --target isolated package root",
+  "global_environment_modified": false,
+  "training_process_modified": false,
+  "process_signals_sent": 0
+}

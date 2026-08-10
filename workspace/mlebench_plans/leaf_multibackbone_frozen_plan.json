@@ -1,0 +1,140 @@
+{
+  "schema": "evomind.leaf.multibackbone_frozen_plan.v1",
+  "created_at": "2026-07-27T01:53:51.456802+08:00",
+  "status": "frozen_waiting_after_siim",
+  "competition_id": "leaf-classification",
+  "objective": {
+    "metric": "multiclass_log_loss",
+    "direction": "minimize",
+    "historical_official_score": 2.43276,
+    "bronze_threshold": 0.01526,
+    "promotion_mean_log_loss": 0.0135,
+    "promotion_max_seed_log_loss": 0.0135,
+    "official_score_claimed": false
+  },
+  "planner": {
+    "provider": "openai_compatible_local_gateway",
+    "requested_model": "gpt-5.6-sol",
+    "served_model": "gpt-5.6-sol",
+    "parse_ok": true,
+    "source": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\medal_recovery_deep_gpt56_review_current.json",
+      "bytes": 40378,
+      "sha256": "c90f066706d92d03c2c22932738714d407bf3d1c1bc76b5c49d70829494a1215"
+    },
+    "response_sha256": "1c00413a235cde787cc9dae03c706e9790ed780498f6abfcb9c25fa35c79d4e0"
+  },
+  "training": {
+    "python": "D:\\桌面\\codex\\科研港科技\\workspace\\local-gpu-venv\\Scripts\\python.exe",
+    "script": "D:\\桌面\\codex\\科研港科技\\scripts\\run_leaf_multibackbone_oof.py",
+    "run_id": "local4060_leaf_dualbb_s404142_20260727_0154",
+    "data_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data",
+    "output_root": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_multibackbone",
+    "torch_home": "D:\\桌面\\codex\\科研港科技\\mlebench_model_cache\\torch",
+    "seeds": [
+      40,
+      41,
+      42
+    ],
+    "folds": 5,
+    "backbones": [
+      "convnext_small",
+      "efficientnet_v2_s"
+    ],
+    "image_size": 288,
+    "batch_size": 32,
+    "workers": 4,
+    "manifest_workers": 8,
+    "tta": 8,
+    "numeric_c": 10.0,
+    "image_c": 8.0,
+    "multimodal_c": 10.0,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false
+  },
+  "data_contract": {
+    "inventory": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\leaf-classification\\public_staging_inventory.json",
+      "bytes": 69416,
+      "sha256": "41503b5d3aa865aaa7546ce701395b63b16a732f158ef9264a30f7185ab8912a"
+    },
+    "manifest_sha256": "832ea9e3f990b44c38f8f7d82bf8eeba25ae864ef55f6b0b4a70ac754c198e0e",
+    "file_count": 994,
+    "total_bytes": 28617101,
+    "image_count": 990,
+    "private_paths_requested": false,
+    "remote_writes_performed": false
+  },
+  "implementation": {
+    "runner": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\run_leaf_multibackbone_oof.py",
+      "bytes": 36588,
+      "sha256": "a7d602eee5a5feee739faabd2385645b213e04fb67d2ab7d6220947d4b02da16"
+    },
+    "preflight": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_preflight_current.json",
+      "bytes": 3493,
+      "sha256": "60517059ea0a152f97b0328e1020648ba266e5737485fbdf11ba3ad41a034a30"
+    },
+    "stager": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\stage_leaf_public_from_hpc.py",
+      "bytes": 11283,
+      "sha256": "f449336018809d829f186f9c57150708916a5cdaeab3a4f41e79ac56951204e9"
+    },
+    "queue": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\queue_leaf_after_siim.py",
+      "bytes": 26734,
+      "sha256": "c3f972439d73115e943bb361a01a530d6c8cc91606a016e7eb6d7b6d8eeb56ab"
+    },
+    "idle_gate": {
+      "path": "D:\\桌面\\codex\\科研港科技\\scripts\\local_rtx4060_idle_gate.py",
+      "bytes": 7878,
+      "sha256": "ee9fef46a5fdfebf4b135bb80314a270d6043a808a7811b949298c621f495f37"
+    }
+  },
+  "serial_dependency": {
+    "siim_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_frozen_plan.json",
+      "bytes": 6312,
+      "sha256": "7bdf51b2d8f2599acb7646c5fa81e029113af17b76447367eef45ee837ab8cd6"
+    },
+    "siim_run_id": "local4060_siim_preproc5_s42_20260727_0127",
+    "siim_report": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_preprocessing_ablation\\runs\\local4060_siim_preproc5_s42_20260727_0127\\siim_preprocessing_ablation.json",
+    "require_siim_report": true,
+    "siim_final": {
+      "plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_frozen_plan.json",
+        "bytes": 9710,
+        "sha256": "65c1a8ca52c6b4ea57d7dfa9fb4c6f6333d404708bcd5077cb18564491bb5012"
+      },
+      "run_id": "local4060_siim_final_candidate_s42_20260727_0418",
+      "watcher_status": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_final_candidate_completion_watcher_calibrated.json",
+      "terminal_statuses": [
+        "promotion_gate_passed_confirmation_pending",
+        "promotion_gate_failed",
+        "verification_invocation_failed"
+      ]
+    }
+  },
+  "launch_contract": {
+    "gpu_idle_consecutive_checks": 3,
+    "no_python_compute_process": true,
+    "process_signals_sent": 0,
+    "automatic_kaggle_submission": false,
+    "automatic_official_grader": false,
+    "gpu_idle_gate_mode": "calibrated_wddm_multimetric_v1",
+    "gpu_idle_minimum_check_interval_seconds": 10,
+    "idle_gate_policy": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\local_rtx4060_wddm_idle_gate_frozen.json",
+      "sha256": "c78069d8af48a37c9ba82a0f279b6b29201b75014285bde63e477d20e7e8c2d1"
+    }
+  },
+  "claim_boundary": "Frozen Leaf public OOF plan queued after SIIM; not an OOF score or official medal.",
+  "operational_revision": {
+    "created_at": "2026-07-27T07:20:48.916212+08:00",
+    "reason": "Replace the known-false-busy WDDM utilization-only gate and make SIIM final independent verification an explicit predecessor.",
+    "model_data_folds_seeds_backbones_and_promotion_thresholds_changed": false,
+    "process_signals_sent": 0
+  }
+}

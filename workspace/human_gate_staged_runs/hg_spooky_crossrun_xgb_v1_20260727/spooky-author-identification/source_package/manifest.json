@@ -1,0 +1,58 @@
+{
+  "schema": "evomind.human_gate.candidate_package.v1",
+  "created_at": "2026-07-27T12:23:44.643949+08:00",
+  "status": "ready_for_human_review_not_submitted",
+  "competition_id": "spooky-author-identification",
+  "official_current_score": 0.37367,
+  "bronze_threshold_reference": 0.29381,
+  "public_oof_metrics": {
+    "seed_log_loss": [
+      0.2816261278217335,
+      0.28163016117587514,
+      0.2816864430208354
+    ],
+    "minimum_seed_log_loss": 0.2816261278217335,
+    "mean_seed_log_loss": 0.28164757733948137,
+    "maximum_seed_log_loss": 0.2816864430208354,
+    "seed_log_loss_population_std": 2.753147140690239e-05,
+    "ensemble_oof_log_loss": 0.28159599305517885
+  },
+  "candidate_ready_for_human_gate": true,
+  "files": [
+    {
+      "name": "candidate_submission_withheld.csv",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\candidate_submission_withheld.csv",
+      "bytes": 136216,
+      "sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    },
+    {
+      "name": "spooky_cross_run_xgb_confirmation_result.json",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\spooky_cross_run_xgb_confirmation_result.json",
+      "bytes": 4988,
+      "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742"
+    },
+    {
+      "name": "independent_verification.json",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\independent_verification.json",
+      "bytes": 1203,
+      "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed"
+    },
+    {
+      "name": "frozen_plan.json",
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\frozen_plan.json",
+      "bytes": 3307,
+      "sha256": "35f9dd831ba478f35913d77e55434f17b1e79c47d980eecadffa6e171e5b27d1"
+    }
+  ],
+  "required_human_actions": [
+    "Review the frozen plan, independent verification, and candidate CSV.",
+    "Explicitly approve any official grader execution or Kaggle submission in a later command.",
+    "Record the returned official score and medal outcome without substituting public OOF evidence."
+  ],
+  "automatic_submission": false,
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "claim_boundary": "Ready for Human Gate review only; official medal count remains unchanged."
+}

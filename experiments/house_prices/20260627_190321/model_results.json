@@ -1,0 +1,35 @@
+{
+  "metric": "rmsle",
+  "best_model": "gradient_boosting_log_target",
+  "selection_direction": "minimize",
+  "model_results": {
+    "ridge_log_target": {
+      "cv_rmsle_mean": 0.144948,
+      "cv_rmsle_std": 0.04029,
+      "holdout_rmsle": 0.136907,
+      "holdout_mae": 16213.414375,
+      "seconds": 0.2625
+    },
+    "random_forest_log_target": {
+      "cv_rmsle_mean": 0.142487,
+      "cv_rmsle_std": 0.018454,
+      "holdout_rmsle": 0.147242,
+      "holdout_mae": 17369.02039,
+      "seconds": 4.219
+    },
+    "extra_trees_log_target": {
+      "cv_rmsle_mean": 0.138377,
+      "cv_rmsle_std": 0.014014,
+      "holdout_rmsle": 0.147231,
+      "holdout_mae": 16555.736827,
+      "seconds": 4.8327
+    },
+    "gradient_boosting_log_target": {
+      "cv_rmsle_mean": 0.12899,
+      "cv_rmsle_std": 0.020176,
+      "holdout_rmsle": 0.129797,
+      "holdout_mae": 15187.626782,
+      "seconds": 50.5501
+    }
+  }
+}

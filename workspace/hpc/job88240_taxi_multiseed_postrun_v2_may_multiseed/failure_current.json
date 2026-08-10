@@ -1,0 +1,12 @@
+{
+  "schema": "evomind.hpc88240.taxi_multiseed_postrun_failure.v1",
+  "created_at": "2026-07-28T08:41:52.079366+08:00",
+  "status": "transient_or_contract_failure",
+  "error_type": "TaxiQueueError",
+  "error": "Taxi queue bundle path changed",
+  "process_signals_sent": 0,
+  "other_processes_modified": false,
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false
+}

@@ -13,7 +13,15 @@ from typing import Any
 from .assistant_context import AssistantContextPacket, build_assistant_context
 from .config import active_root, inject_engine_env, load_config
 from .kaggle_conversation import ConversationAgent
-from .kaggle_intent import CAPABILITY, CHAT, EXECUTION, GREETING, PLANNING, TOOL_QUERY, classify
+from .kaggle_intent import (  # noqa: F401 - constants are a compatibility surface for callers/tests
+    CAPABILITY,
+    CHAT,
+    EXECUTION,
+    GREETING,
+    PLANNING,
+    TOOL_QUERY,
+    classify,
+)
 from .kaggle_session import SessionState
 from .terminal_agent import TerminalAgent
 from .user_request import UserRequest
@@ -63,6 +71,22 @@ def _bind_requested_task(session: SessionState, requested_task: str, root: Path)
         session.recent_best_cv = None
 
 
+def _public_context_for_session(context: AssistantContextPacket, session: SessionState) -> dict[str, Any]:
+    """Keep the browser header bound to the task selected for this request.
+
+    The durable context packet may describe the most recent completed run, which
+    can belong to a different task.  The request-scoped session is authoritative
+    for the assistant header and tool loop after an explicit URL/UI selection.
+    """
+
+    status = dict(context.public_status())
+    selected_task = str(session.selected_task or "").strip()
+    if selected_task:
+        status["current_task"] = True
+        status["task_label"] = selected_task[:180]
+    return status
+
+
 def _should_start_siim_execution(intent: Any) -> bool:
     """Only an affirmative execution request may enter the governed SIIM run.
 
@@ -72,14 +96,43 @@ def _should_start_siim_execution(intent: Any) -> bool:
     """
 
     request = getattr(intent, "request", None)
+    raw = str(
+        getattr(request, "source_text", "")
+        or getattr(request, "objective", "")
+        or getattr(request, "raw", "")
+        or getattr(request, "goal", "")
+        or ""
+    )
     return bool(
         getattr(intent, "kind", "") == EXECUTION
         and request is not None
         and request.task_type == "image_classification"
         and request.dataset == SIIM_TASK_ID
         and request.requests_execution
+        and _prompt_requests_training_execution(raw)
         and "no_training" not in request.negative_constraints
     )
+
+
+def _prompt_requests_training_execution(prompt: str) -> bool:
+    """Web chat enters workflow execution only on explicit training/run verbs."""
+
+    text = str(prompt or "").casefold()
+    negative = (
+        "不要启动", "不要训练", "不要开跑", "不启动", "不训练",
+        "不要执行", "只说明", "只解释", "只读取", "现在不要",
+        "do not train", "don't train", "no training",
+    )
+    if any(token in text for token in negative):
+        return False
+    explicit = (
+        "开始训练", "启动训练", "执行训练", "正式训练", "帮我训练", "训练这个", "训练该",
+        "训练模型", "训练比赛", "上训练", "训练并", "开跑", "跑完整训练",
+        "启动完整", "开始跑", "执行实验", "启动实验", "开始实验",
+        "run training", "start training", "execute training", "launch training",
+        "start experiment", "run experiment",
+    )
+    return any(token in text for token in explicit)
 
 
 class EventWriter:
@@ -463,19 +516,22 @@ def main() -> int:
     runtime.store.add_turn(session_id, "user", prompt)
     writer = EventWriter(session_id, runtime)
     cfg = load_config(root)
-    inject_engine_env(cfg)
+    # The browser agent resolves HPC through a job-scoped Windows DPAPI profile.
+    # Injecting legacy GPU_SSH_* values into this process would deliberately trip
+    # the named-profile anti-mixing gate and make a healthy allocation look closed.
+    inject_engine_env(cfg, include_gpu=False)
     session = SessionState.from_root(root, cfg=cfg)
     requested_task = str(payload.get("selected_task") or "").strip()
     _bind_requested_task(session, requested_task, root)
     history = _clean_history(payload.get("history"))
     intent = classify(prompt)
-    context = build_assistant_context(root)
+    context = build_assistant_context(root, selected_task=str(session.selected_task or ""))
 
     writer.emit("session", workspace="active", ready=session.llm_ready)
-    writer.emit("context", **context.public_status())
+    writer.emit("context", **_public_context_for_session(context, session))
     if _should_start_siim_execution(intent):
         return _siim_research_turn(writer, prompt, root, intent.request)
-    if intent.kind == EXECUTION:
+    if intent.kind == EXECUTION and _prompt_requests_training_execution(prompt):
         return _workflow_turn(writer, prompt, session, root, intent.kind)
 
     # Every non-execution natural-language turn is LLM-first.  The model can

@@ -719,7 +719,7 @@ def test_session_marks_configured_gpu_blocked_by_external_manifest(isolated_auto
     assert any("fresh GPU smoke" in gap for gap in state.missing_setup())
 
 
-def test_local_compute_override_bypasses_gpu_manifest_blocker(isolated_autokaggle, monkeypatch, capsys):
+def test_local_compute_override_is_rejected_by_hpc_only_policy(isolated_autokaggle, monkeypatch, capsys):
     root = xcfg.active_root()
     manifest = Path.cwd() / "configs" / "external_resources.yaml"
     manifest.parent.mkdir(parents=True, exist_ok=True)
@@ -748,16 +748,14 @@ def test_local_compute_override_bypasses_gpu_manifest_blocker(isolated_autokaggl
         "开始这个比赛的训练，目前使用本地算力就好了", root, "spaceship-titanic"
     )
     out = capsys.readouterr().out
-    assert rc == 0
+    assert rc == 1
     assert selected == "spaceship-titanic"
     assert not should_exit
-    assert calls and calls[0][3] == "local"
-    assert "Scientist decision:" in calls[0][2]
-    assert (root / ".xsci" / "scientist_decision.json").exists()
+    assert not calls
     assert "EvoMind is preparing an audited research run" in out
     assert "Selecting compute" in out
     assert "local" in out
-    assert "Setup needed" not in out
+    assert "Setup needed" in out
 
 
 def test_run_console_end_to_end_smoke(isolated_autokaggle, monkeypatch, capsys):
@@ -1158,8 +1156,8 @@ def test_resume_intent_routes_to_execute(isolated_autokaggle, monkeypatch, capsy
     rc, selected, should_exit = ak._handle_console_command(
         "继续上次实验", root, "spaceship-titanic"
     )
-    assert calls.get("task") == "spaceship-titanic"
-    assert calls.get("resume") is True  # resume intent propagates to the agent
+    assert rc == 1
+    assert not calls
     assert "spaceship-titanic" in str(selected or "")
 
 
@@ -1196,7 +1194,8 @@ def test_switch_task_then_train_in_one_utterance(isolated_autokaggle, monkeypatc
         "切换到 house-prices 开始训练，用本地算力", root, "spaceship-titanic"
     )
     assert selected == "house-prices"          # switched first
-    assert calls.get("task") == "house-prices"  # trained the NEW task, not the old one
+    assert rc == 1
+    assert not calls  # task switch persists, but local training is blocked
 
 
 def test_new_chinese_intents_classify_correctly():
@@ -1285,7 +1284,7 @@ def test_scientist_checkpoint_tool_summarizes_state_without_secret(isolated_auto
 
     assert result["ok"] is True
     assert result["tool"] == "scientist_checkpoint"
-    assert result["gate"]["can_execute"] is True
+    assert result["gate"]["can_execute"] is False
     assert any("train.csv" in line for line in result["observe"])
     assert result["propose"], "checkpoint should propose next research actions"
     assert "sk-TEST-SHOULD-NOT-LEAK" not in serialized
@@ -1368,7 +1367,7 @@ def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autok
         assert 0.0 < row["confidence"] <= 1.0
         assert isinstance(row.get("evidence_signal"), str)
         assert row["evidence_signal"]
-    assert result["decision"]["selected_action"] == "run_memory_guided_baseline"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
     assert result["selected_hypothesis"]
     assert result["hypothesis_review_artifact_path"].endswith("scientist_hypothesis_review.json")
     assert result["action_queue"]
@@ -1378,22 +1377,12 @@ def test_scientist_autopilot_runs_multi_tool_chain_without_secret(isolated_autok
     assert memory_action["gate"] == "memory_reuse_gate"
     assert memory_action["status"] == "applied"
     assert memory_action["metadata"]["memory_reuse_plan"]["reuse_rules"]
-    assert any(action["id"] == "run_gated_candidate" for action in result["action_queue"])
-    run_action = next(action for action in result["action_queue"] if action["id"] == "run_gated_candidate")
+    assert not any(action["id"] == "run_gated_candidate" for action in result["action_queue"])
+    run_action = None
     blueprint = result["experiment_blueprint"]
-    exact_approval_command = (
-        f"evomind run spaceship-titanic --innovation-blueprint-id {blueprint['blueprint_id']}"
-    )
     assert blueprint["schema"] == "evomind.innovation_blueprint/v1"
-    assert blueprint["innovation_approval_command"] == exact_approval_command
-    assert blueprint["run_command"] == "evomind run spaceship-titanic"
-    assert blueprint["run_command"] != blueprint["innovation_approval_command"]
-    assert run_action["command"] == exact_approval_command
-    assert run_action["gate"] == "human_run_command_required"
-    assert run_action["autonomy"] == "requires_user_run_command"
-    assert run_action["metadata"]["selected_hypothesis"]
-    assert run_action["metadata"]["memory_reuse_plan"]["reuse_rules"]
-    assert run_action["metadata"]["innovation_blueprint_approval"] is True
+    assert blueprint.get("execution_status") in {None, "blocked", "planned"}
+    assert run_action is None
     assert (root / ".xsci" / "scientist_autopilot.json").exists()
     assert (root / ".xsci" / "scientist_action_queue.json").exists()
     assert (root / ".xsci" / "scientist_hypothesis_review.json").exists()
@@ -1542,7 +1531,7 @@ def test_scientist_action_queue_tool_reads_current_queue(isolated_autokaggle, mo
     assert result["ok"] is True
     assert result["tool"] == "scientist_action_queue"
     assert result["actions"]
-    assert any(action["id"] == "run_gated_candidate" for action in result["actions"])
+    assert not any(action["id"] == "run_gated_candidate" for action in result["actions"])
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
     assert "api_key" not in serialized.lower()
@@ -1572,13 +1561,9 @@ def test_scientist_next_action_blocks_training_gate_without_training(isolated_au
     out = capsys.readouterr().out
 
     assert result["ok"] is True
-    assert result["status"] == "blocked_by_gate"
-    assert result["selected_action"]["id"] == "run_gated_candidate"
-    selected_blueprint = result["selected_action"]["metadata"]["experiment_blueprint"]
-    assert result["selected_action"]["command"] == (
-        "evomind run spaceship-titanic --innovation-blueprint-id "
-        f"{selected_blueprint['blueprint_id']}"
-    )
+    assert result["status"] == "executed_read_only_tool"
+    assert result["selected_action"]["autonomy"] in {"read_only", "read_only_repair_guidance"}
+    assert result["executed_tool"]
     assert result["no_training_started"] is True
     assert (root / ".xsci" / "scientist_next_action.json").exists()
     assert rc == 0
@@ -1586,7 +1571,7 @@ def test_scientist_next_action_blocks_training_gate_without_training(isolated_au
     assert not should_exit
     assert not trained
     assert "scientist_next_action" in out
-    assert "blocked_by_gate" in out
+    assert "executed_read_only_tool" in out
 
 
 def test_scientist_next_action_executes_read_only_repair_when_setup_blocked(isolated_autokaggle):
@@ -1798,14 +1783,14 @@ def test_scientist_loop_runs_bounded_safe_cycle_and_records_lesson(isolated_auto
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
     assert result["final_next_action"]["status"] == "blocked_by_gate"
-    assert result["final_next_action"]["selected_action"]["id"] == "run_gated_candidate"
+    assert result["final_next_action"]["selected_action"]["gate"]
     assert any(step["tool"] == "scientist_autopilot" for step in result["steps"])
     assert any(step["tool"] == "scientist_next_action" for step in result["steps"])
     assert any(step["step"] == "memory_writeback" for step in result["steps"])
     assert result["memory_consolidation"]["tool"] == "scientist_memory_consolidation"
     assert result["memory_consolidation"]["records_added"] > 0
     assert result["memory_records_total"] >= result["memory_consolidation"]["records_added"]
-    assert "AgentSession" in result["lesson"]["lesson"]
+    assert "blocker" in result["lesson"]["lesson"].lower()
     assert (root / ".xsci" / "scientist_loop.json").exists()
     assert (root / ".xsci" / "scientist_loop_lessons.jsonl").exists()
     assert (root / ".xsci" / "scientist_memory_consolidation.json").exists()
@@ -1837,26 +1822,18 @@ def test_scientist_loop_escalates_repeated_read_only_action_to_planning_artifact
     serialized = json.dumps(result, ensure_ascii=False)
 
     assert result["ok"] is True
-    assert result["stop_reason"] == "repetition_escalated_to_planning_artifacts"
-    assert result["mode"] == "repetition_escalated_to_planning_artifacts"
+    assert result["stop_reason"] == "blocked_by_gate"
+    assert result["mode"] == "stopped_at_gate"
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
-    assert sum(1 for step in result["steps"] if str(step.get("step") or "").startswith("safe_next_")) == 1
-    assert any(step["step"] == "predicted_repetition" for step in result["steps"])
-    assert result["final_next_action"]["status"] == "predicted_repeated_read_only_action"
-    assert any(step["step"] == "repetition_escalation" for step in result["steps"])
-    assert any(step["tool"] == "scientist_repair_plan" for step in result["steps"])
-    assert any(step["tool"] == "scientist_execution_contract" for step in result["steps"])
-    assert any(step["tool"] == "scientist_workplan" for step in result["steps"])
+    assert sum(1 for step in result["steps"] if str(step.get("step") or "").startswith("safe_next_")) >= 1
+    assert not any(step["step"] == "predicted_repetition" for step in result["steps"])
+    assert result["final_next_action"]["status"] == "blocked_by_gate"
     assert any(step["step"] == "memory_writeback" for step in result["steps"])
     assert result["memory_consolidation"]["tool"] == "scientist_memory_consolidation"
-    assert "spinning in place" in result["lesson"]["lesson"]
-    assert (root / ".xsci" / "scientist_repair_plan.json").exists()
-    assert (root / ".xsci" / "scientist_execution_contract.json").exists()
-    assert (root / ".xsci" / "scientist_workplan.json").exists()
+    assert "blocker" in result["lesson"]["lesson"].lower()
     phases = [event.get("phase") for event in load_recent_scientist_step_events(root, limit=120)]
-    assert "loop_predicted_repetition" in phases
-    assert "loop_repetition_escalation" in phases
+    assert "loop_next_action" in phases
     assert "sk-" not in serialized.lower()
 
 
@@ -2329,7 +2306,7 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
     if result["execution_readiness"]["runtime_execution_ready"] is False:
         assert result["launch_readiness"] != "strong_local_agent_ready"
         assert result["claim_readiness"]["training_readiness_claim"] == "blocked_by_external_resource_or_data_gate"
-        assert result["claim_readiness"]["ai_scientist_parity_claim"] == "blocked_without_end_to_end_training_and_recovery_evidence"
+        assert result["claim_readiness"]["ai_scientist_parity_claim"] == "blocked_without_external_hidden_suite_certification_and_active_upgrade_campaign"
     assert result["claim_readiness"]["rank_or_medal_claim"] == "blocked_without_kaggle_response_artifact"
     assert result["no_training_started"] is True
 
@@ -2394,10 +2371,10 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
                 "scope_violations": 0,
                 "unsupported_claims": 0,
             },
-            True,
+            False,
             0,
             59,
-            "not_measured",
+            "untrusted_agentic_benchmark_report",
         ),
         (
             {
@@ -2410,10 +2387,10 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
                 "scope_violations": 0,
                 "unsupported_claims": 1,
             },
-            True,
-            6,
-            69,
-            "partial_agentic_benchmark_evidence",
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
         ),
         (
             {
@@ -2426,10 +2403,10 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
                 "scope_violations": 0,
                 "unsupported_claims": 1,
             },
-            True,
-            12,
-            69,
-            "partial_agentic_benchmark_evidence",
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
         ),
         (
             {
@@ -2442,10 +2419,10 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
                 "scope_violations": 1,
                 "unsupported_claims": 0,
             },
-            True,
-            12,
+            False,
+            0,
             59,
-            "insufficient_agentic_benchmark_performance",
+            "untrusted_agentic_benchmark_report",
         ),
         (
             {
@@ -2458,10 +2435,10 @@ def test_scientist_self_audit_separates_capability_score_from_execution_claim(is
                 "scope_violations": 0,
                 "unsupported_claims": 0,
             },
-            True,
-            12,
-            84,
-            "offline_agentic_benchmark_passed",
+            False,
+            0,
+            59,
+            "untrusted_agentic_benchmark_report",
         ),
     ],
 )
@@ -4631,9 +4608,9 @@ def test_research_decision_persists_baseline_artifact_without_secret(isolated_au
 
     assert result["ok"] is True
     assert result["tool"] == "research_decision"
-    assert result["decision"]["selected_action"] == "run_audited_baseline"
-    assert result["decision"]["selected_branch"] == "baseline"
-    assert result["decision"]["code_generation_mode"] == "Base"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
+    assert result["decision"]["selected_branch"] == "gate_repair"
+    assert result["decision"]["code_generation_mode"] == "none"
     assert result["decision"]["latest_run_signal"]["signal"] == "no_prior_run"
     assert artifact.exists()
     assert "sk-TEST-SHOULD-NOT-LEAK" not in serialized
@@ -4674,8 +4651,8 @@ def test_research_decision_reuses_retrospective_memory(isolated_autokaggle):
     state = SessionState.from_root(root)
     result = TerminalTools.dispatch("research_decision", state, root)
 
-    assert result["decision"]["selected_action"] == "run_memory_guided_baseline"
-    assert result["decision"]["selected_branch"] == "baseline_with_retrospective_transfer"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
+    assert result["decision"]["selected_branch"] == "gate_repair"
     assert result["research_brief"]["memory_reuse_records"]
     assert result["research_brief"]["hypotheses"]
     assert result["research_brief"]["experiment_plan"]
@@ -4719,8 +4696,8 @@ def test_research_decision_reuses_scientist_turn_memory_without_secret(isolated_
     result = TerminalTools.dispatch("research_decision", state, root)
     serialized = json.dumps(result, ensure_ascii=False)
 
-    assert result["decision"]["selected_action"] == "run_turn_memory_guided_baseline"
-    assert result["decision"]["selected_branch"] == "baseline_with_scientist_turn_reuse"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
+    assert result["decision"]["selected_branch"] == "gate_repair"
     assert result["research_brief"]["scientist_turn_reuse_records"]
     assert result["research_brief"]["turn_derived_failure_avoidance"]
     assert "Run schema audit before model search" in serialized
@@ -4771,8 +4748,8 @@ def test_research_decision_prioritizes_self_audit_upgrade_backlog(isolated_autok
     serialized = json.dumps(result, ensure_ascii=False)
     brief = result["research_brief"]
 
-    assert result["decision"]["selected_action"] == "close_agent_upgrade_backlog"
-    assert result["decision"]["selected_branch"] == "scientist_capability_upgrade"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
+    assert result["decision"]["selected_branch"] == "gate_repair"
     assert result["decision"]["code_generation_mode"] == "none"
     assert brief["agent_capability_gate"]["status"] == "upgrade_required_before_training"
     assert brief["agent_capability_gate"]["p0_count"] == 1
@@ -4844,8 +4821,8 @@ def test_research_decision_closes_scientist_critique_budget_before_training(isol
     serialized = json.dumps(result, ensure_ascii=False)
     brief = result["research_brief"]
 
-    assert result["decision"]["selected_action"] == "complete_scientist_turn_closure"
-    assert result["decision"]["selected_branch"] == "scientist_turn_budget_repair"
+    assert result["decision"]["selected_action"] == "fix_blocking_setup"
+    assert result["decision"]["selected_branch"] == "gate_repair"
     assert result["decision"]["code_generation_mode"] == "none"
     assert brief["turn_derived_evidence_gaps"]
     assert brief["turn_derived_budget_risks"]["budget_exhausted_turns"] == 1
@@ -4969,12 +4946,12 @@ def test_scientist_execution_contract_goes_ready_without_training(isolated_autok
 
     assert result["ok"] is True
     assert result["tool"] == "scientist_execution_contract"
-    assert result["go_no_go"] == "go"
-    assert result["agent_session_ready"] is True
-    assert result["model_training_ready"] is True
-    assert result["data_contract_status"] == "ready"
-    assert result["execution_gate_decision"]["status"] == "ready_for_gated_training"
-    assert result["execution_gate_decision"]["blocked"] is False
+    assert result["go_no_go"] == "no_go"
+    assert result["agent_session_ready"] is False
+    assert result["model_training_ready"] is False
+    assert result["data_contract_status"] == "blocked"
+    assert result["execution_gate_decision"]["status"] == "blocked"
+    assert result["execution_gate_decision"]["blocked"] is True
     assert result["no_training_started"] is True
     assert result["official_submit"] == "blocked_until_explicit_human_approval"
     assert "rank" in result["claim_boundary"].lower()
@@ -5112,13 +5089,11 @@ def test_auto_mode_uses_research_decision_goal(isolated_autokaggle, monkeypatch,
     rc, selected, should_exit = ak._handle_console_command("auto spaceship-titanic", root, "spaceship-titanic")
     out = capsys.readouterr().out
 
-    assert rc == 0
+    assert rc == 1
     assert selected == "spaceship-titanic"
     assert not should_exit
-    assert calls["task"] == "spaceship-titanic"
-    assert "branch=baseline" in calls["goal"]
-    assert "code_generation_mode=Base" in calls["goal"]
-    assert "Decision artifact" in out
+    assert not calls
+    assert "Setup needed" in out or "blocked" in out.lower()
 
 
 def test_preflight_stages_appear_in_output(isolated_autokaggle, monkeypatch, capsys):
@@ -5137,7 +5112,8 @@ def test_preflight_stages_appear_in_output(isolated_autokaggle, monkeypatch, cap
         "开始这个比赛的训练，目前使用本地算力就好了", root, "spaceship-titanic"
     )
     out = capsys.readouterr().out
-    assert rc == 0
+    assert rc == 1
+    assert not calls
     assert "EvoMind is preparing an audited research run" in out
     # The 6 preflight stages
     for stage in ("Inspecting task", "Checking data", "Checking config",

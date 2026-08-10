@@ -1,0 +1,179 @@
+{
+  "task": {
+    "name": "house_prices",
+    "competition": "House Prices - Advanced Regression Techniques",
+    "type": "regression",
+    "target": "SalePrice",
+    "metric": "rmsle",
+    "id_column": "Id",
+    "prediction_column": "SalePrice"
+  },
+  "inputs": {
+    "overview": "tasks/house_prices/overview.txt",
+    "train": "tasks/house_prices/data/train.csv",
+    "test": "tasks/house_prices/data/test.csv",
+    "sample_submission": "tasks/house_prices/data/sample_submission.csv"
+  },
+  "agent_template_mapping": {
+    "orchestrator_planner": {
+      "server_template_id": 16,
+      "server_template_name": "多 Agent 调度主管",
+      "local_role": "Orchestrator/Planner",
+      "workstation_responsibility": [
+        "task_decomposition",
+        "acceptance_criteria",
+        "risk_management",
+        "stage_coordination"
+      ],
+      "prompt_template_summary": "把目标拆解为子任务，指定 Agent 角色，定义验收标准、依赖关系和风险处理方式。"
+    },
+    "analyst": {
+      "server_template_id": 13,
+      "server_template_name": "高级数据分析 Agent",
+      "local_role": "Analyst",
+      "workstation_responsibility": [
+        "tabular_eda",
+        "anomaly_detection",
+        "trend_hypothesis",
+        "validation_plan"
+      ],
+      "prompt_template_summary": "用业务语言解释数据，识别趋势和异常，给出可能原因、置信度和下一步验证方案。"
+    },
+    "developer": {
+      "server_template_id": 14,
+      "server_template_name": "代码开发 Agent",
+      "local_role": "Developer",
+      "workstation_responsibility": [
+        "implementation_plan",
+        "model_training_code",
+        "test_plan",
+        "implementation_risk"
+      ],
+      "prompt_template_summary": "先理解需求和约束，再给出实现方案、关键代码思路、测试点和风险。"
+    },
+    "evidence_summarizer": {
+      "server_template_id": 15,
+      "server_template_name": "知识库 RAG Agent",
+      "local_role": "Evidence/Summarizer",
+      "workstation_responsibility": [
+        "evidence_tracking",
+        "report_grounding",
+        "uncertainty_statement",
+        "context_memory"
+      ],
+      "prompt_template_summary": "优先基于上下文回答，列出依据；没有依据时说明无法确认。"
+    },
+    "reviewer_gate": {
+      "server_template_id": 18,
+      "server_template_name": "流程自动化 Agent",
+      "local_role": "Reviewer/Gate",
+      "workstation_responsibility": [
+        "stage_gate",
+        "approval_points",
+        "exception_handling",
+        "automation_checklist"
+      ],
+      "prompt_template_summary": "整理触发条件、输入输出、执行步骤、审批节点、异常处理和可自动化环节。"
+    }
+  },
+  "server_template_policy": {
+    "public_url": "https://ai.zhjjq.tech/agents",
+    "public_market_api": "https://ai.zhjjq.tech/api/market/agents",
+    "access_policy": "read_only_public_templates",
+    "private_agents_policy": "do_not_read_or_modify_without_login_authorization"
+  },
+  "data_snapshot": {
+    "train_rows": 1460,
+    "test_rows": 1459,
+    "sample_submission_rows": 1459,
+    "target_summary": {
+      "summary": {
+        "count": 1460.0,
+        "mean": 180921.1959,
+        "std": 79442.5029,
+        "min": 34900.0,
+        "25%": 129975.0,
+        "50%": 163000.0,
+        "75%": 214000.0,
+        "max": 755000.0
+      },
+      "skew": 1.882876
+    },
+    "missing_train_top20": {
+      "PoolQC": 0.9952,
+      "MiscFeature": 0.963,
+      "Alley": 0.9377,
+      "Fence": 0.8075,
+      "MasVnrType": 0.5973,
+      "FireplaceQu": 0.4726,
+      "LotFrontage": 0.1774,
+      "GarageQual": 0.0555,
+      "GarageFinish": 0.0555,
+      "GarageType": 0.0555,
+      "GarageYrBlt": 0.0555,
+      "GarageCond": 0.0555,
+      "BsmtFinType2": 0.026,
+      "BsmtExposure": 0.026,
+      "BsmtCond": 0.0253,
+      "BsmtQual": 0.0253,
+      "BsmtFinType1": 0.0253,
+      "MasVnrArea": 0.0055,
+      "Electrical": 0.0007,
+      "Condition2": 0.0
+    },
+    "missing_test_top20": {
+      "PoolQC": 0.9979,
+      "MiscFeature": 0.965,
+      "Alley": 0.9267,
+      "Fence": 0.8012,
+      "MasVnrType": 0.6127,
+      "FireplaceQu": 0.5003,
+      "LotFrontage": 0.1556,
+      "GarageYrBlt": 0.0535,
+      "GarageCond": 0.0535,
+      "GarageFinish": 0.0535,
+      "GarageQual": 0.0535,
+      "GarageType": 0.0521,
+      "BsmtCond": 0.0308,
+      "BsmtQual": 0.0302,
+      "BsmtExposure": 0.0302,
+      "BsmtFinType1": 0.0288,
+      "BsmtFinType2": 0.0288,
+      "MasVnrArea": 0.0103,
+      "MSZoning": 0.0027,
+      "BsmtHalfBath": 0.0014
+    }
+  },
+  "validation_strategy": "5-fold KFold cross-validation on log1p target plus holdout validation",
+  "time_budget_minutes": 15,
+  "candidate_models": [
+    "ridge_log_target",
+    "random_forest_log_target",
+    "extra_trees_log_target",
+    "gradient_boosting_log_target"
+  ],
+  "feature_plan": [
+    "Train regression models on log1p(SalePrice) to match RMSLE behavior.",
+    "Create TotalSF from basement and floor area fields.",
+    "Create TotalBath from full/half bathroom fields.",
+    "Create house age and remodel age from sale/build/remodel years.",
+    "Create binary indicators for garage, basement, fireplace, and pool presence.",
+    "Use median imputation for numeric features and most-frequent imputation plus one-hot encoding for categorical features."
+  ],
+  "risk_points": [
+    "SalePrice is skewed, so the local model trains on log1p(SalePrice).",
+    "Many categorical missing values use NA-like markers in the original Kaggle data.",
+    "Train/test feature columns must stay aligned after dropping SalePrice.",
+    "Submission must keep Id and SalePrice columns with positive predictions.",
+    "Local validation is only a proxy before official Kaggle leaderboard submission."
+  ],
+  "stage_plan": [
+    "task_understanding",
+    "preliminary_eda",
+    "data_quality_check",
+    "feature_engineering",
+    "model_validation",
+    "submission_generation",
+    "report_and_review"
+  ]
+}

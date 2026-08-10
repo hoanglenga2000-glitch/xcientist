@@ -1,0 +1,17 @@
+{
+  "approved": false,
+  "created_at": "2026-07-27T23:43:14.924626+08:00",
+  "results": [
+    {
+      "candidate_manifest_path": "spooky-author-identification/frozen_candidate_manifest.json",
+      "candidate_manifest_sha256": "e60b5f0f1eba02d98568d9882bab8f6adfdfada8fbd801cf337406d5a11c783a",
+      "competition_id": "spooky-author-identification",
+      "result_path": "spooky-author-identification/result.json",
+      "result_sha256": "161a21130ce023c6e8d01c8f000d1f8bee7bbad2a3ebb520493cd4acef514833",
+      "submission_sha256": "770a65f431d97001c29486256781442b01936312a7b6fbb125f0c58b1eeef4ec"
+    }
+  ],
+  "run_id": "hg_spooky_crossrun_xgb_v1_20260727",
+  "schema": "evomind.mlebench_lite.human_gate_staged_results.v1",
+  "status": "human_approval_pending"
+}

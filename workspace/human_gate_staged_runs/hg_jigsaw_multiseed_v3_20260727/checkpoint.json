@@ -1,0 +1,17 @@
+{
+  "approved": false,
+  "candidate_only": true,
+  "completed": [
+    "jigsaw-toxic-comment-classification-challenge"
+  ],
+  "created_at": "2026-07-27T23:43:15.736968+08:00",
+  "frozen": true,
+  "kaggle_submission_executed": false,
+  "official_grader_executed": false,
+  "requested": [
+    "jigsaw-toxic-comment-classification-challenge"
+  ],
+  "run_id": "hg_jigsaw_multiseed_v3_20260727",
+  "schema": "evomind.mlebench_lite.human_gate_staged_checkpoint.v1",
+  "status": "human_approval_pending"
+}

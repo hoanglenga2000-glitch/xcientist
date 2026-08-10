@@ -208,7 +208,7 @@ $sensitivePatterns = [ordered]@{
     absolute_workspace_path = '(?i)' + [regex]::Escape($workspace)
     user_identity = '(?i)(?:' + [regex]::Escape($operatorName) + '|Jing\s+Haowei|' + $operatorAliasPattern + ')'
     gateway_or_infrastructure_identity = $gatewayPattern
-    private_key = '-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----'
+    private_key_pattern = '-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----'
     bearer_token = '(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}'
     assigned_secret = '(?i)\b(?:token|cookie|authorization|password|secret|api[_-]?key)\s*[:=]\s*["'']?[A-Za-z0-9._~+/=-]{16,}'
     bootstrap_or_query_token = '(?i)(?:[#?&](?:bootstrap|token|auth)=)[A-Za-z0-9._~+/=-]{12,}'

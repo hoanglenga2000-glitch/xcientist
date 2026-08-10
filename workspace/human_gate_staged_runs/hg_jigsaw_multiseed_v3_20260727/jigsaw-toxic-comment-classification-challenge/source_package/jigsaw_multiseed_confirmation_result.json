@@ -1,0 +1,224 @@
+{
+  "schema": "evomind.jigsaw.multiseed_probability_confirmation_result.v1",
+  "created_at": "2026-07-27T17:56:31.688629+08:00",
+  "status": "confirmation_passed_human_gate_pending",
+  "competition_id": "jigsaw-toxic-comment-classification-challenge",
+  "plan_path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_multiseed_probability_confirmation_contract_v3_20260727.json",
+  "plan_sha256": "4ff2c8eb7af8650d06cccc224941d8c3334ea0567cf014d3d5731b1781098d0d",
+  "aggregation_method": "arithmetic_mean_probability",
+  "seed_records": [
+    {
+      "model_seed": 40,
+      "run_id": "local4060_jigsaw_xfmr1_s40_confirm_20260727",
+      "status": "promotion_gate_passed",
+      "candidate_oof_auc": 0.990937313551994,
+      "candidate_per_label_auc": {
+        "toxic": 0.9890598035286435,
+        "severe_toxic": 0.9911364259449433,
+        "obscene": 0.9944980547751605,
+        "threat": 0.9927243221623457,
+        "insult": 0.9898753892269029,
+        "identity_hate": 0.9883298856739685
+      },
+      "gain_over_strongest_base": 0.0012892225861089734,
+      "promotion_passed": true,
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_s40_frozen_plan.json",
+        "bytes": 4493,
+        "sha256": "2cffbc2aa8c10cb7ee716ec9dc94cfaad1f46cf09fa6b0f2027d78fef3abd273"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\summary.json",
+        "bytes": 40311,
+        "sha256": "4625c1c411341b5a1464305a40eeb7d6b539a19cf514fa8a34a42adbfbabd432"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\independent_verification.json",
+        "bytes": 32313,
+        "sha256": "548aae11299d73d1e136c83b9a8ea866ec82e6d8404b610fc1f4d90c37f21cd2"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 24048181,
+        "sha256": "724967d2b76254a43ee8cddcd5706241da155edf8810de26470fc3a66b6e0e3b"
+      },
+      "prediction_bundle_provenance": {
+        "summary_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\jigsaw_transformer_oof_and_test.npz",
+        "materialized_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\jigsaw_transformer_oof_and_test.npz",
+        "sha256": "724967d2b76254a43ee8cddcd5706241da155edf8810de26470fc3a66b6e0e3b",
+        "relocated": false,
+        "identity": "sha256"
+      }
+    },
+    {
+      "model_seed": 41,
+      "run_id": "hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+      "status": "promotion_gate_passed",
+      "candidate_oof_auc": 0.9909571549316651,
+      "candidate_per_label_auc": {
+        "toxic": 0.9890705641089858,
+        "severe_toxic": 0.9911331934393273,
+        "obscene": 0.9944838089451262,
+        "threat": 0.9927903081450714,
+        "insult": 0.9899689933741198,
+        "identity_hate": 0.9882960615773607
+      },
+      "gain_over_strongest_base": 0.001282780070608447,
+      "promotion_passed": true,
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\hpc_seed41_frozen_plan.json",
+        "bytes": 6839,
+        "sha256": "14ac71d98668f1e2012105cc6cfea45e945fae642c06887772b6ab1cb5431350"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\summary.json",
+        "bytes": 38990,
+        "sha256": "5e4b442779b1cb0cfefd3a344de322b68a5ba4fa401ba6fbc738808430ebc483"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\independent_verification.json",
+        "bytes": 31056,
+        "sha256": "e9a7710ee5799fd48aa734038e0a214591cbe63b2a370737e7aed00ee209bdd6"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 24039106,
+        "sha256": "d676a258a17939cb88fccf305ca3aa21f16e5d23e813e1ac6dd8cd302f449332"
+      },
+      "prediction_bundle_provenance": {
+        "summary_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/runs/hpc88240_jigsaw_xfmr1_s41_confirm_20260727/jigsaw_transformer_oof_and_test.npz",
+        "materialized_path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_jigsaw_s41_artifacts\\jigsaw_transformer_oof_and_test.npz",
+        "sha256": "d676a258a17939cb88fccf305ca3aa21f16e5d23e813e1ac6dd8cd302f449332",
+        "relocated": true,
+        "identity": "sha256"
+      }
+    },
+    {
+      "model_seed": 42,
+      "run_id": "local4060_jigsaw_xfmr1_s42_20260727_0024",
+      "status": "promotion_gate_passed",
+      "candidate_oof_auc": 0.9909391229242245,
+      "candidate_per_label_auc": {
+        "toxic": 0.9889232124995843,
+        "severe_toxic": 0.9912537307758188,
+        "obscene": 0.994507332049394,
+        "threat": 0.9928615540706212,
+        "insult": 0.9898532767985162,
+        "identity_hate": 0.9882356313514119
+      },
+      "gain_over_strongest_base": 0.0011931481267507538,
+      "promotion_passed": true,
+      "run_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_transformer_xfmr1_frozen_plan.json",
+        "bytes": 3772,
+        "sha256": "37503de1a8603c1ecaca0e200b3c3aeca861cf642b1605e71c7c51e97a2c28b4"
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\summary.json",
+        "bytes": 39826,
+        "sha256": "d9570d189126f4d446ceabab12dfe4ab99d58d1be26ef0ebe68cb6aeddf8336c"
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\independent_verification.json",
+        "bytes": 32024,
+        "sha256": "4f58684b540b0e34fec07d84ee36d8131bbf0089d000a70c223897c851378071"
+      },
+      "prediction_bundle": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\jigsaw_transformer_oof_and_test.npz",
+        "bytes": 23501345,
+        "sha256": "deaa81db47274ce7ef2c6b2622f68281835ff9e634f26651699f8502200242b8"
+      },
+      "prediction_bundle_provenance": {
+        "summary_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\jigsaw_transformer_oof_and_test.npz",
+        "materialized_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s42_20260727_0024\\jigsaw_transformer_oof_and_test.npz",
+        "sha256": "deaa81db47274ce7ef2c6b2622f68281835ff9e634f26651699f8502200242b8",
+        "relocated": false,
+        "identity": "sha256"
+      },
+      "boundary_audit": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_candidate_audit_current.json",
+        "bytes": 3982,
+        "sha256": "f0c0f1fe6fe6b96c23124e67f791b55c201749a70e91e97730c1f052d2661677"
+      }
+    }
+  ],
+  "metrics": {
+    "seed_candidate_oof_auc": [
+      0.990937313551994,
+      0.9909571549316651,
+      0.9909391229242245
+    ],
+    "minimum_seed_candidate_oof_auc": 0.990937313551994,
+    "mean_seed_candidate_oof_auc": 0.9909445304692945,
+    "maximum_seed_candidate_oof_auc": 0.9909571549316651,
+    "seed_candidate_oof_auc_population_std": 8.957352457699815e-06,
+    "minimum_seed_gain_over_strongest_base": 0.0011931481267507538,
+    "ensemble_oof_auc": 0.9910903599886575,
+    "ensemble_per_label_auc": {
+      "toxic": 0.9892434297232893,
+      "severe_toxic": 0.9912186117553191,
+      "obscene": 0.9945790084009146,
+      "threat": 0.9929430503097487,
+      "insult": 0.990058774586931,
+      "identity_hate": 0.9884992851557419
+    }
+  },
+  "confirmation_gate": {
+    "metric": "mean_columnwise_roc_auc",
+    "minimum_seed_auc": 0.987,
+    "minimum_mean_auc": 0.987,
+    "minimum_seed_gain": 0.0003,
+    "maximum_population_std": 0.0025,
+    "all_three_seed_promotion_gates_required": true,
+    "confirmation_seeds": [
+      40,
+      41,
+      42
+    ],
+    "official_medal_claim_requires_human_gated_private_evaluation": true,
+    "checks": {
+      "exact_model_seeds_40_41_42": true,
+      "all_seed_promotion_gates_passed": true,
+      "all_seed_auc_at_or_above_minimum": true,
+      "mean_seed_auc_at_or_above_minimum": true,
+      "ensemble_auc_at_or_above_minimum": true,
+      "all_seed_gain_at_or_above_minimum": true,
+      "population_std_at_or_below_maximum": true,
+      "truth_fold_arrays_identical": true,
+      "numeric_bundles_loaded_without_pickle": true,
+      "public_id_order_reconstructed": true,
+      "private_labels_unused": true,
+      "human_gate_preserved": true
+    },
+    "passed": true
+  },
+  "candidate_ready_for_human_gate": true,
+  "prediction_bundle": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_multiseed_probability_confirmation_contract_v3\\jigsaw_multiseed_probability_mean_oof_and_test.npz",
+    "sha256": "7ad1600e17b5bd375286b422158dd8e60aa229694a84db31c191ccdfa1320600"
+  },
+  "submission_withheld": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_multiseed_probability_confirmation_contract_v3\\candidate_submission_withheld.csv",
+    "sha256": "b3f16beaafa25de0ff5a369afa1545d4431fb0435f38411fa77ad6362b203b43"
+  },
+  "public_id_source": {
+    "train": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\train.csv",
+      "sha256": "36e730b9b0852edced41616b0fb53962939d678ac54f170f6d5b1a6a35af1bfd"
+    },
+    "test": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\test.csv",
+      "sha256": "c31ef2c52864c3305e3dd82b7ac643b90b5d2f4c39a041480c3835379e93101d"
+    },
+    "sample_submission": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\jigsaw-toxic-comment-classification-challenge\\prepared\\public\\sample_submission.csv",
+      "sha256": "81dc6e1f9eeb89ebb9e651a9ea6a3c971980ae9d12e29c687adcadfe610813b5"
+    }
+  },
+  "private_labels_used": false,
+  "official_grader_executed": false,
+  "kaggle_submission_executed": false,
+  "process_signals_sent": 0,
+  "human_gate_preserved": true,
+  "claim_boundary": "Three-seed public OOF probability confirmation is ready for Human Gate review; it is not an official score or medal."
+}

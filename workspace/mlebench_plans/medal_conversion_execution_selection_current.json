@@ -1,0 +1,851 @@
+{
+  "schema": "evomind.mlebench_lite.medal_conversion_execution_selection.v1",
+  "created_at": "2026-07-27T14:33:36.890520+08:00",
+  "objective": "Strictly exceed the 80.30% MLE-Bench Lite leaderboard top with verified official evidence.",
+  "official_snapshot": {
+    "total": 22,
+    "scored": 21,
+    "medals": 13,
+    "percentage": 59.09090909090909,
+    "leaderboard_top_percentage": 80.3,
+    "required_medals": 18,
+    "medal_deficit": 5,
+    "unscored": [
+      "dog-breed-identification"
+    ]
+  },
+  "selection_rule": {
+    "selected_competition_count": 5,
+    "reason": "Local-ready candidates now run Spooky -> May -> Jigsaw confirmation -> Leaf before SIIM, so HTTP-429 data staging cannot block Jigsaw or Leaf. SIIM resumes after its verified sidecar merge.",
+    "official_medal_required_for_completion": true,
+    "cv_oof_proxy_not_official": true
+  },
+  "selected_serial_candidates": [
+    {
+      "competition_id": "spooky-author-identification",
+      "official_current_any_medal": false,
+      "official_current_score": 0.37367,
+      "bronze_threshold": 0.29381,
+      "current_margin_to_bronze": -0.07985999999999999,
+      "candidate_status": "confirmation_passed_human_gate_pending",
+      "candidate_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\spooky_deberta_v2_s42_frozen_plan_20260727_0642.json",
+        "sha256": "2527cabaf8a1dc81f99e70d57ed1d9fa96a2833932b49a6c8cd045351b358efa",
+        "bytes": 6612
+      },
+      "runtime_evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\spooky_cross_run_xgb_confirmation_result.json",
+        "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742",
+        "bytes": 4988
+      },
+      "counts_as_official_medal_now": false,
+      "partial_public_oof_audit": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_deberta_v2_partial_quality_audit_current.json",
+        "bytes": 20573,
+        "status": "passed_partial_audit",
+        "completed_folds": [
+          0,
+          1,
+          2,
+          3
+        ],
+        "coverage": 0.7999545996254469,
+        "transformer_log_loss": 0.49749961136559345,
+        "sparse_log_loss": 0.39235346470081905,
+        "prior_candidate_same_rows_log_loss": 0.344545199451992,
+        "quality_verdict": "INTERIM_NO_SINGLE_COMPONENT_BRONZE_SIGNAL_CONTINUE_FULL_RUN",
+        "meta_candidate_available": false,
+        "snapshot_sha256": "9a781524bea268bb1b8610b93dac389b3fb4509f18252fbc3ccf0a14d0f3b44c",
+        "snapshot_bytes": 20573
+      },
+      "cross_run_meta_completion_watcher": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_meta_completion_watcher.json",
+        "bytes": 1758,
+        "status": "waiting_for_current_run_completion",
+        "watcher_pid": 55420,
+        "plan_sha256": "5dc252774704a0382d1e80a58c9ae2e15b0deaa0f54bc03f2ff46bda8b7a2c26",
+        "process_signals_sent": 0,
+        "snapshot_sha256": "412ad34d542ec99089d7ff0a9ac57674e268e8ff27642b33661b6ab5fbdf3991",
+        "snapshot_bytes": 1871
+      },
+      "cross_run_xgb_completion_watcher": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_completion_watcher.json",
+        "bytes": 1410,
+        "status": "waiting_for_current_run_completion",
+        "watcher_pid": 83652,
+        "plan_sha256": "19823909c9c0a8a31e119e8ccdab212d925068b27d913256cc0895e3b11f3dc3",
+        "resource": "CPU only; maximum two XGBoost worker threads",
+        "process_signals_sent": 0,
+        "snapshot_sha256": "a59245bed0a70c879202b0799142dd7861c9190198ea8d1096e6d209cad29297",
+        "snapshot_bytes": 1926
+      },
+      "three_seed_confirmation": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\independent_verification.json",
+        "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed",
+        "bytes": 1203,
+        "status": "verification_passed",
+        "candidate_ready_for_human_gate": true,
+        "ensemble_oof_log_loss": 0.28159599305517885
+      }
+    },
+    {
+      "competition_id": "tabular-playground-series-may-2022",
+      "official_current_any_medal": false,
+      "official_current_score": 0.91719,
+      "bronze_threshold": 0.99818,
+      "current_margin_to_bronze": -0.08099,
+      "candidate_status": "single_seed_gate_failed_verification_passed",
+      "candidate_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\may2022_compact_embedding_s42_frozen_plan.json",
+        "sha256": "92d4f0ddd20c966328c7e9bb87f148be6d9c9dfcfeb79b19d8e043ad6cc77149",
+        "bytes": 7612
+      },
+      "runtime_evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_compact_embedding\\runs\\local4060_may2022_compactemb_s42_20260727_0335\\summary.json",
+        "sha256": "58d5b92b1e21c5ccce69d148550799f2cc70f6ad93a6b6b32520992968a1efc6",
+        "bytes": 31691
+      },
+      "counts_as_official_medal_now": false,
+      "prelaunch_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_prelaunch_verification_current.json",
+        "bytes": 2074,
+        "snapshot_sha256": "3be03e529bd6ccb22df434693704b6a80b7ab73bcfe97fa63f2245be0697bf2a",
+        "snapshot_bytes": 2074
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_compact_embedding\\runs\\local4060_may2022_compactemb_s42_20260727_0335\\independent_verification.json",
+        "sha256": "6660fd9c6223beb40e02d97362c0a94204014f1de0e1a4bbf82c75d0af5c2f13",
+        "bytes": 1621,
+        "status": "verification_passed",
+        "ok": true
+      }
+    },
+    {
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "official_current_any_medal": false,
+      "official_current_score": 0.98332,
+      "bronze_threshold": 0.98639,
+      "current_margin_to_bronze": -0.003070000000000017,
+      "candidate_status": "training_seed_40",
+      "candidate_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\jigsaw_confirmation_s40_s41_frozen_plan_20260727.json",
+        "sha256": "a1721660255015334febbab5deabe53cfdcf4f1634bda95cf43d181024d1ca3b",
+        "bytes": 8706
+      },
+      "runtime_evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\heartbeat.json",
+        "bytes": 662,
+        "snapshot_sha256": "4a6fd4534680fa5975bf5f4e24059682f44a55a7ff01e67a9a3b9febeb856476",
+        "snapshot_bytes": 660
+      },
+      "counts_as_official_medal_now": false,
+      "public_oof_candidate_audit": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_candidate_audit_current.json",
+        "bytes": 3982,
+        "snapshot_sha256": "f0c0f1fe6fe6b96c23124e67f791b55c201749a70e91e97730c1f052d2661677",
+        "snapshot_bytes": 3982
+      },
+      "public_oof_candidate_auc": 0.9909391229242243,
+      "early_confirmation_activation": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_early_after_may_activation_current.json",
+        "bytes": 5601,
+        "snapshot_sha256": "7329c41d6c2203ea66f5357b3fc8787dfece8a7969e9d41251f57200d4867917",
+        "snapshot_bytes": 5601
+      },
+      "fallback_after_leaf_queue": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_queue.json",
+        "status": "waiting_for_leaf_verification",
+        "safe_for_early_queue": true
+      },
+      "active_seed": 40,
+      "completed_seeds": []
+    },
+    {
+      "competition_id": "leaf-classification",
+      "official_current_any_medal": false,
+      "official_current_score": 2.43276,
+      "bronze_threshold": 0.01526,
+      "current_margin_to_bronze": -2.4175,
+      "candidate_status": "waiting_for_jigsaw_confirmation",
+      "candidate_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_frozen_plan.json",
+        "sha256": "70697c60f5e4e0b6c48f21b3ebf9faddc3de37eddfdb8f0d4b0d314ea928e03e",
+        "bytes": 6052
+      },
+      "runtime_evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_early_queue.json",
+        "bytes": 2638,
+        "snapshot_sha256": "ebc955a537938b82ea8a19dd86818dcec109ae68be547c8ea1028d4b5e2c7763",
+        "snapshot_bytes": 2638
+      },
+      "counts_as_official_medal_now": false,
+      "early_training_activation": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_early_after_jigsaw_activation_current.json",
+        "bytes": 4071,
+        "snapshot_sha256": "1d72ef71ed50149c4a7b1f8006431d1ead2fb2338c605900afc9ebc8fffef297",
+        "snapshot_bytes": 4071
+      },
+      "fallback_after_siim_queue": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_training_queue_calibrated.json",
+        "status": "waiting_for_prerequisites",
+        "safe_for_early_queue": true
+      },
+      "public_only_resolver_enabled": true
+    },
+    {
+      "competition_id": "siim-isic-melanoma-classification",
+      "official_current_any_medal": false,
+      "official_current_score": 0.92165,
+      "bronze_threshold": 0.937,
+      "current_margin_to_bronze": -0.015350000000000086,
+      "candidate_status": "waiting_for_complete_public_staging",
+      "candidate_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_frozen_plan.json",
+        "sha256": "65c1a8ca52c6b4ea57d7dfa9fb4c6f6333d404708bcd5077cb18564491bb5012",
+        "bytes": 9710
+      },
+      "runtime_evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_heartbeat.json",
+        "bytes": 1172,
+        "snapshot_sha256": "e460034aae252bd8b0504ce259eda3c9e509a8c83df7819902e4db7b23c6fba2",
+        "snapshot_bytes": 1172
+      },
+      "counts_as_official_medal_now": false
+    }
+  ],
+  "deferred_contingencies": [
+    {
+      "priority": 1,
+      "competition_id": "ranzcr-clip-catheter-line-classification",
+      "decision": "architecture_redesign_only_no_repeat_baseline",
+      "public_oof_score": 0.9388353612205999,
+      "official_score": 0.95889,
+      "bronze_threshold": 0.9709,
+      "reason": "A completed A800 baseline reached 0.938835 public OOF and 0.95889 official, below 0.9709. Repeating the same EfficientNet-V2-S treatment is rejected; only a materially different chest-X-ray/high-resolution grouped ensemble is a valid contingency.",
+      "evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\a800_lane_watch\\a800_ranzcr_recovery_s42_20260726_145840_completion.json",
+        "sha256": "be2d524ea13d756c50957fc575c5f73dd0720197f232d8581034ff5a17c5621c",
+        "bytes": 8655
+      }
+    },
+    {
+      "priority": 2,
+      "competition_id": "dog-breed-identification",
+      "decision": "closed_no_promotion_after_nested_class_bias_diagnostic",
+      "public_oof_log_loss": 0.12175188531885915,
+      "promotion_threshold": 0.04,
+      "official_score": null,
+      "reason": "The completed public OOF loss 0.1217519 is more than three times the frozen 0.04 gate; the bounded branch is closed instead of spending more GPU on a low-probability repeat.",
+      "evidence": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\local_dog_recovery_queue_current.json",
+        "bytes": 1131,
+        "snapshot_sha256": "eebfb5648f7da79aa374d6a2dfa5cf9b71e7b6d975603833dd97dff89d9a26f2",
+        "snapshot_bytes": 1131
+      },
+      "class_bias_diagnostic": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\dog_breed_class_bias_diagnostic_current.json",
+        "bytes": 7952,
+        "snapshot_sha256": "7e65e0efa59fd4163c314a279645b8881d251a7e8ce726211926a44f6a60c899",
+        "snapshot_bytes": 7952
+      },
+      "class_bias_candidate_oof_log_loss": 0.12102170436208448,
+      "class_bias_target_passed": false
+    }
+  ],
+  "live_execution": {
+    "current_gpu_training": {
+      "competition_id": "jigsaw-toxic-comment-classification-challenge",
+      "run_id": "local4060_jigsaw_xfmr1_s40_confirm_20260727",
+      "model_seed": 40,
+      "status": "training_seed_40_drain_only",
+      "heartbeat": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\heartbeat.json",
+        "bytes": 660,
+        "sha256": "2bb7db11cbf8169435d6d7499e3a49dc5d17d71d6b12d173edf35862aa8c9d4c",
+        "stage": "training",
+        "fold": 3,
+        "epoch": 2,
+        "update": 4600,
+        "total_updates": 7980,
+        "progress_fraction": 0.5764411027568922,
+        "cuda_memory_reserved_mib": 1684.0
+      },
+      "gpu_snapshot": {
+        "index": 0,
+        "name": "NVIDIA GeForce RTX 4060 Laptop GPU",
+        "memory_total_mib": 8188,
+        "memory_used_mib": 1830,
+        "memory_free_mib": 6128,
+        "utilization_gpu_percent": 94,
+        "utilization_memory_percent": 61,
+        "temperature_c": 78,
+        "pstate": "P0",
+        "power_draw_w": 77.33,
+        "sm_clock_mhz": 2490
+      },
+      "strict_single_gpu_serial": true,
+      "process_signals_sent": 0,
+      "official_medal_now": false
+    },
+    "serial_chain_audit": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\local_gpu_serial_chain_audit_current.json",
+      "bytes": 36593,
+      "passed": true,
+      "verdict": "PASS_SINGLE_GPU_SERIAL_CHAIN_WITH_TERMINAL_STAGES_ALLOWED",
+      "logical_training_count": 1,
+      "current_live_queue_count": 6,
+      "stale_live_queue_count": 0,
+      "snapshot_sha256": "ce04aabce1daad516c160980e41162461d957bdf3e21870b66d2e710a88ce511",
+      "snapshot_bytes": 36593
+    },
+    "serial_chain_verdict": "PASS_SINGLE_GPU_SERIAL_CHAIN_WITH_TERMINAL_STAGES_ALLOWED",
+    "logical_training_count": 1,
+    "current_live_queue_count": 6,
+    "stale_live_queue_count": 0,
+    "spooky_xgb_confirmation": {
+      "status": "confirmation_passed_human_gate_pending",
+      "candidate_ready_for_human_gate": true,
+      "metrics": {
+        "seed_log_loss": [
+          0.2816261278217335,
+          0.28163016117587514,
+          0.2816864430208354
+        ],
+        "minimum_seed_log_loss": 0.2816261278217335,
+        "mean_seed_log_loss": 0.28164757733948137,
+        "maximum_seed_log_loss": 0.2816864430208354,
+        "seed_log_loss_population_std": 2.753147140690239e-05,
+        "ensemble_oof_log_loss": 0.28159599305517885
+      },
+      "result": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\spooky_cross_run_xgb_confirmation_result.json",
+        "sha256": "7f1d14c7d08f40b33fa3773c0bab8b0f841749b763589e6c7cf8effad2919742",
+        "bytes": 4988
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\spooky_cross_run_xgb_confirmation\\independent_verification.json",
+        "sha256": "57c52f8c3b51fd609ab319ad6d7163e3fc2074230c581c1a53a95a8ee27cdbed",
+        "bytes": 1203,
+        "status": "verification_passed",
+        "ok": true
+      },
+      "official_medal_now": false
+    },
+    "may2022": {
+      "status": "single_seed_gate_failed",
+      "run_id": "local4060_may2022_compactemb_s42_20260727_0335",
+      "exact_deployment_oof_auc": 0.9958866244106536,
+      "single_seed_gate": {
+        "aggregate_threshold": 0.9985,
+        "every_fold_threshold": 0.99818,
+        "aggregate_passed": false,
+        "all_folds_passed": false,
+        "passed": false
+      },
+      "summary": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_compact_embedding\\runs\\local4060_may2022_compactemb_s42_20260727_0335\\summary.json",
+        "sha256": "58d5b92b1e21c5ccce69d148550799f2cc70f6ad93a6b6b32520992968a1efc6",
+        "bytes": 31691
+      },
+      "independent_verification": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\may2022_compact_embedding\\runs\\local4060_may2022_compactemb_s42_20260727_0335\\independent_verification.json",
+        "sha256": "6660fd9c6223beb40e02d97362c0a94204014f1de0e1a4bbf82c75d0af5c2f13",
+        "bytes": 1621,
+        "status": "verification_passed",
+        "ok": true
+      },
+      "candidate_ready_for_human_gate": false,
+      "official_medal_now": false
+    },
+    "jigsaw_early_confirmation": {
+      "status": "training_seed_40",
+      "active_seed": 40,
+      "completed_seeds": [],
+      "seed42_candidate_auc": 0.9909391229242243,
+      "confirmation_seeds": [
+        40,
+        41
+      ],
+      "queue": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_confirmation_early_queue.json",
+        "bytes": 1256,
+        "snapshot_sha256": "3460e05820a0b44dce59f3482fac20f3db5a67d900e08078c081f665f70e67be",
+        "snapshot_bytes": 1256
+      },
+      "persistent_manifest": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\persistent_manifests\\jigsaw_early_after_may.json",
+        "sha256": "4920df99ea8e810f847094706598b802bf4481fa71766bb1a75028fa902aef0d",
+        "bytes": 3730
+      },
+      "process_signals_sent": 0,
+      "official_medal_now": false
+    },
+    "leaf_early_training": {
+      "status": "waiting_for_jigsaw_confirmation",
+      "dependency": "Jigsaw early confirmation terminal status",
+      "queue": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_early_queue.json",
+        "bytes": 2638,
+        "snapshot_sha256": "ebc955a537938b82ea8a19dd86818dcec109ae68be547c8ea1028d4b5e2c7763",
+        "snapshot_bytes": 2638
+      },
+      "persistent_manifest": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\persistent_manifests\\leaf_early_after_jigsaw.json",
+        "sha256": "ac63f98bf6817f6b0b0e4d75f6a3c41d91be379f8a7127fef1cffbe785861a88",
+        "bytes": 3880
+      },
+      "public_only_resolver_enabled": true,
+      "private_paths_present": false,
+      "original_after_siim_queue_safe": true,
+      "process_signals_sent": 0,
+      "official_medal_now": false
+    },
+    "siim_public_data_recovery": {
+      "status": "rate_limited_waiting_for_sidecar_completion",
+      "heartbeat": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_heartbeat.json",
+        "bytes": 1172,
+        "completed_files": 10806,
+        "total_files": 33129,
+        "completed_bytes": 8451107005,
+        "total_bytes": 25765345055,
+        "wrong_size_files": 0,
+        "snapshot_sha256": "e460034aae252bd8b0504ce259eda3c9e509a8c83df7819902e4db7b23c6fba2",
+        "snapshot_bytes": 1172
+      },
+      "merge_watcher": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_merge_watcher.json",
+        "bytes": 349,
+        "status": "waiting_for_sidecar_completion",
+        "snapshot_sha256": "25c5ccc17b9667b02c266d1f630d0d33bb99cc13f24406b1cb701e3e1849c570",
+        "snapshot_bytes": 349
+      },
+      "http_status": 429
+    },
+    "hpc_jigsaw_seed41": {
+      "status": {
+        "schema": "evomind.hpc_jigsaw_persistent_run.v1",
+        "created_at": "2026-07-27T13:16:18.515278+08:00",
+        "status": "training",
+        "wrapper_pid": 685650,
+        "run_id": "hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+        "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/runs/hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+        "plan_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/plans/jigsaw_transformer_xfmr1_s41_hpc88240_frozen_plan_v2_20260727.json",
+        "exit_code": null,
+        "private_labels_used": false,
+        "official_grader_executed": false,
+        "kaggle_submission_executed": false,
+        "process_signals_sent": 0,
+        "other_processes_modified": false
+      },
+      "heartbeat": {
+        "schema": "evomind.jigsaw.transformer_heartbeat.v1",
+        "created_at": "2026-07-27T13:45:53.725243+08:00",
+        "status": "running",
+        "stage": "epoch_evaluated",
+        "fold": 0,
+        "epoch": 2,
+        "update": 7980,
+        "total_updates": 7980,
+        "validation_auc": 0.9901890471327522,
+        "elapsed_seconds": 1761.6423318511806,
+        "diagnostic": false,
+        "plan_sha256": "14ac71d98668f1e2012105cc6cfea45e945fae642c06887772b6ab1cb5431350",
+        "private_labels_used": false,
+        "official_grader_executed": false
+      }
+    },
+    "hpc_leaf_continuation": {
+      "status": {
+        "schema": "evomind.hpc_leaf_persistent_run.v1",
+        "created_at": "2026-07-27T13:46:05.170135+08:00",
+        "status": "waiting_for_jigsaw_seed41",
+        "wrapper_pid": 688766,
+        "run_id": "hpc88240_leaf_dualbb_s404142_20260727",
+        "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/leaf_multibackbone/runs/hpc88240_leaf_dualbb_s404142_20260727",
+        "plan_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/plans/leaf_multibackbone_hpc88240_frozen_plan_20260727.json",
+        "jigsaw_status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/full_seed41_status.json",
+        "stable_idle_observations": 0,
+        "exit_code": null,
+        "private_labels_used": false,
+        "official_grader_executed": false,
+        "kaggle_submission_executed": false,
+        "process_signals_sent": 0,
+        "other_processes_modified": false
+      },
+      "deployment": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_leaf_continuation_deployment_current.json",
+        "bytes": 6157,
+        "sha256": "e6836c69585fd41f14405cf9386152387a40d29d3e8f4cbb86dcabeb8ebeb253"
+      },
+      "frozen_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_hpc88240_frozen_plan_20260727.json",
+        "bytes": 7323,
+        "sha256": "ff24404f91631a8eec66c4aa6decf516b985be9b32945fa37601262056026cab"
+      }
+    },
+    "future_local_gpu_launches_allowed": false,
+    "hpc_siim_continuation": {
+      "status": "waiting_for_leaf",
+      "deployment": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_siim_continuation_deployment_current.json",
+        "bytes": 9131,
+        "sha256": "da9b97b37508bb097bb73e5c2b26eaa1e3d63a5961a8c9b917adf7e025746b15"
+      },
+      "ablation_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_hpc88240_frozen_plan_20260727.json",
+        "bytes": 5479,
+        "sha256": "340b330f04d999c9427818811fc78ffead39bacd4a56e5796ee3f7a2359cabc3"
+      },
+      "final_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_hpc88240_frozen_plan_20260727.json",
+        "bytes": 8553,
+        "sha256": "7c6028426fc11014d7c30057294dd35aa3d15e296f6ac9217cece8345006b0c4"
+      },
+      "job_id": 88240,
+      "gpu": "NVIDIA A40",
+      "dependency": "HPC Leaf terminal verification",
+      "process_signals_sent": 0,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false,
+      "human_gate_preserved": true
+    },
+    "hpc_ranzcr_continuation": {
+      "status": "waiting_for_siim",
+      "deployment": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_ranzcr_continuation_deployment_current.json",
+        "bytes": 5635,
+        "sha256": "d5fc79c7be146133636c6d3d5c1ccfc1a71f510564407765ea71182a9309909f"
+      },
+      "plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\ranzcr_highres_crossrun_hpc88240_frozen_plan_20260727.json",
+        "bytes": 7551,
+        "sha256": "fddb0983637ec0e6553d8e784f924308e22cba1a60c7fe1a9d9ecaf85e03e86b"
+      },
+      "job_id": 88240,
+      "gpu": "NVIDIA A40",
+      "dependency": "HPC SIIM terminal verification",
+      "process_signals_sent": 0,
+      "official_grader_executed": false,
+      "kaggle_submission_executed": false,
+      "human_gate_preserved": true
+    }
+  },
+  "boundaries": {
+    "private_labels_used_for_training": false,
+    "automatic_official_grader": false,
+    "automatic_kaggle_submission": false,
+    "human_gate_preserved": true,
+    "process_signals_sent_by_training_and_queues": 0,
+    "process_signals_sent_by_this_refresh": 0,
+    "self_owned_diagnostic_probe_signals_sent_cumulative": 2,
+    "other_processes_signaled": 0,
+    "other_existing_processes_modified": false,
+    "self_owned_diagnostic_probe_timeout_events_cumulative": 1
+  },
+  "sources": {
+    "official_progress": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_progress\\lite11_current.json",
+      "bytes": 20052,
+      "snapshot_sha256": "dd36e31d298d53616c844eb10fbcec8a08f55167992fdabab456c9aed018e55b",
+      "snapshot_bytes": 20052
+    },
+    "siim_sidecar_exact_scan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_scan_probe.json",
+      "sha256": "6f699254c377abf42afac417c25495da2c31d45d11914385e4f52395628f11cd",
+      "bytes": 1165
+    }
+  },
+  "claim_boundary": "The five records are conversion candidates, not five medals. Completion remains unproven until the official ledger contains at least 18 medals out of 22.",
+  "refreshed_at": "2026-07-27T14:33:36.890520+08:00",
+  "backup_of_previous": "D:\\桌面\\codex\\科研港科技\\workspace\\backups\\hpc88240_siim_chain_ledger_refresh_20260727_141350",
+  "persistent_task_chain": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\local_gpu_persistent_chain_migration_current.json",
+    "bytes": 22535,
+    "snapshot_sha256": "c7a82838cab6c0d49d2bd3e2baf15ac05fece39292b24b36d56004cf3f6543b8",
+    "snapshot_bytes": 22765
+  },
+  "siim_public_staging": {
+    "status": "sidecar_v2_rate_limited_merge_watcher_waiting",
+    "canonical_ready": true,
+    "canonical_report_path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_staging_report.json",
+    "completed_files": 10806,
+    "total_files": 33129,
+    "completed_bytes": 8451107005,
+    "total_bytes": 25765345055,
+    "missing_files": 22323,
+    "wrong_size_files": 0,
+    "legacy_task": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_staging_kaggle_heartbeat.json",
+      "bytes": 1018,
+      "status": "process_alive_progress_stalled",
+      "completed_files": 10796,
+      "completed_bytes": 8444425541,
+      "existing_process_modified": false,
+      "snapshot_sha256": "8cb1fa235503b10858db9c35c3ac8e76f66fe93f0810f5790254a928d72a7b46",
+      "snapshot_bytes": 1018
+    },
+    "sidecar_v2": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_heartbeat.json",
+      "bytes": 1172,
+      "persistent_manifest_sha256": "8e2715751b044d6edf6a21d8d8c47ca975da9a8200a4358bde9a26315f9bda87",
+      "persistent_status": "running",
+      "task_state": "Running",
+      "stderr_bytes": 0,
+      "workers": 2,
+      "max_in_flight": 2,
+      "network_route": "explicit_loopback_proxy",
+      "progress_health": "RATE_LIMITED_NO_NEW_FILES_YET",
+      "snapshot_sha256": "e460034aae252bd8b0504ce259eda3c9e509a8c83df7819902e4db7b23c6fba2",
+      "snapshot_bytes": 1172
+    },
+    "merge_watcher": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_official_data\\siim-isic-melanoma-classification\\public_sidecar_v2_merge_watcher.json",
+      "bytes": 349,
+      "status": "waiting_for_sidecar_completion",
+      "persistent_manifest_sha256": "6654fb306fe1399945a7997db74134241f4b6c208285296c0713922d723ff0bc",
+      "persistent_status": "running",
+      "task_state": "Running",
+      "stderr_bytes": 0,
+      "snapshot_sha256": "25c5ccc17b9667b02c266d1f630d0d33bb99cc13f24406b1cb701e3e1849c570",
+      "snapshot_bytes": 349
+    },
+    "rate_limit_evidence": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_staging_rate_limit_recovery_current.json",
+      "bytes": 1891,
+      "http_status": 429,
+      "snapshot_sha256": "df0a6b7160101a3726efe835aa0170035bbd9c0f46bd3eb2d5005a65f2e75899",
+      "snapshot_bytes": 1891
+    },
+    "process_signals_sent_by_data_tasks": 0,
+    "other_processes_signaled": 0
+  },
+  "gpt56_gateway_evidence": {
+    "frozen": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\gpt56_gateway_live_current.json",
+      "bytes": 1477,
+      "status": "passed",
+      "snapshot_sha256": "26d111a5ec6529e00b925b5f90c584642c50222af8774bb47922c0b49e57636b",
+      "snapshot_bytes": 1477
+    },
+    "independent_live_probe": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\gpt56_gateway_live_probe_20260727_100205.json",
+      "sha256": "45a604b1e645779c54144f335c1e0855e9dc3c0c45d32b2274649dd7635b4e62",
+      "bytes": 1477,
+      "status": "passed",
+      "ok": true,
+      "requested_model": "gpt-5.6-sol",
+      "models_ok": true,
+      "nonstream_ok": true,
+      "stream_ok": true,
+      "tool_call_ok": true,
+      "first_delta_ms": 1795.8
+    }
+  },
+  "siim_sidecar_merge_activation": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\siim_sidecar_merge_activation_current.json",
+    "bytes": 5342,
+    "snapshot_sha256": "04872df9f15e1fdc5a4b19beb6dd8f2a227e9bb85b65364e3419e46119b4c6f8",
+    "snapshot_bytes": 5342
+  },
+  "full_training_progress": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mle22_full_training_progress_current.json",
+    "bytes": 10728,
+    "snapshot_sha256": "7f2f516a7c4581877c0da56f22a2820e559a1b267d4d6a582a92f92c0423e3a3",
+    "snapshot_bytes": 12273
+  },
+  "jigsaw_early_after_may_activation": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\jigsaw_early_after_may_activation_current.json",
+    "bytes": 5601,
+    "snapshot_sha256": "7329c41d6c2203ea66f5357b3fc8787dfece8a7969e9d41251f57200d4867917",
+    "snapshot_bytes": 5601
+  },
+  "leaf_early_after_jigsaw_activation": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_early_after_jigsaw_activation_current.json",
+    "bytes": 4071,
+    "snapshot_sha256": "1d72ef71ed50149c4a7b1f8006431d1ead2fb2338c605900afc9ebc8fffef297",
+    "snapshot_bytes": 4071
+  },
+  "leaf_public_only_prelaunch_verification": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\leaf_public_only_prelaunch_verification_current.json",
+    "snapshot_sha256": "4bc76e9b256aebdf20c7309610615aafd654e478ba6a2c258d142293f1c4be3a",
+    "snapshot_bytes": 3663,
+    "passed": true
+  },
+  "spooky_human_gate_package": {
+    "status": "ready_for_human_review_not_submitted",
+    "directory": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727",
+    "manifest": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\manifest.json",
+      "bytes": 2649,
+      "sha256": "f59b15cb7674391668e9e5a548893bee07292296b0c796b06594df8968b28057"
+    },
+    "verification": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\human_gate\\spooky_cross_run_xgb_confirmation_20260727\\package_verification.json",
+      "bytes": 1106,
+      "sha256": "fd82525cf8dac993723c4943f4236ceea0a8537b3bbe86a4572715aff2024b85"
+    },
+    "official_medal_now": false
+  },
+  "hpc88240_execution": {
+    "status": "hpc88240_primary_local_seed40_drain_only",
+    "topology": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_training_topology_current.json",
+      "bytes": 17292,
+      "sha256": "1224192a4d33187fb51d90bc318cdca27cda06f8d0d409bcc172d595d1715975"
+    },
+    "cluster": "AI-X86_NVIDIA",
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "remote_root": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra",
+    "jigsaw_seed41": {
+      "status": {
+        "schema": "evomind.hpc_jigsaw_persistent_run.v1",
+        "created_at": "2026-07-27T13:16:18.515278+08:00",
+        "status": "training",
+        "wrapper_pid": 685650,
+        "run_id": "hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+        "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/runs/hpc88240_jigsaw_xfmr1_s41_confirm_20260727",
+        "plan_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/plans/jigsaw_transformer_xfmr1_s41_hpc88240_frozen_plan_v2_20260727.json",
+        "exit_code": null,
+        "private_labels_used": false,
+        "official_grader_executed": false,
+        "kaggle_submission_executed": false,
+        "process_signals_sent": 0,
+        "other_processes_modified": false
+      },
+      "heartbeat": {
+        "schema": "evomind.jigsaw.transformer_heartbeat.v1",
+        "created_at": "2026-07-27T13:45:53.725243+08:00",
+        "status": "running",
+        "stage": "epoch_evaluated",
+        "fold": 0,
+        "epoch": 2,
+        "update": 7980,
+        "total_updates": 7980,
+        "validation_auc": 0.9901890471327522,
+        "elapsed_seconds": 1761.6423318511806,
+        "diagnostic": false,
+        "plan_sha256": "14ac71d98668f1e2012105cc6cfea45e945fae642c06887772b6ab1cb5431350",
+        "private_labels_used": false,
+        "official_grader_executed": false
+      }
+    },
+    "leaf_continuation": {
+      "status": {
+        "schema": "evomind.hpc_leaf_persistent_run.v1",
+        "created_at": "2026-07-27T13:46:05.170135+08:00",
+        "status": "waiting_for_jigsaw_seed41",
+        "wrapper_pid": 688766,
+        "run_id": "hpc88240_leaf_dualbb_s404142_20260727",
+        "run_dir": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/leaf_multibackbone/runs/hpc88240_leaf_dualbb_s404142_20260727",
+        "plan_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_leaf_s404142_20260727/plans/leaf_multibackbone_hpc88240_frozen_plan_20260727.json",
+        "jigsaw_status_path": "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra/evomind_mle22/job88240_jigsaw_s41_20260727/full_seed41_status.json",
+        "stable_idle_observations": 0,
+        "exit_code": null,
+        "private_labels_used": false,
+        "official_grader_executed": false,
+        "kaggle_submission_executed": false,
+        "process_signals_sent": 0,
+        "other_processes_modified": false
+      },
+      "deployment": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_leaf_continuation_deployment_current.json",
+        "bytes": 6157,
+        "sha256": "e6836c69585fd41f14405cf9386152387a40d29d3e8f4cbb86dcabeb8ebeb253"
+      },
+      "frozen_plan": {
+        "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\leaf_multibackbone_hpc88240_frozen_plan_20260727.json",
+        "bytes": 7323,
+        "sha256": "ff24404f91631a8eec66c4aa6decf516b985be9b32945fa37601262056026cab"
+      }
+    },
+    "local_seed40_policy": "natural_completion_only",
+    "new_local_gpu_training_allowed": false,
+    "process_signals_sent": 0,
+    "other_processes_modified": false,
+    "private_labels_used": false,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_preserved": true
+  },
+  "hpc_siim_continuation": {
+    "status": "waiting_for_leaf",
+    "deployment": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_siim_continuation_deployment_current.json",
+      "bytes": 9131,
+      "sha256": "da9b97b37508bb097bb73e5c2b26eaa1e3d63a5961a8c9b917adf7e025746b15"
+    },
+    "ablation_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_preprocessing_ablation_hpc88240_frozen_plan_20260727.json",
+      "bytes": 5479,
+      "sha256": "340b330f04d999c9427818811fc78ffead39bacd4a56e5796ee3f7a2359cabc3"
+    },
+    "final_plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\siim_final_candidate_hpc88240_frozen_plan_20260727.json",
+      "bytes": 8553,
+      "sha256": "7c6028426fc11014d7c30057294dd35aa3d15e296f6ac9217cece8345006b0c4"
+    },
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "dependency": "HPC Leaf terminal verification",
+    "process_signals_sent": 0,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_preserved": true
+  },
+  "execution_topology": {
+    "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_training_topology_current.json",
+    "bytes": 17367,
+    "sha256": "de5c5fc271a0be9a509e8e61670cf8c50be1796effb3af53390889ac79c867b8"
+  },
+  "hpc_ranzcr_continuation": {
+    "status": "waiting_for_siim",
+    "deployment": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\hpc\\job88240_ranzcr_continuation_deployment_current.json",
+      "bytes": 5635,
+      "sha256": "d5fc79c7be146133636c6d3d5c1ccfc1a71f510564407765ea71182a9309909f"
+    },
+    "plan": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\mlebench_plans\\ranzcr_highres_crossrun_hpc88240_frozen_plan_20260727.json",
+      "bytes": 7551,
+      "sha256": "fddb0983637ec0e6553d8e784f924308e22cba1a60c7fe1a9d9ecaf85e03e86b"
+    },
+    "job_id": 88240,
+    "gpu": "NVIDIA A40",
+    "dependency": "HPC SIIM terminal verification",
+    "process_signals_sent": 0,
+    "official_grader_executed": false,
+    "kaggle_submission_executed": false,
+    "human_gate_preserved": true
+  },
+  "local_seed40_terminal": {
+    "summary": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\summary.json",
+      "bytes": 40311,
+      "sha256": "4625c1c411341b5a1464305a40eeb7d6b539a19cf514fa8a34a42adbfbabd432"
+    },
+    "independent_verification": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s40_confirm_20260727\\independent_verification.json",
+      "bytes": 32313,
+      "sha256": "548aae11299d73d1e136c83b9a8ea866ec82e6d8404b610fc1f4d90c37f21cd2"
+    },
+    "status": "promotion_gate_passed"
+  },
+  "local_seed41_residual": {
+    "status": "failed_before_training_no_valid_artifacts",
+    "run_dir": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s41_confirm_20260727",
+    "summary_present": false,
+    "verification_present": false,
+    "heartbeat_present": false,
+    "stderr": {
+      "path": "D:\\桌面\\codex\\科研港科技\\workspace\\local_gpu\\mlebench_lite_runs\\local4060_jigsaw_xfmr1_s41_confirm_20260727\\confirmation_training.stderr.log",
+      "bytes": 7327,
+      "sha256": "000ae94fb593a6b453b01e7cc6de5b29a81d042726b660b00855c1a8710ab041"
+    },
+    "failure_reason": "HuggingFace SSL/network error during model resolution; HPC seed41 remains authoritative",
+    "training_process_running": false,
+    "process_signals_sent": 0,
+    "other_processes_modified": false
+  }
+}

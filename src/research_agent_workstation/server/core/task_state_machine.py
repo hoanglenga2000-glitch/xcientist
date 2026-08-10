@@ -18,6 +18,8 @@ class TaskState(StrEnum):
     PLAN_APPROVED = "PLAN_APPROVED"
     CODE_GENERATING = "CODE_GENERATING"
     CODE_READY = "CODE_READY"
+    MANIFEST_PREPARED = "MANIFEST_PREPARED"
+    TRAINING_QUEUED = "TRAINING_QUEUED"
     TRAINING_RUNNING = "TRAINING_RUNNING"
     TRAINING_DONE = "TRAINING_DONE"
     REVIEWING = "REVIEWING"
@@ -42,7 +44,9 @@ ALLOWED_TRANSITIONS: dict[TaskState, set[TaskState]] = {
     TaskState.PLAN_WAITING_APPROVAL: {TaskState.PLAN_APPROVED, TaskState.FAILED},
     TaskState.PLAN_APPROVED: {TaskState.CODE_GENERATING, TaskState.FAILED},
     TaskState.CODE_GENERATING: {TaskState.CODE_READY, TaskState.FAILED},
-    TaskState.CODE_READY: {TaskState.TRAINING_RUNNING, TaskState.FAILED},
+    TaskState.CODE_READY: {TaskState.MANIFEST_PREPARED, TaskState.FAILED},
+    TaskState.MANIFEST_PREPARED: {TaskState.TRAINING_QUEUED, TaskState.FAILED},
+    TaskState.TRAINING_QUEUED: {TaskState.TRAINING_RUNNING, TaskState.FAILED},
     TaskState.TRAINING_RUNNING: {TaskState.TRAINING_DONE, TaskState.FAILED, TaskState.WAITING_FIX},
     TaskState.WAITING_FIX: {TaskState.CODE_GENERATING, TaskState.FAILED},
     TaskState.TRAINING_DONE: {TaskState.REVIEWING, TaskState.FAILED},
@@ -78,6 +82,12 @@ class TaskStateMachine:
     def transition(self, to_state: TaskState, reason: str, metadata: dict[str, Any] | None = None) -> StateTransition:
         if not self.can_transition(to_state):
             raise ValueError(f"Illegal transition for {self.task_id}: {self.state} -> {to_state}")
+        if self.state == TaskState.MANIFEST_PREPARED and to_state == TaskState.TRAINING_QUEUED:
+            details = metadata or {}
+            receipt = details.get("dispatch_receipt") if isinstance(details.get("dispatch_receipt"), dict) else {}
+            remote_job_id = str(details.get("remote_job_id") or "")
+            if not remote_job_id or str(receipt.get("job_id") or "") != remote_job_id or receipt.get("status") != "accepted":
+                raise ValueError("remote_job_id requires a matching accepted dispatch_receipt")
         record = StateTransition(
             from_state=self.state.value,
             to_state=to_state.value,

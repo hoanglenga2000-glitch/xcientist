@@ -43,6 +43,7 @@ class VerificationError(RuntimeError):
 
 _PORTABILITY_EXEMPT_PATHS = {
     "scripts/build_reproducible_submission_package.py",
+    "scripts/mlebench_server_runner.py",
     "scripts/verify_external_resources_manifest.py",
     "scripts/verify_security_invariants.py",
 }

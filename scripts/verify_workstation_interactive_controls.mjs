@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
+const requireFromWeb = createRequire(new URL("../web/research-agent-workstation/package.json", import.meta.url));
+const WebSocketClient = globalThis.WebSocket ?? requireFromWeb("ws");
 const outJson = join(root, "workspace", "workstation_interactive_controls_20260701.json");
 const outMd = join(root, "reports", "WORKSTATION_INTERACTIVE_CONTROLS_20260701.md");
 
@@ -13,7 +17,19 @@ const baseUrl = process.argv.includes("--base-url")
   ? process.argv[process.argv.indexOf("--base-url") + 1]
   : "http://127.0.0.1:8088";
 const writeReport = process.argv.includes("--write-report");
-const port = Number(process.env.WORKSTATION_CONTROL_AUDIT_CDP_PORT ?? "9224");
+
+async function allocateCdpPort() {
+  if (process.env.WORKSTATION_CONTROL_AUDIT_CDP_PORT) return Number(process.env.WORKSTATION_CONTROL_AUDIT_CDP_PORT);
+  return await new Promise((resolvePort, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const selected = typeof address === "object" && address ? address.port : 0;
+      server.close((error) => error ? reject(error) : resolvePort(selected));
+    });
+  });
+}
 
 const pageTargets = [
   "assistant",
@@ -96,7 +112,7 @@ class CdpClient {
   }
 
   async connect() {
-    this.socket = new WebSocket(this.wsUrl);
+    this.socket = new WebSocketClient(this.wsUrl);
     await new Promise((resolveConnect, reject) => {
       const timer = setTimeout(() => reject(new Error("CDP websocket connection timeout")), 10000);
       this.socket.addEventListener("open", () => {
@@ -261,6 +277,8 @@ async function run() {
     };
   }
 
+  const port = await allocateCdpPort();
+
   const userDataDir = join(root, "workspace", `.chrome-control-audit-${Date.now()}`);
   await mkdir(userDataDir, { recursive: true });
   const chromeProcess = spawn(chrome, [
@@ -269,10 +287,13 @@ async function run() {
     "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
+    "--disable-extensions",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
     `${baseUrl}/?page=overview`
-  ], { stdio: "ignore" });
+  ], { stdio: ["ignore", "ignore", "pipe"] });
+  const chromeStderr = [];
+  chromeProcess.stderr?.on("data", (chunk) => chromeStderr.push(String(chunk)));
 
   let client;
   let cleanupWarning = null;
@@ -311,6 +332,18 @@ async function run() {
       runtime_errors: runtimeErrors.slice(0, 10),
       cleanup_warning: cleanupWarning,
       claim_boundary: "This audit inspects visible interactive controls after client-side routing has settled. A control passes if it has data-ui-action, data-testid, data-ui-component, href, input semantics, or an explicit disabled state. It does not start training, GPU jobs, Kaggle submission, or Figma writes."
+    };
+  } catch (error) {
+    return {
+      schema: "academic_research_os.workstation_interactive_controls.v1",
+      created_at: createdAt,
+      base_url: baseUrl,
+      status: "blocked",
+      blocker: "browser_cdp_unavailable",
+      chrome,
+      chrome_stderr_tail: chromeStderr.join("").slice(-4000),
+      error: String(error?.message ?? error),
+      page_results: [], failed_pages: pageTargets, missing_control_count: null
     };
   } finally {
     client?.close();

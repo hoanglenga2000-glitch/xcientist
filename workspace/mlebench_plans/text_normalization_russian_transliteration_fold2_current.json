@@ -1,0 +1,585 @@
+{
+  "schema": "evomind.mlebench.russian_transliteration_oof.v1",
+  "access_mode": "remote_read_only_cpu_probe",
+  "path_scope_verified": true,
+  "created_at": "2026-07-25T01:41:48.196052+00:00",
+  "remote_stderr_type": "nonempty",
+  "base_accuracy": 0.951549515495155,
+  "candidate_accuracy": 0.966459664596646,
+  "candidate_applied_rows": 2325,
+  "candidate_gain": 1492,
+  "candidate_loss": 1,
+  "epochs": 40,
+  "fold_sizes": [
+    100001,
+    100001,
+    99999,
+    99999,
+    100000
+  ],
+  "folds": 5,
+  "held_out_fold": 2,
+  "loss_history": [
+    1.8220329373842412,
+    0.6884011572215649,
+    0.5029308827531304,
+    0.4181456200417179,
+    0.3527027250031875,
+    0.30897323515034675,
+    0.27745112808315936,
+    0.2567005778318453,
+    0.2441564434184721,
+    0.2237331661465032,
+    0.2095677087771109,
+    0.20402711443362848,
+    0.19771785469430195,
+    0.19066402156024312,
+    0.18547173368133169,
+    0.18256822656214375,
+    0.175688875233857,
+    0.16537104288956694,
+    0.16178229277601444,
+    0.1552163529816736,
+    0.1553510653951353,
+    0.15074276179017013,
+    0.1450601599170826,
+    0.14274377978075298,
+    0.14043482677092292,
+    0.13498061432146286,
+    0.13158753215589244,
+    0.13365373427163982,
+    0.129647242765628,
+    0.12927650061293328,
+    0.12232864748314329,
+    0.11908355176521801,
+    0.11978897093872938,
+    0.1209861654663793,
+    0.1155908143908504,
+    0.11233498847025129,
+    0.11040719805358047,
+    0.11091581563910657,
+    0.10751414071145142,
+    0.10925770023768758
+  ],
+  "rows": 500000,
+  "target_vocabulary": [
+    "а",
+    "б",
+    "в",
+    "г",
+    "д",
+    "е",
+    "ж",
+    "з",
+    "и",
+    "й",
+    "к",
+    "л",
+    "м",
+    "н",
+    "о",
+    "п",
+    "р",
+    "с",
+    "т",
+    "у",
+    "ф",
+    "х",
+    "ц",
+    "ч",
+    "ш",
+    "ъ",
+    "ь",
+    "э",
+    "ю",
+    "я"
+  ],
+  "top_unseen_errors": [
+    {
+      "before": "Claudio",
+      "count": 3,
+      "prediction": "клаудио",
+      "target": "клодио"
+    },
+    {
+      "before": "Ligeria",
+      "count": 3,
+      "prediction": "лайджерия",
+      "target": "лигерия"
+    },
+    {
+      "before": "Cape",
+      "count": 3,
+      "prediction": "кейп",
+      "target": "кэп"
+    },
+    {
+      "before": "Kansas",
+      "count": 3,
+      "prediction": "кансас",
+      "target": "канзас"
+    },
+    {
+      "before": "Breaking",
+      "count": 2,
+      "prediction": "брикинг",
+      "target": "брейкинг"
+    },
+    {
+      "before": "man",
+      "count": 2,
+      "prediction": "ман",
+      "target": "мэн"
+    },
+    {
+      "before": "Houghton",
+      "count": 2,
+      "prediction": "хаутон",
+      "target": "хоутон"
+    },
+    {
+      "before": "Roux",
+      "count": 2,
+      "prediction": "рау",
+      "target": "ру"
+    },
+    {
+      "before": "Ouen",
+      "count": 2,
+      "prediction": "ауэн",
+      "target": "оюэн"
+    },
+    {
+      "before": "Namen",
+      "count": 2,
+      "prediction": "неймен",
+      "target": "намен"
+    },
+    {
+      "before": "Crowd",
+      "count": 2,
+      "prediction": "крауд",
+      "target": "кроуд"
+    },
+    {
+      "before": "Minnesota",
+      "count": 2,
+      "prediction": "миннсота",
+      "target": "миннесота"
+    },
+    {
+      "before": "Verde",
+      "count": 2,
+      "prediction": "верд",
+      "target": "верде"
+    },
+    {
+      "before": "Fine",
+      "count": 2,
+      "prediction": "файн",
+      "target": "фин"
+    },
+    {
+      "before": "Conversion",
+      "count": 2,
+      "prediction": "конверсион",
+      "target": "конвершен"
+    },
+    {
+      "before": "Sir",
+      "count": 2,
+      "prediction": "сир",
+      "target": "сэр"
+    },
+    {
+      "before": "Brandeis",
+      "count": 2,
+      "prediction": "брандейс",
+      "target": "брандеис"
+    },
+    {
+      "before": "Players",
+      "count": 2,
+      "prediction": "плейерс",
+      "target": "плайерс"
+    },
+    {
+      "before": "einem",
+      "count": 2,
+      "prediction": "эйнем",
+      "target": "айнм"
+    },
+    {
+      "before": "Parapsychology",
+      "count": 2,
+      "prediction": "парапсичлоджи",
+      "target": "парапсиколоджи"
+    },
+    {
+      "before": "Azerbaijan",
+      "count": 2,
+      "prediction": "азербейжан",
+      "target": "азербайян"
+    },
+    {
+      "before": "Riga",
+      "count": 2,
+      "prediction": "райга",
+      "target": "рига"
+    },
+    {
+      "before": "Eurasian",
+      "count": 2,
+      "prediction": "эерасиан",
+      "target": "эеразиан"
+    },
+    {
+      "before": "Martinez",
+      "count": 2,
+      "prediction": "мартинез",
+      "target": "мартинес"
+    },
+    {
+      "before": "Sierra",
+      "count": 2,
+      "prediction": "сирра",
+      "target": "сьерра"
+    },
+    {
+      "before": "Syracuse",
+      "count": 2,
+      "prediction": "сиракус",
+      "target": "сиракьюс"
+    },
+    {
+      "before": "Massive",
+      "count": 2,
+      "prediction": "массайв",
+      "target": "массив"
+    },
+    {
+      "before": "Piscis",
+      "count": 2,
+      "prediction": "писц",
+      "target": "писцис"
+    },
+    {
+      "before": "PsA",
+      "count": 2,
+      "prediction": "пса",
+      "target": "пза"
+    },
+    {
+      "before": "Schomburgk",
+      "count": 2,
+      "prediction": "шомбергк",
+      "target": "шомбургк"
+    },
+    {
+      "before": "supermoon",
+      "count": 1,
+      "prediction": "сапермун",
+      "target": "супермун"
+    },
+    {
+      "before": "Xenicus",
+      "count": 1,
+      "prediction": "ксеникс",
+      "target": "ксеникус"
+    },
+    {
+      "before": "Acanthisittidae",
+      "count": 1,
+      "prediction": "акантизитида",
+      "target": "акантайзиттида"
+    },
+    {
+      "before": "HISTORY",
+      "count": 1,
+      "prediction": "хистори",
+      "target": "хистари"
+    },
+    {
+      "before": "Collision",
+      "count": 1,
+      "prediction": "коллижен",
+      "target": "коллишен"
+    },
+    {
+      "before": "Satellites",
+      "count": 1,
+      "prediction": "сейтллитс",
+      "target": "сателлитс"
+    },
+    {
+      "before": "Somewhere",
+      "count": 1,
+      "prediction": "сомьюхер",
+      "target": "сомьюер"
+    },
+    {
+      "before": "postpaid",
+      "count": 1,
+      "prediction": "постпейд",
+      "target": "постпаид"
+    },
+    {
+      "before": "oleh",
+      "count": 1,
+      "prediction": "ол",
+      "target": "оле"
+    },
+    {
+      "before": "NurW",
+      "count": 1,
+      "prediction": "неру",
+      "target": "нер"
+    },
+    {
+      "before": "Researchers",
+      "count": 1,
+      "prediction": "ризерчерс",
+      "target": "ресерчерс"
+    },
+    {
+      "before": "Breakup",
+      "count": 1,
+      "prediction": "брикап",
+      "target": "брейкап"
+    },
+    {
+      "before": "ancestors",
+      "count": 1,
+      "prediction": "анстсторс",
+      "target": "ансесторс"
+    },
+    {
+      "before": "kinopoisk",
+      "count": 1,
+      "prediction": "кинопуайск",
+      "target": "кинопойск"
+    },
+    {
+      "before": "realno",
+      "count": 1,
+      "prediction": "рилно",
+      "target": "реално"
+    },
+    {
+      "before": "zwyciestwa",
+      "count": 1,
+      "prediction": "зуисиестуа",
+      "target": "зуайсиства"
+    },
+    {
+      "before": "Vorgeschichte",
+      "count": 1,
+      "prediction": "ворджешич",
+      "target": "ворджешичт"
+    },
+    {
+      "before": "Wahle",
+      "count": 1,
+      "prediction": "уол",
+      "target": "вал"
+    },
+    {
+      "before": "fruhgeschichtlicher",
+      "count": 1,
+      "prediction": "фруджешич",
+      "target": "фруджешичтличер"
+    },
+    {
+      "before": "Rozo",
+      "count": 1,
+      "prediction": "розо",
+      "target": "росо"
+    },
+    {
+      "before": "Debruge",
+      "count": 1,
+      "prediction": "дебрюдж",
+      "target": "дебрудж"
+    },
+    {
+      "before": "latviesi",
+      "count": 1,
+      "prediction": "латвиеси",
+      "target": "латвьзи"
+    },
+    {
+      "before": "Schauspiele",
+      "count": 1,
+      "prediction": "шоспиел",
+      "target": "шоспиэл"
+    },
+    {
+      "before": "Kitteridge",
+      "count": 1,
+      "prediction": "киттеридж",
+      "target": "киттридж"
+    },
+    {
+      "before": "Stammesherzogtum",
+      "count": 1,
+      "prediction": "стаммешерцогтум",
+      "target": "стаммешерзогчум"
+    },
+    {
+      "before": "Jahrhunderts",
+      "count": 1,
+      "prediction": "джархундертс",
+      "target": "джарандертс"
+    },
+    {
+      "before": "Guitar",
+      "count": 1,
+      "prediction": "гайтар",
+      "target": "гитар"
+    },
+    {
+      "before": "Visitors",
+      "count": 1,
+      "prediction": "виситорс",
+      "target": "визиторс"
+    },
+    {
+      "before": "Deluxe",
+      "count": 1,
+      "prediction": "делакс",
+      "target": "делаксе"
+    },
+    {
+      "before": "Digitimes",
+      "count": 1,
+      "prediction": "диджитимс",
+      "target": "дигитаймс"
+    },
+    {
+      "before": "Kuo",
+      "count": 1,
+      "prediction": "ку",
+      "target": "куо"
+    },
+    {
+      "before": "Enoc",
+      "count": 1,
+      "prediction": "энок",
+      "target": "инок"
+    },
+    {
+      "before": "Mislukte",
+      "count": 1,
+      "prediction": "мислюкт",
+      "target": "мислукт"
+    },
+    {
+      "before": "mislukte",
+      "count": 1,
+      "prediction": "мислюкт",
+      "target": "мислукт"
+    },
+    {
+      "before": "figuur",
+      "count": 1,
+      "prediction": "фигер",
+      "target": "фигуер"
+    },
+    {
+      "before": "Ismail",
+      "count": 1,
+      "prediction": "аймейл",
+      "target": "исмейл"
+    },
+    {
+      "before": "Kwaljima",
+      "count": 1,
+      "prediction": "квалжима",
+      "target": "квалджима"
+    },
+    {
+      "before": "gamblei",
+      "count": 1,
+      "prediction": "гамбли",
+      "target": "гэмбли"
+    },
+    {
+      "before": "Bremek",
+      "count": 1,
+      "prediction": "бремек",
+      "target": "бремк"
+    },
+    {
+      "before": "page",
+      "count": 1,
+      "prediction": "педж",
+      "target": "паж"
+    },
+    {
+      "before": "Rudolf",
+      "count": 1,
+      "prediction": "радолф",
+      "target": "рудолф"
+    },
+    {
+      "before": "Dornach",
+      "count": 1,
+      "prediction": "дорнач",
+      "target": "дорнч"
+    },
+    {
+      "before": "eines",
+      "count": 1,
+      "prediction": "эйнс",
+      "target": "айнс"
+    },
+    {
+      "before": "Pulitzer",
+      "count": 1,
+      "prediction": "пулицер",
+      "target": "пулитзер"
+    },
+    {
+      "before": "Eggink",
+      "count": 1,
+      "prediction": "эгджинк",
+      "target": "эггинк"
+    },
+    {
+      "before": "WANTED",
+      "count": 1,
+      "prediction": "уонтед",
+      "target": "вантед"
+    },
+    {
+      "before": "Pyxicephalidae",
+      "count": 1,
+      "prediction": "пайсефалидали",
+      "target": "пиксисефалида"
+    },
+    {
+      "before": "Benezit",
+      "count": 1,
+      "prediction": "бензит",
+      "target": "бенизит"
+    },
+    {
+      "before": "erw",
+      "count": 1,
+      "prediction": "эру",
+      "target": "эр"
+    },
+    {
+      "before": "Meixner",
+      "count": 1,
+      "prediction": "мейкснер",
+      "target": "меикснер"
+    }
+  ],
+  "training_pairs": 9865,
+  "transliteration_exact_accuracy": 0.31805585163078237,
+  "transliteration_rows": 4691,
+  "unseen_transliteration_exact_accuracy": 0.682837528604119,
+  "unseen_transliteration_rows": 2185,
+  "validation_rows": 99999
+}

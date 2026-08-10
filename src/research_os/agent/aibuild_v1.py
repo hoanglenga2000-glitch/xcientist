@@ -39,6 +39,23 @@ def _atomic_json(path: Path, payload: dict[str, Any]) -> None:
     os.replace(temp, path)
 
 
+def _read_json_object(path: Path) -> dict[str, Any] | None:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def _append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8", newline="\n") as handle:
+        handle.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
+        handle.write("\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def default_roles() -> list[AgentRoleSpec]:
     """Hard role/tool/resource boundaries used by every AIBuild v1 run."""
     return [
@@ -240,21 +257,73 @@ def write_current_run_pointer(
     task_id = _validate_id(task_id, "task_id")
     _validate_id(run.run_id, "run_id")
     pointer_path = root / "workspace" / "current_run.json"
+    ledger_root = root / "workspace" / "run_ledger"
+    ledger_run_path = ledger_root / "runs" / f"{run.run_id}.json"
     resolved_run_dir = Path(run_dir).resolve()
     expected_run_dir = run_directory(root, run.run_id).resolve()
     if resolved_run_dir != expected_run_dir:
         raise ValueError("current run directory does not match run_id")
     relative_dir = resolved_run_dir.relative_to(root)
-    payload = {
-        "schema": "evomind.current_run.v1",
-        "task_id": task_id,
-        "run_id": run.run_id,
-        "run_dir": str(relative_dir).replace("\\", "/"),
-        "status": run.status,
-        "last_seq": run.seq,
-        "updated_at": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
-    }
+    updated_at = datetime.now(timezone.utc).isoformat(timespec="milliseconds")
     with _POINTER_LOCK:
+        previous = _read_json_object(ledger_run_path) or {}
+        if previous and (previous.get("run_id") != run.run_id or previous.get("task_id") != task_id):
+            raise ValueError("Run Ledger identity mismatch")
+        lifecycle_state = previous.get("lifecycle_state") if isinstance(previous.get("lifecycle_state"), str) else None
+        canonical_status = lifecycle_state or run.status
+        projections = previous.get("projections") if isinstance(previous.get("projections"), dict) else {}
+        projections = {
+            **projections,
+            "python_supervisor": {
+                "status": run.status,
+                "last_seq": run.seq,
+                "updated_at": updated_at,
+            },
+        }
+        ledger_payload = {
+            "schema": "evomind.run_ledger_entry.v1",
+            "task_id": task_id,
+            "run_id": run.run_id,
+            "run_dir": str(relative_dir).replace("\\", "/"),
+            "output_dir": previous.get("output_dir") if isinstance(previous.get("output_dir"), str) else None,
+            "status": canonical_status,
+            "lifecycle_state": lifecycle_state,
+            "last_seq": run.seq,
+            "revision": int(previous.get("revision", 0)) + 1,
+            "source": "python_supervisor",
+            "updated_at": updated_at,
+            "projections": projections,
+            **({"metadata": previous["metadata"]} if isinstance(previous.get("metadata"), dict) else {}),
+        }
+        _atomic_json(ledger_run_path, ledger_payload)
+        _atomic_json(ledger_root / "current.json", ledger_payload)
+        _append_jsonl(
+            ledger_root / "events.jsonl",
+            {
+                "schema": "evomind.run_ledger_event.v1",
+                "event_id": str(uuid.uuid4()),
+                "revision": ledger_payload["revision"],
+                "task_id": task_id,
+                "run_id": run.run_id,
+                "status": canonical_status,
+                "lifecycle_state": lifecycle_state,
+                "projection_status": run.status,
+                "source": "python_supervisor",
+                "created_at": updated_at,
+                "metadata": None,
+            },
+        )
+        payload = {
+            "schema": "evomind.current_run.v1",
+            "task_id": task_id,
+            "run_id": run.run_id,
+            "run_dir": str(relative_dir).replace("\\", "/"),
+            "status": canonical_status,
+            "last_seq": run.seq,
+            "updated_at": updated_at,
+            "ledger_revision": ledger_payload["revision"],
+            "ledger_path": f"workspace/run_ledger/runs/{run.run_id}.json",
+        }
         _atomic_json(pointer_path, payload)
     return pointer_path
 
@@ -262,9 +331,8 @@ def write_current_run_pointer(
 def read_current_run_pointer(workspace_root: str | Path) -> dict[str, Any] | None:
     root = Path(workspace_root).resolve()
     path = root / "workspace" / "current_run.json"
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    payload = _read_json_object(path)
+    if payload is None:
         return None
     if payload.get("schema") != "evomind.current_run.v1":
         return None
@@ -288,6 +356,14 @@ def read_current_run_pointer(workspace_root: str | Path) -> dict[str, Any] | Non
         return None
     if run_payload.get("run_id") != run_id:
         return None
+    ledger = _read_json_object(root / "workspace" / "run_ledger" / "current.json")
+    if ledger is not None:
+        if ledger.get("schema") != "evomind.run_ledger_entry.v1":
+            return None
+        if ledger.get("task_id") != task_id or ledger.get("run_id") != run_id:
+            return None
+        if ledger.get("run_dir") != run_dir or ledger.get("status") != payload.get("status"):
+            return None
     return payload
 
 

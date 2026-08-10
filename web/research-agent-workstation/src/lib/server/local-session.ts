@@ -2,13 +2,16 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "evomind_local_session";
 export const CSRF_HEADER = "x-evomind-csrf";
+export const LOCAL_AUTOMATION_VERIFIED_HEADER = "x-evomind-local-automation-verified";
 export const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 
 const SECRET_KEY = Symbol.for("evomind.local.session.secret.v1");
 const BOOTSTRAP_HASH_KEY = Symbol.for("evomind.local.bootstrap.hash.v1");
+const AUTOMATION_HASH_KEY = Symbol.for("evomind.local.automation.hash.v1");
 type LocalSecretGlobal = typeof globalThis & {
   [SECRET_KEY]?: string;
   [BOOTSTRAP_HASH_KEY]?: string;
+  [AUTOMATION_HASH_KEY]?: string;
 };
 
 function secret() {
@@ -57,6 +60,17 @@ export function validBootstrapToken(value: string) {
   if (expectedHash) state[BOOTSTRAP_HASH_KEY] = expectedHash;
   delete process.env.WORKSTATION_BOOTSTRAP_TOKEN_HASH;
   return Boolean(expectedHash && /^[a-f0-9]{64}$/.test(expectedHash) && safeEqual(sha256Hex(value), expectedHash));
+}
+
+export function validLocalAutomationToken(value: string | null) {
+  const token = typeof value === "string" ? value.trim() : "";
+  if (!token) return false;
+  const state = globalThis as LocalSecretGlobal;
+  const expectedHash = state[AUTOMATION_HASH_KEY]
+    ?? process.env.WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH?.trim().toLowerCase();
+  if (expectedHash) state[AUTOMATION_HASH_KEY] = expectedHash;
+  delete process.env.WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH;
+  return Boolean(expectedHash && /^[a-f0-9]{64}$/.test(expectedHash) && safeEqual(sha256Hex(token), expectedHash));
 }
 
 export function localOrigin() {
