@@ -18,14 +18,13 @@ jobs:
       EVOMIND_PORTABLE_SOURCE_CI: "1"
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          version: "0.11.21"
           python-version: "3.12.13"
-          cache: pip
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-            pyproject.toml
+          activate-environment: true
+      - name: Bootstrap pip in the pinned Python environment
+        run: python -m ensurepip --upgrade
       - name: Install test and build dependencies
         run: python -m pip install -r requirements-dev.txt
       - name: Run production stability gate
@@ -94,15 +93,17 @@ jobs:
           node-version: "24.13.0"
           cache: npm
           cache-dependency-path: web/research-agent-workstation/package-lock.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12.13"
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.11.21"
+          python-version: "3.12.13"
+          activate-environment: true
+      - name: Bootstrap pip in the pinned Python environment
+        working-directory: .
+        run: python -m ensurepip --upgrade
       - name: Install Python runtime dependencies
         working-directory: .
-        run: uv pip install --system -r requirements.txt
+        run: python -m pip install -r requirements.txt
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
       - name: Test the npm CLI package and inspect its packed contents
@@ -235,9 +236,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          version: "0.11.21"
           python-version: "3.12.13"
+          activate-environment: true
       - name: Download the externally generated capability evidence bundle
         shell: pwsh
         env:
@@ -300,9 +303,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24.13.0"
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          version: "0.11.21"
           python-version: "3.12.13"
+          activate-environment: true
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093

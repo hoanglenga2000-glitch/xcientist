@@ -155,3 +155,13 @@ def test_release_ci_binds_manifest_cli_tgz_and_zip_with_fixture_and_production_g
     assert "environment: production-release" in protected_job
     assert "secrets.EVOMIND_RELEASE_PRIVATE_KEY_PEM" in protected_job
     assert "secrets.EVOMIND_RELEASE_PRIVATE_KEY_PEM" not in ordinary_job
+
+
+def test_release_ci_uses_uv_managed_python_for_source_only_windows_pin():
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+
+    assert "actions/setup-python@" not in workflow
+    assert workflow.count("uses: astral-sh/setup-uv@v6") == 4
+    assert workflow.count('python-version: "3.12.13"') == 4
+    assert workflow.count("activate-environment: true") == 4
+    assert workflow.count("python -m ensurepip --upgrade") == 2
