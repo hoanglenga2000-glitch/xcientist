@@ -55,6 +55,8 @@ npm run db:generate / db:push PASS
 npm audit --omit=dev --audit-level=low PASS — 0 vulnerabilities
 ```
 
+The protected-tag Python job is self-contained: dashboard build-transaction tests create and bind a minimal fixture SQLite schema, so a clean checkout no longer depends on an untracked `prisma/workstation.db`. The focused transaction suite passes 10/10 while retaining the assertion that runtime databases never enter build staging.
+
 The release snapshot also removes 49 deleted legacy HPC/Kaggle/SSH scripts, excludes runtime databases/logs/caches and `node_modules`, and keeps the Next.js 16 `src/proxy.ts` migration while preserving the `middleware.ts` deletion. Hash-bound JSON/JSONL/CSV assets are marked `binary` in `.gitattributes` so checkout line-ending conversion cannot alter their bytes.
 
 ### Candidate runtime proof

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -27,7 +28,9 @@ def make_source_tree(root: Path) -> Path:
     (app / "public" / "favicon.ico").write_bytes(b"icon")
     (app / "prisma" / "migrations" / "001_init").mkdir(parents=True)
     (app / "prisma" / "schema.prisma").write_text("generator client { provider = \"prisma-client-js\" }", encoding="utf-8")
-    (app / "prisma" / "workstation.db").write_bytes(b"private-runtime-data")
+    database = app / "prisma" / "workstation.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE runtime_build_test (id INTEGER PRIMARY KEY)")
     (app / ".env").write_text("SECRET=must-not-enter-staging", encoding="utf-8")
     for name, value in {
         "package.json": "{}",
@@ -55,6 +58,7 @@ def write_candidate(cwd: Path, build_id: str = "candidate-good") -> None:
 def configure_manager(manager, app: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(manager, "SOURCE_APP_DIR", app)
     monkeypatch.setattr(manager, "SOURCE_STANDALONE_SERVER", app / ".next" / "standalone" / "server.js")
+    monkeypatch.setattr(manager, "DEFAULT_DATABASE_PATH", app / "prisma" / "workstation.db")
     monkeypatch.setattr(manager, "node_command", lambda: "node")
     monkeypatch.setattr(manager, "next_cli_path", lambda: "next-cli")
 

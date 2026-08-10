@@ -22,6 +22,7 @@
 | Prisma | **PASS** | client generation and SQLite schema push |
 | Production dependency audit | **PASS** | 0 vulnerabilities |
 | Candidate diff hygiene | **PASS** | alternate-index `git diff --cached --check` returned 0 |
+| Dashboard build transaction fixture | **PASS** | 10/10; self-contained SQLite schema; runtime DB excluded from staging |
 
 Python JUnit:
 
