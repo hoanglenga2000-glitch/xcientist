@@ -82,7 +82,8 @@ def test_parser_ignores_non_pid_compute_rows():
     ]
 
 
-def test_parser_accepts_localized_bytes_and_empty_output():
+def test_parser_accepts_localized_bytes_and_empty_output(monkeypatch):
+    monkeypatch.setattr(gate.locale, "getpreferredencoding", lambda _do_setlocale=False: "gb18030")
     encoded = "123, C:\\工具\\python.exe\n".encode("gb18030")
     assert gate.parse_compute_apps(encoded) == [
         {"pid": 123, "process_name": "C:\\工具\\python.exe"}

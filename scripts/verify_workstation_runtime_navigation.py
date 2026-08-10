@@ -253,6 +253,14 @@ def main() -> int:
         "api_path_count": report["api_path_count"],
         "failed_page_count": len(report["failed_pages"]),
         "failed_api_count": len(report["failed_apis"]),
+        "failed_api_details": [
+            {
+                "target": item.get("target"),
+                "status": item.get("status"),
+                "error": item.get("error"),
+            }
+            for item in report["failed_apis"]
+        ],
         "json": str(OUT_JSON.relative_to(ROOT)).replace("\\", "/") if args.write_report else None,
         "md": str(OUT_MD.relative_to(ROOT)).replace("\\", "/") if args.write_report else None,
     }, ensure_ascii=False, indent=2))

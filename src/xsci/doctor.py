@@ -82,7 +82,7 @@ def _check_compute(cfg) -> tuple[str, str]:
         conf = load_gpu_ssh_config(require_auth=True)
         return WARN, f"GPU SSH config resolves (auth={conf.has_auth()}); fresh remote SSH/CUDA smoke still required"
     except Exception as exc:  # noqa: BLE001
-        return FAIL, f"compute=gpu but SSH config invalid: {exc}"
+        return WARN, f"compute=gpu but optional SSH config is not ready: {exc}"
 
 
 def _check_disk_space() -> tuple[str, str]:

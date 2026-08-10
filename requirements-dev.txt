@@ -3,3 +3,6 @@
 
 pytest>=7.0,<10.0
 ruff>=0.5,<1.0
+setuptools>=68
+wheel>=0.43
+build>=1.2,<2.0

@@ -57,6 +57,7 @@ markers = [
     "slow: long-running tests (deselect with '-m \"not slow\"')",
     "network: requires network/proxy access",
     "gpu: requires the remote GPU server",
+    "local_frozen_evidence: requires workstation-local frozen evidence outside the source release",
 ]
 
 [tool.ruff]
