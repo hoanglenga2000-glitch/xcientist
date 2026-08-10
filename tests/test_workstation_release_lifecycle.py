@@ -50,6 +50,7 @@ def test_bundle_entrypoints_honor_the_managed_environment_port() -> None:
         assert '$PSBoundParameters.ContainsKey("Port")' in source
         assert "[int]::TryParse($env:WORKSTATION_PORT, [ref]$resolvedPort)" in source
         assert "$Port = $resolvedPort" in source
+        assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in source
 
 
 def test_runtime_environment_isolates_browser_secrets_and_binds_source_imports(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -799,6 +800,8 @@ def test_bundle_install_phase_matches_the_durable_cli_transaction_order() -> Non
     assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in installer
     assert "$env:PYTHONPYCACHEPREFIX = $null" in installer
     assert 'Join-Path $DataDir "tmp\\pycache"' not in installer
+    assert '"-m", "py_compile"' not in installer
+    assert "compile(pathlib.Path(value).read_text" in installer
 
 
 def test_runtime_build_manifest_binds_source_backend_frontend_and_database(

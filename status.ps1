@@ -7,5 +7,7 @@ if (-not $PSBoundParameters.ContainsKey("Port") -and -not [string]::IsNullOrWhit
   $Port = $resolvedPort
 }
 if ($Port -lt 1 -or $Port -gt 65535) { throw "Port must be between 1 and 65535." }
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONPYCACHEPREFIX = $null
 & (Join-Path $PSScriptRoot "scripts\manage_workstation_lifecycle.ps1") status -InstallRoot $PSScriptRoot -Port $Port -HostName $HostName
 exit $LASTEXITCODE

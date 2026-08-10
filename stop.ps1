@@ -7,6 +7,8 @@ if (-not $PSBoundParameters.ContainsKey("Port") -and -not [string]::IsNullOrWhit
   $Port = $resolvedPort
 }
 if ($Port -lt 1 -or $Port -gt 65535) { throw "Port must be between 1 and 65535." }
+$env:PYTHONDONTWRITEBYTECODE = "1"
+$env:PYTHONPYCACHEPREFIX = $null
 if (Test-Path -LiteralPath (Join-Path $PSScriptRoot "app\server.js") -PathType Leaf) {
   $localBase = if ($env:LOCALAPPDATA) { $env:LOCALAPPDATA } else { [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData) }
   $managedRoot = Join-Path $localBase "EvoMind"

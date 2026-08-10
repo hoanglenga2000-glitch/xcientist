@@ -340,7 +340,8 @@ if ($InstallUserShims -and (Test-Path -LiteralPath (Join-Path $Root "scripts\ins
 }
 
 Write-Step "7/7 Verifying installation"
-Invoke-Checked $VenvPython @("-m", "py_compile", (Join-Path $Root "scripts\manage_workstation_dashboard.py"), (Join-Path $Root "scripts\manage_local_gateway.py"), (Join-Path $Root "scripts\release_db_migrate.py")) "lifecycle compile smoke"
+$compileExpression = "import pathlib,sys; [compile(pathlib.Path(value).read_text(encoding='utf-8-sig'), value, 'exec') for value in sys.argv[1:]]; print('lifecycle compile smoke')"
+Invoke-Checked $VenvPython @("-c", $compileExpression, (Join-Path $Root "scripts\manage_workstation_dashboard.py"), (Join-Path $Root "scripts\manage_local_gateway.py"), (Join-Path $Root "scripts\release_db_migrate.py")) "lifecycle compile smoke"
 if (-not $SkipVerify -and -not $BundleMode -and (Test-Path -LiteralPath (Join-Path $Root "scripts\verify_new_user_release_readiness.py"))) {
   & $VenvPython (Join-Path $Root "scripts\verify_new_user_release_readiness.py") --write-report
   if ($LASTEXITCODE -ne 0) { Write-Host "  [WARN] optional resource gates remain; the local core installation is intact" -ForegroundColor Yellow }
