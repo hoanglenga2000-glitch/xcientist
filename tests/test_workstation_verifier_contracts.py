@@ -165,7 +165,7 @@ def test_release_ci_uses_uv_managed_python_for_source_only_windows_pin():
     assert workflow.count('python-version: "3.12.13"') == 4
     assert workflow.count("activate-environment: true") == 4
     assert workflow.count("enable-cache: false") == 4
-    assert workflow.count("working-directory: ${{ runner.temp }}/evomind-python") == 4
+    assert workflow.count("working-directory: ${{ runner.temp }}") == 4
     assert workflow.count("python -m ensurepip --upgrade") == 2
     assert "Remove source-tree side effects from browser E2E" in workflow
     assert "git restore -- web/research-agent-workstation/.next-rollback.json" in workflow

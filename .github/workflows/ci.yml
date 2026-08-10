@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12.13"
           activate-environment: true
           enable-cache: false
-          working-directory: ${{ runner.temp }}/evomind-python
+          working-directory: ${{ runner.temp }}
       - name: Bootstrap pip in the pinned Python environment
         run: python -m ensurepip --upgrade
       - name: Install test and build dependencies
@@ -101,7 +101,7 @@ jobs:
           python-version: "3.12.13"
           activate-environment: true
           enable-cache: false
-          working-directory: ${{ runner.temp }}/evomind-python
+          working-directory: ${{ runner.temp }}
       - name: Bootstrap pip in the pinned Python environment
         working-directory: .
         run: python -m ensurepip --upgrade
@@ -262,7 +262,7 @@ jobs:
           python-version: "3.12.13"
           activate-environment: true
           enable-cache: false
-          working-directory: ${{ runner.temp }}/evomind-python
+          working-directory: ${{ runner.temp }}
       - name: Download the externally generated capability evidence bundle
         shell: pwsh
         env:
@@ -331,7 +331,7 @@ jobs:
           python-version: "3.12.13"
           activate-environment: true
           enable-cache: false
-          working-directory: ${{ runner.temp }}/evomind-python
+          working-directory: ${{ runner.temp }}
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
