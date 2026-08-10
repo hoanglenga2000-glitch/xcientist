@@ -118,10 +118,10 @@ jobs:
         run: npm run lint
       - name: Typecheck
         run: npm run typecheck
-      - name: Verify the fail-closed scientist upgrade campaign transport
-        run: npm run test:upgrade-campaign
       - name: Build workstation
         run: npm run build
+      - name: Verify the fail-closed scientist upgrade campaign transport
+        run: npm run test:upgrade-campaign
       - name: Verify frontend API and navigation contracts
         working-directory: .
         run: python scripts/verify_workstation_frontend_api_contract.py
