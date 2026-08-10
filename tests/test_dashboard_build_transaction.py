@@ -26,7 +26,12 @@ def make_source_tree(root: Path) -> Path:
     (app / "src" / "page.tsx").write_text("export default function Page() { return null; }", encoding="utf-8")
     (app / "public").mkdir()
     (app / "public" / "favicon.ico").write_bytes(b"icon")
-    (app / "prisma" / "migrations" / "001_init").mkdir(parents=True)
+    migration = app / "prisma" / "migrations" / "001_init" / "migration.sql"
+    migration.parent.mkdir(parents=True)
+    migration.write_text(
+        "CREATE TABLE runtime_build_test (id INTEGER PRIMARY KEY);\n",
+        encoding="utf-8",
+    )
     (app / "prisma" / "schema.prisma").write_text("generator client { provider = \"prisma-client-js\" }", encoding="utf-8")
     database = app / "prisma" / "workstation.db"
     with sqlite3.connect(database) as connection:
