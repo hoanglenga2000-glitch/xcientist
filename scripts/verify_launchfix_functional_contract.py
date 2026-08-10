@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import secrets
 import shutil
 import socket
 import sqlite3
@@ -19,6 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
 ARTIFACT_ROOT = ROOT / "artifacts" / "launch-fix-20260728-170231" / "functional"
 PORT = 18091
+ORIGIN = f"http://127.0.0.1:{PORT}"
+SESSION_COOKIE = ""
+CSRF_TOKEN = ""
 
 
 def require(condition: bool, message: str) -> None:
@@ -28,11 +32,18 @@ def require(condition: bool, message: str) -> None:
 
 def request_json(method: str, path: str, body: dict | None = None, expected: int = 200) -> dict:
     payload = None if body is None else json.dumps(body).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    if SESSION_COOKIE:
+        headers["Cookie"] = SESSION_COOKIE
+    if method.upper() not in {"GET", "HEAD", "OPTIONS"}:
+        headers["Origin"] = ORIGIN
+        if CSRF_TOKEN:
+            headers["x-evomind-csrf"] = CSRF_TOKEN
     request = urllib.request.Request(
-        f"http://127.0.0.1:{PORT}{path}",
+        f"{ORIGIN}{path}",
         data=payload,
         method=method,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
     )
     try:
         with urllib.request.urlopen(request, timeout=30) as response:
@@ -50,13 +61,45 @@ def wait_ready(log_path: Path, timeout: float = 90.0) -> None:
     last_error = ""
     while time.monotonic() < deadline:
         try:
-            request_json("GET", "/api/tasks")
+            request = urllib.request.Request(f"{ORIGIN}/api/healthz", method="GET")
+            try:
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    status = response.status
+                    health = json.loads(response.read().decode("utf-8"))
+            except urllib.error.HTTPError as error:
+                status = error.code
+                health = json.loads(error.read().decode("utf-8"))
+            require(status in {200, 503}, f"Unexpected health status: {status}")
+            require(health.get("service") == "evomind-workstation", f"Unexpected health payload: {health}")
             return
         except Exception as error:  # noqa: BLE001 - readiness captures transient startup failures
             last_error = str(error)
             time.sleep(0.5)
     log_tail = log_path.read_text(encoding="utf-8", errors="replace")[-8000:] if log_path.exists() else ""
     raise RuntimeError(f"Next server did not become ready: {last_error}\n{log_tail}")
+
+
+def bootstrap_session(token: str) -> None:
+    global SESSION_COOKIE, CSRF_TOKEN
+    payload = json.dumps({"token": token}).encode("utf-8")
+    request = urllib.request.Request(
+        f"{ORIGIN}/api/session/bootstrap",
+        data=payload,
+        method="POST",
+        headers={"Content-Type": "application/json", "Origin": ORIGIN},
+    )
+    with urllib.request.urlopen(request, timeout=30) as response:
+        result = json.loads(response.read().decode("utf-8"))
+        set_cookie = response.headers.get("Set-Cookie", "")
+    require(response.status == 200 and result.get("ok") is True, f"Session bootstrap failed: {result}")
+    cookie_pair = set_cookie.split(";", 1)[0].strip()
+    require(cookie_pair.startswith("evomind_local_session=") and len(cookie_pair) > 32, "Session bootstrap did not set the expected cookie")
+    csrf_token = result.get("csrf_token")
+    require(isinstance(csrf_token, str) and 24 <= len(csrf_token) <= 256, "Session bootstrap returned invalid CSRF state")
+    SESSION_COOKIE = cookie_pair
+    CSRF_TOKEN = csrf_token
+    status = request_json("GET", "/api/session/status")
+    require(status.get("ok") is True and status.get("authenticated") is True, f"Session verification failed: {status}")
 
 
 def port_open(port: int) -> bool:
@@ -108,6 +151,8 @@ def main() -> int:
     data_root.mkdir(parents=True)
     copy_test_app(app_root)
     database = data_root / "workstation.db"
+    bootstrap_token = secrets.token_urlsafe(32)
+    session_secret = secrets.token_urlsafe(48)
     env = os.environ.copy()
     env.update(
         {
@@ -122,6 +167,9 @@ def main() -> int:
             "KAGGLE_KEY": "",
             "NEXT_TELEMETRY_DISABLED": "1",
             "NODE_ENV": "development",
+            "PORT": str(PORT),
+            "WORKSTATION_SESSION_SECRET": session_secret,
+            "WORKSTATION_BOOTSTRAP_TOKEN_HASH": hashlib.sha256(bootstrap_token.encode("utf-8")).hexdigest(),
         }
     )
     prisma = subprocess.run(
@@ -146,13 +194,17 @@ def main() -> int:
         text=True,
     )
     task_id = "launchfix_functional_task"
+    local_objective = "Do not use HPC. Run this local-only isolated dispatch contract verification."
     try:
         wait_ready(log_path)
-        created = request_json("POST", "/api/workstation-actions", {"action": "create_workstation_run", "task_id": task_id, "metadata": {"trigger": "launchfix_verifier"}})
+        bootstrap_session(bootstrap_token)
+        bootstrap_token = ""
+        session_secret = ""
+        created = request_json("POST", "/api/workstation-actions", {"action": "create_workstation_run", "task_id": task_id, "metadata": {"trigger": "launchfix_verifier", "objective": local_objective}})
         require(created.get("ok") is True and created.get("run_id"), f"Create Run failed: {created}")
         result["steps"].append({"step": "create_run", "run_id": created["run_id"], "ok": True})
 
-        dispatched = request_json("POST", "/api/workstation-actions", {"action": "dispatch_task_agents", "task_id": task_id, "metadata": {"objective": "Isolated deterministic dispatch contract verification."}})
+        dispatched = request_json("POST", "/api/workstation-actions", {"action": "dispatch_task_agents", "task_id": task_id, "metadata": {"objective": local_objective}})
         require(dispatched.get("ok") is True and dispatched.get("execution_started") is False, f"Isolated dispatch failed: {dispatched}")
         result["steps"].append({"step": "dispatch_agents", "run_id": dispatched["run_id"], "status": dispatched["status"], "external_execution": False})
 
