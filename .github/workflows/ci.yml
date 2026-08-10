@@ -23,6 +23,7 @@ jobs:
           version: "0.11.21"
           python-version: "3.12.13"
           activate-environment: true
+          enable-cache: false
       - name: Bootstrap pip in the pinned Python environment
         run: python -m ensurepip --upgrade
       - name: Install test and build dependencies
@@ -98,6 +99,7 @@ jobs:
           version: "0.11.21"
           python-version: "3.12.13"
           activate-environment: true
+          enable-cache: false
       - name: Bootstrap pip in the pinned Python environment
         working-directory: .
         run: python -m ensurepip --upgrade
@@ -140,6 +142,22 @@ jobs:
         working-directory: .
         shell: pwsh
         run: ./scripts/verify_release_browser_e2e.ps1 -OutputDir ./artifacts/ci-browser-e2e -Port 18198
+      - name: Remove source-tree side effects from browser E2E
+        working-directory: .
+        shell: pwsh
+        run: |
+          git restore -- web/research-agent-workstation/.next-rollback.json
+          $generated = @(
+            ".workstation-install.json",
+            "web/research-agent-workstation/prisma/workstation.db-shm",
+            "web/research-agent-workstation/prisma/workstation.db-wal",
+            "web/research-agent-workstation/prisma/workstation.db-journal"
+          )
+          foreach ($path in $generated) {
+            if (Test-Path -LiteralPath $path) { Remove-Item -LiteralPath $path -Force }
+          }
+          $status = git status --porcelain --untracked-files=all
+          if ($status) { throw "Browser E2E left source-tree changes: $status" }
       - name: Build deterministic standalone release bundle
         working-directory: .
         shell: pwsh
@@ -241,6 +259,7 @@ jobs:
           version: "0.11.21"
           python-version: "3.12.13"
           activate-environment: true
+          enable-cache: false
       - name: Download the externally generated capability evidence bundle
         shell: pwsh
         env:
@@ -308,6 +327,7 @@ jobs:
           version: "0.11.21"
           python-version: "3.12.13"
           activate-environment: true
+          enable-cache: false
       - name: Pin npm to the release toolchain contract
         run: npm install --global npm@11.6.2
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
