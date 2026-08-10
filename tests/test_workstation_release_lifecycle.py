@@ -779,6 +779,9 @@ def test_bundle_install_phase_matches_the_durable_cli_transaction_order() -> Non
     env_writer = installer.split("function Set-ManagedEnvValues", 1)[1].split("Write-Host", 1)[0]
     assert "New-Item -ItemType Directory -Force -Path $parent" in env_writer
     assert env_writer.index("New-Item -ItemType Directory") < env_writer.index("[IO.File]::WriteAllLines")
+    assert '$env:PYTHONDONTWRITEBYTECODE = "1"' in installer
+    assert "$env:PYTHONPYCACHEPREFIX = $null" in installer
+    assert 'Join-Path $DataDir "tmp\\pycache"' not in installer
 
 
 def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
