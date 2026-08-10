@@ -52,7 +52,7 @@ def test_native_calls_are_wrapped_and_npm_ls_problems_are_rejected() -> None:
     assert text.count("$exitCode = $LASTEXITCODE") == 2
     assert "Invoke-NativeCommand -FilePath $Npm" in text
     assert "Invoke-NativeText -FilePath $Git" in text
-    assert "Invoke-NativeCommand -FilePath $HostPython" in text
+    assert "Invoke-NativeCommand -FilePath $BuildPython" in text
     assert '$DependencyTree.PSObject.Properties["problems"]' in text
     # Ignore hashtable/property assignments such as ``node = $NodeVersion``;
     # only flag a bare executable followed by command arguments.
@@ -61,6 +61,16 @@ def test_native_calls_are_wrapped_and_npm_ls_problems_are_rejected() -> None:
         re.MULTILINE | re.IGNORECASE,
     )
     assert raw_native.search(text) is None
+
+
+def test_builder_separates_active_environment_from_bundled_python_runtime() -> None:
+    text = _builder_text()
+
+    assert "'base_executable':getattr(sys,'_base_executable',sys.executable)" in text
+    assert "$BuildPython = [IO.Path]::GetFullPath([string]$PythonInfo.executable)" in text
+    assert "$HostPython = [IO.Path]::GetFullPath($BaseExecutable)" in text
+    assert "Invoke-NativeText -FilePath $BuildPython" in text
+    assert "$HostPythonRoot = Split-Path -Parent $HostPython" in text
 
 
 def test_builder_uses_repo_contracts_and_hash_locked_exact_wheelhouse() -> None:

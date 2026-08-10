@@ -349,10 +349,13 @@ if ($NodeVersion.StartsWith("v", [StringComparison]::OrdinalIgnoreCase)) { $Node
 $NpmVersion = (Invoke-NativeText -FilePath $Npm -ArgumentList @("--version") -Description "npm version check").Trim()
 $PythonInfoText = Invoke-NativeText -FilePath $PythonCommand -ArgumentList @(
     "-c",
-    "import json,platform,sys,sysconfig; print(json.dumps({'executable':sys.executable,'version':platform.python_version(),'implementation':platform.python_implementation(),'abi':'cp%d%d'%sys.version_info[:2],'platform':'win_amd64' if sys.maxsize > 2**32 and sys.platform == 'win32' else sysconfig.get_platform()}))"
+    "import json,platform,sys,sysconfig; print(json.dumps({'executable':sys.executable,'base_executable':getattr(sys,'_base_executable',sys.executable),'version':platform.python_version(),'implementation':platform.python_implementation(),'abi':'cp%d%d'%sys.version_info[:2],'platform':'win_amd64' if sys.maxsize > 2**32 and sys.platform == 'win32' else sysconfig.get_platform()}))"
 ) -Description "python runtime identity check"
 $PythonInfo = $PythonInfoText | ConvertFrom-Json
-$HostPython = [IO.Path]::GetFullPath([string]$PythonInfo.executable)
+$BuildPython = [IO.Path]::GetFullPath([string]$PythonInfo.executable)
+$BaseExecutable = [string]$PythonInfo.base_executable
+if ([string]::IsNullOrWhiteSpace($BaseExecutable)) { $BaseExecutable = $BuildPython }
+$HostPython = [IO.Path]::GetFullPath($BaseExecutable)
 $HostPythonVersion = [string]$PythonInfo.version
 $UvVersionText = (Invoke-NativeText -FilePath $Uv -ArgumentList @("--version") -Description "uv version check").Trim()
 $UvVersion = @($UvVersionText -split '\s+')[1]
@@ -380,7 +383,7 @@ foreach ($name in $ExpectedToolchain.Keys) {
         throw "Release toolchain mismatch for ${name}: expected '$($ExpectedToolchain[$name])', got '$($ActualToolchain[$name])'"
     }
 }
-[void](Invoke-NativeText -FilePath $HostPython -ArgumentList @("-m", "pip", "--version") -Description "pip availability check")
+[void](Invoke-NativeText -FilePath $BuildPython -ArgumentList @("-m", "pip", "--version") -Description "pip availability check")
 
 $Package = Get-Content -LiteralPath (Join-Path $Web "package.json") -Raw | ConvertFrom-Json
 $Version = [string]$Package.version
@@ -540,7 +543,7 @@ try {
         $PreviousPipIndex = $env:PIP_INDEX_URL
         try {
             $env:PIP_INDEX_URL = "https://pypi.org/simple"
-            Invoke-NativeCommand -FilePath $HostPython -ArgumentList @(
+            Invoke-NativeCommand -FilePath $BuildPython -ArgumentList @(
                 "-m", "pip", "download", "--disable-pip-version-check", "--dest", $WheelDir,
                 "--only-binary=:all:", "--platform", "win_amd64", "--implementation", "cp",
                 "--python-version", "312", "--abi", "cp312", "--require-hashes",
@@ -554,7 +557,7 @@ try {
     $PreviousSourceDateEpoch = $env:SOURCE_DATE_EPOCH
     try {
         $env:SOURCE_DATE_EPOCH = [string]$Epoch
-        Invoke-NativeCommand -FilePath $HostPython -ArgumentList @(
+        Invoke-NativeCommand -FilePath $BuildPython -ArgumentList @(
             "-m", "pip", "wheel", "--disable-pip-version-check", "--no-deps", "--no-cache-dir",
             "--wheel-dir", $WheelDir, $Root
         ) -Description "first-party project wheel build"
@@ -565,7 +568,7 @@ try {
     if ($ProjectWheels.Count -ne 1) {
         throw "Exactly one first-party xcientist $Version wheel is required; found $($ProjectWheels.Count)"
     }
-    Invoke-NativeCommand -FilePath $HostPython -ArgumentList @(
+    Invoke-NativeCommand -FilePath $BuildPython -ArgumentList @(
         "-m", "pip", "install", "--disable-pip-version-check", "--dry-run", "--ignore-installed",
         "--no-index", "--find-links", $WheelDir, "--only-binary=:all:", "--require-hashes",
         "--report", $PipReport, "-r", $LockedRequirements
@@ -700,7 +703,7 @@ try {
         }
     })
 
-    Invoke-NativeCommand -FilePath $HostPython -ArgumentList @(
+    Invoke-NativeCommand -FilePath $BuildPython -ArgumentList @(
         (Join-Path $Root "scripts\release_finalize.py"),
         "--bundle", $Bundle,
         "--zip", $Zip,
