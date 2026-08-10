@@ -816,9 +816,13 @@ def port_open(port: int) -> bool:
 
 def remove_tree_with_retry(path: Path, timeout: float = 20.0) -> None:
     deadline = time.monotonic() + timeout
+    removal_path: Path | str = path
+    if os.name == "nt":
+        raw = str(path.resolve())
+        removal_path = f"\\\\?\\UNC\\{raw[2:]}" if raw.startswith("\\\\") else f"\\\\?\\{raw}"
     while path.exists():
         try:
-            shutil.rmtree(path, ignore_errors=False)
+            shutil.rmtree(removal_path, ignore_errors=False)
         except OSError:
             if time.monotonic() >= deadline:
                 raise

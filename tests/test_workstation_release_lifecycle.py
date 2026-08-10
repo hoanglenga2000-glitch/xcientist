@@ -773,6 +773,9 @@ def test_bundle_install_phase_matches_the_durable_cli_transaction_order() -> Non
     assert phase in cli
     assert install in cli
     assert cli.index(phase) < cli.index(install)
+    assert 'transactionId.replaceAll("-", "").slice(0, 16).toLowerCase()' in cli
+    assert '$transactionId.Replace(\'-\', \'\').Substring(0, 16).ToLowerInvariant()' in installer
+    assert 'runtime\\python-env\\.stage-' in installer
 
 
 def test_runtime_build_manifest_binds_source_backend_frontend_and_database(

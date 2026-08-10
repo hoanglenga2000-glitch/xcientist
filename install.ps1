@@ -66,7 +66,8 @@ if ($BundleMode) {
   if ($transactionId -notmatch '^[0-9a-fA-F-]{36}$' -or $transactionId -ne [string]$Transaction.transaction_id) {
     throw "SIGNED_BOOTSTRAP_REQUIRED: Python environment transaction identity mismatch."
   }
-  $Venv = Join-Path $DataDir ("runtime\python-env\.stage-" + [string]$Transaction.target_bundle_sha256 + "-" + $transactionId)
+  $transactionToken = $transactionId.Replace('-', '').Substring(0, 16).ToLowerInvariant()
+  $Venv = Join-Path $DataDir ("runtime\python-env\.stage-" + $transactionToken)
   if (Test-Path -LiteralPath $Venv) { throw "Transaction-scoped Python staging environment already exists." }
 } else {
   $Venv = $FinalVenv

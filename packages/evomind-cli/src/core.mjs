@@ -750,11 +750,12 @@ function releasePythonEnvironmentPaths(paths, bundleSha256, transactionId) {
   if (!/^[a-f0-9]{64}$/.test(String(bundleSha256 || ""))) throw new Error("invalid release Python environment content ID");
   if (!/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(String(transactionId || ""))) throw new Error("invalid release Python environment transaction ID");
   const root = path.join(paths.data, "runtime", "python-env");
+  const transactionToken = transactionId.replaceAll("-", "").slice(0, 16).toLowerCase();
   return {
     root,
     target: path.join(root, bundleSha256),
-    stage: path.join(root, `.stage-${bundleSha256}-${transactionId}`),
-    quarantine: path.join(root, `.quarantine-${bundleSha256}-${transactionId}`),
+    stage: path.join(root, `.stage-${transactionToken}`),
+    quarantine: path.join(root, `.quarantine-${transactionToken}`),
   };
 }
 

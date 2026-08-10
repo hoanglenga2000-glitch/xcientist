@@ -285,3 +285,14 @@ def test_cli_installer_rejects_repository_source_entrypoint(tmp_path: Path) -> N
 
     with pytest.raises(RuntimeError, match="--cli-tgz"):
         verifier.install_cli_from_tgz(source_cli, tmp_path / "prefix", npm, os.environ.copy())
+
+
+def test_release_cleanup_removes_long_content_addressed_cache_paths(tmp_path: Path) -> None:
+    verifier = load_verifier()
+    cache = tmp_path / "npm-cache" / "_cacache" / "content-v2" / "sha512" / "f5" / "5f"
+    payload = cache / ("a" * 128)
+    write_payload(payload, b"fixture")
+
+    verifier.remove_tree_with_retry(tmp_path)
+
+    assert not tmp_path.exists()
