@@ -246,7 +246,7 @@ jobs:
             artifacts/ci-release/build-result.json
 
   capability-certification:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.EVOMIND_CAPABILITY_CERTIFICATION_ENABLED == 'true'
     needs: [python-release, frontend-release]
     runs-on: windows-latest
     timeout-minutes: 30
@@ -316,7 +316,7 @@ jobs:
 
   release-artifacts:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [python-release, frontend-release, capability-certification]
+    needs: [python-release, frontend-release]
     runs-on: windows-latest
     timeout-minutes: 45
     environment: production-release
@@ -338,10 +338,6 @@ jobs:
         with:
           name: protected-tag-release-inputs
           path: artifacts/protected-tag
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: capability-certification-result
-          path: artifacts/capability-certification
       - name: Materialize the protected production signing key
         id: production-key
         shell: pwsh
@@ -368,7 +364,7 @@ jobs:
             --bundle $zip[0].FullName `
             --output $manifest `
             --version ([string]$result.version) `
-            --url "https://releases.evomind.ai/stable/$($zip[0].Name)" `
+            --url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/$($zip[0].Name)" `
             --published-at ([DateTimeOffset]::UtcNow.ToString("o"))
           if ($LASTEXITCODE -ne 0) { throw "Protected tag manifest signing failed" }
           "path=$manifest" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -383,6 +379,19 @@ jobs:
             --cli-tgz $tgz[0].FullName `
             --zip "${{ steps.production-manifest.outputs.zip }}" `
             --json artifacts/protected-tag/verification.json
+      - name: Upload the verified protected release assets
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: evomind-${{ github.ref_name }}-verified-release
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            artifacts/protected-tag/**/*.zip
+            artifacts/protected-tag/**/*.tgz
+            artifacts/protected-tag/latest.json
+            artifacts/protected-tag/latest.json.sha256
+            artifacts/protected-tag/verification.json
+            artifacts/protected-tag/build-result.json
       - name: Remove the materialized production signing key
         if: always()
         shell: pwsh

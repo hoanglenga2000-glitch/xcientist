@@ -21,6 +21,13 @@ All SHA-256 values are 64 lowercase hexadecimal characters. Baseline names are
 comma-separated and must include independently evaluated Codex and Claude Code
 agents.
 
+The protected certification job is enabled only when repository variable
+`EVOMIND_CAPABILITY_CERTIFICATION_ENABLED` is exactly `true`. An ordinary
+new-user workstation release may publish while this variable is unset or
+false, but the research-parity gate and all frontier-agent comparison claims
+remain closed. Enabling the job does not allow local fixtures or self-audits to
+replace the external evidence defined below.
+
 ## Bundle layout
 
 The hash-pinned ZIP has `report.json` at its root. Every referenced artifact is

@@ -12,22 +12,34 @@ def workflow() -> tuple[dict, str]:
     return yaml.safe_load(text), text
 
 
-def test_tag_release_requires_external_capability_certification_job() -> None:
+def test_new_user_tag_release_keeps_external_capability_certification_separate() -> None:
     data, text = workflow()
     jobs = data["jobs"]
     certification = jobs["capability-certification"]
-    assert certification["if"] == "startsWith(github.ref, 'refs/tags/v')"
+    assert certification["if"] == (
+        "startsWith(github.ref, 'refs/tags/v') && "
+        "vars.EVOMIND_CAPABILITY_CERTIFICATION_ENABLED == 'true'"
+    )
     assert set(certification["needs"]) == {"python-release", "frontend-release"}
-    assert set(jobs["release-artifacts"]["needs"]) == {
-        "python-release",
-        "frontend-release",
-        "capability-certification",
-    }
+    assert set(jobs["release-artifacts"]["needs"]) == {"python-release", "frontend-release"}
+    assert "EVOMIND_CAPABILITY_CERTIFICATION_ENABLED" in text
     assert "secrets.EVOMIND_CAPABILITY_EVIDENCE_URL" in text
     assert "vars.EVOMIND_CAPABILITY_REPORT_SHA256" in text
     assert "vars.EVOMIND_CAPABILITY_SUITE_SHA256" in text
     assert "vars.EVOMIND_CAPABILITY_EVALUATOR_SHA256" in text
     assert "At least two external baseline agents are required" in text
+
+
+def test_protected_release_assets_are_uploaded_for_github_release_publication() -> None:
+    _data, text = workflow()
+
+    assert "evomind-${{ github.ref_name }}-verified-release" in text
+    assert "artifacts/protected-tag/verification.json" in text
+    assert "artifacts/protected-tag/latest.json.sha256" in text
+    assert (
+        "https://github.com/${{ github.repository }}/releases/download/"
+        "${{ github.ref_name }}/$($zip[0].Name)"
+    ) in text
 
 
 def test_release_gate_enforces_scope_statistics_and_certified_source_bytes() -> None:

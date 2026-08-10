@@ -109,6 +109,12 @@ benchmarks, self-audits, and local upgrade campaigns never satisfy this gate.
 The gate remains closed unless the external evidence bundle and all configured
 out-of-band SHA-256 digests verify.
 
+This gate is independent from the ordinary new-user control-plane release. A
+`v*` workstation release may publish with capability certification disabled,
+provided its release wording makes no research-parity, Claude-level, or
+Codex-level claim. The runtime parity status remains fail-closed until the
+external certification job is explicitly enabled and passes.
+
 ## Release Wording
 
 Allowed:
