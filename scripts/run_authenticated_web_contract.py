@@ -15,7 +15,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import psutil
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
 MANAGER = ROOT / "scripts" / "manage_workstation_dashboard.py"

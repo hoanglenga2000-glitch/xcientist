@@ -13,16 +13,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
 import os
 import re
 import shutil
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable
-
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "video-production" / "evomind-product-demo-0.3.0"

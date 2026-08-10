@@ -18,7 +18,8 @@ except ModuleNotFoundError:  # Direct execution from scripts/.
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
+
 AUDIT_JSON = ROOT / "docs" / "verified_workstation_launch_audit.json"
 AUDIT_MD = ROOT / "docs" / "verified_workstation_launch_audit.md"
 

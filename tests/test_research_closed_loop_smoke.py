@@ -1,11 +1,7 @@
 """End-to-end research closed-loop smoke test (all mocked, no real training)."""
 from __future__ import annotations
 
-from types import SimpleNamespace
-
-import pytest
-
-from xsci.kaggle_intent import classify, is_execution, Intent, PLANNING, EXECUTION, CHAT, TOOL_QUERY
+from xsci.kaggle_intent import CHAT, EXECUTION, PLANNING, TOOL_QUERY, classify, is_execution
 
 
 def test_intent_classifies_research_request():
@@ -25,7 +21,7 @@ def test_intent_classifies_status_query():
 
 
 def test_strategy_selector_returns_strategies():
-    from research_os.strategy_selector import recommend_strategies, TaskProfile
+    from research_os.strategy_selector import TaskProfile, recommend_strategies
 
     profile = TaskProfile(
         modality="tabular",
@@ -41,7 +37,7 @@ def test_strategy_selector_returns_strategies():
 
 
 def test_search_graph_promotion_gate():
-    from research_os.search_graph import SearchGraph, ExperimentNode
+    from research_os.search_graph import ExperimentNode, SearchGraph
 
     graph = SearchGraph(task_id="titanic", root_exp_id="EXP000")
     node = ExperimentNode(
@@ -55,7 +51,7 @@ def test_search_graph_promotion_gate():
 
 
 def test_search_graph_rejects_failed_run():
-    from research_os.search_graph import SearchGraph, ExperimentNode
+    from research_os.search_graph import ExperimentNode, SearchGraph
 
     graph = SearchGraph(task_id="titanic", root_exp_id="EXP000")
     node = ExperimentNode(

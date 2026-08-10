@@ -25,7 +25,6 @@ from research_os.experience_mcgs import (
     structural_features,
 )
 
-
 CANONICAL_FIXTURE = Path(__file__).parent / "fixtures" / "canonical_json_f64_v1.json"
 
 

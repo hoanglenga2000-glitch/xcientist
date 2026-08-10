@@ -21,7 +21,8 @@ import pandas as pd
 from sklearn.datasets import make_classification
 from sklearn.metrics import roc_auc_score
 
-from .experience_mcgs import CANONICAL_HASH_SCHEMA, canonical_json as _experience_canonical_json
+from .experience_mcgs import CANONICAL_HASH_SCHEMA
+from .experience_mcgs import canonical_json as _experience_canonical_json
 from .variation_generator import TaskContext, VariationProposal
 
 DEMO_SCHEMA_VERSION = 1

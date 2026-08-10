@@ -7,12 +7,11 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-
 RUNTIME_TASKS = ["titanic", "house_prices", "telco_churn"]
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
 
 
 def load_summary(url: str | None) -> dict:

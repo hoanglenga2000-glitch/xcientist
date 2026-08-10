@@ -23,7 +23,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 RUN_ID = "evomind_siim_isic_a800_job90353_20260730_095826"
 R2_ID = "evomind_siim_isic_a800_job90353_medal_r2_20260802_023416"
 CURRENT_GOAL_THREAD_ID = "019fc04a-cabf-7b00-9d89-1c11836f9e34"

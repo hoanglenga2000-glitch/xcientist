@@ -1,23 +1,23 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime
 import json
 import socket
 import struct
 import sys
 import urllib.error
 import urllib.request
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
+
 MANIFEST = ROOT / "configs" / "external_resources.yaml"
 PROBE = ROOT / "workspace" / "hpc" / "web_terminal_probe.txt"
 JSON_REPORT = ROOT / "docs" / "launch_go_no_go_20260613.json"

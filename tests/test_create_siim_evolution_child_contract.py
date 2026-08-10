@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from scripts import create_siim_evolution_child_contract as contract
 from research_os.agent.siim_hpc_workflow import run_siim_hpc_research
+from scripts import create_siim_evolution_child_contract as contract
 from xsci.user_request import parse_user_request
 
 

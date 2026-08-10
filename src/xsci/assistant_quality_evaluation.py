@@ -22,7 +22,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-
 SCHEMA = "evomind.assistant_quality_evaluation.v1"
 SUITE_SCHEMA = "evomind.assistant_quality_suite.v1"
 DEFAULT_SUITE = Path(__file__).resolve().parents[2] / "configs" / "evaluation" / "assistant_novice_v1.json"

@@ -15,10 +15,8 @@ import socket
 import sqlite3
 import stat
 import subprocess
-import sys
 import tempfile
 import time
-import tomllib
 import unicodedata
 import urllib.error
 import urllib.parse
@@ -26,6 +24,7 @@ import urllib.request
 import zipfile
 from pathlib import Path, PurePosixPath
 
+import tomllib
 
 MAX_ZIP_ENTRIES = 100_000
 MAX_ZIP_UNCOMPRESSED_BYTES = 8 * 1024 * 1024 * 1024

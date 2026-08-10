@@ -8,7 +8,6 @@ import pytest
 from scripts import verify_siim_job90353_goal as verifier
 from scripts.verify_siim_job90353_goal import RUN_ID, evaluate, rank_roc_auc
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
 

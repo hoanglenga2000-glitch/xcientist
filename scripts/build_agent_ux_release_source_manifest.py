@@ -18,7 +18,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
@@ -30,7 +29,6 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts import verify_local_evomind_release_gate as gate  # noqa: E402
-
 
 PURPOSE_BY_PATH = {
     "scripts/verify_local_evomind_release_gate.py": "Aggregates local demo and formal source gates for Agent UX release readiness.",

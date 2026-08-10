@@ -2,21 +2,20 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import subprocess
 import sys
-import urllib.request
 import urllib.error
 import urllib.parse
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
+
 CODE_AGENT_MISSING = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"]
 GPU_MISSING_BASE = ["GPU_SSH_HOST", "GPU_SSH_USER", "GPU_REMOTE_WORKSPACE"]
 GPU_MISSING_AUTH = ["GPU_SSH_KEY_PATH", "GPU_SSH_KEY_PATH_OR_GPU_SSH_PASSWORD", "GPU_SSH_PASSWORD"]

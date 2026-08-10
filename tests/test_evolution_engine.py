@@ -15,12 +15,13 @@ import pytest
 from research_os.evolution_loop import (
     EvolutionConfig,
     EvolutionLoop,
-    LocalSubprocessRunner as ProductionLocalSubprocessRunner,
     RunResult,
     _classify_failure,
     _parse_cv_score,
 )
-from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
+from research_os.evolution_loop import (
+    LocalSubprocessRunner as ProductionLocalSubprocessRunner,
+)
 from research_os.llm_client import LLMClient, LLMError, LLMResponse, _env
 from research_os.variation_generator import (
     TaskContext,
@@ -28,6 +29,7 @@ from research_os.variation_generator import (
     _extract_code,
     _extract_hypothesis,
 )
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 
 
 # ── fakes ──────────────────────────────────────────────────────────────────

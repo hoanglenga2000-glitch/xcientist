@@ -32,7 +32,6 @@ from .multi_agent import (
     create_run,
 )
 
-
 TASK_ID = "credit-card-fraud-detection"
 EVOLUTION_CONFIG = "configs/evolution/credit_card_fraud_detection.json"
 

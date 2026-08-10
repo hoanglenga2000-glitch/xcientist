@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
-import sys
 import time
 import urllib.error
 import urllib.request
@@ -13,7 +12,6 @@ from pathlib import Path
 from typing import Any
 
 from workstation_local_auth import authenticated_headers
-
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "workspace" / "verification" / "production_recovery" / "production_smoke"

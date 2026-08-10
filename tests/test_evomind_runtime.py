@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 from evomind_runtime.benchmark import parity_status, parity_suite
 from evomind_runtime.evolution import evaluate_candidate

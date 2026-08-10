@@ -28,7 +28,6 @@ RELEASE_TARGETS = (
     "src/xsci/scientist_adaptive_loop.py",
     "src/xsci/scientist_turn_planner.py",
     "scripts/verify_backend_resource_status.py",
-    "scripts/dispatch_gpu_cluster.py",
     "scripts/run_gpu_kaggle_batch.py",
     "scripts/reconcile_action_log_mirror.py",
     "scripts/verify_no_plaintext_secrets.py",

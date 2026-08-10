@@ -4,8 +4,8 @@ import json
 
 from research_os.evolution_loop import EvolutionConfig, EvolutionLoop, RunResult
 from research_os.mcgs_selector import MCGSSelector
-from research_os.variation_generator import TaskContext, VariationProposal
 from research_os.search_graph import ExperimentNode
+from research_os.variation_generator import TaskContext, VariationProposal
 
 
 class Generator:

@@ -7,7 +7,6 @@ import yaml
 
 from scripts import build_mle_prepared_contract as contract
 
-
 FIXTURE_COMMIT = "a" * 40
 FIXTURE_VERSION = "1.0.0"
 

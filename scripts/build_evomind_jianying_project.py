@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = ROOT / "video-production" / "evomind-product-demo-0.3.0"
 EDL_PATH = PROJECT_ROOT / "project" / "edit-decision-list.json"
@@ -80,8 +79,8 @@ def install_skill_runtime() -> tuple[type, Any]:
         )
     if scripts_path not in sys.path:
         sys.path.insert(0, scripts_path)
-    from jy_wrapper import JyProject  # type: ignore[import-not-found]
     import pyJianYingDraft as draft  # type: ignore[import-not-found]
+    from jy_wrapper import JyProject  # type: ignore[import-not-found]
 
     return JyProject, draft
 

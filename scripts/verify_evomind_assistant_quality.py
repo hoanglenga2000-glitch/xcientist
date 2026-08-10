@@ -14,7 +14,6 @@ from xsci.assistant_quality_evaluation import (
     load_suite,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REPORT = ROOT / "workspace" / "evaluation" / "assistant_novice_quality_gpt56_current.json"
 

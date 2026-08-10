@@ -5,7 +5,6 @@ import re
 from pathlib import Path
 from urllib.parse import urlparse
 
-
 ROOT = Path(__file__).resolve().parents[1]
 AUTOMATION_HEADER = "x-evomind-local-automation"
 TOKEN_PATTERN = re.compile(r"[A-Za-z0-9_-]{24,256}\Z")

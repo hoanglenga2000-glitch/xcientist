@@ -23,7 +23,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
 DEFAULT_OUTPUT = ROOT / "artifacts" / "web-isolated-build-20260804.json"

@@ -4,14 +4,12 @@ GPU Process Monitor for A800 Optuna Sweep
 Connects via SSH (SOCKS5 proxy) to check the status of the Optuna sweep process.
 """
 
-import os
-import sys
-import json
-import datetime
 import argparse
+import datetime
+import json
+import os
 
 import socks
-import paramiko
 
 try:
     from scripts.hpc_connect import secure_ssh_client

@@ -27,7 +27,6 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from research_os.agent.memory_library import MemoryLibrary
 from research_os.retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "tasks" / "titanic" / "data" / "train.csv"
 OUT_ROOT = ROOT / "workspace" / "verification" / "production_recovery" / "memory_evolution"

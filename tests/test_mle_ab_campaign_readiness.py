@@ -11,7 +11,6 @@ from research_os.mlebench_phase_a import get_competition_spec, resolve_competiti
 from scripts import build_mle_prepared_contract as prepared_contract
 from scripts import verify_mle_ab_campaign_readiness as readiness
 
-
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_COMMIT = "a" * 40
 FIXTURE_VERSION = "1.0.0"

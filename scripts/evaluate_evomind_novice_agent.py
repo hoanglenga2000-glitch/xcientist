@@ -16,7 +16,6 @@ from xsci.assistant_quality_evaluation import (
     write_report,
 )
 
-
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OUTPUT = ROOT / "workspace" / "evaluation" / "assistant_novice_quality_current.json"
 DEFAULT_MARKDOWN = ROOT / "workspace" / "evaluation" / "assistant_novice_quality_current.md"

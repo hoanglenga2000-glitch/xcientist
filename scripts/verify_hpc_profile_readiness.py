@@ -24,7 +24,6 @@ if str(SRC_ROOT) not in sys.path:
 
 from research_agent_workstation.server.core import gpu_credentials  # noqa: E402
 
-
 SCHEMA = "evomind.hpc.profile_readiness.v1"
 EXPECTED_GATEWAY_HOST = gpu_credentials.HPC_SSH_GATEWAY_HOST
 EXPECTED_GATEWAY_PORT = gpu_credentials.HPC_SSH_GATEWAY_PORT

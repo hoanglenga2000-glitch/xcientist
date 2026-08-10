@@ -7,15 +7,16 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from shutil import which
 from typing import Any
 from urllib.error import URLError
 from urllib.request import Request, urlopen
-from shutil import which
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
+
 WEB = ROOT / "web" / "research-agent-workstation"
 OUT_JSON = ROOT / "workspace" / "workstation_launch_readiness_20260630.json"
 OUT_MD = ROOT / "reports" / "WORKSTATION_LAUNCH_READINESS_20260630.md"

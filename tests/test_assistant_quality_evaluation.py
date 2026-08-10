@@ -5,6 +5,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from evomind_runtime import AgentRuntime
+from scripts.verify_evomind_assistant_quality import verify
+from xsci import assistant_quality_evaluation
 from xsci.assistant_quality_evaluation import (
     build_recorded_pair_report,
     governance_snapshot,
@@ -12,9 +14,6 @@ from xsci.assistant_quality_evaluation import (
     load_suite,
     score_response,
 )
-from scripts.verify_evomind_assistant_quality import verify
-from xsci import assistant_quality_evaluation
-
 
 ROOT = Path(__file__).resolve().parents[1]
 

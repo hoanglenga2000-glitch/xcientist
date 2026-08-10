@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
-
 SCHEMA_VERSION = 1
 CAMPAIGN_SCHEMA = "evomind.mle_lite_ab.preregistration.v1"
 SCHEDULE_SCHEMA = "evomind.mle_lite_ab.schedule.v1"

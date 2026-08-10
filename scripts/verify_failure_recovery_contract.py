@@ -13,7 +13,6 @@ from research_os.agent.multi_agent import (
     create_run,
 )
 
-
 REQUIRED_FAILURE_FILES = {
     "error.json",
     "traceback.txt",

@@ -9,8 +9,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .config import PROJECT_DIRNAME
 from research_os.hpc_policy import require_hpc_compute
+
+from .config import PROJECT_DIRNAME
 
 # Patterns we guarantee are git-ignored inside a project so a stray key or a
 # fetched dataset never lands in version control.

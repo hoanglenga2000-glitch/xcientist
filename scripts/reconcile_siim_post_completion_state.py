@@ -26,7 +26,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-
 RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,159}$")
 SCHEMA = "evomind.siim.post_completion_reconciliation.v1"
 BUDGET_SCHEMA = "evomind.siim.budget_supersession.v1"

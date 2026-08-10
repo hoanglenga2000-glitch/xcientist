@@ -23,7 +23,8 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from dataclasses import dataclass, field, fields as dataclass_fields, replace
+from dataclasses import dataclass, field, replace
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, Optional
 

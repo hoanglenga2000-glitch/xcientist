@@ -6,11 +6,10 @@ import json
 import os
 
 from research_os.agent import messaging
-from xsci import kaggle_conversation
+from xsci import kaggle_conversation, terminal_tools
 from xsci.kaggle_conversation import ConversationAgent
 from xsci.kaggle_session import SessionState
 from xsci.scientist_turns import record_scientist_turn
-from xsci import terminal_tools
 
 
 def _openai_only(monkeypatch) -> None:

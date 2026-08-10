@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 
 from xsci.assistant_behavior_distillation import (
-    BOARD_SCHEMA,
     apply_visible_constraint_repairs,
     audit_web_response,
     build_repair_instruction,

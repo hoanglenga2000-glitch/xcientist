@@ -1967,7 +1967,11 @@ class ConversationAgent:
 
     def chat(self, text: str, session: "SessionState", *, context=None) -> str:
         """Answer an ordinary turn without tools, planning, or research artifacts."""
-        from .assistant_context import build_assistant_context, render_grouped_validation_summary, render_metric_interpretation_summary
+        from .assistant_context import (
+            build_assistant_context,
+            render_grouped_validation_summary,
+            render_metric_interpretation_summary,
+        )
 
         packet = context or build_assistant_context(
             getattr(session, "workspace_root", "") or Path.cwd(),

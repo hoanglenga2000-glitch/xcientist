@@ -23,7 +23,7 @@ import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Protocol, Sequence
+from typing import Any, Callable, Mapping, Protocol, Sequence
 
 from research_os.agent.messaging import AgentMessageClient, ToolResult, ToolSpec
 

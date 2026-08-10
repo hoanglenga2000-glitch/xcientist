@@ -27,7 +27,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 if str(SRC) not in sys.path:
@@ -40,7 +39,6 @@ from research_agent_workstation.server.core.gpu_credentials import (  # noqa: E4
     load_gpu_ssh_config,
     verify_job_container_identity,
 )
-
 
 POINTER_SCHEMA = "evomind.hpc.bounded_smoke_pointer.v1"
 SAFE_PROFILE = re.compile(r"^job[1-9][0-9]*$")

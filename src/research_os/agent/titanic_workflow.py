@@ -16,13 +16,12 @@ from typing import Any
 import pandas as pd
 from sklearn.metrics import accuracy_score
 
-from xsci.user_request import UserRequest
-
 from research_agent_workstation.server.core.gpu_credentials import (
     connect_ssh,
     load_gpu_ssh_config,
     verify_job_container_identity,
 )
+from xsci.user_request import UserRequest
 
 from ..hpc_runtime import HpcRuntime
 from .aibuild_v1 import build_aibuild_run, run_directory, write_current_run_pointer

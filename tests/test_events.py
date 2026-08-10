@@ -11,9 +11,9 @@ import json
 from typing import Optional
 
 from research_os import events as ev
-from research_os.evolution_loop import EvolutionConfig, EvolutionLoop, LocalSubprocessRunner
-from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
+from research_os.evolution_loop import EvolutionConfig, EvolutionLoop
 from research_os.variation_generator import TaskContext, VariationGenerator
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 
 
 class FakeLLMClient:

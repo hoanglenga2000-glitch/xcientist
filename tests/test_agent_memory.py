@@ -6,8 +6,8 @@ type and failure pattern; and record_lesson writes through to the shared store.
 """
 from __future__ import annotations
 
-from pathlib import Path
 import json
+from pathlib import Path
 
 import pytest
 

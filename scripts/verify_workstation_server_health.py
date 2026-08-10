@@ -14,7 +14,8 @@ from urllib.request import Request, urlopen
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT / "scripts") not in sys.path:
     sys.path.insert(0, str(ROOT / "scripts"))
-from workstation_local_auth import authenticated_headers
+from workstation_local_auth import authenticated_headers  # noqa: E402
+
 WEB = ROOT / "web" / "research-agent-workstation"
 NEXT_DIR = WEB / ".next"
 OUT_JSON = ROOT / "workspace" / "workstation_server_health_20260630.json"
