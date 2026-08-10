@@ -193,7 +193,7 @@ def test_dashboard_manager_initializes_database_before_build_and_server_start() 
 
     schema_sync = source.index("database_schema_status = ensure_database_schema(environment)")
     build = source.index("if args.build:", schema_sync)
-    server = source.index("process = subprocess.Popen(", build)
+    server = source.index("process = launch_process_with_windows_fallback(", build)
     assert schema_sync < build < server
     assert "except SystemExit as readiness_error:" in source
     assert "if stop_pid(process.pid):" in source
