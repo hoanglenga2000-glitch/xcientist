@@ -19,6 +19,7 @@ import {
   lifecycle,
   openWorkstation,
   recoverPendingTransaction,
+  removeWithRetry,
   rollback,
   safeReleaseRelative,
   sha256File,
@@ -35,6 +36,52 @@ const testKeyId = `evomind-${createHash("sha256").update(publicKey.export({ type
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const fixtureStartBootstrapToken = "fixture_start_bootstrap_token_0123456789-ABCDEFG";
 const hardExitChildTimeoutMs = 120_000;
+
+test("bounded removal retry handles transient Windows filesystem errors", async () => {
+  for (const code of ["EBUSY", "EPERM", "EACCES", "ENOTEMPTY"]) {
+    let attempts = 0;
+    const waits = [];
+    await removeWithRetry("fixture-path", { recursive: true, force: true }, {
+      timeoutMs: 1_000,
+      retryDelayMs: 25,
+      remove: async () => {
+        attempts += 1;
+        if (attempts === 1) throw Object.assign(new Error(`transient ${code}`), { code });
+      },
+      sleep: async (delayMs) => waits.push(delayMs),
+    });
+    assert.equal(attempts, 2, code);
+    assert.deepEqual(waits, [25], code);
+  }
+
+  let permanentAttempts = 0;
+  await assert.rejects(
+    removeWithRetry("fixture-path", {}, {
+      timeoutMs: 1_000,
+      remove: async () => {
+        permanentAttempts += 1;
+        throw Object.assign(new Error("permanent remove failure"), { code: "EIO" });
+      },
+      sleep: async () => assert.fail("permanent errors must not be retried"),
+    }),
+    /permanent remove failure/,
+  );
+  assert.equal(permanentAttempts, 1);
+
+  let expiredAttempts = 0;
+  await assert.rejects(
+    removeWithRetry("fixture-path", {}, {
+      timeoutMs: 0,
+      remove: async () => {
+        expiredAttempts += 1;
+        throw Object.assign(new Error("expired transient failure"), { code: "EBUSY" });
+      },
+      sleep: async () => assert.fail("expired retry budget must not sleep"),
+    }),
+    /expired transient failure/,
+  );
+  assert.equal(expiredAttempts, 1);
+});
 
 test("strict health accepts pretty-printed nested process status", () => {
   const dashboard = {

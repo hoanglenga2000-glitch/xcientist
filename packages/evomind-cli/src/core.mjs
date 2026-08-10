@@ -34,6 +34,9 @@ const DEFAULT_MANIFEST_URL = process.env.EVOMIND_MANIFEST_URL || "https://releas
 const TRUSTED_PUBLIC_KEY_PATH = path.join(MODULE_ROOT, "keys", "release-ed25519-public.pem");
 const DASHBOARD_BOOTSTRAP_MAX_BYTES = 1024;
 const DASHBOARD_BOOTSTRAP_TOKEN = /^[A-Za-z0-9_-]{24,256}$/;
+const TRANSIENT_REMOVE_ERROR_CODES = new Set(["EBUSY", "EPERM", "EACCES", "ENOTEMPTY"]);
+const REMOVE_RETRY_TIMEOUT_MS = 20_000;
+const REMOVE_RETRY_DELAY_MS = 250;
 
 let knownFolderCache = null;
 
@@ -757,6 +760,27 @@ function releasePythonEnvironmentPaths(paths, bundleSha256, transactionId) {
     stage: path.join(root, `.stage-${transactionToken}`),
     quarantine: path.join(root, `.quarantine-${transactionToken}`),
   };
+}
+
+export async function removeWithRetry(target, options = {}, {
+  remove = rm,
+  sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs)),
+  timeoutMs = REMOVE_RETRY_TIMEOUT_MS,
+  retryDelayMs = REMOVE_RETRY_DELAY_MS,
+} = {}) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs < 0) throw new Error("remove retry timeout must be non-negative");
+  if (!Number.isFinite(retryDelayMs) || retryDelayMs < 0) throw new Error("remove retry delay must be non-negative");
+  const deadline = Date.now() + timeoutMs;
+  while (true) {
+    try {
+      await remove(target, options);
+      return;
+    } catch (error) {
+      if (!TRANSIENT_REMOVE_ERROR_CODES.has(error?.code) || Date.now() >= deadline) throw error;
+      const remainingMs = Math.max(0, deadline - Date.now());
+      await sleep(Math.min(retryDelayMs, remainingMs));
+    }
+  }
 }
 
 async function assertManagedPythonEnvironmentPath(paths, target, { allowMissingLeaf = true } = {}) {
@@ -1902,8 +1926,8 @@ export async function uninstall({ paths = layout(), purgeData = false } = {}) {
     const cacheRoot = assertContained(paths.root, path.join(paths.root, "cache"));
     for (const target of [appRoot, cacheRoot]) await assertNoReparse(paths.root, target);
     for (const target of [appRoot, cacheRoot]) await assertTreeNoReparse(target);
-    await rm(appRoot, { recursive: true, force: true });
-    await rm(cacheRoot, { recursive: true, force: true });
+    await removeWithRetry(appRoot, { recursive: true, force: true });
+    await removeWithRetry(cacheRoot, { recursive: true, force: true });
     if (purgeData) {
       const expected = expectedInstallMarker(paths);
       if (marker.install_id !== (await loadInstallMarker(paths)).install_id) throw new Error("install marker changed during purge");
@@ -1911,16 +1935,16 @@ export async function uninstall({ paths = layout(), purgeData = false } = {}) {
         const safe = assertContained(expected.root, target);
         await assertNoReparse(expected.root, safe);
         await assertTreeNoReparse(safe);
-        await rm(safe, { recursive: true, force: true });
+        await removeWithRetry(safe, { recursive: true, force: true });
       }
       for (const target of [expected.profiles, expected.secrets]) {
         const safe = assertContained(expected.roaming, target);
         await assertNoReparse(expected.roaming, safe);
         await assertTreeNoReparse(safe);
-        await rm(safe, { recursive: true, force: true });
+        await removeWithRetry(safe, { recursive: true, force: true });
       }
-      await rm(paths.acceptance, { force: false });
-      await rm(paths.installMarker, { force: false });
+      await removeWithRetry(paths.acceptance, { force: false });
+      await removeWithRetry(paths.installMarker, { force: false });
     }
     return { ok: true, status: "uninstalled", user_data_preserved: !purgeData, root: paths.root };
   });
