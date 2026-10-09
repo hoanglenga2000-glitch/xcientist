@@ -7,18 +7,19 @@ import { jsonPost, taskRequest } from './types';
 const groups = [['models', '模型'], ['resources', '计算资源与额度'], ['account', '账户与外观']] as const;
 function ResourceSettings() {
   const [binding, setBinding] = useState<{ state: string } | null>(null);
+  const [localMode, setLocalMode] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     const abort = new AbortController(); setError('');
-    void taskRequest<{ binding: { state: string } | null }>('/api/hpc/byoa/binding', { signal: abort.signal }).then(result => {
-      if (!abort.signal.aborted) { setBinding(result.binding); setLoaded(true); }
+    void taskRequest<{ binding: { state: string } | null; personal_resources?: string }>('/api/hpc/byoa/binding', { signal: abort.signal }).then(result => {
+      if (!abort.signal.aborted) { setBinding(result.binding); setLocalMode(result.personal_resources === 'unavailable_in_local_mode'); setLoaded(true); }
     }).catch(cause => { if (!abort.signal.aborted) setError(cause.message); });
     return () => abort.abort();
   }, [revision]);
   return <section><h2>我的计算资源</h2>
-    <p>{!loaded ? '正在读取账户配置…' : !binding ? '尚未设置计算资源。需要训练时，请联系管理员开通个人资源。' : binding.state === 'active' ? '已登记个人资源。是否可执行仍需每次连接检查，此处不表示 GPU 已连接。' : '资源暂不可使用，请联系管理员核对。'}</p>
+    <p>{!loaded ? '正在读取账户配置…' : localMode ? '本机模式不接入个人计算资源。需要训练时，请使用管理员开通的账户登录。' : !binding ? '尚未设置计算资源。需要训练时，请联系管理员开通个人资源。' : binding.state === 'active' ? '已登记个人资源。是否可执行仍需每次连接检查，此处不表示 GPU 已连接。' : '资源暂不可使用，请联系管理员核对。'}</p>
     <button onClick={() => setRevision(value => value + 1)}>刷新资源状态</button>
     {error && <p role="alert" className="tw-error">{error}</p>}
     <h2 className="tw-section-title">额度由管理员管理</h2><p className="tw-muted">任务需要计算资源时，会单独说明执行上限并请求确认。这里不把平台预算当作个人余额。</p>

@@ -103,7 +103,15 @@ async function assertReplaceableFailedProvisioning(identity: ReturnType<typeof t
   if (await fs.stat(evidence).then(() => true).catch(() => false)) throw new Error("failed_provisioning_identity_evidence_exists");
 }
 export async function GET() {
-  try { const identity = tenantPrincipal(sessionPrincipal((await cookies()).get(SESSION_COOKIE)?.value)); const binding = await readTenantBinding(identity); const activation = binding ? await publicActivationStatus(identity, binding) : null; return NextResponse.json({ ok: true, tenant_id: identity.tenantId, binding: publicBinding(binding), activation }, { headers: { "Cache-Control": "no-store" } }); }
+  const principal = sessionPrincipal((await cookies()).get(SESSION_COOKIE)?.value);
+  // A signed-in local install (one-time bootstrap session, no account registry)
+  // has no tenant and therefore no personal compute binding. Report that state
+  // instead of a 401, which the workspace would show as "login expired".
+  // Mutations (POST) still require a tenant (public_password) session.
+  if (principal?.authentication === "local_bootstrap") {
+    return NextResponse.json({ ok: true, tenant_id: null, binding: null, activation: null, personal_resources: "unavailable_in_local_mode" }, { headers: { "Cache-Control": "no-store" } });
+  }
+  try { const identity = tenantPrincipal(principal); const binding = await readTenantBinding(identity); const activation = binding ? await publicActivationStatus(identity, binding) : null; return NextResponse.json({ ok: true, tenant_id: identity.tenantId, binding: publicBinding(binding), activation }, { headers: { "Cache-Control": "no-store" } }); }
   catch { return NextResponse.json({ ok: false, code: "tenant_session_required" }, { status: 401 }); }
 }
 export async function POST(request: Request) {
