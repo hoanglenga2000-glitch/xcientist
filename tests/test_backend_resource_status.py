@@ -1,6 +1,20 @@
 from __future__ import annotations
 
-from scripts.verify_backend_resource_status import gpu_current_gate_ready
+from scripts.verify_backend_resource_status import gpu_current_gate_ready, local_connector_ready
+
+
+def test_local_connector_requires_canonical_and_raw_state() -> None:
+    item = {
+        "configured": True,
+        "state": "READY",
+        "raw_state": "rule_based",
+        "source": "connector_health_service",
+    }
+
+    assert local_connector_ready(item, "rule_based") is True
+    assert local_connector_ready({**item, "state": "DEGRADED"}, "rule_based") is False
+    assert local_connector_ready({**item, "raw_state": "unknown"}, "rule_based") is False
+    assert local_connector_ready({**item, "source": "legacy_cache"}, "rule_based") is False
 
 
 def test_gpu_gate_uses_current_run_authoritative_state_over_stale_history() -> None:

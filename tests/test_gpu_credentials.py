@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import inspect
 import json
+import re
 import sys as python_sys
 import uuid
 from types import SimpleNamespace
@@ -48,14 +49,28 @@ def _named_profile_metadata(
     socks_port: int = 17897,
     state: str = gpu_credentials.PROFILE_STATE_ACTIVE,
 ) -> dict[str, object]:
-    job_id = int(profile.removeprefix("job"))
+    legacy = re.fullmatch(r"job([1-9][0-9]*)", profile)
+    tenant = re.fullmatch(
+        r"(tenant_[a-f0-9]{24})_job([1-9][0-9]*)_g([1-9][0-9]*)",
+        profile,
+    )
+    if legacy:
+        job_id = int(legacy.group(1))
+        allocation_generation = 1
+        tenant_id = None
+    elif tenant:
+        tenant_id = tenant.group(1)
+        job_id = int(tenant.group(2))
+        allocation_generation = int(tenant.group(3))
+    else:
+        raise AssertionError(f"invalid test profile: {profile}")
     metadata: dict[str, object] = {
         "schema": gpu_credentials.PROFILE_METADATA_SCHEMA,
         "credential_profile": profile,
         "job_id": job_id,
         "profile_state": state,
         "allocation_binding_id": f"allocation-fixture-{job_id}",
-        "allocation_generation": 1,
+        "allocation_generation": allocation_generation,
         "profile_instance_id": str(uuid.uuid5(uuid.NAMESPACE_URL, profile)),
         "lifecycle_revision": 2 if state == gpu_credentials.PROFILE_STATE_ACTIVE else 1,
         "host": host,
@@ -65,6 +80,8 @@ def _named_profile_metadata(
         "known_hosts_path": "known_hosts",
         "remote_workspace": gpu_credentials.ALLOWED_GPU_REMOTE_ROOT,
     }
+    if tenant_id:
+        metadata["tenant_id"] = tenant_id
     if state == gpu_credentials.PROFILE_STATE_ACTIVE:
         metadata["expected_host_uuid"] = f"host-{profile}"
         metadata["expected_gpu_uuid"] = f"gpu-{profile}"
@@ -72,6 +89,117 @@ def _named_profile_metadata(
             gpu_credentials.compute_container_binding_sha256(metadata)
         )
     return metadata
+
+
+def test_named_profile_identity_parser_accepts_legacy_and_tenant_profiles():
+    legacy = gpu_credentials.parse_named_hpc_profile_identity("job91699")
+    tenant = gpu_credentials.parse_named_hpc_profile_identity(
+        "tenant_0123456789abcdef01234567_job91699_g15"
+    )
+
+    assert (legacy.job_id, legacy.tenant_id, legacy.allocation_generation) == (
+        91699,
+        None,
+        None,
+    )
+    assert (tenant.job_id, tenant.tenant_id, tenant.allocation_generation) == (
+        91699,
+        "tenant_0123456789abcdef01234567",
+        15,
+    )
+
+
+@pytest.mark.parametrize(
+    "profile",
+    [
+        "job0",
+        "tenant_0123456789abcdef0123456_job91699_g15",
+        "tenant_0123456789abcdef01234567_job0_g15",
+        "tenant_0123456789abcdef01234567_job91699_g0",
+        "tenant_0123456789ABCDEF01234567_job91699_g15",
+        "tenant_0123456789abcdef01234567_job91699_g15_extra",
+    ],
+)
+def test_named_profile_identity_parser_rejects_malformed_profiles(profile):
+    with pytest.raises(CredentialError, match="named HPC profile"):
+        gpu_credentials.parse_named_hpc_profile_identity(profile)
+
+
+def test_tenant_profile_lifecycle_binds_tenant_job_and_generation(tmp_path):
+    profile = "tenant_0123456789abcdef01234567_job91699_g15"
+    profile_dir = tmp_path / profile
+    profile_dir.mkdir()
+    metadata = _named_profile_metadata(
+        profile,
+        host=gpu_credentials.HPC_SSH_GATEWAY_HOST,
+        port=gpu_credentials.HPC_SSH_GATEWAY_PORT,
+    )
+
+    lifecycle = gpu_credentials._validate_named_profile_lifecycle(
+        metadata,
+        profile=profile,
+        profile_dir=profile_dir,
+        allowed_states=frozenset({gpu_credentials.PROFILE_STATE_ACTIVE}),
+    )
+
+    assert lifecycle["allocation_generation"] == 15
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("tenant_id", "tenant_aaaaaaaaaaaaaaaaaaaaaaaa", "tenant binding changed"),
+        ("job_id", 91493, "job binding changed"),
+        ("allocation_generation", 14, "allocation generation changed"),
+    ],
+)
+def test_tenant_profile_lifecycle_rejects_identity_drift(
+    tmp_path, field, value, message
+):
+    profile = "tenant_0123456789abcdef01234567_job91699_g15"
+    profile_dir = tmp_path / profile
+    profile_dir.mkdir()
+    metadata = _named_profile_metadata(
+        profile,
+        host=gpu_credentials.HPC_SSH_GATEWAY_HOST,
+        port=gpu_credentials.HPC_SSH_GATEWAY_PORT,
+    )
+    metadata[field] = value
+
+    with pytest.raises(CredentialError, match=message):
+        gpu_credentials._validate_named_profile_lifecycle(
+            metadata,
+            profile=profile,
+            profile_dir=profile_dir,
+            allowed_states=frozenset({gpu_credentials.PROFILE_STATE_ACTIVE}),
+        )
+
+
+@pytest.mark.parametrize(
+    "tombstone_name",
+    [
+        gpu_credentials.PROFILE_FROZEN_TOMBSTONE_FILENAME,
+        gpu_credentials.PROFILE_RETIRED_TOMBSTONE_FILENAME,
+    ],
+)
+def test_tenant_profile_lifecycle_rejects_tombstone(tmp_path, tombstone_name):
+    profile = "tenant_0123456789abcdef01234567_job91699_g15"
+    profile_dir = tmp_path / profile
+    profile_dir.mkdir()
+    (profile_dir / tombstone_name).write_text("{}", encoding="utf-8")
+    metadata = _named_profile_metadata(
+        profile,
+        host=gpu_credentials.HPC_SSH_GATEWAY_HOST,
+        port=gpu_credentials.HPC_SSH_GATEWAY_PORT,
+    )
+
+    with pytest.raises(CredentialError, match="frozen or retired by tombstone"):
+        gpu_credentials._validate_named_profile_lifecycle(
+            metadata,
+            profile=profile,
+            profile_dir=profile_dir,
+            allowed_states=frozenset({gpu_credentials.PROFILE_STATE_ACTIVE}),
+        )
 
 
 @pytest.fixture(autouse=True)
@@ -101,7 +229,7 @@ def test_windows_dpapi_auth_is_used_when_plain_host_metadata_was_injected(monkey
         host="dpapi-current-host",
         port=2200,
         username="dpapi-current-user",
-        password="in-memory-only",
+        password="test-in-memory-only",
     )
     calls = []
 
@@ -591,7 +719,14 @@ def test_loaded_strict_profile_is_revalidated_before_network_use(monkeypatch, tm
         gpu_credentials._assert_named_profile_runtime_active(config)
 
 
-def test_same_connection_job_container_identity_gate_is_read_only():
+@pytest.mark.parametrize(
+    ("profile", "generation"),
+    [
+        ("job90353", 1),
+        ("tenant_0123456789abcdef01234567_job90353_g15", 15),
+    ],
+)
+def test_same_connection_job_container_identity_gate_is_read_only(profile, generation):
     payload = {
         "host_uuid": "host-job90353",
         "gpus": [
@@ -633,10 +768,10 @@ def test_same_connection_job_container_identity_gate_is_read_only():
         host=gpu_credentials.HPC_SSH_GATEWAY_HOST,
         port=gpu_credentials.HPC_SSH_GATEWAY_PORT,
         username="fixture",
-        password="secret",
+        password="test-secret",
         socks=gpu_credentials.SocksConfig("127.0.0.1", 17897),
         known_hosts_path="fixture",
-        credential_profile="job90353",
+        credential_profile=profile,
         expected_host_uuid="host-job90353",
         expected_gpu_uuid="GPU-job90353",
         job_id=90353,
@@ -644,8 +779,8 @@ def test_same_connection_job_container_identity_gate_is_read_only():
         strict_named_profile=True,
         profile_state=gpu_credentials.PROFILE_STATE_ACTIVE,
         allocation_binding_id="allocation-fixture-90353",
-        allocation_generation=1,
-        profile_instance_id=str(uuid.uuid5(uuid.NAMESPACE_URL, "job90353")),
+        allocation_generation=generation,
+        profile_instance_id=str(uuid.uuid5(uuid.NAMESPACE_URL, profile)),
     )
 
     evidence = gpu_credentials.verify_job_container_identity(

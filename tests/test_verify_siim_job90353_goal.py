@@ -18,7 +18,7 @@ def test_rank_roc_auc_is_tie_aware() -> None:
 
 
 def test_ui_check_exchanges_one_time_fragment_without_exposing_token(monkeypatch, tmp_path) -> None:
-    token = "bootstrap-token-with-at-least-24-characters"
+    token = "test-bootstrap-token-with-at-least-24-characters"
     bootstrap = tmp_path / "dashboard.bootstrap.once"
     bootstrap.write_text(
         f"http://127.0.0.1:8088/?page=assistant#bootstrap={token}",

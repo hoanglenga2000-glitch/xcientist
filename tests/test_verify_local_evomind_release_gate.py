@@ -6,6 +6,59 @@ from pathlib import Path
 from scripts import verify_local_evomind_release_gate as gate
 
 
+def _passing_live_assistant_smoke(connection_tool: str) -> dict[str, object]:
+    common_turn = {
+        "completed": True,
+        "tool_calls_total": 1,
+        "tool_names": ["verified_context"],
+        "answer_characters": 500,
+        "required_terms": {"bounded_claim": True},
+    }
+    return {
+        "status": "passed",
+        "auth": {"ok": True},
+        "session_status": {"authenticated": True},
+        "assistant": dict(common_turn),
+        "assistant_followup": dict(common_turn),
+        "assistant_literature": {
+            **common_turn,
+            "literature_checks": {"sources_verified": True},
+        },
+        "assistant_connection": {
+            **common_turn,
+            "tool_names": ["verified_context", connection_tool],
+            "connection_checks": {"failed_closed_when_unbound": True},
+        },
+        "conversation": {
+            "turns": 4,
+            "same_session_id": True,
+            "history_sent_to_followup": True,
+            "history_sent_to_literature": True,
+            "history_sent_to_connection": True,
+            "first_turn_passed": True,
+            "followup_turn_passed": True,
+            "literature_turn_passed": True,
+            "connection_turn_passed": True,
+        },
+        "ux_budget": {"passed": True, "checks": {"all_turns_bounded": True}},
+        "governance": {"passed": True, "invariants": {"no_submit": True}},
+        "temporary_ports_released": True,
+        "token_values_recorded": False,
+        "session_values_recorded": False,
+    }
+
+
+def test_live_assistant_gate_accepts_current_and_legacy_hpc_tools() -> None:
+    for tool_name in ("hpc_verify", "hpc_connection_status"):
+        checks: list[gate.Check] = []
+        gate.check_live_assistant_demo(
+            {"live_assistant_demo_smoke": _passing_live_assistant_smoke(tool_name)},
+            checks,
+        )
+        assert checks[0].id == "live_assistant_demo:browser_equivalent_auth_and_multiturn_stream"
+        assert checks[0].ok is True
+
+
 def test_release_source_tracking_manifest_includes_agent_ux_smoke_files() -> None:
     tracked_paths = {
         path.relative_to(gate.ROOT).as_posix()

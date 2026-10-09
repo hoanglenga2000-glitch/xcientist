@@ -54,6 +54,23 @@ def test_connection_turn_accepts_concise_equivalent_no_submit_wording() -> None:
     assert failures == []
 
 
+def test_connection_turn_accepts_natural_no_kaggle_submission_word_order() -> None:
+    answer = (
+        "结论：作业 91699 当前没有通过目标容器实时连接验证，"
+        "profile_job_binding_invalid，job_container_verified=False。"
+        "本轮没有训练、没有 Kaggle 提交，也没有调用 private grader。"
+        "下一步先修复 managed profile 与作业绑定，再做 5 次只读身份采样；"
+        "网关或 profile 可见不等于目标容器已连接。"
+    )
+    result = _assistant_result(answer, tool_names=["hpc_verify"])
+
+    passed, failures = smoke.connection_turn_passed(result, job_id=91699)
+
+    assert len(answer) >= 180
+    assert passed is True
+    assert failures == []
+
+
 def test_connection_turn_requires_hpc_connection_tool() -> None:
     answer = (
         "简单说：job90673 ready。证据：profile active，gateway ready。"
@@ -121,3 +138,15 @@ def test_ux_budget_includes_connection_turn() -> None:
     assert "connection_seconds_le_90" in result["checks"]
     assert "connection_chars_180_1400" in result["checks"]
     assert result["turns"]["connection"]["characters"] == 600
+
+
+def test_ux_budget_accepts_bounded_full_evidence_answer() -> None:
+    first = {"provider": smoke.REQUIRED_PROVIDER, "model": smoke.REQUIRED_MODEL, "seconds": 75, "answer_characters": 4174, "input_tokens": 40000, "output_tokens": 3100}
+    followup = {"provider": smoke.REQUIRED_PROVIDER, "model": smoke.REQUIRED_MODEL, "seconds": 15, "answer_characters": 450, "input_tokens": 22000, "output_tokens": 400}
+    literature = {"provider": smoke.REQUIRED_PROVIDER, "model": smoke.REQUIRED_MODEL, "seconds": 30, "answer_characters": 700, "input_tokens": 39000, "output_tokens": 600}
+    connection = {"provider": smoke.REQUIRED_PROVIDER, "model": smoke.REQUIRED_MODEL, "seconds": 25, "answer_characters": 360, "input_tokens": 68000, "output_tokens": 500}
+
+    result = smoke.ux_budget_result(first, followup, literature, connection)
+
+    assert result["passed"] is True
+    assert result["checks"]["first_turn_chars_900_6000"] is True

@@ -55,11 +55,21 @@ def test_run_dispatches_llm_request_to_finetune_workflow(tmp_path, monkeypatch):
         str(request_path),
         "--run-id",
         "evomind_run_llm_dispatch",
+        "--hpc-job-id",
+        "91051",
+        "--hpc-credential-profile",
+        "job91051",
+        "--hpc-resource-profile",
+        "aimslab_a800_80gb",
+        "--execution-backend",
+        "hpc",
     ])
 
     assert exit_code == 0
     assert calls[0][0] == tmp_path
     assert calls[0][1].task_type == "llm_finetune"
+    assert calls[0][1].compute_policy.job_id == 91051
+    assert calls[0][1].compute_policy.credential_profile == "job91051"
     assert calls[0][2] == "evomind_run_llm_dispatch"
 
 
@@ -147,12 +157,17 @@ def test_run_persists_explicit_siim_allocation_before_dispatch(tmp_path, monkeyp
         "90353",
         "--hpc-credential-profile",
         "job90353",
+        "--hpc-resource-profile",
+        "aimslab_a800_80gb",
+        "--execution-backend",
+        "hpc",
     ])
 
     assert exit_code == 0
     request = calls[0][1]
     assert request.compute_policy.job_id == 90353
     assert request.compute_policy.credential_profile == "job90353"
+    assert request.compute_policy.resource_profile == "aimslab_a800_80gb"
     assert request.compute_policy.backend == "hpc"
     assert request.compute_policy.local_gpu_allowed is False
     assert request.compute_policy.remote_gpu_required is True
@@ -165,11 +180,78 @@ def test_run_rejects_siim_without_durable_allocation_binding(tmp_path, monkeypat
     monkeypatch.delenv("EVOMIND_HPC_CREDENTIAL_PROFILE", raising=False)
     monkeypatch.setattr(multi_agent_cli, "active_root", lambda: tmp_path)
 
-    with pytest.raises(ValueError, match="explicit hpc job_id"):
+    with pytest.raises(ValueError, match="Missing HPC execution contract"):
         multi_agent_cli.main([
             "run",
             "--request-file",
             str(request_path),
             "--run-id",
             "evomind_siim_missing_binding",
+        ])
+
+
+def test_run_rejects_partial_siim_execution_contract(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.txt"
+    request_path.write_text(SIIM_REQUEST, encoding="utf-8")
+    monkeypatch.setattr(multi_agent_cli, "active_root", lambda: tmp_path)
+
+    with pytest.raises(ValueError, match="Missing HPC execution contract"):
+        multi_agent_cli.main([
+            "run",
+            "--request-file",
+            str(request_path),
+            "--run-id",
+            "evomind_siim_partial_binding",
+            "--hpc-job-id",
+            "90353",
+            "--hpc-credential-profile",
+            "job90353",
+        ])
+
+
+def test_run_persists_explicit_generic_hpc_allocation_before_titanic_dispatch(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.txt"
+    request_path.write_text(
+        "请使用本地 Titanic 数据，在 HPC 上训练三个候选并生成证据；不要使用本地 GPU，不提交 Kaggle。",
+        encoding="utf-8",
+    )
+    calls = []
+    monkeypatch.setattr(multi_agent_cli, "active_root", lambda: tmp_path)
+    monkeypatch.setattr(
+        multi_agent_cli,
+        "run_titanic_aibuild",
+        lambda root, request, *, run_id: calls.append((root, request, run_id)) or _completed(run_id),
+    )
+
+    exit_code = multi_agent_cli.main([
+        "run",
+        "--request-file", str(request_path),
+        "--run-id", "evomind_titanic_job91051_dispatch",
+        "--hpc-job-id", "91051",
+        "--hpc-credential-profile", "job91051",
+        "--hpc-resource-profile", "aimslab_a800_80gb",
+        "--execution-backend", "hpc",
+    ])
+
+    assert exit_code == 0
+    request = calls[0][1]
+    assert request.compute_policy.job_id == 91051
+    assert request.compute_policy.credential_profile == "job91051"
+    assert request.compute_policy.resource_profile == "aimslab_a800_80gb"
+    assert request.compute_policy.backend == "hpc"
+
+
+def test_run_rejects_generic_hpc_request_without_contract(tmp_path, monkeypatch):
+    request_path = tmp_path / "request.txt"
+    request_path.write_text(
+        "请使用本地 Titanic 数据，在 HPC 上训练三个候选并生成证据；不要使用本地 GPU。",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(multi_agent_cli, "active_root", lambda: tmp_path)
+
+    with pytest.raises(ValueError, match="Missing HPC execution contract"):
+        multi_agent_cli.main([
+            "run",
+            "--request-file", str(request_path),
+            "--run-id", "evomind_titanic_missing_contract",
         ])

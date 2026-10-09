@@ -48,6 +48,20 @@ def test_browser_proxy_has_separate_state_and_uses_dpapi_credential() -> None:
     assert "hpc_socks_bridge.py" in manager
 
 
+def test_browser_proxy_separates_route_health_from_portal_http_latency() -> None:
+    launcher = (ROOT / "scripts" / "open_hpc_browser.ps1").read_text(encoding="utf-8")
+    manager = (ROOT / "scripts" / "manage_hpc_browser_proxy.ps1").read_text(encoding="utf-8")
+
+    assert "function Test-PortalRoute" in manager
+    assert '"portal_response_pending"' in manager
+    assert '"route_ready"' in manager
+    assert "route_verified" in manager
+    assert "http_response_pending" in manager
+    assert '$health.status -notin @("passed", "route_ready")' in launcher
+    assert "Opening Chrome so the page can continue loading" in launcher
+    assert "127.0.0.1:7890" not in manager
+
+
 def test_browser_launcher_does_not_embed_credentials() -> None:
     launcher = (ROOT / "scripts" / "open_hpc_browser.ps1").read_text(encoding="utf-8")
     manager = (ROOT / "scripts" / "manage_hpc_browser_proxy.ps1").read_text(encoding="utf-8")

@@ -20,7 +20,7 @@ def test_harness_local_training_is_disabled_by_default(
 ) -> None:
     monkeypatch.delenv("EVOMIND_ALLOW_LOCAL_TRAINING", raising=False)
 
-    with pytest.raises(RuntimeError, match="Local harness training is disabled"):
+    with pytest.raises(RuntimeError, match="Local training is disabled by release policy"):
         harness_optimizer.train_ensemble_for_island("titanic", {})
 
 
@@ -29,7 +29,7 @@ def test_harness_local_training_cannot_be_enabled_by_environment(
 ) -> None:
     monkeypatch.setenv("EVOMIND_ALLOW_LOCAL_TRAINING", "1")
 
-    with pytest.raises(RuntimeError, match="Local harness training is disabled"):
+    with pytest.raises(RuntimeError, match="Local training is disabled by release policy"):
         harness_optimizer.train_ensemble_for_island("titanic", {})
 
 

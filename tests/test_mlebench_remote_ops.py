@@ -432,9 +432,12 @@ def test_runner_argv_preserves_scope_seed_and_human_gate():
         "5",
     ]
     assert ops.normalize_runner_contract_args(dog_args) == dog_args
+    assert ops.normalize_runner_contract_args(
+        ["--wave2-dog-breed-training-mode", "stability_finetune"]
+    ) == ["--wave2-dog-breed-training-mode", "stability_finetune"]
     with pytest.raises(ops.RemoteOpsError, match="invalid"):
         ops.normalize_runner_contract_args(
-            ["--wave2-dog-breed-training-mode", "stability_finetune"]
+            ["--wave2-dog-breed-training-mode", "unsupported"]
         )
 
     precompute = ops.build_birds_precompute_argv(
@@ -446,7 +449,7 @@ def test_runner_argv_preserves_scope_seed_and_human_gate():
         nice_level=15,
     )
     precompute_joined = " ".join(precompute)
-    assert precompute[:4] == ["nice", "-n", "15", "python3"]
+    assert precompute[:4] == ["nice", "-n", "15", ops.REMOTE_PYTHON]
     assert "--precompute-only birds" in precompute_joined
     assert "--competitions mlsp-2013-birds" in precompute_joined
     assert "--wave2-audio-workers 8" in precompute_joined
@@ -723,9 +726,24 @@ def test_vision_weight_stage_is_cpu_only_boundary_checked_and_full_hashed():
     assert "torch.cuda" not in source
 
 
+def test_start_cli_accepts_whitelisted_runner_contract_arguments():
+    args = ops.parse_args([
+        "start",
+        "--run-id", "dog_diag_s46",
+        "--waves", "Wave2",
+        "--competitions", "dog-breed-identification",
+        "--runner-contract-arg=--wave2-dog-breed-training-mode",
+        "--runner-contract-arg=frozen_backbone_head",
+    ])
+    assert args.runner_contract_arg == [
+        "--wave2-dog-breed-training-mode",
+        "frozen_backbone_head",
+    ]
+
+
 def test_pinned_bundle_is_the_verified_current_release():
-    assert ops.DEFAULT_BUNDLE.parent.name == "mlebench_unified_20260728_134508"
-    assert ops.EXPECTED_BUNDLE_SHA256 == "6ba428151245c9c4ccee1add67e50548193ad281a79482c4086abe1c52bd5721"
+    assert ops.DEFAULT_BUNDLE.parent.name == "mlebench_unified_20260806_220719"
+    assert ops.EXPECTED_BUNDLE_SHA256 == "5c09e4a9875654e3401d2a205dee43349a71cacca9e6c396766ba7b9bd08e9ec"
     assert "5ab7014aa642a2b88c7b30942b65306c5295f85445b2a8dbba108ae60e1e813b" in ops.TRUSTED_CONCURRENT_RELEASE_SHA256S
     assert "da685ff0166eb3a9bdfb9e61901b2c565f7033356a8ab5540f0859fda3237a55" in ops.TRUSTED_CONCURRENT_RELEASE_SHA256S
     assert "62d03fbe5809d03aa71bb9ae0a6f21a87114f482094a9bc08a6f308bbaef378a" in ops.TRUSTED_CONCURRENT_RELEASE_SHA256S

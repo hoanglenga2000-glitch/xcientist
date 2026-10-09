@@ -60,7 +60,7 @@ def _profile_fixture(
         host="10.20.30.40",
         port=6988,
         username="fixture-user",
-        password="never-emit-this-secret",
+        password="test-never-emit-this-secret",
         known_hosts_path=str((profile_dir / "known_hosts").resolve()),
         credential_profile=profile,
         profile_state=bootstrap.PROFILE_STATE_PROVISIONING,

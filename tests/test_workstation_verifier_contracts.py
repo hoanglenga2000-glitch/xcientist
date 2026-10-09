@@ -112,8 +112,8 @@ def test_release_ci_binds_manifest_cli_tgz_and_zip_with_fixture_and_production_g
     assert "git ls-files --error-unmatch" in workflow
     assert "packages/evomind-cli/keys/release-ed25519-public.pem" in workflow
 
-    protected_job = workflow.split("  production-release-verification:", 1)[1]
-    ordinary_job = workflow.split("  production-release-verification:", 1)[0]
+    protected_job = workflow.split("  release-artifacts:", 1)[1]
+    ordinary_job = workflow.split("  release-artifacts:", 1)[0]
     assert "if: startsWith(github.ref, 'refs/tags/v')" in protected_job
     assert "environment: production-release" in protected_job
     assert "secrets.EVOMIND_RELEASE_PRIVATE_KEY_PEM" in protected_job

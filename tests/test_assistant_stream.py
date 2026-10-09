@@ -1,17 +1,130 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
 from research_os import llm_client
 from research_os.llm_client import LLMClient, LLMError, LLMStreamEvent, ProviderConfig
-from xsci import assistant_stream
-from xsci import kaggle_conversation
+from xsci import assistant_stream, kaggle_conversation, kaggle_intent
 from xsci import kaggle as kaggle_cli
-from xsci import kaggle_intent
 from xsci.kaggle_conversation import ConversationAgent
+
+
+class _SwitchSession:
+    def __init__(self, root: Path) -> None:
+        self.workspace_root = str(root)
+        self.selected_task = "siim-isic-melanoma-classification"
+        self.task_brief = ""
+        self.recent_run_id = ""
+        self.recent_events_path = ""
+        self.recent_best_cv = None
+
+    def refresh_task_brief(self, root: Path) -> None:
+        self.task_brief = "registered task brief"
+
+    def refresh_recent_run(self, root: Path) -> None:
+        self.recent_run_id = ""
+
+    def persist(self, root: Path | None = None) -> None:
+        self.persisted = True
+
+
+def test_public_context_uses_request_scoped_selected_task(tmp_path):
+    session = _SwitchSession(tmp_path)
+    session.selected_task = "tabular-playground-series-dec-2021"
+    stale_context = SimpleNamespace(public_status=lambda: {
+        "current_task": True,
+        "task_label": "siim-isic-melanoma-classification",
+        "memory_available": True,
+        "tools_available": True,
+    })
+
+    status = assistant_stream._public_context_for_session(stale_context, session)
+
+    assert status["task_label"] == "tabular-playground-series-dec-2021"
+    assert status["current_task"] is True
+    assert status["memory_available"] is True
+    assert status["tools_available"] is True
+
+
+def test_training_coverage_report_request_stays_read_only():
+    prompt = (
+        "请读取 reports/mlebench_lite22_training_coverage.json，"
+        "总结 22 个比赛的训练覆盖、private grader 和达标情况。"
+    )
+
+    assert assistant_stream._prompt_requests_training_execution(prompt) is False
+    assert assistant_stream._prompt_requests_training_execution(
+        "我是第一次用 EvoMind，请帮我训练这个比赛，最后展示报告。"
+    ) is True
+
+
+def test_web_agent_natural_language_switches_to_evolution_config(tmp_path):
+    config_dir = tmp_path / "configs" / "evolution"
+    config_dir.mkdir(parents=True)
+    (config_dir / "evomind_demo_customer_churn.json").write_text(
+        json.dumps(
+            {
+                "task_name": "evomind_demo_customer_churn",
+                "display_name": "客户流失多轮进化演示",
+                "modality": "tabular",
+                "task_type": "binary_classification",
+                "metric": "roc_auc",
+                "metric_direction": "maximize",
+                "local_data_dir": "workspace/demo_campaigns/evomind_demo_customer_churn/data",
+                "data_schema": "Deterministic synthetic customer churn dataset.",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    session = _SwitchSession(tmp_path)
+
+    target = kaggle_conversation._infer_switch_task_target(
+        "请切换到 evomind_demo_customer_churn 客户流失预测任务",
+        tmp_path,
+    )
+    out, ok = kaggle_conversation._switch_session_task(session, tmp_path, target)
+
+    assert ok is True
+    assert target == "evomind_demo_customer_churn"
+    assert session.selected_task == "evomind_demo_customer_churn"
+    assert "source=evolution_config" in out
+    assert "metric=roc_auc" in session.task_brief
+
+
+def test_experiment_results_tool_aggregates_local_summaries(tmp_path):
+    base = tmp_path / "experiments" / "evolution"
+    for index, score in enumerate((0.81, 0.92), 1):
+        run = base / f"churn_run_{index}"
+        run.mkdir(parents=True)
+        (run / "summary.json").write_text(
+            json.dumps(
+                {
+                    "task": "evomind_demo_customer_churn",
+                    "best_exp_id": f"EXP00{index}",
+                    "best_cv_score": score,
+                    "metric": "roc_auc",
+                    "metric_direction": "maximize",
+                    "n_iterations": 8,
+                    "n_promotions": index,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    payload = kaggle_conversation._experiment_results_payload(
+        tmp_path,
+        "evomind_demo_customer_churn",
+    )
+
+    assert payload["run_count"] == 2
+    assert payload["best_cv_score"] == 0.92
+    assert payload["total_iterations"] == 16
+    assert payload["total_promotions"] == 3
 
 
 def test_anthropic_stream_parser_emits_thinking_text_and_done():
@@ -107,6 +220,7 @@ def test_openai_request_profile_rejects_unsupported_values(monkeypatch):
 
 
 def test_stream_failover_only_before_visible_output(monkeypatch):
+    monkeypatch.delenv("EVOLUTION_PROVIDER_STRICT", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "anthropic-secret")
     monkeypatch.setenv("DEEPSEEK_API_KEY", "deepseek-secret")
     calls: list[str] = []

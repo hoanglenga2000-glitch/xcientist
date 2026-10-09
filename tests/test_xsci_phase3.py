@@ -89,17 +89,31 @@ def test_inject_does_not_override_existing_env(isolated_home, monkeypatch):
     assert os.environ["ANTHROPIC_API_KEY"] == "pre-existing"
 
 
+def test_inject_engine_env_can_exclude_legacy_gpu_values(isolated_home, monkeypatch):
+    xcfg.set_global("gpu_ssh", "host", "legacy.example")
+    xcfg.set_global("gpu_ssh", "user", "legacy-user")
+    monkeypatch.delenv("GPU_SSH_HOST", raising=False)
+    monkeypatch.delenv("GPU_SSH_USER", raising=False)
+
+    names = xcfg.inject_engine_env(xcfg.load_config(), include_gpu=False)
+
+    assert "GPU_SSH_HOST" not in names
+    assert "GPU_SSH_USER" not in names
+    assert "GPU_SSH_HOST" not in os.environ
+    assert "GPU_SSH_USER" not in os.environ
+
+
 def test_run_dry_run_resolves_without_executing(project, tmp_path, monkeypatch, capsys):
     xcfg.write_secret("anthropic_api_key", "sk-x")
     xcfg.set_global("llm", "provider", "anthropic")
     xtasks.add_task(str(_sample_task(tmp_path / "t.json")))
     monkeypatch.setattr("xsci.engine.execute_plan",
                         lambda plan: pytest.fail("execute_plan must NOT run in dry-run"))
-    rc = main(["run", "titanic", "--dry-run", "--compute", "local"])
+    rc = main(["run", "titanic", "--dry-run", "--compute", "gpu"])
     out = capsys.readouterr().out
     assert rc == 0
     assert "run plan:" in out and "dry-run" in out
-    assert "data dir    : /data/titanic" in out
+    assert "data dir    : titanic" in out
     assert "Scientist execution contract:" in out
     contract_path = project / ".xsci" / "scientist_execution_contract.json"
     assert contract_path.exists()
@@ -114,7 +128,7 @@ def test_run_refuses_when_scientist_contract_is_not_training_ready(project, tmp_
     xtasks.add_task(str(_sample_task(tmp_path / "t.json")))
     monkeypatch.setattr("xsci.engine.execute_plan",
                         lambda plan: pytest.fail("execute_plan must NOT run when contract is not training-ready"))
-    rc = main(["run", "titanic", "--compute", "local"])
+    rc = main(["run", "titanic", "--compute", "gpu"])
     out = capsys.readouterr().out
     assert rc == 1
     assert "Scientist execution contract:" in out
@@ -163,7 +177,7 @@ def test_run_refuses_without_llm_key(project, tmp_path, monkeypatch, capsys):
     xtasks.add_task(str(_sample_task(tmp_path / "t.json")))
     monkeypatch.setattr("xsci.engine.execute_plan",
                         lambda plan: pytest.fail("must refuse before executing"))
-    rc = main(["run", "titanic", "--compute", "local"])
+    rc = main(["run", "titanic", "--compute", "gpu"])
     out = capsys.readouterr().out
     assert rc == 1 and "no LLM key" in out
 

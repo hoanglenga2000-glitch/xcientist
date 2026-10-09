@@ -21,8 +21,10 @@ def _verified_runtime_probes(monkeypatch) -> None:
 def _write_audit(
     tmp_path,
     *,
+    openai: bool = False,
     deepseek: bool,
     claude: bool,
+    include_openai_smoke: bool = False,
     include_deepseek_smoke: bool = False,
     kaggle: bool = False,
     kaggle_authenticated: bool = False,
@@ -41,13 +43,30 @@ def _write_audit(
     runtime = {
         "pid": os.getpid(),
         "port": 8089,
-        "mode": "start",
+        "mode": "source-standalone",
         "build_id": "test-build-id",
         "source_digest": source_digest,
         "build_requested": True,
+        "source_build_stale": False,
+        "dashboard_identity_verified": True,
+        "runtime_identity_verified": True,
+        "runtime_pid": os.getpid(),
+        "runtime_port": 8765,
     }
     (runtime_dir / "dashboard.pid").write_text(str(os.getpid()), encoding="utf-8")
-    (runtime_dir / "dashboard.state.json").write_text(json.dumps(runtime), encoding="utf-8")
+    (runtime_dir / "dashboard.process.json").write_text(
+        json.dumps(
+            {
+                "schema": "evomind.lifecycle_state.v2",
+                "mode": "source-standalone",
+                "processes": {
+                    "dashboard": {"pid": os.getpid(), "port": 8089},
+                    "runtime": {"pid": os.getpid(), "port": 8765},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
     labels = [
         {
             "label": "backend_resource_status",
@@ -83,7 +102,9 @@ def _write_audit(
     ]
     if include_deepseek_smoke:
         labels.append({"label": "deepseek_smoke", "ok": True, "signals": {}})
-    provider_verified = deepseek and include_deepseek_smoke
+    if include_openai_smoke:
+        labels.append({"label": "openai_gateway_smoke", "ok": True, "signals": {}})
+    provider_verified = (openai and include_openai_smoke) or (deepseek and include_deepseek_smoke)
     json_path.write_text(
         json.dumps(
             {
@@ -93,6 +114,7 @@ def _write_audit(
                 "dashboard_url": "http://127.0.0.1:8089",
                 "dashboard_runtime": runtime,
                 "dpapi_loaded": {
+                    "openai": openai,
                     "deepseek": deepseek,
                     "claude": claude,
                     "kaggle": kaggle,
@@ -228,6 +250,25 @@ def test_verified_launch_accepts_current_deepseek_smoke(monkeypatch, tmp_path, c
     audit.main()
 
     payload = json.loads(capsys.readouterr().out)
+    assert payload["external_provider_runtime_verified"] is True
+
+
+def test_verified_launch_accepts_current_openai_gateway_smoke(monkeypatch, tmp_path, capsys) -> None:
+    json_path, markdown_path = _write_audit(
+        tmp_path,
+        openai=True,
+        deepseek=True,
+        claude=False,
+        include_openai_smoke=True,
+    )
+    monkeypatch.setattr(audit, "ROOT", tmp_path)
+    monkeypatch.setattr(audit, "AUDIT_JSON", json_path)
+    monkeypatch.setattr(audit, "AUDIT_MD", markdown_path)
+
+    audit.main()
+
+    payload = json.loads(capsys.readouterr().out)
+    assert "openai_gateway_smoke" in payload["smoke_labels"]
     assert payload["external_provider_runtime_verified"] is True
 
 

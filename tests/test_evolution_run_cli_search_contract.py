@@ -12,7 +12,7 @@ from research_os.demo_campaign import (
     DEMO_SEARCH_MODE,
     DEMO_TASK_ID,
 )
-from scripts.evolution_run_cli import _parse_run_contract
+from scripts.evolution_run_cli import _parse_run_contract, resolve_memory_store_path
 
 
 def test_search_contract_keeps_legacy_defaults_and_caps_iterations_by_nodes() -> None:
@@ -86,6 +86,19 @@ def test_demo_task_forces_the_single_eight_node_local_experience_contract() -> N
         "max_cost": DEMO_MAX_COST_USD,
         "mcgs": True,
     }
+
+
+def test_memory_namespace_is_path_safe_and_stable() -> None:
+    default_path, default_namespace = resolve_memory_store_path({})
+    isolated_path, isolated_namespace = resolve_memory_store_path({"memory_namespace": "round0-round1-demo"})
+
+    assert default_namespace == "default"
+    assert default_path.name == "retrospective_memory.json"
+    assert isolated_namespace == "round0-round1-demo"
+    assert isolated_path.name == "round0-round1-demo.json"
+    assert isolated_path.parent.name == "memory_namespaces"
+    with pytest.raises(ValueError, match="memory_namespace"):
+        resolve_memory_store_path({"memory_namespace": "../escape"})
 
 
 @pytest.mark.parametrize(

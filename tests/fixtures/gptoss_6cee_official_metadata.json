@@ -1,0 +1,126 @@
+{
+  "id": "openai/gpt-oss-20b",
+  "sha": "6cee5e81ee83917806bbde320786a8fb61efebee",
+  "siblings": [
+    {
+      "rfilename": ".gitattributes",
+      "blobId": "52373fe24473b1aa44333d318f578ae6bf04b49b",
+      "size": 1570
+    },
+    {
+      "rfilename": "LICENSE",
+      "blobId": "7a4a3ea2424c09fbe48d455aed1eaa94d9124835",
+      "size": 11357
+    },
+    {
+      "rfilename": "README.md",
+      "blobId": "f6e25105129ce88f068afff463e0db36024e9ae8",
+      "size": 7095
+    },
+    {
+      "rfilename": "USAGE_POLICY",
+      "blobId": "b030f63aecc61cbaf2316a7b6401254f4312df74",
+      "size": 200
+    },
+    {
+      "rfilename": "chat_template.jinja",
+      "blobId": "dc7bb11927d29f653ba2740f2db2c688fd77592f",
+      "size": 16738
+    },
+    {
+      "rfilename": "config.json",
+      "blobId": "8fb5a4a03376ab5a12afd94b4ed93da61edf5b1c",
+      "size": 1806
+    },
+    {
+      "rfilename": "generation_config.json",
+      "blobId": "86f91466555bd40e3de0b1edee3d5d82f4ccdbfe",
+      "size": 177
+    },
+    {
+      "rfilename": "metal/model.bin",
+      "blobId": "255b01abc8d61d4a76d5956678a178ce963c1376",
+      "size": 13750886400,
+      "lfs": {
+        "sha256": "725b7f996b5a226d922f034a731aefc398652f670dcafc2efd78620509a0fef1",
+        "size": 13750886400,
+        "pointerSize": 136
+      }
+    },
+    {
+      "rfilename": "model-00000-of-00002.safetensors",
+      "blobId": "9fd3b4997a862e8554a21820eeee256ec2c06299",
+      "size": 4792272488,
+      "lfs": {
+        "sha256": "16d0f997dcfc4462089d536bffe51b4bcea2f872f5c430be09ef8ed392312427",
+        "size": 4792272488,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model-00001-of-00002.safetensors",
+      "blobId": "6925c5875f9ff955704ed5900214211d4ac4b910",
+      "size": 4798702184,
+      "lfs": {
+        "sha256": "4fbe328ab445455d6f58dc73852b85873bd626986310abd91cd4d2ce3245eaea",
+        "size": 4798702184,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model-00002-of-00002.safetensors",
+      "blobId": "fc29009d625182d064ca05401b0494af2b382198",
+      "size": 4170342232,
+      "lfs": {
+        "sha256": "a18106b209e9ab35c3406db4f6f12a927364a058b21e9d1373d682e20674b303",
+        "size": 4170342232,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "model.safetensors.index.json",
+      "blobId": "ae08521471ab125be4af84d0e51ecfc245830119",
+      "size": 36355
+    },
+    {
+      "rfilename": "original/config.json",
+      "blobId": "bd6a33e55b68b6734c932c44bd98f376d492dad9",
+      "size": 376
+    },
+    {
+      "rfilename": "original/dtypes.json",
+      "blobId": "07e91493fc3ebf901d7d18b1309795b3f5e466aa",
+      "size": 13082
+    },
+    {
+      "rfilename": "original/model.safetensors",
+      "blobId": "4db145511b9dd7ccff3ea2b90f7f049882043c7b",
+      "size": 13761300984,
+      "lfs": {
+        "sha256": "3340a61d1a0391e8c5b5d3463d18d4c48129a84bbc04a554c762c99020aa06ed",
+        "size": 13761300984,
+        "pointerSize": 136
+      }
+    },
+    {
+      "rfilename": "special_tokens_map.json",
+      "blobId": "73bd12e55e2004cdfff088f85092b39dba2ccdd0",
+      "size": 98
+    },
+    {
+      "rfilename": "tokenizer.json",
+      "blobId": "6ec3ef1795cbbda6b7cb7d1f114919cbe3fdd647",
+      "size": 27868174,
+      "lfs": {
+        "sha256": "0614fe83cadab421296e664e1f48f4261fa8fef6e03e63bb75c20f38e37d07d3",
+        "size": 27868174,
+        "pointerSize": 133
+      }
+    },
+    {
+      "rfilename": "tokenizer_config.json",
+      "blobId": "c021cddb0a9dd35b1bf83a9f145be2d9b3757891",
+      "size": 4200
+    }
+  ]
+}

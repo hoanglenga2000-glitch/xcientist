@@ -93,6 +93,35 @@ def test_cache_evidence_requires_real_card_miss_hit_and_retrieval() -> None:
     assert empty["memory_used"] is False
 
 
+def test_demo_runner_evidence_accepts_bounded_runner_and_exempts_failed_debug_provenance() -> None:
+    """The real bounded demo runner is not the generic local runner.
+
+    A deliberate Debug failure is required evidence for the repair round and
+    therefore has no output metrics/environment fields to carry provenance.
+    Successful cards still require those fields; the failed card must not make
+    an otherwise portable campaign fail closed.
+    """
+    assert "DemoLocalValidationRunner" in verifier.EXPECTED_LOCAL_RUNNERS
+    assert "LocalSubprocessRunner" in verifier.EXPECTED_LOCAL_RUNNERS
+    cards = [
+        {
+            "status": "success",
+            "provenance": {
+                "environment_hash": "env-hash",
+                "evaluator_version": "evomind.demo.public_validation.v1",
+            },
+        },
+        {"status": "failed", "provenance": {"environment_hash": "not_recorded", "evaluator_version": "unknown"}},
+    ]
+    successful = [card for card in cards if card.get("status") == "success"]
+    assert len(successful) == 1
+    assert all(
+        card["provenance"].get("environment_hash") not in {None, "", "not_recorded"}
+        and card["provenance"].get("evaluator_version") not in {None, "", "unknown"}
+        for card in successful
+    )
+
+
 def test_receipt_paths_default_to_run_root_and_keep_legacy_overrides(tmp_path: Path) -> None:
     run_dir = tmp_path / "run"
     legacy_cli = tmp_path / "legacy-cli.json"

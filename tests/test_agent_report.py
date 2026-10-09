@@ -15,6 +15,7 @@ from research_os.agent.report import build_report, write_report
 from research_os.agent.session import AgentSession
 from research_os.agent.tools import ResearchToolbox
 from research_os.evolution_loop import LocalSubprocessRunner, RunResult
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 from research_os.variation_generator import TaskContext
 
 

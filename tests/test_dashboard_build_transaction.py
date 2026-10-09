@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import sqlite3
 import subprocess
 from pathlib import Path
 
@@ -27,7 +28,9 @@ def make_source_tree(root: Path) -> Path:
     (app / "public" / "favicon.ico").write_bytes(b"icon")
     (app / "prisma" / "migrations" / "001_init").mkdir(parents=True)
     (app / "prisma" / "schema.prisma").write_text("generator client { provider = \"prisma-client-js\" }", encoding="utf-8")
-    (app / "prisma" / "workstation.db").write_bytes(b"private-runtime-data")
+    database = app / "prisma" / "workstation.db"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE runtime_build_test (id INTEGER PRIMARY KEY)")
     (app / ".env").write_text("SECRET=must-not-enter-staging", encoding="utf-8")
     for name, value in {
         "package.json": "{}",
@@ -55,6 +58,7 @@ def write_candidate(cwd: Path, build_id: str = "candidate-good") -> None:
 def configure_manager(manager, app: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(manager, "SOURCE_APP_DIR", app)
     monkeypatch.setattr(manager, "SOURCE_STANDALONE_SERVER", app / ".next" / "standalone" / "server.js")
+    monkeypatch.setattr(manager, "DEFAULT_DATABASE_PATH", app / "prisma" / "workstation.db")
     monkeypatch.setattr(manager, "node_command", lambda: "node")
     monkeypatch.setattr(manager, "next_cli_path", lambda: "next-cli")
 
@@ -79,6 +83,8 @@ def test_dashboard_env_binds_loopback_gateway_to_its_own_key(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     manager = load_manager("dashboard_local_gateway_key")
+    monkeypatch.setenv('EVOMIND_OPENAI_GATEWAY_METADATA', str(tmp_path / 'missing-profile.json'))
+    monkeypatch.delenv('EVOMIND_OPENAI_MODEL', raising=False)
     gateway = tmp_path / "gateway.json"
     gateway.write_text(json.dumps({"api-keys": ["local-gateway-key"]}), encoding="utf-8")
     monkeypatch.setenv("EVOMIND_LOCAL_GATEWAY_CONFIG", str(gateway))
@@ -89,6 +95,32 @@ def test_dashboard_env_binds_loopback_gateway_to_its_own_key(
 
     assert env["OPENAI_API_KEY"] == "local-gateway-key"
     assert env["EVOLUTION_PRIMARY_PROVIDER"] == "openai"
+    assert env["EVOLUTION_PROVIDER_STRICT"] == "true"
+    assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:65068/v1"
+    assert env["OPENAI_MODEL"] == "gpt-5.5"
+
+
+def test_dashboard_env_overrides_unrelated_parent_model_route(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = load_manager("dashboard_overrides_parent_model_route")
+    monkeypatch.setenv('EVOMIND_OPENAI_GATEWAY_METADATA', str(tmp_path / 'missing-profile.json'))
+    monkeypatch.delenv('EVOMIND_OPENAI_MODEL', raising=False)
+    gateway = tmp_path / "gateway.json"
+    gateway.write_text(json.dumps({"api-keys": ["local-gateway-key"]}), encoding="utf-8")
+    monkeypatch.setenv("EVOMIND_LOCAL_GATEWAY_CONFIG", str(gateway))
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://unrelated.example/v1")
+    monkeypatch.setenv("OPENAI_MODEL", "unrelated-model")
+    monkeypatch.setenv("EVOLUTION_PRIMARY_PROVIDER", "unrelated-provider")
+    monkeypatch.delenv("EVOLUTION_PROVIDER_STRICT", raising=False)
+
+    env = manager.dashboard_env("127.0.0.1", 18088)
+
+    assert env["OPENAI_API_KEY"] == "local-gateway-key"
+    assert env["OPENAI_BASE_URL"] == "http://127.0.0.1:65068/v1"
+    assert env["OPENAI_MODEL"] == "gpt-5.5"
+    assert env["EVOLUTION_PRIMARY_PROVIDER"] == "openai"
+    assert env["EVOLUTION_PROVIDER_STRICT"] == "true"
 
 
 def test_dashboard_env_uses_the_installed_interactive_gateway_profile(
@@ -100,6 +132,7 @@ def test_dashboard_env_uses_the_installed_interactive_gateway_profile(
     profile = tmp_path / "openai_gateway_metadata.json"
     profile.write_text(
         json.dumps({
+            "model": "gpt-configured-fixture",
             "interactive_reasoning_effort": "low",
             "research_reasoning_effort": "high",
             "service_tier": "priority",
@@ -116,6 +149,21 @@ def test_dashboard_env_uses_the_installed_interactive_gateway_profile(
 
     assert env["OPENAI_REASONING_EFFORT"] == "low"
     assert env["OPENAI_SERVICE_TIER"] == "priority"
+    assert env["OPENAI_MODEL"] == "gpt-configured-fixture"
+
+
+def test_explicit_evomind_model_override_wins_without_changing_saved_profile(tmp_path, monkeypatch):
+    manager = load_manager('dashboard_explicit_selected_gpt55')
+    gateway = tmp_path / 'gateway.json'
+    gateway.write_text(json.dumps({'api-keys': ['local-gateway-key']}), encoding='utf-8')
+    profile = tmp_path / 'profile.json'
+    profile.write_text(json.dumps({'model': 'gpt-6-astra'}), encoding='utf-8')
+    original = profile.read_bytes()
+    monkeypatch.setenv('EVOMIND_LOCAL_GATEWAY_CONFIG', str(gateway))
+    monkeypatch.setenv('EVOMIND_OPENAI_GATEWAY_METADATA', str(profile))
+    monkeypatch.setenv('EVOMIND_OPENAI_MODEL', 'gpt-5.5')
+    assert manager.dashboard_env('127.0.0.1', 18088)['OPENAI_MODEL'] == 'gpt-5.5'
+    assert profile.read_bytes() == original
 
 
 def test_dashboard_env_drops_unrelated_key_when_loopback_binding_is_missing(

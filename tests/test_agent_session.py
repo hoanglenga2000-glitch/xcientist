@@ -18,6 +18,7 @@ from research_os.agent.messaging import AssistantTurn, ToolCall
 from research_os.agent.session import AgentSession, AgentSessionConfig
 from research_os.agent.tools import ResearchToolbox
 from research_os.evolution_loop import LocalSubprocessRunner, RunResult
+from tests._test_subprocess_runner import TestSubprocessRunner as LocalSubprocessRunner
 from research_os.variation_generator import TaskContext
 
 # A tiny but contract-honoring solution: prints CV_SCORE and writes both artifacts.

@@ -1,0 +1,27 @@
+{
+  "schema": "evomind.large_tool_result_fixture_metadata.v1",
+  "competition": "ariel_2025",
+  "observed_tool_result_artifact": {
+    "bytes": 2949654,
+    "sha256": "b8f7916565ad62f1dcad6b597008889ddc49ec174fdfa49500f69c43313abe94",
+    "failure_boundary": "truncated_preview_was_not_complete_json"
+  },
+  "verified_receipt_projection": {
+    "status": "FULL_DATA_READY",
+    "files": 14551,
+    "bytes": 264298068616,
+    "manifest_sha256": "4437e130014a305112fb7e7b2ad825d453424f1eaec64eb86cd2cdd4e50aaf71",
+    "archive_sha256": "db689cabc8707592ff2e3296a88f518b57dcdf5b9dbd84fd0072a5b41a1efd2b",
+    "loader_smoke_count": 14551,
+    "loader_smoke_all_ok": true,
+    "worker_exit_code": 0,
+    "failure_code": ""
+  },
+  "weather4cast_unchanged": {
+    "status": "DOWNLOAD_FAILED",
+    "worker_alive": false,
+    "worker_exit_code": 124,
+    "failure_code": "SFTP_TIMEOUT"
+  },
+  "contains_secrets": false
+}
