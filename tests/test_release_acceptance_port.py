@@ -435,9 +435,15 @@ def test_release_acceptance_threads_port_to_every_live_check() -> None:
     assert '"node_modules\\next\\dist\\bin\\next"' in restart
     assert '[ValidateSet("development", "production")]' in restart
     assert '$nextCommand = if ($Mode -eq "production") { "start" } else { "dev" }' in restart
-    assert "-Port $Port `" in acceptance
-    assert "-Mode production `" in acceptance
-    assert 'Run-Check "start_production_workstation_frontend"' in acceptance
+    # The release gate starts the frontend through the auth-aware managed
+    # launcher (session secret, local-automation token, runtime identity).
+    start_block = acceptance[acceptance.index('Run-Check "start_production_workstation_frontend"'):]
+    start_block = start_block[: start_block.index("Run-Check", len("Run-Check"))]
+    assert "scripts\\manage_workstation_dashboard.py start `" in start_block
+    assert "--port $Port `" in start_block
+    assert "--build `" in start_block
+    assert "--tw-border-spacing-x" in start_block
+    assert "restart_workstation_frontend.ps1" not in start_block
     assert '"--build"' in (ROOT / "scripts" / "start_verified_workstation.ps1").read_text(encoding="utf-8-sig")
 
 
@@ -453,7 +459,9 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     assert "& $PythonExe -m pytest" in acceptance
     assert "& $PythonExe scripts\\verify_no_plaintext_secrets.py" in acceptance
     assert "$env:WORKSTATION_PYTHON = $PythonExe" in acceptance
-    assert "-PythonExecutable $PythonExe" in acceptance
+    # The selected interpreter launches the managed frontend/runtime (which
+    # also inherits it through WORKSTATION_PYTHON).
+    assert "& $PythonExe scripts\\manage_workstation_dashboard.py start" in acceptance
     assert acceptance.index('Run-Check "acceptance_test_dependencies"') < acceptance.index('Run-Check "cli_tests"')
 
     assert 'Join-Path $Root "install.ps1"' in acceptance

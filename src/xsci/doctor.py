@@ -26,6 +26,26 @@ from .kaggle_session import (
 
 OK, WARN, FAIL = "PASS", "WARN", "FAIL"
 
+_GPU_SSH_SETTINGS = (
+    "GPU_SSH_HOST", "GPU_SSH_USER", "GPU_SSH_PASSWORD", "GPU_SSH_KEY_PATH",
+    "GPU_SSH_HOST_FILE", "GPU_SSH_USER_FILE", "GPU_SSH_PASSWORD_FILE", "GPU_SSH_KEY_PATH_FILE",
+    "EVOMIND_HPC_CREDENTIAL_PROFILE",
+)
+
+
+def _gpu_ssh_unconfigured(exc: Exception) -> bool:
+    """True only when no GPU SSH setting exists at all (fresh install).
+
+    Any partial or invalid configuration still fails hard.
+    """
+    import os
+
+    if any(os.environ.get(name, "").strip() for name in _GPU_SSH_SETTINGS):
+        return False
+    if sys.platform == "win32":
+        return "not installed" in str(exc)
+    return True
+
 
 def _check_python() -> tuple[str, str]:
     v = sys.version_info
@@ -82,6 +102,11 @@ def _check_compute(cfg) -> tuple[str, str]:
         conf = load_gpu_ssh_config(require_auth=True)
         return WARN, f"GPU SSH config resolves (auth={conf.has_auth()}); fresh remote SSH/CUDA smoke still required"
     except Exception as exc:  # noqa: BLE001
+        if _gpu_ssh_unconfigured(exc):
+            return WARN, (
+                "gpu_resource_blocked: GPU SSH is not configured - optional for the "
+                "control-plane release, required before GPU training"
+            )
         return FAIL, f"compute=gpu but SSH config invalid: {exc}"
 
 

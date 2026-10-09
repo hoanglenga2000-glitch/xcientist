@@ -121,11 +121,25 @@ if (-not $SkipBuild) {
 
 Step "Start production workstation and live gates"
 $checks += Run-Check "start_production_workstation_frontend" {
-  powershell -NoProfile -ExecutionPolicy Bypass -File scripts\restart_workstation_frontend.ps1 `
-    -Port $Port `
-    -PythonExecutable $PythonExe `
-    -Mode production `
-    -DatabaseUrl "file:./prisma/workstation.db"
+  # The API proxy fails closed without a session secret, a hashed
+  # local-automation token and a bound runtime build identity. Only the
+  # managed launcher provides all three (and starts the runtime service), so
+  # the release gate uses it instead of the legacy restart script.
+  & $PythonExe scripts\manage_workstation_dashboard.py start `
+    --host 127.0.0.1 `
+    --port $Port `
+    --build `
+    --force `
+    --timeout 180
+  if ($LASTEXITCODE -ne 0) { return }
+  $html = (Invoke-WebRequest -Uri "$BaseUrl/" -UseBasicParsing -TimeoutSec 30).Content
+  $cssHref = [regex]::Match($html, 'href="([^"]*\.css[^"]*)"').Groups[1].Value
+  if (-not $cssHref) { throw "No CSS bundle was referenced by the frontend HTML." }
+  $css = Invoke-WebRequest -Uri "$BaseUrl$cssHref" -UseBasicParsing -TimeoutSec 30
+  if ($css.StatusCode -ne 200 -or -not $css.Content.Contains("--tw-border-spacing-x")) {
+    throw "CSS health check failed for $cssHref"
+  }
+  "frontend ready at $BaseUrl (css $cssHref)"
 }
 $checks += Run-Check "new_user_release_readiness_live" { & $PythonExe scripts\verify_new_user_release_readiness.py --base-url $BaseUrl --write-report --require-live-server }
 $checks += Run-Check "workstation_launch_readiness" { & $PythonExe scripts\verify_workstation_launch_readiness.py --base-url $BaseUrl --include-frontend --write-report }

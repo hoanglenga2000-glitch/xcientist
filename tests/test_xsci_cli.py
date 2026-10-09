@@ -234,3 +234,39 @@ def test_windows_cli_installer_uses_repo_bound_launcher():
     assert 'evomind-launcher.json' in installer
     assert 'python -X utf8 -m xsci.kaggle %*' not in installer
     assert 'run --project $repoRoot --directory $repoRoot' in launcher
+
+
+def _fail_gpu_load(message):
+    from research_agent_workstation.server.core import gpu_credentials
+
+    def load(**_kwargs):
+        raise gpu_credentials.CredentialError(message)
+
+    return load
+
+
+def test_doctor_unconfigured_gpu_is_a_resource_gate(monkeypatch):
+    from research_agent_workstation.server.core import gpu_credentials
+    from xsci import doctor
+
+    for name in doctor._GPU_SSH_SETTINGS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(doctor.sys, "platform", "win32")
+    monkeypatch.setattr(gpu_credentials, "load_gpu_ssh_config",
+                        _fail_gpu_load("Windows DPAPI HPC credential and metadata are not installed"))
+    status, detail = doctor._check_compute({"compute.backend": "gpu"})
+    assert status == doctor.WARN
+    assert "gpu_resource_blocked" in detail
+
+
+def test_doctor_partial_gpu_config_still_fails(monkeypatch):
+    from research_agent_workstation.server.core import gpu_credentials
+    from xsci import doctor
+
+    for name in doctor._GPU_SSH_SETTINGS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("GPU_SSH_HOST", "hpc.invalid")
+    monkeypatch.setattr(gpu_credentials, "load_gpu_ssh_config",
+                        _fail_gpu_load("No GPU SSH authentication configured."))
+    status, _detail = doctor._check_compute({"compute.backend": "gpu"})
+    assert status == doctor.FAIL

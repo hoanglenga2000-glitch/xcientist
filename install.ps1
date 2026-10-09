@@ -216,6 +216,9 @@ if ($BundleMode) {
     $env:NODE_ENV = $null
     try { Invoke-Checked $npm.Source @("ci", "--no-audit", "--no-fund") "npm ci" } finally { $env:NODE_ENV = $savedNodeEnv; Pop-Location }
   }
+  # A clean checkout has no web\.env; bind the schema commands to the same
+  # absolute database the migration step below uses.
+  $env:DATABASE_URL = "file:$((Join-Path $Web 'prisma\workstation.db').Replace('\','/'))"
   Push-Location $Web
   try {
     npm run db:push
