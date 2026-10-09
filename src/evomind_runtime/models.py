@@ -24,8 +24,13 @@ class PermissionLevel(str, Enum):
 
 class SessionStatus(str, Enum):
     CREATED = "created"
+    QUEUED = "queued"
+    PLANNING = "planning"
     RUNNING = "running"
+    VERIFYING = "verifying"
     WAITING_APPROVAL = "waiting_approval"
+    RECOVERING = "recovering"
+    BLOCKED = "blocked"
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
@@ -170,6 +175,43 @@ class ArtifactRef:
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class AttachmentRef:
+    id: str
+    upload_id: str
+    run_id: str
+    name: str
+    path: str
+    media_type: str
+    bytes: int
+    sha256: str
+    created_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class AssistantArtifactRef:
+    id: str
+    run_id: str
+    session_id: str
+    name: str
+    path: str
+    media_type: str
+    bytes: int
+    sha256: str
+    source_tool_call: str
+    preview_kind: str
+    verified_at: str = field(default_factory=utc_now)
+
+    def to_dict(self) -> dict[str, Any]:
+        value = asdict(self)
+        value["preview_url"] = f"/api/assistant/artifacts/{self.id}"
+        value["download_url"] = f"/api/assistant/artifacts/{self.id}?download=1"
+        return value
 
 
 @dataclass
