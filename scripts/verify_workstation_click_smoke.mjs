@@ -6,6 +6,19 @@ import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyReleaseCheckAuth } from "./workstation_test_session.mjs";
+import {
+  WORKSPACE_VIEWS,
+  clickSelector,
+  createDraftTask,
+  currentView,
+  evaluate,
+  inspectWorkspace,
+  openView,
+  setDesktopViewport,
+  shellOk,
+  sleep,
+  waitForWorkspace
+} from "./workstation_workspace_probe.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -38,77 +51,11 @@ const chromeCandidates = [
   "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
   "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
-  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe"
+  "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+  "/usr/bin/google-chrome",
+  "/usr/bin/chromium",
+  "/usr/bin/chromium-browser"
 ].filter(Boolean);
-
-const pageTargets = [
-  "assistant",
-  "overview",
-  "control",
-  "tasks",
-  "data",
-  "gpu",
-  "evidence",
-  "literature",
-  "workflow",
-  "code",
-  "runtime",
-  "experiments",
-  "evolution",
-  "report",
-  "gates",
-  "settings"
-];
-
-// Click plan targets V2 screens. Selectors reference data-ui-action ids that exist in the
-// migrated screens/* components; expectedPage matches the AppShell uiActionRoutes/Patterns
-// routing destination. Pattern-A (routed) clicks change page; Pattern-B (skip-action)
-// clicks stay on the page and hit the backend — both are asserted against expectedPage.
-const safeClicks = [
-  { page: "assistant", selector: "[data-ui-action='assistant_new_session']", expectedPage: "assistant" },
-  { page: "overview", selector: "[data-ui-action='mission_open_evidence_ledger']", expectedPage: "evidence" },
-  { page: "overview", selector: "[data-ui-action='mission_prepare_hpc_job']", expectedPage: "gpu" },
-  { page: "tasks", selector: "[data-ui-action='tasks_open_context']", expectedPage: "tasks" },
-  { page: "tasks", selector: "[data-ui-action='tasks_refresh_queue']", expectedPage: "tasks" },
-  { page: "tasks", selector: "[data-ui-action='tasks_dispatch_agents']", expectedPage: "runtime" },
-  { page: "code", selector: "[data-ui-action='ask_code_agent']", expectedPage: "code" },
-  { page: "code", selector: "[data-ui-action='run_code_smoke_test']", expectedPage: "code" },
-  { page: "code", selector: "[data-ui-action='request_code_quality_gate']", expectedPage: "code" },
-  { page: "evidence", selector: "[data-ui-action='apply_evidence_filters']", expectedPage: "evidence" },
-  { page: "evidence", selector: "[data-ui-action='reset_evidence_filters']", expectedPage: "evidence" },
-  { page: "evidence", selector: "[data-ui-action='open_evidence_lineage_graph']", expectedPage: "evidence" },
-  { page: "evidence", selector: "[data-ui-action='export_evidence_csv']", expectedPage: "evidence" },
-  { page: "literature", selector: "[data-ui-action='literature_refresh_library']", expectedPage: "literature" },
-  { page: "literature", selector: "[data-ui-action='rag_send_code_agent']", expectedPage: "literature" },
-  { page: "literature", selector: "[data-ui-action='rag_bind_report_claim']", expectedPage: "literature" },
-  { page: "runtime", selector: "[data-ui-action='runtime_refresh_5s']", expectedPage: "runtime" },
-  { page: "experiments", selector: "[data-ui-action='experiments_refresh']", expectedPage: "experiments" },
-  { page: "experiments", selector: "[data-ui-action='experiments_export_ledger']", expectedPage: "experiments" },
-  { page: "evolution", selector: "[data-ui-action='evolution_refresh']", expectedPage: "evolution" },
-  { page: "report", selector: "[data-ui-action='report_view_figures']", expectedPage: "report" },
-  { page: "report", selector: "[data-ui-action='report_view_audit']", expectedPage: "report" },
-  { page: "report", selector: "[data-ui-action='report_view_files']", expectedPage: "report" },
-  { page: "gates", selector: "[data-ui-action='blocked_allow_official_submit']", expectedPage: "gates" },
-  { page: "gpu", selector: "[data-ui-action='gpu_view_job_manifest_yaml']", expectedPage: "gpu" },
-  { page: "gpu", selector: "[data-ui-action='compute_select_local']", expectedPage: "gpu" },
-  { page: "settings", selector: "[data-ui-action='settings_language_en_us']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='settings_language_zh_cn']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='settings_theme_light']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='settings_theme_dark']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='save_settings_changes']", expectedPage: "settings" },
-  { page: "settings", selector: "[data-ui-action='test_all_connectors']", expectedPage: "settings" }
-];
-
-const blockedControls = [
-  { page: "gpu", selector: "[data-ui-action='blocked_start_training']" },
-  { page: "code", selector: "[data-ui-action='blocked_send_to_hpc']" },
-  { page: "gates", selector: "[data-ui-action='blocked_allow_official_submit']" },
-  { page: "evidence", selector: "[data-ui-action='blocked_final_evidence_approval']" }
-];
-
-function sleep(ms) {
-  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
-}
 
 function findChrome() {
   return chromeCandidates.find((candidate) => candidate && existsSync(candidate)) ?? null;
@@ -215,148 +162,121 @@ async function waitForChrome(portNumber) {
   throw new Error("Chrome DevTools endpoint did not become ready.");
 }
 
-async function waitForPage(client) {
-  // A clean standalone launch may need extra time for the first dynamically split
-  // screen chunk on Windows (notably while Defender scans a fresh extraction).
-  // Keep a finite 30-second ceiling so a missing control still fails deterministically.
-  for (let attempt = 0; attempt < 200; attempt++) {
-    const result = await client.send("Runtime.evaluate", {
-      expression: "document.readyState === 'complete' && !!document.querySelector('[data-ui-component=\"workstation-page\"]')",
-      returnByValue: true
-    });
-    if (result.result?.value === true) return;
-    await sleep(150);
-  }
-  const diagnostic = await evalValue(client, `(() => ({
-    url: location.href,
-    title: document.title,
-    readyState: document.readyState,
-    bodyText: document.body?.innerText?.slice(0, 500) ?? "",
-    html: document.documentElement?.outerHTML?.slice(0, 1000) ?? ""
-  }))()`).catch((error) => ({ diagnosticError: String(error) }));
-  throw new Error(`Page shell did not become ready: ${JSON.stringify(diagnostic)}`);
-}
+// Views of the shipped /workspace UI. The legacy ?page= dashboard is retired:
+// app/page.tsx redirects every ?page= link to /workspace, which the
+// legacy_redirect target below verifies in a real browser.
+const pageTargets = [...WORKSPACE_VIEWS.map((view) => view.id), "legacy_redirect"];
 
-async function evalValue(client, expression) {
-  const result = await client.send("Runtime.evaluate", {
-    expression,
-    awaitPromise: true,
-    returnByValue: true
-  });
-  if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text ?? "Runtime evaluation failed.");
-  }
-  return result.result?.value;
-}
+// Safe clicks: real mouse clicks on shipped navigation controls. Each must land
+// on the expected view (re-derived from the DOM) with the expected sidebar item
+// marked aria-current. None of them starts a model run, training or submission.
+const safeClicks = [
+  { page: "tasks", selector: "#workspace-navigation nav a[href='/workspace?section=data']", expectedPage: "data", expectedNav: "/workspace?section=data" },
+  { page: "data", selector: "#workspace-navigation nav a[href='/workspace?section=literature']", expectedPage: "literature", expectedNav: "/workspace?section=literature" },
+  { page: "literature", selector: "#workspace-navigation nav a[href='/workspace?section=results']", expectedPage: "results", expectedNav: "/workspace?section=results" },
+  { page: "results", selector: "#workspace-navigation nav a[href^='/workspace?settings=models']", expectedPage: "settings_models", expectedNav: "/workspace?settings=models" },
+  { page: "settings_models", selector: "main#task-main nav[aria-label='设置分组'] a[href^='/workspace?settings=resources']", expectedPage: "settings_resources", expectedNav: "/workspace?settings=models" },
+  { page: "settings_resources", selector: "header.tw-topbar a[href^='/workspace?settings=account']", expectedPage: "settings_account", expectedNav: "/workspace?settings=models" },
+  { page: "settings_account", selector: "#workspace-navigation .tw-sidebar-note a[href='/workspace?section=projects']", expectedPage: "projects", expectedNav: null },
+  { page: "projects", selector: "#workspace-navigation a.tw-new", expectedPage: "new_task", expectedNav: null },
+  { page: "new_task", selector: "main#task-main a.tw-back[href='/workspace']", expectedPage: "tasks", expectedNav: "/workspace" },
+  { page: "data", selector: "#workspace-navigation a.tw-brand", expectedPage: "tasks", expectedNav: "/workspace" }
+];
 
-async function waitForWorkstationReady(client, page, requiredSelector = null) {
-  let lastState = null;
-  const requiredActionId = requiredSelector?.match(/\[data-ui-action=['"]([^'"]+)['"]\]/)?.[1] ?? null;
-  const targetExpression = requiredActionId
-    ? `Array.from(document.querySelectorAll('[data-ui-action]')).some((node) => node.getAttribute('data-ui-action') === ${JSON.stringify(requiredActionId)})`
-    : requiredSelector
-      ? `!!document.querySelector(${JSON.stringify(requiredSelector)})`
-      : "true";
-  for (let attempt = 0; attempt < 200; attempt++) {
-    lastState = await evalValue(client, `(() => {
-      const marker = document.querySelector('[data-ui-component="workstation-page"]');
-      return {
-        page: marker?.getAttribute('data-ui-page') ?? null,
-        ready: marker?.getAttribute('data-ui-ready') ?? null,
-        task: marker?.getAttribute('data-ui-task') ?? null,
-        requiredActionId: ${JSON.stringify(requiredActionId)},
-        target: ${targetExpression},
-        actionIds: Array.from(document.querySelectorAll('[data-ui-action]')).map((node) => node.getAttribute('data-ui-action')).filter(Boolean).slice(0, 40),
-        text: document.body.innerText.slice(0, 240)
-      };
-    })()`);
-    if (
-      lastState?.page === page &&
-      lastState?.ready === "true" &&
-      lastState?.task &&
-      lastState?.target
-    ) return;
-    await sleep(150);
-  }
-  throw new Error(`Workstation page did not become ready: ${page} ${JSON.stringify(lastState)}`);
-}
+// Controls that must refuse to act until the person supplies what they need.
+// "开始任务" is the only control that can trigger a (billable) model run; it
+// must stay disabled until a model is explicitly chosen. task_session targets
+// are checked on a draft task created through the UI during this smoke.
+const blockedControls = [
+  { page: "new_task", selector: "main#task-main form.tw-composer button.tw-primary", reason: "empty_draft_cannot_be_saved" },
+  { page: "projects", selector: "main#task-main form.tw-settings-form button", reason: "empty_project_name_cannot_be_created" },
+  { page: "task_session", selector: "main#task-main form.tw-composer button[type='submit'].tw-primary", reason: "model_run_requires_explicit_model_choice" }
+];
 
-async function navigate(client, page, requiredSelector = null) {
-  await client.send("Page.navigate", { url: `${baseUrl}/?page=${page}` });
-  await waitForPage(client);
-  await waitForWorkstationReady(client, page, requiredSelector);
+const viewPaths = Object.fromEntries(WORKSPACE_VIEWS.map((view) => [view.id, view.path]));
+const viewNav = { ...Object.fromEntries(WORKSPACE_VIEWS.map((view) => [view.id, view.nav])), task_session: "/workspace" };
+let draftTask = null;
+
+function pathFor(page) {
+  if (page === "task_session") return draftTask?.taskId ? `/workspace?task=${encodeURIComponent(draftTask.taskId)}` : null;
+  return viewPaths[page] ?? null;
 }
 
 async function inspectPage(client, page) {
-  await navigate(client, page);
-  const info = await evalValue(client, `(() => {
-    const marker = document.querySelector('[data-ui-component="workstation-page"]');
+  if (page === "legacy_redirect") {
+    // Old bookmarks (/?page=overview) must still land on the shipped workspace.
+    await client.send("Page.navigate", { url: `${baseUrl}/?page=overview` });
+    const ready = await waitForWorkspace(client, "tasks");
+    const info = await inspectWorkspace(client);
     return {
-      activePage: marker?.getAttribute('data-ui-page') ?? null,
-      actionCount: document.querySelectorAll('[data-ui-action]').length,
-      buttonCount: document.querySelectorAll('button').length,
-      textSize: document.body.innerText.length,
-      hasErrorText: /Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(document.body.innerText)
+      page,
+      ok: ready && info.url.startsWith("/workspace") && info.activePage === "tasks" && shellOk(info) && !info.hasErrorText && info.alerts.length === 0,
+      ...info,
+      activePage: info.url.startsWith("/workspace") && info.activePage === "tasks" ? "legacy_redirect" : info.activePage
     };
-  })()`);
+  }
+  const ready = await openView(client, baseUrl, pathFor(page), page);
+  const info = await inspectWorkspace(client);
+  const expectedNav = viewNav[page];
+  const navOk = expectedNav === null ? info.navCurrent.length === 0 : info.navCurrent.length === 1 && info.navCurrent[0].startsWith(expectedNav);
   return {
     page,
-    // V2 screens are denser than the old monolith; text threshold asserts substantive render
-    // (well above an error/blank page), not the old verbose-monolith volume.
-    ok: info.activePage === page && info.actionCount >= 5 && info.buttonCount >= 3 && info.textSize >= 80 && !info.hasErrorText,
+    // A view passes only when the shipped shell rendered, the DOM shows this
+    // view's own content, the matching sidebar item is current, no alert or
+    // error text is visible, and the view rendered substantive text.
+    ok: ready && info.activePage === page && shellOk(info) && navOk && info.actionCount >= 10 && info.buttonCount >= 1 && info.mainTextSize >= 20 && info.textSize >= 80 && !info.hasErrorText && info.alerts.length === 0,
+    navOk,
     ...info
   };
 }
 
 async function clickAndInspect(client, item) {
-  await navigate(client, item.page, item.selector);
-  const result = await evalValue(client, `(() => {
-    const target = document.querySelector(${JSON.stringify(item.selector)});
-    if (!target) return { clicked: false, reason: 'selector_not_found' };
-    target.click();
-    return { clicked: true, label: (target.textContent || target.getAttribute('aria-label') || '').trim().slice(0, 80) };
-  })()`);
-  await sleep(650);
-  const activePage = await evalValue(client, `document.querySelector('[data-ui-component="workstation-page"]')?.getAttribute('data-ui-page') ?? null`);
-  const hasErrorText = await evalValue(client, `/Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(document.body.innerText)`);
+  const opened = await openView(client, baseUrl, pathFor(item.page), item.page);
+  const result = opened ? await clickSelector(client, item.selector) : { clicked: false, reason: "start_view_not_ready" };
+  const landed = result.clicked ? await waitForWorkspace(client, item.expectedPage) : false;
+  const info = await inspectWorkspace(client);
+  const navOk = item.expectedNav === null ? info.navCurrent.length === 0 : info.navCurrent.length === 1 && info.navCurrent[0].startsWith(item.expectedNav);
   return {
     ...item,
     clicked: Boolean(result.clicked),
     label: result.label ?? null,
     reason: result.reason ?? null,
-    activePage,
-    ok: Boolean(result.clicked) && activePage === item.expectedPage && !hasErrorText
+    activePage: info.activePage,
+    url: info.url,
+    navCurrent: info.navCurrent,
+    ok: Boolean(result.clicked) && landed && info.activePage === item.expectedPage && navOk && !info.hasErrorText && info.alerts.length === 0
   };
 }
 
 async function inspectBlockedControl(client, item) {
-  await navigate(client, item.page);
-  const result = await evalValue(client, `(() => {
+  const path = pathFor(item.page);
+  if (!path) return { ...item, found: false, reason: "draft_task_not_created", ok: false };
+  const opened = await openView(client, baseUrl, path, item.page);
+  const result = await evaluate(client, `(() => {
     const target = document.querySelector(${JSON.stringify(item.selector)});
     if (!target) return { found: false, reason: 'selector_not_found' };
-    const style = getComputedStyle(target);
     return {
       found: true,
       label: (target.textContent || target.getAttribute('aria-label') || '').trim().slice(0, 80),
-      disabled: Boolean(target.disabled) || target.getAttribute('aria-disabled') === 'true',
-      pointerEvents: style.pointerEvents,
-      cursor: style.cursor
+      disabled: Boolean(target.disabled) || target.getAttribute('aria-disabled') === 'true'
     };
   })()`);
-  const hasErrorText = await evalValue(client, `/Application error|Unhandled Runtime Error|Hydration failed|ChunkLoadError|Internal Server Error/i.test(document.body.innerText)`);
-  // A blocked Human-Gate control is valid when it is EITHER a natively disabled control
-  // (old monolith style) OR a V2 gated control that stays clickable so the global audit
-  // delegate can record the blocked attempt and route to the gates page — the V2 gate is
-  // communicated via a data-ui-action="blocked_*" id plus a danger affordance, not by
-  // removing keyboard access. Both forms prove the action cannot silently execute.
-  const communicatesGate = Boolean(result.found) && (
-    Boolean(result.disabled) ||
-    (String(item.selector).includes("blocked_") && result.cursor === "pointer")
-  );
+  const activePage = await currentView(client);
+  // The gate must hold under a real click too: clicking a disabled control
+  // must not navigate away or start anything.
+  let afterClickView = activePage;
+  if (result.found) {
+    await clickSelector(client, item.selector);
+    await new Promise((resolveWait) => setTimeout(resolveWait, 600));
+    afterClickView = await currentView(client);
+  }
+  const info = await inspectWorkspace(client);
   return {
     ...item,
     ...result,
-    ok: communicatesGate && !hasErrorText
+    activePage,
+    afterClickView,
+    ok: opened && Boolean(result.found) && Boolean(result.disabled) && afterClickView === item.page && !info.hasErrorText && info.alerts.length === 0
   };
 }
 
@@ -365,7 +285,7 @@ async function run() {
   const createdAt = new Date().toISOString();
   if (!chrome) {
     return {
-      schema: "academic_research_os.workstation_click_smoke.v2",
+      schema: "academic_research_os.workstation_click_smoke.v3",
       created_at: createdAt,
       base_url: baseUrl,
       status: "blocked",
@@ -394,7 +314,7 @@ async function run() {
     "--disable-extensions",
     `--remote-debugging-port=${port}`,
     `--user-data-dir=${userDataDir}`,
-    `${baseUrl}/?page=overview`
+    "about:blank"
   ], { stdio: ["ignore", "ignore", "pipe"] });
   const chromeStderr = [];
   chromeProcess.stderr?.on("data", (chunk) => chromeStderr.push(String(chunk)));
@@ -410,15 +330,35 @@ async function run() {
     await client.send("Page.enable");
     await client.send("Network.enable");
     // Session first (real signed-in principal), automation header fallback.
-    process.env.WORKSTATION_RELEASE_CHECK_AUTH_MODE = await applyReleaseCheckAuth(client, root, baseUrl);
+    const authMode = await applyReleaseCheckAuth(client, root, baseUrl);
+    process.env.WORKSTATION_RELEASE_CHECK_AUTH_MODE = authMode;
     await client.send("Runtime.enable");
     await client.send("Log.enable");
+    await setDesktopViewport(client);
 
     const pageResults = [];
     for (const page of pageTargets) pageResults.push(await inspectPage(client, page));
 
     const clickResults = [];
     for (const item of safeClicks) clickResults.push(await clickAndInspect(client, item));
+
+    // Core flow: describe a task -> it auto-saves as a draft (no model call)
+    // and opens in its own session view.
+    const draftTitle = `发布验收冒烟草稿 ${createdAt}`;
+    draftTask = await createDraftTask(client, baseUrl, draftTitle);
+    clickResults.push({
+      page: "new_task",
+      selector: "textarea#task-draft",
+      expectedPage: "task_session",
+      clicked: true,
+      label: "输入需求并自动保存草稿",
+      reason: draftTask.ok ? null : (draftTask.reason ?? "draft_not_saved"),
+      activePage: draftTask.ok ? "task_session" : await currentView(client),
+      url: draftTask.url ?? null,
+      ok: Boolean(draftTask.ok)
+    });
+    if (draftTask.ok) pageResults.push(await inspectPage(client, "task_session"));
+    else pageResults.push({ page: "task_session", ok: false, activePage: null, actionCount: 0, buttonCount: 0, textSize: 0, hasErrorText: false, reason: "draft_task_not_created" });
 
     const blockedResults = [];
     for (const item of blockedControls) blockedResults.push(await inspectBlockedControl(client, item));
@@ -433,12 +373,15 @@ async function run() {
     const failedClicks = clickResults.filter((item) => !item.ok).map((item) => item.selector);
     const failedBlockedControls = blockedResults.filter((item) => !item.ok).map((item) => item.selector);
     return {
-      schema: "academic_research_os.workstation_click_smoke.v2",
+      schema: "academic_research_os.workstation_click_smoke.v3",
       created_at: createdAt,
       base_url: baseUrl,
-      status: failedPages.length === 0 && failedClicks.length === 0 && failedBlockedControls.length === 0 && runtimeErrors.length === 0 ? "passed" : "failed",
-      blocker: null,
+      ui: "workspace",
+      auth_mode: authMode,
+      status: authMode === "local_session" && failedPages.length === 0 && failedClicks.length === 0 && failedBlockedControls.length === 0 && runtimeErrors.length === 0 ? "passed" : "failed",
+      blocker: authMode === "local_session" ? null : "release_check_session_missing",
       chrome,
+      draft_task_id: draftTask?.taskId ?? null,
       page_results: pageResults,
       click_results: clickResults,
       blocked_control_results: blockedResults,
@@ -448,11 +391,11 @@ async function run() {
       runtime_error_count: runtimeErrors.length,
       runtime_errors: runtimeErrors.slice(0, 10),
       cleanup_warning: cleanupWarning,
-      claim_boundary: "This smoke uses a real headless Chromium browser and safe clicks only. It verifies direct navigation, safe UI actions, and blocked training/submission controls. It does not start training, GPU jobs, Kaggle submission, or Figma writes."
+      claim_boundary: "This smoke signs in with the release-check session and drives the shipped /workspace UI in a real headless Chromium with real mouse clicks. It verifies every workspace view renders its own content inside the shipped shell, sidebar/top-bar/settings navigation, the legacy ?page= redirect, creating a draft task through the composer (drafts never call a model), and that saving an empty draft, creating an unnamed project and starting a model run without an explicit model choice stay disabled. It does not send a task, call a model, start training or GPU jobs, submit to Kaggle or write to Figma."
     };
   } catch (error) {
     return {
-      schema: "academic_research_os.workstation_click_smoke.v2",
+      schema: "academic_research_os.workstation_click_smoke.v3",
       created_at: createdAt,
       base_url: baseUrl,
       status: "blocked",
@@ -490,7 +433,7 @@ function toMarkdown(report) {
     "",
     "## \u9875\u9762\u76f4\u8fbe",
     "",
-    "| page | ok | active page | actions | buttons | text size |",
+    "| view | ok | detected view | controls | buttons | text size |",
     "| --- | --- | --- | ---: | ---: | ---: |"
   ];
   for (const item of report.page_results ?? []) {

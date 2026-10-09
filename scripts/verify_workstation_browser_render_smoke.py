@@ -13,21 +13,21 @@ CLICK_JSON = ROOT / "workspace" / "workstation_click_smoke_20260701.json"
 OUT_JSON = ROOT / "workspace" / "workstation_browser_render_smoke_20260630.json"
 OUT_MD = ROOT / "reports" / "WORKSTATION_BROWSER_RENDER_SMOKE_20260630.md"
 
+# Views of the shipped /workspace UI (TaskWorkspace). The retired ?page=
+# dashboard ids redirect to /workspace; legacy_redirect checks that in a real
+# browser, and task_session is a draft task created through the composer.
 DEFAULT_PAGES = [
-    "overview",
-    "control",
     "tasks",
+    "new_task",
     "data",
-    "gpu",
-    "evidence",
     "literature",
-    "workflow",
-    "code",
-    "runtime",
-    "experiments",
-    "report",
-    "gates",
-    "settings",
+    "results",
+    "projects",
+    "settings_models",
+    "settings_account",
+    "settings_resources",
+    "legacy_redirect",
+    "task_session",
 ]
 
 
@@ -41,7 +41,7 @@ def safe_relative(path: Path) -> str:
 def run_click_smoke(base_url: str, timeout: int) -> tuple[int, str, str]:
     command = [
         "node",
-        "scripts\\verify_workstation_click_smoke.mjs",
+        str(Path("scripts") / "verify_workstation_click_smoke.mjs"),
         "--write-report",
         "--base-url",
         base_url,
@@ -114,33 +114,43 @@ def build_report(base_url: str, pages: list[str], click_timeout: int) -> dict[st
             })
             continue
 
+        shell = item.get("shell") or {}
         page_results.append({
             "page": page,
             "ok": bool(item.get("ok")),
             "returncode": returncode,
-            "has_shell": item.get("activePage") == page,
+            "has_shell": bool(shell.get("workspace") and shell.get("topbar") and shell.get("main")),
             "has_page_marker": item.get("activePage") == page,
-            "has_sidebar": True,
+            "has_sidebar": bool(shell.get("sidebar") and int(shell.get("navLinkCount") or 0) >= 5),
             "action_count": int(item.get("actionCount") or 0),
             "button_count": int(item.get("buttonCount") or 0),
-            "link_count": 0,
+            "link_count": int(shell.get("navLinkCount") or 0),
             "component_count": int(item.get("actionCount") or 0),
             "visible_text_size": int(item.get("textSize") or 0),
-            "missing_keywords": [],
-            "error_matches": ["runtime_error"] if item.get("hasErrorText") else [],
+            "missing_keywords": [] if item.get("activePage") == page else [f"view_marker:{page}"],
+            "error_matches": (["runtime_error"] if item.get("hasErrorText") else []) + [f"alert:{text[:80]}" for text in item.get("alerts") or []],
+            "url": item.get("url"),
+            "heading": item.get("heading"),
             "stderr_tail": stderr[-1000:],
             "timeout": False,
         })
 
     failed_pages = [item["page"] for item in page_results if not item["ok"]]
     runtime_error_count = int(click_report.get("runtime_error_count") or 0)
-    status = "passed" if not failed_pages and runtime_error_count == 0 and returncode == 0 else "failed"
+    auth_mode = click_report.get("auth_mode")
+    status = (
+        "passed"
+        if not failed_pages and runtime_error_count == 0 and returncode == 0 and auth_mode == "local_session"
+        else "failed"
+    )
     return {
         "schema": "academic_research_os.workstation_browser_render_smoke.v2",
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "base_url": base_url,
         "status": status,
-        "blocker": None,
+        "blocker": None if auth_mode == "local_session" else "release_check_session_missing",
+        "ui": click_report.get("ui"),
+        "auth_mode": auth_mode,
         "browser": click_report.get("chrome"),
         "pages": pages,
         "page_results": page_results,
@@ -152,8 +162,10 @@ def build_report(base_url: str, pages: list[str], click_timeout: int) -> dict[st
         "click_smoke_stderr_tail": stderr[-2000:],
         "claim_boundary": (
             "This browser smoke uses the real CDP click smoke as its render engine, so it waits for "
-            "client-side page routing before inspecting the DOM. It verifies page shell, active page marker, "
-            "interactive controls, text volume, and runtime errors. It does not trigger training, GPU jobs, "
+            "client-side routing and data loading before inspecting the DOM. Signed in with the release-check "
+            "session, it verifies for every /workspace view the shipped shell (sidebar, top bar, main region), "
+            "the view's own content marker re-derived from the DOM, the current navigation item, visible "
+            "alerts, text volume and runtime errors. It does not trigger training, GPU jobs, "
             "Kaggle submission, or Figma edits."
         ),
     }

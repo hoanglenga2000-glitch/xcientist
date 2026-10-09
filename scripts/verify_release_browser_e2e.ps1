@@ -64,6 +64,11 @@ try {
     if ($Steps.start -ne 0) { throw "Browser E2E workstation start failed." }
 
     $BaseUrl = "http://127.0.0.1:$Port"
+    # Browser smokes sign in like a person: consume the one-time bootstrap URL
+    # written by the manager and store an owner-only test session file.
+    python (Join-Path $Root "scripts\workstation_local_auth.py") establish --base-url $BaseUrl
+    $Steps.session = $LASTEXITCODE
+    if ($Steps.session -ne 0) { throw "Browser E2E release-check session could not be established." }
     python (Join-Path $Root "scripts\verify_workstation_runtime_navigation.py") --base-url $BaseUrl --timeout 30
     $Steps.navigation = $LASTEXITCODE
     node (Join-Path $Root "scripts\verify_workstation_click_smoke.mjs") --base-url $BaseUrl
@@ -79,6 +84,7 @@ try {
 } catch {
     $Failure = $_.Exception.Message
 } finally {
+    python (Join-Path $Root "scripts\workstation_local_auth.py") remove --base-url "http://127.0.0.1:$Port"
     python (Join-Path $Root "scripts\manage_workstation_dashboard.py") stop --host 127.0.0.1 --port $Port --timeout 60
     $Steps.stop = $LASTEXITCODE
     if ($Steps.stop -ne 0 -and -not $Failure) { $Failure = "Managed workstation stop failed." }
