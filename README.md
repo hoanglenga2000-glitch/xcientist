@@ -88,9 +88,16 @@ If `git` is not installed, open
 **Code -> Download ZIP**, unzip it, then open PowerShell inside the extracted
 project folder before running `install.ps1`.
 
+Configure at least one LLM provider before launching:
+
+```powershell
+evomind setup
+```
+
 Then start the workstation:
 
 ```powershell
+evomind dashboard start
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\start_verified_workstation.ps1 restart
 ```
 
@@ -109,11 +116,7 @@ evomind
 
 ## Configuration
 
-Use the guided CLI:
-
-```powershell
-evomind setup
-```
+Re-run the guided CLI whenever provider settings need to change:
 
 Or install secrets with DPAPI helper scripts:
 
@@ -218,6 +221,15 @@ The system is designed to be honest about evidence:
 - Do not bypass the workstation gate with ad hoc training.
 - Do not store API keys, tokens, cookies, SSH keys, or passwords in git.
 - Record failed tasks and blocked gates instead of hiding them.
+
+### Research-Parity Certification
+
+`evomind parity-status` reports the stable parity gate. A frontier-parity claim
+requires an externally produced, hash-pinned held-out evaluation with at least
+two named baseline agents and an independently frozen evaluator. Local artifacts, proxy benchmarks,
+self-audits, or upgrade-campaign outputs never open the research-parity gate.
+Promotion also requires explicit human approval after
+the external capability certification passes.
 
 For detailed onboarding, see:
 

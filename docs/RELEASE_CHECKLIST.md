@@ -6,7 +6,7 @@ AI Research Workstation.
 Default gateway:
 
 ```text
-http://127.0.0.1:8088/?page=control
+http://127.0.0.1:8088/?page=assistant
 ```
 
 ## Release Target
@@ -98,6 +98,16 @@ after:
 3. CV/public-gap risk is acceptable;
 4. the UI/action trace records the candidate;
 5. a human explicitly approves the submission gate.
+
+## Stable Research-Parity Gate
+
+Research-parity certification is a separate protected-tag gate. Its external
+held-out suite must cover at least 100 tasks, 8 domains, 3 tasks per domain, and 3 repeats,
+with a frozen evaluator, exact source-byte binding, zero timeout
+tolerance, and at least two external baseline agents. Local artifacts, proxy
+benchmarks, self-audits, and local upgrade campaigns never satisfy this gate.
+The gate remains closed unless the external evidence bundle and all configured
+out-of-band SHA-256 digests verify.
 
 ## Release Wording
 

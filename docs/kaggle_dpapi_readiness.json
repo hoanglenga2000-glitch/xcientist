@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-29T10:52:57",
+  "generated_at": "2026-09-20T00:24:34",
   "status": "passed",
   "verification_method": "dpapi",
   "credential_status": "configured_dpapi",
@@ -9,7 +9,7 @@
   "tool_status": {
     "python_package_installed": true,
     "python_package_version": "2.2.2",
-    "cli_path": "D:\\tools\\hermes\\hermes-agent\\venv\\Scripts\\kaggle.EXE"
+    "cli_path": "D:\\tools\\hermes\\hermes-agent\\venv\\Scripts\\kaggle.exe"
   },
   "safe_install_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 install-token -ApiToken <token>",
   "real_api_smoke_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 smoke -AllowRealExternal",

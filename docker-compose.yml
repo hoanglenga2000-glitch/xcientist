@@ -3,8 +3,8 @@ services:
     build: .
     container_name: research-agent-workstation
     ports:
-      - "3090:3090"
-      - "8088:3090"
+      - "127.0.0.1:3090:3090"
+      - "127.0.0.1:8088:3090"
     environment:
       WORKSTATION_ROOT: /app
       DATABASE_URL: file:/app/web/research-agent-workstation/prisma/workstation.db

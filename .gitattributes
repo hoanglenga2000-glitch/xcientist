@@ -2,3 +2,16 @@
 /scripts/_quarantine/** export-ignore
 /benchmark/mle_bench_75/openai_split75_507f92e.txt text eol=lf
 *.sh text eol=lf
+
+# Frozen research contracts use byte-level SHA-256 identities. Git must not
+# rewrite line endings or run text diff/merge normalization for these release
+# assets across platforms.
+/workspace/**/*.json binary
+/workspace/**/*.jsonl binary
+/workspace/**/*.csv binary
+/experiments/**/*.json binary
+/experiments/**/*.jsonl binary
+/experiments/**/*.csv binary
+/tasks/titanic/data/*.csv binary
+/external-projects/mle-bench/README.md binary
+/external-projects/mle-bench/experiments/splits/*.txt binary

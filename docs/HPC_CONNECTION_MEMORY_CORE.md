@@ -164,7 +164,8 @@ EvoMind 自动化不直接调用含密码的命令，而是使用 DPAPI 命名 p
 
 ## 当前任务核对
 
-- 当前医疗实验作业：`90353`
-- 当前命名 profile：`job90353`
-- 正确方式：`job90353` 命名 profile -> 指定代理 -> HPC SSH 网关 -> profile 绑定的 allocation 角色账号 -> 独立 A800 容器
-- 禁止方式：把 `job90353` 当作角色账号，或把 allocation 页面的 `10.120.x.x` 内网地址当作校外直连、备用或回退训练入口
+- 当前 HPC 作业：`96434`（2026-09-20 20:50 创建，VSCode 环境）
+- 当前命名 profile：`job96434`
+- 正确方式：`job96434` 命名 profile -> 指定代理 -> HPC SSH 网关 -> profile 绑定的 allocation 角色账号 -> 独立 A800 容器
+- 禁止方式：把 `job96434` 当作角色账号，或把 allocation 页面的 `10.120.18.240:6988` 内网地址当作校外直连、备用或回退训练入口
+- 历史核对：`job90353` / `job91051` / `job91308` 等旧 allocation 已失效；`job91308` 冻结原因记录为 `allocation_replaced_by_job91396`，不得复用或改指

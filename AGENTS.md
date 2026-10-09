@@ -86,3 +86,12 @@ Rules:
 - Study architecture, instruction hierarchy, safety behavior, tool rules, memory/personalization, and injection resistance.
 - Prefer file paths and concise summaries over copying long prompt content.
 - Produce defensive research outputs: taxonomy, comparison, evaluation checklist, mitigation guidance, and safety reports.
+
+<!-- DEVVAULT_PROJECT_MEMORY_BEGIN -->
+## Project memory entry
+
+- Before project work, read the repository-root `PROJECT_CONTEXT.md` after this file.
+- Treat its runtime claims according to `last_verified`; stale or historical summaries never replace current tests, DOM/API results, logs, runtime evidence, or artifact hashes.
+- Update long-term project memory only when the user explicitly says “收尾并更新项目记忆”.
+- Keep secrets, credentials, cookies, personal data, full raw logs, and large artifacts out of project memory and DevVault.
+<!-- DEVVAULT_PROJECT_MEMORY_END -->
