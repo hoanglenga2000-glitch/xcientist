@@ -190,6 +190,9 @@ if ($wheelFiles.Count -gt 0) {
 } else {
   if ($OfflineOnly) { throw "OfflineOnly was requested, but runtime\wheels contains no wheel set." }
   if (-not (Test-Path -LiteralPath (Join-Path $Root "pyproject.toml"))) { throw "pyproject.toml is missing and no offline wheel is available." }
+  # --no-build-isolation needs the pyproject build backend inside the venv;
+  # Python 3.12+ venvs no longer ship setuptools.
+  Invoke-Checked $VenvPython @("-m", "pip", "install", "setuptools>=68", "wheel") "build backend bootstrap"
   Invoke-Checked $VenvPython @("-m", "pip", "install", "-e", $Root, "--no-build-isolation") "online project installation"
   $installMode = "online_fallback"
 }

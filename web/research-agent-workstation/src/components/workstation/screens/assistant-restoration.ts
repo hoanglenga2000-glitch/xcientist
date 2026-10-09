@@ -19,7 +19,7 @@ export function assistantRestorationTarget(href: string, stored: string | undefi
 export async function loadAssistantRestoration<T extends { id: string; conversation_id?: string }>(target: RestorationTarget, fetcher: typeof fetch, signal?: AbortSignal): Promise<T[]> {
   async function hydrate(rows: T[], expectedConversation: string): Promise<T[]> {
     if (rows.some(row => row.conversation_id !== expectedConversation || !/^run_[a-f0-9]{32}$/.test(row.id))) throw new Error("restored_conversation_identity_mismatch");
-    const results = new Array<T>(rows.length);
+    const results = Array.from<T>({ length: rows.length });
     let next = 0;
     // List responses omit message bodies; load owned details before rendering.
     await Promise.all(Array.from({ length: Math.min(4, rows.length) }, async () => {

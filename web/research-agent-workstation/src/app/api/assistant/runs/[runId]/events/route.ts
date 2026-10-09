@@ -63,7 +63,7 @@ export async function GET(request: Request, context: { params: Promise<{ runId: 
             await sleep(500, request.signal);
           }
           controller.close();
-        } catch (error) {
+        } catch {
           if (!request.signal.aborted) {
             controller.enqueue(encoder.encode(`event: stream_error\ndata: ${JSON.stringify({
               message: "event_stream_unavailable",

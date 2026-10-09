@@ -35,6 +35,13 @@ $env:WORKSTATION_HOST = "127.0.0.1"
 $env:WORKSTATION_PORT = $Port
 $env:NODE_ENV = $Mode
 $env:DATABASE_URL = if ($DatabaseUrl) { $DatabaseUrl } else { "file:./prisma/workstation.db" }
+# Prisma resolves relative SQLite URLs against the schema directory
+# (prisma/), so "file:./prisma/workstation.db" would point at
+# prisma/prisma/workstation.db. Pin the default to the absolute project file.
+$usesDefaultDatabase = $env:DATABASE_URL -eq "file:./prisma/workstation.db"
+if ($usesDefaultDatabase) {
+  $env:DATABASE_URL = "file:" + ((Join-Path $project.Path "prisma\workstation.db") -replace '\\', '/')
+}
 
 $processIds = Get-NetTCPConnection -LocalPort ([int]$Port) -State Listen -ErrorAction SilentlyContinue |
   Select-Object -ExpandProperty OwningProcess -Unique
@@ -70,7 +77,7 @@ $ErrorActionPreference = $previousErrorActionPreference
 if ($prismaExitCode -ne 0) {
   throw "Prisma database initialization failed: $($prismaOutput -join [Environment]::NewLine)"
 }
-if ($env:DATABASE_URL -eq "file:./prisma/workstation.db" -and -not (Test-Path $prismaDatabase)) {
+if ($usesDefaultDatabase -and -not (Test-Path $prismaDatabase)) {
   throw "Prisma database initialization completed without creating $prismaDatabase"
 }
 

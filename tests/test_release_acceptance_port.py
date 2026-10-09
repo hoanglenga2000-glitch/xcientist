@@ -449,7 +449,7 @@ def test_release_acceptance_uses_selected_python_and_initializes_database() -> N
     assert "$PythonExe = (Get-Command python -ErrorAction Stop).Source" in acceptance
     assert 'Run-Check "acceptance_test_dependencies"' in acceptance
     assert 'Join-Path $Root "requirements-dev.txt"' in acceptance
-    assert "-m pip install $pytestRequirement --quiet" in acceptance
+    assert "-m pip install -r $pytestRequirement --quiet" in acceptance
     assert "& $PythonExe -m pytest" in acceptance
     assert "& $PythonExe scripts\\verify_no_plaintext_secrets.py" in acceptance
     assert "$env:WORKSTATION_PYTHON = $PythonExe" in acceptance

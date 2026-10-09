@@ -53,7 +53,15 @@ function Run-Check([string]$Id, [scriptblock]$Script) {
   $output = @()
   try {
     $global:LASTEXITCODE = 0
-    $output = @(& $Script 2>&1)
+    # Native tools (node, npm, prisma, pip) write warnings to stderr. Under
+    # Windows PowerShell 5.1 with ErrorActionPreference=Stop the first such
+    # line aborts the check even when the tool exits 0, so collect output with
+    # Continue and fail on the exit code or on any non-native error record.
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { $output = @(& $Script 2>&1) } finally { $ErrorActionPreference = $previousPreference }
+    $scriptErrors = @($output | Where-Object { $_ -is [System.Management.Automation.ErrorRecord] -and $_.FullyQualifiedErrorId -notlike "NativeCommandError*" })
+    if ($scriptErrors.Count -gt 0) { throw "$Id failed: $($scriptErrors[0])" }
     if ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) { throw "$Id failed with exit code $LASTEXITCODE" }
     [pscustomobject][ordered]@{ id=$Id; ok=$true; seconds=[math]::Round(((Get-Date)-$started).TotalSeconds,3); error=$null; output_tail=@($output | Select-Object -Last 20 | ForEach-Object {[string]$_}) }
   } catch {
@@ -65,7 +73,7 @@ $checks = @()
 Step "Isolated runtime and installer"
 $checks += Run-Check "acceptance_test_dependencies" {
   $pytestRequirement = Join-Path $Root "requirements-dev.txt"
-  & $PythonExe -m pip install $pytestRequirement --quiet
+  & $PythonExe -m pip install -r $pytestRequirement --quiet
 }
 $checks += Run-Check "stop_existing_workstation_frontend" {
   & $PythonExe scripts\manage_workstation_dashboard.py stop --port $Port --force

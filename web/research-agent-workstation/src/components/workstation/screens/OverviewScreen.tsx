@@ -101,7 +101,7 @@ function currentLoopStage(summary: WorkstationSummary | null | undefined): numbe
 
 /* ── Component ── */
 export function OverviewScreen(props: ScreenProps) {
-  const { summary, locale = "zh-CN", refreshSummary, runWorkstationAction, runLocalExperiment, runState } = props;
+  const { summary, locale = "zh-CN", refreshSummary, runLocalExperiment, runState } = props;
   const isLoading = !summary;
 
   const latestRun = summary?.runs?.[0];
