@@ -20,6 +20,7 @@ Contract (mirrors evolution_engine_cli.py conventions):
       max_cost           optional estimated USD cap
       evolution_config   optional explicit path to a configs/evolution/*.json
       data_dir           optional local data dir (local runner only)
+      memory_namespace   optional safe shared-memory namespace for isolated A/B runs
   * Output: exactly one JSON object on stdout:
       {ok, task_id, runner, summary_path, exp_dir, best_exp_id, best_cv_score,
        metric, metric_direction, n_iterations, n_promotions}
@@ -343,6 +344,16 @@ def resolve_evolution_config(task_id: str, explicit: str = "") -> Path | None:
     return candidate if candidate.exists() else None
 
 
+def resolve_memory_store_path(data_in: dict) -> tuple[Path, str]:
+    """Resolve an optional isolated memory namespace without accepting a path."""
+    namespace = str(data_in.get("memory_namespace", "") or "").strip()
+    if not namespace:
+        return ROOT / "experiments" / "evolution" / "retrospective_memory.json", "default"
+    if not re.fullmatch(r"[A-Za-z0-9._-]{1,120}", namespace) or ".." in namespace:
+        raise ValueError("memory_namespace contains unsupported characters")
+    return ROOT / "experiments" / "evolution" / "memory_namespaces" / f"{namespace}.json", namespace
+
+
 def _fail(error: str, decision: str = "failed") -> int:
     print(json.dumps({"ok": False, "error": error, "decision": decision}, ensure_ascii=False))
     return 1
@@ -375,6 +386,7 @@ def main() -> int:
         return _fail("task_id contains unsupported characters", "rejected")
     try:
         run_contract = _parse_run_contract(data_in)
+        memory_path, memory_namespace = resolve_memory_store_path(data_in)
     except ValueError as exc:
         return _fail(str(exc), "rejected")
     runner_kind = str(run_contract["runner"])
@@ -421,7 +433,12 @@ def main() -> int:
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     exp_root = ROOT / "experiments" / "evolution" / f"{ctx.task_name}_{runner_kind}_{stamp}"
     exp_root.mkdir(parents=True, exist_ok=True)
-    memory = RetrospectiveMemoryStore(ROOT / "experiments" / "evolution" / "retrospective_memory.json")
+    memory = RetrospectiveMemoryStore(memory_path)
+    memory_before_records = [
+        item
+        for item in memory.retrieve_by_task_type(ctx.task_type)
+        if item.dataset_profile.get("task_name") == task_id or item.memory_id.startswith(f"{task_id}:")
+    ]
 
     resource_gate = None
     if runner_kind == "gpu":
@@ -457,10 +474,11 @@ def main() -> int:
     generator = None
     demo_campaign_root = None
     if demo_campaign:
-        from research_os.demo_campaign import DemoVariationGenerator, prepare_demo_dataset
+        from research_os.demo_campaign import DemoLocalValidationRunner, DemoVariationGenerator, prepare_demo_dataset
 
         demo_campaign_root = Path(data_dir).parent
         prepare_demo_dataset(demo_campaign_root)
+        runner = DemoLocalValidationRunner(exp_root / "runs", demo_campaign_root)
         generator = DemoVariationGenerator()
     elif runner_kind == "local_gpu":
         generator = VariationGenerator(
@@ -527,6 +545,7 @@ def main() -> int:
                 },
                 "official_submission": "disabled",
                 "public_data_hashes": public_data_hashes,
+                "memory_namespace": memory_namespace,
             },
             ensure_ascii=False,
             indent=2,
@@ -548,6 +567,7 @@ def main() -> int:
         "max_cost": run_contract["max_cost"],
         "demo_campaign": demo_campaign,
         "official_submission": "disabled",
+        "memory_namespace": memory_namespace,
         "created_at": datetime.now().astimezone().isoformat(),
     }
     _write_json_atomic(input_contract_path, input_contract)
@@ -561,6 +581,7 @@ def main() -> int:
             public_data_hashes=tuple(public_data_hashes),
         ),
         selector=selector, on_event=record_event,
+        run_meta={"run_id": exp_root.name},
     )
 
     try:
@@ -570,6 +591,11 @@ def main() -> int:
 
     summary_path = exp_root / "summary.json"
     summary_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+    memory_after_records = [
+        item
+        for item in memory.retrieve_by_task_type(ctx.task_type)
+        if item.dataset_profile.get("task_name") == task_id or item.memory_id.startswith(f"{task_id}:")
+    ]
     if loop.best_code:
         (exp_root / "best_solution.py").write_text(loop.best_code, encoding="utf-8")
     loop.graph.export_json(exp_root / "search_graph.json")
@@ -727,6 +753,7 @@ def main() -> int:
         "n_promotions": summary.get("n_promotions"),
         "terminal_reason": terminal_reason or None,
         "search_mode": search_mode,
+        "run_id": exp_root.name,
         "budgets": {
             "max_nodes": run_contract["max_nodes"],
             "max_tokens": run_contract["max_tokens"],
@@ -740,6 +767,25 @@ def main() -> int:
             "retrieval_bundles": rel(retrieval_path),
             "budget_ledger": rel(exp_root / "budget-ledger.json") if (exp_root / "budget-ledger.json").is_file() else None,
             "events": rel(events_path),
+            "retrospective_memory": rel(memory_path),
+        },
+        "memory": {
+            "namespace": memory_namespace,
+            "records_before": len(memory_before_records),
+            "records_after": len(memory_after_records),
+            "memory_ref_ids_used": sorted({
+                str(memory_id)
+                for item in list(summary.get("iterations") or [])
+                for memory_id in list(item.get("memory_ref_ids") or [])
+                if isinstance(memory_id, str) and memory_id
+            }),
+            "strategy_order": [
+                str(strategy)
+                for item in list(summary.get("iterations") or [])
+                for strategy in list(item.get("applied_strategies") or [])[:1]
+                if isinstance(strategy, str) and strategy
+            ],
+            "sha256": hashlib.sha256(memory_path.read_bytes()).hexdigest() if memory_path.is_file() else None,
         },
         "resource_gate": resource_gate,
         "independent_review": independent_review,

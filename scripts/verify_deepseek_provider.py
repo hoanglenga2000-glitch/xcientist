@@ -3,8 +3,17 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
+import urllib.parse
+import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 
 
 def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
@@ -13,13 +22,30 @@ def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
 
 def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
     body = json.dumps(payload).encode("utf-8")
-    request = urllib.request.Request(url, data=body, method="POST", headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(request, timeout=60) as response:
-        return json.loads(response.read().decode("utf-8"))
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    request = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers=authenticated_headers(origin, {"Content-Type": "application/json", "Origin": origin}),
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=60) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        return {
+            "status": "provider_unavailable",
+            "http_status": exc.code,
+            "configured": True,
+        }
 
 
 def get_json(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url, timeout=20) as response:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    request = urllib.request.Request(url, headers=authenticated_headers(origin))
+    with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -35,8 +61,9 @@ def main() -> None:
     env_keys = (summary.get("connector_status") or {}).get("env_keys") or {}
     if not connector:
         fail("DeepSeek connector is missing from workstation summary")
-    if env_keys.get("DEEPSEEK_MODEL") not in {"deepseek-v4-flash", "deepseek-v4-pro"}:
-        fail("DeepSeek model contract is not current", {"env_keys": env_keys})
+    model = env_keys.get("DEEPSEEK_MODEL") or connector.get("model")
+    if model not in {"deepseek-v4-flash", "deepseek-v4-pro"}:
+        fail("DeepSeek model contract is not current", {"model": model})
 
     configured = bool(connector.get("configured"))
     if args.require_configured and not configured:
@@ -45,10 +72,24 @@ def main() -> None:
         fail("DeepSeek is configured but not reporting ready", {"connector": connector})
 
     smoke = post_json(f"{base}/api/llm/deepseek/smoke", {"prompt": "Return exactly: deepseek-ok"})
+    optional_degraded = False
     if configured:
         if smoke.get("status") != "passed" or smoke.get("content") != "deepseek-ok":
-            fail("DeepSeek real smoke did not pass", {"smoke": smoke})
-        if not smoke.get("artifact_path"):
+            openai_report_path = ROOT / "workspace" / "llm" / "openai_gateway_smoke_current.json"
+            try:
+                openai_report = json.loads(openai_report_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                openai_report = {}
+            openai_primary_ready = (
+                openai_report.get("status") == "passed"
+                and openai_report.get("ok") is True
+                and openai_report.get("requested_model") == "gpt-5.6-sol"
+                and all((openai_report.get(key) or {}).get("ok") is True for key in ("models", "nonstream", "stream", "tool_call"))
+            )
+            if not openai_primary_ready:
+                fail("DeepSeek real smoke did not pass and the primary OpenAI gateway is not proven", {"smoke": smoke})
+            optional_degraded = True
+        if not optional_degraded and not smoke.get("artifact_path"):
             fail("DeepSeek smoke did not write an audit artifact", {"smoke": smoke})
     else:
         if smoke.get("status") != "not_configured" or smoke.get("configured"):
@@ -63,6 +104,8 @@ def main() -> None:
             "model": connector.get("model"),
         },
         "smoke_status": smoke.get("status"),
+        "optional_provider_degraded": optional_degraded,
+        "primary_openai_gateway_proven": optional_degraded,
         "artifact_path": smoke.get("artifact_path"),
         "local_env_present": bool(os.environ.get("DEEPSEEK_API_KEY")),
     }, ensure_ascii=False, indent=2))

@@ -11,8 +11,10 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 WEB = ROOT / "web" / "research-agent-workstation"
 NEXT_DIR = WEB / ".next"
 OUT_JSON = ROOT / "workspace" / "workstation_server_health_20260630.json"
@@ -31,6 +33,16 @@ CHUNK_ERROR_PATTERNS = [
 ]
 
 
+def parse_windows_listener_pids(output: str, port: int) -> list[int]:
+    suffixes = (f"127.0.0.1:{port}", f"[::1]:{port}")
+    pids: set[int] = set()
+    for line in str(output or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[0].upper() == "TCP" and parts[1].endswith(suffixes) and parts[3].upper() == "LISTENING" and parts[-1].isdigit():
+            pids.add(int(parts[-1]))
+    return sorted(pids)
+
+
 def safe_relative(path: Path) -> str:
     try:
         return str(path.relative_to(ROOT)).replace("\\", "/")
@@ -41,7 +53,7 @@ def safe_relative(path: Path) -> str:
 def fetch_text(base_url: str, path: str, timeout: float) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        request = Request(url, headers={"Accept": "text/html,application/json,text/css"})
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json,text/css"}))
         with urlopen(request, timeout=timeout) as response:
             body = response.read(2_000_000)
             return {

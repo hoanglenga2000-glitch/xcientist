@@ -1,0 +1,1410 @@
+from __future__ import annotations
+
+"""Self-contained offline E2LMC candidate-4 bundle.
+
+The managed HPC executor passes its persistent data root to every solution.
+The public E2LMC snapshot and the supervisor-owned holdout ledger are not part
+of that data root, so this wrapper carries byte-bound copies of both inputs and
+invokes a byte-bound candidate-4 implementation from an ephemeral directory.
+No caller-supplied source, ledger, URL, command, or network fallback is
+accepted.  The temporary materialization is removed when the process exits;
+only the normal candidate artifacts and a provenance receipt remain.
+"""
+
+import argparse
+import base64
+import binascii
+import gzip
+import hashlib
+import importlib.util
+import json
+import os
+import platform
+import sys
+import tempfile
+from pathlib import Path
+from typing import Any, Mapping, Sequence
+
+
+BUNDLE_SCHEMA = "evomind.e2lmc.candidate4.embedded_bundle.v1"
+SOURCE_URL = (
+    "https://raw.githubusercontent.com/et-slm-evaluation/et-slm-evaluation.github.io/"
+    "refs/heads/main/assets/data/plot-data-combined-all.json"
+)
+EMBEDDED_SOURCE_SHA256 = "afbea8052cc0b3c3c08a2b4d6000e0c1b960f9d9b4bdd6671d167abb01278d69"
+EMBEDDED_LEDGER_SHA256 = "f5d0d8a2e484abc468b7e4100d963070ffc01434a41197bc687334c175044771"
+EMBEDDED_LEDGER_SCHEMA = "evomind.e2lmc.holdout_ledger.v1"
+LEDGER_PROVENANCE = "derived_from_verified_candidate_artifacts"
+EMBEDDED_LOGIC_SHA256 = "b4347f9f72a3fc45fbdfc87a4950497a31eabd6a6905f83b10a98a552d090a17"
+
+# Candidate-4 is bound to the two prior, locally verified artifact sets.  The
+# points are identities only; no human labels or external signatures are
+# implied by this provenance.
+CANDIDATE1_POINT_COUNT = 32
+CANDIDATE3_POINT_COUNT = 12
+EXPECTED_CONSUMED_POINT_COUNT = CANDIDATE1_POINT_COUNT + CANDIDATE3_POINT_COUNT
+CANDIDATE3_RESULT_SHA256 = "160d2fdf215062618f68442571dda316e6fcea67b1907227bc01dc19edb92e98"
+CANDIDATE3_HOLDOUT_POINT_ROWS_SHA256 = "8b12514960eda27158cc2d93b71e1a5eaef502d6f58f354d400b3c57d504b37a"
+CANDIDATE3_HOLDOUT_POINTS = tuple(
+    (experiment, float(iteration))
+    for experiment in ("dense-1b-arch1", "dense-3b-arch1", "dense-3b-arch2")
+    for iteration in (50000, 54000, 58000, 62000)
+)
+AVAILABLE_EXPERIMENTS = (
+    "dense-1b-arch1",
+    "dense-3b-arch1",
+    "dense-3b-arch2",
+)
+PROVENANCE_NOTE = "derived from verified candidate artifacts; no external signature"
+
+# The strings below are generated from the byte-identical public source,
+# supervisor ledger, and candidate-4 implementation.  They
+# are intentionally constants: changing any payload fails closed on its SHA.
+_EMBEDDED_SOURCE_GZIP_B64 = (
+    "H4sIAAAAAAAACuy9264tuZFl+Z5fEYjn1AEvRiOp1/6Bfm8UhCPplFKoCIUyFFkXJPrfG4Pr5jbX3ty+QurKRGGHgEysw+03Op0X"
+    "o80x//2fvvvu+x+//fL1j19/+fr9b7/793/67rvvvvv+Dz9/+/rLtz/+7usv3//2u+9LKu03yX5T2nfJf2v+W7Pv//nyh9/+51+/"
+    "/fznH7/95Ze/ff/b7/6f9Y/ffff9H7/95W/fftNS+vE3X3/+w7/k658/lxQtqb9/+9/z/t/zO+fJ369//i/X2/3x2y8///kP4Va/"
+    "/uWHP//u58Pxl38o+g/18A8//+F3f/iXrz/88O0vf/r2+Off//TTD/96uI+ff/rr49ef/vbj+G+Pn//y7Ycfvv7tf3z90+Offvj6"
+    "4++//vHr7/72y9e//PHrz398lPz44w//9t+//hz/If763V9//unxL3/9879+ffz6+esfDnf5tz/8+XCTv/z8b7/8y3/9tx/+9evv"
+    "fvxDfuffD3XxP779/l//dvj557/89Kefv/7lj8dq+P2/HB77r8c7+fN//fbfv/5wuPOvvxz+9sd/+9vP19f1T9999//y79/HZvnU"
+    "rG4lHP3TH7/98Ltf/tdfvx3e7nffff9//fTjX7/98udf/vzTX37zf//8019/+tvhDj7L/8+sn2vx9bMP/VRsHe92VJ9l/3nr5ent"
+    "/vmXbz9/pQWEl2sppcdpRviVS/zp4SeFx5/xTCWeqsZT1XgqDj3+jKeyeKoWT9Xiqfh1/MmpnqriNpwdKyJ9qbX/c/hp4Wf8FX+W"
+    "OUJpafGPw68cf5YcSz2cePimtKbtmXO8izTeqYjyVBFjWxHycDM+TqxEiz+b/Czxj+PPFh/HxrY03mSLN9niTdbyTlVUrYpSw3/x"
+    "LJsyS+PdMrm17If/pPba5iw9nsfjTwtH6rHyt3KqFi8rTx3uV25YzhNv8LnOwxwx1nyx1mvtY9TZZjILN1Gs1JJGnjkXLz1+faVV"
+    "y2X6LKOW7rG5luajtFlHc2+thGZR3FpqOU9rdRaLZcPmKLO23Gob1e30gT1Z7yM3n9Pb6PE5RurZe6nNpo2RQmXebv965njFQ0Gd"
+    "sbspI1ZP7FBmHmmMXntJuXr8iMr01Fsara4zSMdkw9yy11FKiyetqcyUU6ljpj7a03u+TPrj+/WS8qg2vFSuF67leY7evbdhafbY"
+    "BXpubXqtqfRWygz37zn1VKvXma32Gs8ZilJ4R55qaiOnOntr0il5zl5Sn+167lBWsiXvpY8yunk4rvVcGnXlZU6f4e15STZmme7V"
+    "04h9oh/vJHto2W2azWa5DLNU46fX7kfk2XqOz5fN+xhzpkH7j+c8Plyd8uw2h/U0baRcSn16sWv5Ft9rKm49lTxySSO1WGEfFPY8"
+    "S7daxmgzxS57X1jzrGP67bT9fGHxntIsZeTRZ55eXyitpRdvOSXvOVse5wvLaMMtTfq2XkscMz8orcndp3lNoxeb2V4pLTXlkarP"
+    "zOdTt4VPb/uyPJfXnbvVbq14bp77iB9kKrmUUVLNw0pNcQT/4NDs3mdNpaU8Zqs9tpVslmy0kj2t7y8+Z8lzeG21zD4b398rZ27Z"
+    "a0qldLOWqoVeJGU+L0+ll1ktPRVyulaG1eRlxk4yldpScfqXVueIU7dUWu89pzrcm7c2/mHn3b0ALXx6448IjE6LSrNW0/Q5i8eO"
+    "trq5jzpLb8lsxLLJMNJ7y2Z11hYexJLbLL2mVnN3j2V5zurFGRS6x6/JyrDEODrHcOvha7FK46jZWI+UOFW1aqn76D1nzzl+DGal"
+    "WGkj5zazzLrNOkNrWy2rxyZgVvhy08ij0cuHspZSmrON3Jt7CT2tmY9Sq9HHMK7Fm2lWZp699pwse2zrfOqNbr/Mmn3Ep6dR9Vpb"
+    "noXesz+94Kd4WnzP2Wudc3rOo3vrcTQqJZeaasulUffxYUvz2lorObXmMw5xpTXuqrZZ0ihFJm/DZspzjlFb7G9LX+NRbm65dpkO"
+    "zeSpW6659TpkcjY7FTEztVHioqjMTkdgpaRhUu1lWu+z1zlbr8njAqOM0ZkK+Zg+mS/JkXVmz96qpdbjuiXl6bRFpgwpzuqYR9VU"
+    "+R5bK/Iy6dFbyaPmaUV6iJqrp9pLm8OGv7G6uUVHZY7t1Wv3NowZWPyqSh8judVOw/Ipb3f00dJqWbWbmUwxi6VhY4w8S4vLkjK7"
+    "p547U0lPrsvZNEZN3hIT/hLnTDXlmlNt5i3VanEeXZl9MoeejCgpLiNTK6XzzRHAmLE/SrWNWRj5appx+l3TNCYbXsYoXZp3zbkw"
+    "MWBeblOWAzVV92TWC81ryvI5zdo6Tdiz6zNmhuw0R66WfcQ16/Hhc8rPq6kV8NZF1Owtdeu9eZcgBbPTkUtm9KgthXopNs3bGCO1"
+    "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"
+)
+_EMBEDDED_LEDGER_GZIP_B64 = (
+    "H4sIAAAAAAACCu1Z227rNhD8FUPPcUAuL6LcTykKgZdlTEAXQ5TcFAf591J2bCvn2EFMNEBb+MEPojhLzogLzsA/imi32OpiU+C+b0PnnhGa1j5v+8b101g3"
+    "6F5weN7T4qnovQ826KaO/TRYrONWg5AJqr1BrYgAa4lhllmiNBjuJCEEiaWmksRXrjLcOCdlSR2VpTaGUCiVk1WqPaB2dd81fxWbcZjwqQhtO43aNHgeiHFC"
+    "V5s0o2h1p1/SwzB1dZx2OOxD7Ie5zDxg+11CFT68Hqek8d3Q77HTnZ1fOBzCPr3yQ9/W+/TgQ3qyunPB6RFrPYzBazvGBDyP0nrAODXjhbUxXBiFlBErQHiQ"
+    "RoHiRpiK8spxxy0H4IwB4xVyInxFDRWMldqhAik/Vo+7Jox1IhY8xsUqKK1A69KPaStVJRRhnrlSMip0qlkKUMShkcwo4UXpk5DaE7BcKA7msErfxalNFPE1"
+    "SRVa7BK1ze9Jhy7iWhDSrvVgt5CmHoeoeR/4YwEOIw56DH1X7/pwrPCjuFQ86PpLvTOo2PB0GJ7J29NdIJUDopCFkjmoeakMVJYYkKUGy1KDZanBs9TgWWrw"
+    "LDVElhoiSw2ZpYb8VI1za369t65D1P2Qz/vqBkbej/m8p25gMiSADA1YhgZM5n3RuzE5JydDA5GhgcjQQGZo8KXuoT/tjWRgctZR92Pkp1qzDD4sgw/L4MPy"
+    "+UAGH8jgAxl84DqfpVM6+KPa9tOM5vyp0HsdmtnLXndgiy//i3Q/rZ2W2QaXButxdompKDaxniK6YuN1E5NPvvniYnCDm43l7PPXe1j7ZGy36zOn9XnemqcN"
+    "HANAMr/JYh8YX+rw9buTXh/iwcVj110/Loz2ajbaq5PRXp3xq7PR/m3V9St8TVvodLOK4aXT4zRgKnoarC+DJz47PeCs86nc0ZHeYml0xCZ0uKBHD7njHzf1"
+    "3+jkz2HlwxFjMB/Z+z8vu8I/3dcOvPNABZEgqfJScQ4iZTanGZUovUUtS0MrUgKUxhLqLK3QmQqwUqnkKToe9zj0f8ZLeWUoiKSkJOg0lFQoa8FVzJQUqRao"
+    "0QsCTnqhPBNJbjIHSlE6QbhJIt/UgMKhBS956pZU1yd92PMj2jyizSPaPKLNI9o8os2/MNos7zlW37oOP0z6hlt+Uf2bL/xrZL92Xz/i3iPufV/c013fBZui"
+    "ycfgF5dt5plK7VJZr7wrU2OlQ04sEkkqryhn2mhimdUUaFVxAsopAAZzBLBS4tLtnrLS+58v6cwvLD+dn/4vUWbR8Ndo/YcTytvb34A0HpNwGwAA"
+)
+_EMBEDDED_LOGIC_GZIP_B64 = (
+    "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"
+    "wSE/BIxrU44aDPO/AToEAQH30gAA"
+)
+
+
+class BundleGateError(ValueError):
+    """A precise local gate that never exposes input paths or raw payloads."""
+
+    def __init__(self, code: str, reason: str, required_action: str, resume_point: str) -> None:
+        super().__init__(reason)
+        self.code = code
+        self.reason = reason
+        self.required_action = required_action
+        self.resume_point = resume_point
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "status": "waiting_exact_gate",
+            "code": self.code,
+            "reason": self.reason,
+            "required_action": self.required_action,
+            "resume_point": self.resume_point,
+            "bundle_schema": BUNDLE_SCHEMA,
+            "candidate_id": "e2lmc-v2-fresh-iteration-candidate-4",
+            "ledger_provenance": LEDGER_PROVENANCE,
+            "network_access": False,
+        }
+
+
+def _sha256(raw: bytes) -> str:
+    return hashlib.sha256(raw).hexdigest()
+
+
+def _decode_embedded_payload(
+    encoded: str,
+    *,
+    expected_sha256: str,
+    label: str,
+    max_raw_bytes: int,
+) -> bytes:
+    """Decode one bounded gzip/base64 payload and verify its raw-byte hash."""
+
+    if not isinstance(encoded, str) or not encoded:
+        raise BundleGateError(
+            "EMBEDDED_PAYLOAD_EMPTY",
+            f"embedded {label} payload is empty",
+            f"Restore the byte-bound embedded {label} payload",
+            "bundle_integrity",
+        )
+    try:
+        compressed = base64.b64decode("".join(encoded.split()), validate=True)
+        raw = gzip.decompress(compressed)
+    except (binascii.Error, EOFError, OSError, ValueError) as exc:
+        raise BundleGateError(
+            "EMBEDDED_PAYLOAD_INVALID",
+            f"embedded {label} payload cannot be decoded",
+            f"Restore the byte-bound embedded {label} payload",
+            "bundle_integrity",
+        ) from exc
+    if len(raw) > max_raw_bytes:
+        raise BundleGateError(
+            "EMBEDDED_PAYLOAD_TOO_LARGE",
+            f"embedded {label} payload exceeds the bounded size",
+            f"Restore the bounded embedded {label} payload",
+            "bundle_integrity",
+        )
+    actual_sha256 = _sha256(raw)
+    if actual_sha256 != expected_sha256:
+        raise BundleGateError(
+            "EMBEDDED_PAYLOAD_SHA_MISMATCH",
+            f"embedded {label} SHA-256 does not match the frozen contract",
+            f"Restore embedded {label} SHA-256 {expected_sha256}",
+            "bundle_integrity",
+        )
+    return raw
+
+
+def embedded_source_bytes() -> bytes:
+    """Return the verified official public E2LMC JSON bytes."""
+
+    return _decode_embedded_payload(
+        _EMBEDDED_SOURCE_GZIP_B64,
+        expected_sha256=EMBEDDED_SOURCE_SHA256,
+        label="official source",
+        max_raw_bytes=2_000_000,
+    )
+
+
+def embedded_ledger_bytes() -> bytes:
+    """Return the verified supervisor-owned immutable ledger bytes."""
+
+    return _decode_embedded_payload(
+        _EMBEDDED_LEDGER_GZIP_B64,
+        expected_sha256=EMBEDDED_LEDGER_SHA256,
+        label="holdout ledger",
+        max_raw_bytes=200_000,
+    )
+
+
+def embedded_logic_bytes() -> bytes:
+    """Return the byte-bound copy of the existing offline candidate logic."""
+
+    return _decode_embedded_payload(
+        _EMBEDDED_LOGIC_GZIP_B64,
+        expected_sha256=EMBEDDED_LOGIC_SHA256,
+        label="offline candidate logic",
+        max_raw_bytes=500_000,
+    )
+
+
+def _canonical_point_rows(points: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Normalize point identities before hashing the immutable ledger."""
+
+    normalized: list[dict[str, Any]] = []
+    for item in points:
+        if not isinstance(item, Mapping):
+            raise BundleGateError(
+                "LEDGER_POINT_INVALID",
+                "holdout ledger contains an invalid point identity",
+                "Publish a canonical immutable holdout ledger",
+                "ledger_validation",
+            )
+        experiment = item.get("experiment")
+        iteration = item.get("iteration")
+        if not isinstance(experiment, str) or not experiment.strip():
+            raise BundleGateError(
+                "LEDGER_POINT_INVALID",
+                "holdout ledger contains an invalid experiment identity",
+                "Publish a canonical immutable holdout ledger",
+                "ledger_validation",
+            )
+        try:
+            numeric_iteration = float(iteration)
+        except (TypeError, ValueError) as exc:
+            raise BundleGateError(
+                "LEDGER_POINT_INVALID",
+                "holdout ledger contains an invalid iteration identity",
+                "Publish a canonical immutable holdout ledger",
+                "ledger_validation",
+            ) from exc
+        if isinstance(iteration, bool) or not numeric_iteration.is_integer() or numeric_iteration < 0:
+            raise BundleGateError(
+                "LEDGER_POINT_INVALID",
+                "holdout ledger contains a non-canonical iteration identity",
+                "Publish a canonical immutable holdout ledger",
+                "ledger_validation",
+            )
+        normalized.append({"experiment": experiment.strip(), "iteration": numeric_iteration})
+    return sorted(normalized, key=lambda item: (item["experiment"], item["iteration"]))
+
+
+def _ledger_metadata(source_sha256: str) -> dict[str, Any]:
+    """Validate and expose the candidate-4 ledger lineage without raw inputs."""
+
+    try:
+        payload = json.loads(embedded_ledger_bytes())
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise BundleGateError(
+            "LEDGER_INVALID_JSON",
+            "embedded holdout ledger is not valid JSON",
+            "Restore the byte-bound candidate-4 holdout ledger",
+            "ledger_validation",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise BundleGateError(
+            "LEDGER_INVALID_SCHEMA",
+            "embedded holdout ledger is not an object",
+            "Restore the byte-bound candidate-4 holdout ledger",
+            "ledger_validation",
+        )
+    required = {
+        "schema",
+        "official_source_sha256",
+        "read_only",
+        "immutable",
+        "provenance",
+        "provenance_note",
+        "external_signature",
+        "candidate_id",
+        "ledger_revision",
+        "parent_candidates",
+        "consumed_iteration_points",
+        "consumed_point_count",
+        "available_experiments",
+        "canonical_consumed_points_sha256",
+        "candidate1_verified_point_count",
+        "candidate1_verified_holdout_points",
+        "candidate3_verified_point_count",
+        "candidate3_result_sha256",
+        "candidate3_holdout_point_rows_sha256",
+        "candidate3_verified_holdout_points",
+        "hidden_test_labels_used",
+        "test_labels_used",
+    }
+    if not required.issubset(payload):
+        raise BundleGateError(
+            "LEDGER_METADATA_INCOMPLETE",
+            "candidate-4 ledger lineage metadata is incomplete",
+            "Publish the complete immutable candidate-4 ledger metadata",
+            "ledger_validation",
+        )
+    if payload.get("schema") != EMBEDDED_LEDGER_SCHEMA:
+        raise BundleGateError(
+            "LEDGER_SCHEMA_MISMATCH",
+            "holdout ledger schema is not holdout-ledger.v1",
+            "Publish an evomind.e2lmc.holdout_ledger.v1 ledger",
+            "ledger_validation",
+        )
+    if payload.get("official_source_sha256") != source_sha256:
+        raise BundleGateError(
+            "LEDGER_SOURCE_MISMATCH",
+            "holdout ledger is bound to a different official source",
+            "Publish a ledger bound to the embedded official source SHA-256",
+            "ledger_validation",
+        )
+    if payload.get("read_only") is not True or payload.get("immutable") is not True:
+        raise BundleGateError(
+            "LEDGER_NOT_IMMUTABLE",
+            "holdout ledger is not explicitly read-only and immutable",
+            "Publish a supervisor-owned immutable ledger",
+            "ledger_validation",
+        )
+    if payload.get("provenance") != LEDGER_PROVENANCE or payload.get("external_signature") is not False:
+        raise BundleGateError(
+            "LEDGER_PROVENANCE_INVALID",
+            "holdout ledger provenance is not the verified-artifact derivation",
+            "Record verified parent artifacts and explicitly state no external signature",
+            "ledger_validation",
+        )
+    if payload.get("candidate_id") != "e2lmc-v2-fresh-iteration-candidate-4":
+        raise BundleGateError(
+            "LEDGER_CANDIDATE_MISMATCH",
+            "holdout ledger is not bound to candidate-4",
+            "Publish a ledger with the candidate-4 identity",
+            "ledger_validation",
+        )
+    available = payload.get("available_experiments")
+    if (
+        not isinstance(available, Sequence)
+        or isinstance(available, (str, bytes, bytearray))
+        or len(set(available)) != len(available)
+        or set(available) != set(AVAILABLE_EXPERIMENTS)
+    ):
+        raise BundleGateError(
+            "LEDGER_AVAILABLE_EXPERIMENTS_MISMATCH",
+            "holdout ledger available experiment allowlist is not the three frozen groups",
+            "Publish the exact dense-1b/dense-3b experiment allowlist",
+            "ledger_validation",
+        )
+    raw_points = payload.get("consumed_iteration_points")
+    if not isinstance(raw_points, Sequence) or isinstance(raw_points, (str, bytes, bytearray)):
+        raise BundleGateError(
+            "LEDGER_POINTS_INVALID",
+            "holdout ledger consumed points are not an array",
+            "Publish canonical consumed iteration points",
+            "ledger_validation",
+        )
+    canonical_points = _canonical_point_rows(raw_points)
+    point_tokens = {(item["experiment"], item["iteration"]) for item in canonical_points}
+    if len(canonical_points) != EXPECTED_CONSUMED_POINT_COUNT or len(point_tokens) != EXPECTED_CONSUMED_POINT_COUNT:
+        raise BundleGateError(
+            "LEDGER_POINT_COUNT_MISMATCH",
+            "candidate-4 ledger does not contain exactly 44 unique consumed points",
+            "Publish candidate-1 and candidate-3 points exactly once",
+            "ledger_validation",
+        )
+    if payload.get("consumed_point_count") != EXPECTED_CONSUMED_POINT_COUNT:
+        raise BundleGateError(
+            "LEDGER_POINT_COUNT_MISMATCH",
+            "candidate-4 ledger consumed point count is not 44",
+            "Publish candidate-1 and candidate-3 points exactly once",
+            "ledger_validation",
+        )
+    expected_candidate3 = set(CANDIDATE3_HOLDOUT_POINTS)
+    actual_candidate3 = {
+        (str(item.get("experiment")), float(item.get("iteration")))
+        for item in payload.get("candidate3_verified_holdout_points", [])
+        if isinstance(item, Mapping)
+    }
+    if actual_candidate3 != expected_candidate3 or not expected_candidate3.issubset(point_tokens):
+        raise BundleGateError(
+            "CANDIDATE3_POINTS_MISSING",
+            "candidate-3 verified holdout points are missing or altered",
+            "Restore all twelve verified candidate-3 point identities",
+            "ledger_validation",
+        )
+    candidate1_points_raw = payload.get("candidate1_verified_holdout_points")
+    if not isinstance(candidate1_points_raw, Sequence) or isinstance(candidate1_points_raw, (str, bytes, bytearray)):
+        raise BundleGateError(
+            "CANDIDATE1_POINTS_MISSING",
+            "candidate-1 verified holdout point identities are missing",
+            "Restore candidate-1's 32 verified point identities",
+            "ledger_validation",
+        )
+    candidate1_points = _canonical_point_rows(candidate1_points_raw)
+    candidate1_tokens = {(item["experiment"], item["iteration"]) for item in candidate1_points}
+    expected_candidate1 = point_tokens - expected_candidate3
+    if (
+        payload.get("candidate1_verified_point_count") != CANDIDATE1_POINT_COUNT
+        or len(candidate1_points) != CANDIDATE1_POINT_COUNT
+        or candidate1_tokens != expected_candidate1
+    ):
+        raise BundleGateError(
+            "CANDIDATE1_POINT_COUNT_MISMATCH",
+            "candidate-1 verified point identities or count are not exact",
+            "Restore candidate-1's 32 verified point identities",
+            "ledger_validation",
+        )
+    if payload.get("candidate3_verified_point_count") != CANDIDATE3_POINT_COUNT:
+        raise BundleGateError(
+            "CANDIDATE3_POINT_COUNT_MISMATCH",
+            "candidate-3 verified point count is not 12",
+            "Restore candidate-3's 12 verified point identities",
+            "ledger_validation",
+        )
+    canonical_hash = _sha256(
+        json.dumps(canonical_points, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    )
+    if payload.get("canonical_consumed_points_sha256") != canonical_hash:
+        raise BundleGateError(
+            "LEDGER_CANONICAL_HASH_MISMATCH",
+            "holdout ledger canonical point hash does not match its identities",
+            "Rebuild the immutable ledger and canonical point hash",
+            "ledger_validation",
+        )
+    if payload.get("candidate3_result_sha256") != CANDIDATE3_RESULT_SHA256 or payload.get(
+        "candidate3_holdout_point_rows_sha256"
+    ) != CANDIDATE3_HOLDOUT_POINT_ROWS_SHA256:
+        raise BundleGateError(
+            "CANDIDATE3_ARTIFACT_HASH_MISMATCH",
+            "candidate-3 parent artifact hashes do not match the verified evidence",
+            "Restore the verified candidate-3 result and holdout-row artifact hashes",
+            "ledger_validation",
+        )
+    parents = payload.get("parent_candidates")
+    if not isinstance(parents, Sequence) or isinstance(parents, (str, bytes, bytearray)):
+        raise BundleGateError(
+            "LEDGER_PARENT_LINEAGE_MISSING",
+            "candidate-4 parent candidate lineage is missing",
+            "Publish candidate-1 and candidate-3 parent artifact references",
+            "ledger_validation",
+        )
+    parent_ids = {item.get("candidate_id") for item in parents if isinstance(item, Mapping)}
+    if len(parents) != 2 or parent_ids != {"e2lmc-v2-baseline-candidate-1", "e2lmc-v2-fresh-iteration-candidate-3"}:
+        raise BundleGateError(
+            "LEDGER_PARENT_LINEAGE_INVALID",
+            "candidate-4 parent candidate lineage is incomplete",
+            "Publish both verified parent candidate references",
+            "ledger_validation",
+        )
+    parent_by_id = {item.get("candidate_id"): item for item in parents if isinstance(item, Mapping)}
+    candidate1_parent = parent_by_id.get("e2lmc-v2-baseline-candidate-1")
+    candidate3_parent = parent_by_id.get("e2lmc-v2-fresh-iteration-candidate-3")
+    if (
+        not isinstance(candidate1_parent, Mapping)
+        or candidate1_parent.get("result_sha256") != "bb45b8e130c525f26b8284b5b9149d4d4c4224332349e405f91b15337ade8266"
+        or candidate1_parent.get("split_manifest_sha256") != "e6c5ecd5ec3ac6895803f3d76315a5f975280deb63b85f57feadaf02c45842b6"
+        or candidate1_parent.get("verified_point_count") != CANDIDATE1_POINT_COUNT
+        or not isinstance(candidate3_parent, Mapping)
+        or candidate3_parent.get("result_sha256") != CANDIDATE3_RESULT_SHA256
+        or candidate3_parent.get("holdout_point_rows_sha256") != CANDIDATE3_HOLDOUT_POINT_ROWS_SHA256
+        or candidate3_parent.get("verified_point_count") != CANDIDATE3_POINT_COUNT
+    ):
+        raise BundleGateError(
+            "LEDGER_PARENT_LINEAGE_INVALID",
+            "candidate-4 parent artifact references do not match verified evidence",
+            "Restore the exact candidate-1 and candidate-3 artifact hashes",
+            "ledger_validation",
+        )
+    if payload.get("hidden_test_labels_used") is not False or payload.get("test_labels_used") is not False:
+        raise BundleGateError(
+            "LEDGER_TEST_LABELS",
+            "holdout ledger reports hidden/test labels were used",
+            "Publish a clean ledger with both test-label flags false",
+            "ledger_validation",
+        )
+    return {
+        "candidate_id": payload["candidate_id"],
+        "ledger_revision": payload["ledger_revision"],
+        "ledger_provenance": payload["provenance"],
+        "provenance_note": payload["provenance_note"],
+        "external_signature": payload["external_signature"],
+        "parent_candidates": parents,
+        "candidate1_verified_point_count": payload["candidate1_verified_point_count"],
+        "candidate3_verified_point_count": payload["candidate3_verified_point_count"],
+        "consumed_point_count": payload["consumed_point_count"],
+        "canonical_consumed_points_sha256": canonical_hash,
+        "candidate3_result_sha256": payload["candidate3_result_sha256"],
+        "candidate3_holdout_point_rows_sha256": payload["candidate3_holdout_point_rows_sha256"],
+        "available_experiments": list(available),
+        "hidden_test_labels_used": False,
+        "test_labels_used": False,
+    }
+
+
+def bundle_fingerprint() -> dict[str, Any]:
+    """Expose non-sensitive integrity metadata for tests and receipts."""
+
+    source = embedded_source_bytes()
+    ledger = embedded_ledger_bytes()
+    logic = embedded_logic_bytes()
+    lineage = _ledger_metadata(_sha256(source))
+    return {
+        "schema": BUNDLE_SCHEMA,
+        "candidate_id": lineage["candidate_id"],
+        "source_sha256": _sha256(source),
+        "source_bytes": len(source),
+        "source_url": SOURCE_URL,
+        "ledger_sha256": _sha256(ledger),
+        "ledger_bytes": len(ledger),
+        "ledger_schema": EMBEDDED_LEDGER_SCHEMA,
+        "ledger_provenance": LEDGER_PROVENANCE,
+        "ledger_lineage": lineage,
+        "consumed_point_count": lineage["consumed_point_count"],
+        "canonical_consumed_points_sha256": lineage["canonical_consumed_points_sha256"],
+        "candidate3_result_sha256": lineage["candidate3_result_sha256"],
+        "candidate3_holdout_point_rows_sha256": lineage["candidate3_holdout_point_rows_sha256"],
+        "available_experiments": lineage["available_experiments"],
+        "logic_sha256": _sha256(logic),
+        "logic_bytes": len(logic),
+        "network_access": False,
+    }
+
+
+def _write_json(path: Path, value: Any) -> None:
+    encoded = (json.dumps(value, ensure_ascii=False, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    temporary = path.with_name(f".{path.name}.tmp")
+    temporary.write_bytes(encoded)
+    os.replace(temporary, path)
+
+
+def _safe_output_root(raw: str) -> Path:
+    try:
+        output = Path(raw).expanduser().absolute()
+    except (TypeError, ValueError) as exc:
+        raise BundleGateError(
+            "OUTPUT_DIRECTORY_INVALID",
+            "bundle output directory is invalid",
+            "Use a regular local output directory",
+            "artifact_materialization",
+        ) from exc
+    # The original candidate enforces the complete output boundary.  Do the
+    # same before decoding any payload so malformed output cannot cause writes.
+    if any(part in {".", ".."} for part in output.parts):
+        raise BundleGateError(
+            "OUTPUT_DIRECTORY_INVALID",
+            "bundle output directory contains traversal components",
+            "Use a normalized output directory",
+            "artifact_materialization",
+        )
+    return output
+
+
+def _load_offline_logic(path: Path) -> Any:
+    module_name = "evomind_e2lmc_candidate4_embedded_logic"
+    spec = importlib.util.spec_from_file_location(module_name, path)
+    if spec is None or spec.loader is None:
+        raise BundleGateError(
+            "OFFLINE_LOGIC_LOAD_FAILED",
+            "embedded offline candidate logic could not be loaded",
+            "Restore the byte-bound offline candidate implementation",
+            "bundle_integrity",
+        )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        sys.modules.pop(module_name, None)
+        raise BundleGateError(
+            "OFFLINE_LOGIC_LOAD_FAILED",
+            f"embedded offline candidate logic stopped at {type(exc).__name__}",
+            "Restore the byte-bound offline candidate implementation",
+            "bundle_integrity",
+        ) from exc
+    return module
+
+
+def _bundle_receipt(*, fingerprint: Mapping[str, Any], status: str, gate: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    receipt: dict[str, Any] = {
+        "schema": BUNDLE_SCHEMA,
+        "status": status,
+        "embedded_source_sha256": fingerprint["source_sha256"],
+        "embedded_source_bytes": fingerprint["source_bytes"],
+        "official_source_url": SOURCE_URL,
+        "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+        "embedded_ledger_bytes": fingerprint["ledger_bytes"],
+        "ledger_schema": EMBEDDED_LEDGER_SCHEMA,
+        "ledger_provenance": LEDGER_PROVENANCE,
+        "candidate_id": fingerprint["candidate_id"],
+        "ledger_lineage": fingerprint["ledger_lineage"],
+        "provenance_note": fingerprint["ledger_lineage"]["provenance_note"],
+        "external_signature": fingerprint["ledger_lineage"]["external_signature"],
+        "consumed_point_count": fingerprint["ledger_lineage"]["consumed_point_count"],
+        "canonical_consumed_points_sha256": fingerprint["ledger_lineage"]["canonical_consumed_points_sha256"],
+        "candidate3_result_sha256": fingerprint["ledger_lineage"]["candidate3_result_sha256"],
+        "candidate3_holdout_point_rows_sha256": fingerprint["ledger_lineage"]["candidate3_holdout_point_rows_sha256"],
+        "available_experiments": fingerprint["ledger_lineage"]["available_experiments"],
+        "embedded_logic_sha256": fingerprint["logic_sha256"],
+        "embedded_logic_bytes": fingerprint["logic_bytes"],
+        "input_policy": "embedded_only; caller data-dir is ignored",
+        "network_access": False,
+        "remote_writes": 0,
+        "test_labels_used": False,
+    }
+    if gate is not None:
+        receipt["gate"] = {
+            "status": gate.get("status"),
+            "code": gate.get("code"),
+            "resume_point": gate.get("resume_point"),
+        }
+    return receipt
+
+
+def _annotate_json_file(path: Path, fingerprint: Mapping[str, Any]) -> None:
+    """Add bundle provenance to an existing candidate JSON object atomically."""
+
+    if not path.is_file():
+        return
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict):
+        return
+    payload.update(
+        {
+            "bundle_schema": BUNDLE_SCHEMA,
+            "candidate_id": fingerprint["candidate_id"],
+            "embedded_source_sha256": fingerprint["source_sha256"],
+            "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+            "ledger_provenance": LEDGER_PROVENANCE,
+            "ledger_lineage": fingerprint["ledger_lineage"],
+            "embedded_logic_sha256": fingerprint["logic_sha256"],
+            "network_access": False,
+        }
+    )
+    _write_json(path, payload)
+
+
+def _refresh_artifact_manifest(output_root: Path, fingerprint: Mapping[str, Any], bundle_receipt_name: str) -> None:
+    manifest_path = output_root / "artifact-manifest.json"
+    if not manifest_path.is_file():
+        raise BundleGateError(
+            "ARTIFACT_MANIFEST_MISSING",
+            "offline candidate completed without an artifact manifest",
+            "Restore the original candidate artifact manifest generation",
+            "artifact_materialization",
+        )
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BundleGateError(
+            "ARTIFACT_MANIFEST_INVALID",
+            "offline candidate artifact manifest is not valid JSON",
+            "Restore the original candidate artifact manifest",
+            "artifact_materialization",
+        ) from exc
+    if not isinstance(manifest, dict):
+        raise BundleGateError(
+            "ARTIFACT_MANIFEST_INVALID",
+            "offline candidate artifact manifest is not an object",
+            "Restore the original candidate artifact manifest",
+            "artifact_materialization",
+        )
+    if manifest.get("schema") != "evomind.e2lmc.candidate4.artifact_manifest.v2":
+        raise BundleGateError(
+            "ARTIFACT_MANIFEST_SCHEMA_MISMATCH",
+            "offline candidate artifact manifest is not the candidate-4 schema",
+            "Run the byte-bound candidate-4 implementation",
+            "artifact_materialization",
+        )
+    manifest.update(
+        {
+            "bundle_schema": BUNDLE_SCHEMA,
+            "candidate_id": fingerprint["candidate_id"],
+            "embedded_source_sha256": fingerprint["source_sha256"],
+            "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+            "ledger_provenance": LEDGER_PROVENANCE,
+            "ledger_lineage": fingerprint["ledger_lineage"],
+            "embedded_logic_sha256": fingerprint["logic_sha256"],
+            "network_access": False,
+            "remote_writes": 0,
+            "test_labels_used": False,
+        }
+    )
+    entries: list[dict[str, Any]] = []
+    for path in sorted(output_root.iterdir(), key=lambda item: item.name):
+        if not path.is_file() or path.name in {"artifact-manifest.json", "artifact-manifest-receipt.json"}:
+            continue
+        entries.append({"name": path.name, "bytes": path.stat().st_size, "sha256": _sha256(path.read_bytes())})
+    # Keep the candidate's file list semantics but include the bundle receipt.
+    if bundle_receipt_name not in {str(item.get("name")) for item in entries}:
+        raise BundleGateError(
+            "BUNDLE_RECEIPT_MISSING",
+            "bundle provenance receipt was not materialized",
+            "Restore the bundle receipt before accepting artifacts",
+            "artifact_materialization",
+        )
+    manifest["files"] = entries
+    _write_json(manifest_path, manifest)
+    _write_json(
+        output_root / "artifact-manifest-receipt.json",
+        {
+            "artifact": "artifact-manifest.json",
+            "bytes": manifest_path.stat().st_size,
+            "sha256": _sha256(manifest_path.read_bytes()),
+        },
+    )
+
+
+def _annotate_success(output_root: Path, fingerprint: Mapping[str, Any]) -> None:
+    receipt_name = "embedded-bundle-receipt.json"
+    required_files = {
+        "official-source-receipt.json",
+        "task-contract-v2.json",
+        "training-config.json",
+        "dataset-audit.json",
+        "split-manifest.json",
+        "checkpoint-index.json",
+        "candidate-vs-human.json",
+        "retrospective-memory.json",
+        "environment-lock.json",
+        "artifact-manifest.json",
+    }
+    missing = [name for name in sorted(required_files) if not (output_root / name).is_file()]
+    if missing:
+        raise BundleGateError(
+            "CANDIDATE4_ARTIFACTS_INCOMPLETE",
+            "candidate-4 completed without its required audit artifacts",
+            "Restore the complete candidate-4 artifact set before accepting it",
+            "artifact_materialization",
+        )
+    _write_json(output_root / receipt_name, _bundle_receipt(fingerprint=fingerprint, status="completed"))
+
+    # Add provenance to the existing source receipt without changing its
+    # public URL/hash semantics.  Missing optional files are tolerated because
+    # the original candidate may stop at an exact gate before this function.
+    source_receipt = output_root / "official-source-receipt.json"
+    if source_receipt.is_file():
+        try:
+            payload = json.loads(source_receipt.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict):
+            payload.update(
+                {
+                    "embedded": True,
+                    "bundle_schema": BUNDLE_SCHEMA,
+                    "candidate_id": fingerprint["candidate_id"],
+                    "embedded_source_sha256": fingerprint["source_sha256"],
+                    "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+                    "ledger_provenance": LEDGER_PROVENANCE,
+                    "ledger_lineage": fingerprint["ledger_lineage"],
+                    "network_access": False,
+                }
+            )
+            _write_json(source_receipt, payload)
+
+    environment_lock = output_root / "environment-lock.json"
+    if environment_lock.is_file():
+        try:
+            payload = json.loads(environment_lock.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            payload = {}
+        if isinstance(payload, dict):
+            payload.update(
+                {
+                    "bundle_schema": BUNDLE_SCHEMA,
+                    "candidate_id": fingerprint["candidate_id"],
+                    "embedded_source_sha256": fingerprint["source_sha256"],
+                    "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+                    "ledger_provenance": LEDGER_PROVENANCE,
+                    "ledger_lineage": fingerprint["ledger_lineage"],
+                    "embedded_logic_sha256": fingerprint["logic_sha256"],
+                    "network_access": False,
+                    "command": "python scripts/e2lmc_candidate4_embedded_bundle.py --data-dir <IGNORED> --out-dir <OUT>",
+                }
+            )
+            _write_json(environment_lock, payload)
+
+    # Keep the original candidate contracts and metrics intact while making
+    # the embedded input lineage visible in every auditable JSON layer.
+    for name in (
+        "task-contract-v2.json",
+        "training-config.json",
+        "dataset-audit.json",
+        "split-manifest.json",
+        "checkpoint-index.json",
+        "candidate-vs-human.json",
+        "retrospective-memory.json",
+    ):
+        _annotate_json_file(output_root / name, fingerprint)
+
+    _refresh_artifact_manifest(output_root, fingerprint, receipt_name)
+
+
+def _write_gate(output_root: Path, error: BundleGateError) -> int:
+    try:
+        output_root.mkdir(parents=True, exist_ok=True)
+        _write_json(output_root / "exact-gate.json", error.as_dict())
+    except OSError:
+        # Keep the process result fail-closed even if the requested output
+        # directory itself cannot be created.
+        pass
+    print(json.dumps(error.as_dict(), ensure_ascii=False, sort_keys=True))
+    return 2
+
+
+def _annotate_gate(output_root: Path, fingerprint: Mapping[str, Any] | None) -> None:
+    gate_path = output_root / "exact-gate.json"
+    if not gate_path.is_file() or fingerprint is None:
+        return
+    try:
+        gate = json.loads(gate_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(gate, dict):
+        return
+    gate.update(
+        {
+            "bundle_schema": BUNDLE_SCHEMA,
+            "candidate_id": fingerprint["candidate_id"],
+            "embedded_source_sha256": fingerprint["source_sha256"],
+            "embedded_ledger_sha256": fingerprint["ledger_sha256"],
+            "ledger_provenance": LEDGER_PROVENANCE,
+            "ledger_lineage": fingerprint["ledger_lineage"],
+            "embedded_logic_sha256": fingerprint["logic_sha256"],
+            "network_access": False,
+        }
+    )
+    _write_json(gate_path, gate)
+    _write_json(
+        output_root / "embedded-bundle-receipt.json",
+        _bundle_receipt(fingerprint=fingerprint, status="waiting_exact_gate", gate=gate),
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Offline self-contained E2LMC candidate-4 bundle")
+    # hpc_execute_solution supplies --data-dir for all solutions.  It is
+    # accepted for compatibility but deliberately never read.
+    parser.add_argument("--data-dir", help="managed data root (ignored; embedded inputs are mandatory)")
+    parser.add_argument("--out-dir", required=True)
+    parser.add_argument("--source-json", help=argparse.SUPPRESS)
+    parser.add_argument("--holdout-ledger", "--ledger", dest="holdout_ledger", help=argparse.SUPPRESS)
+    args = parser.parse_args(argv)
+
+    try:
+        output_root = _safe_output_root(args.out_dir)
+        if args.source_json or args.holdout_ledger:
+            raise BundleGateError(
+                "EMBEDDED_INPUT_OVERRIDE",
+                "caller-supplied source or ledger is not allowed for the embedded bundle",
+                "Invoke the bundle with only --data-dir and --out-dir",
+                "bundle_input_binding",
+            )
+        fingerprint = bundle_fingerprint()
+        source = embedded_source_bytes()
+        ledger = embedded_ledger_bytes()
+        logic = embedded_logic_bytes()
+        with tempfile.TemporaryDirectory(prefix="evomind-e2lmc-bundle-") as temporary:
+            temporary_root = Path(temporary)
+            source_path = temporary_root / "official-source.json"
+            ledger_path = temporary_root / "holdout-ledger.v1.json"
+            logic_path = temporary_root / "e2lmc_candidate4_goal_v2.py"
+            source_path.write_bytes(source)
+            ledger_path.write_bytes(ledger)
+            logic_path.write_bytes(logic)
+            offline = _load_offline_logic(logic_path)
+            # The original implementation writes its own source into
+            # solution.py.  Point that source identity at this wrapper so the
+            # resulting artifact is itself a runnable, self-contained bundle.
+            offline.__file__ = str(Path(__file__).resolve(strict=True))
+            code = int(
+                offline.main(
+                    [
+                        "--source-json",
+                        str(source_path),
+                        "--holdout-ledger",
+                        str(ledger_path),
+                        "--out-dir",
+                        str(output_root),
+                    ]
+                )
+            )
+        if code == 0:
+            try:
+                _annotate_success(output_root, fingerprint)
+            except BundleGateError as error:
+                return _write_gate(output_root, error)
+        else:
+            _annotate_gate(output_root, fingerprint)
+        return code
+    except BundleGateError as error:
+        output_root = Path(args.out_dir).expanduser().absolute()
+        return _write_gate(output_root, error)
+    except Exception as error:  # never expose local paths or payloads
+        output_root = Path(args.out_dir).expanduser().absolute()
+        return _write_gate(
+            output_root,
+            BundleGateError(
+                "BUNDLE_UNEXPECTED_LOCAL_FAILURE",
+                f"embedded bundle stopped at {type(error).__name__}",
+                "Inspect the byte-bound bundle inputs and retry only after the precondition changes",
+                "bundle_execution",
+            ),
+        )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

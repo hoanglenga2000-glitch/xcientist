@@ -7,20 +7,57 @@ No external dependencies beyond standard ML stack.
 
 Usage: python3 mlebench_server_runner.py [--resume CHECKPOINT] [--single COMP_ID] [--start-from N]
 """
-import pandas as pd, numpy as np, json, sys, os, time, gc, subprocess, traceback
-from pathlib import Path
+import json
+import os
+import shutil
+import stat
+import subprocess
+import tarfile
+import time
+import traceback
+import zipfile
 from datetime import datetime
+from pathlib import Path, PurePosixPath, PureWindowsPath
+
+import numpy as np
+import pandas as pd
 
 # ─── Configuration ───────────────────────────────────────────────────────
-HOME = Path.home()
-BASE_DIR = HOME / "jinghw" / "scripts" / "gpu_tra"
-DATA_DIR = BASE_DIR / "mlebench_data"
-RESULTS_DIR = BASE_DIR / "mlebench_results"
-CHECKPOINT_PATH = BASE_DIR / "mlebench_75_checkpoint.json"
-LOG_PATH = BASE_DIR / "mlebench_75_runner.log"
+BASE_DIR: Path | None = None
+DATA_DIR: Path | None = None
+RESULTS_DIR: Path | None = None
+CHECKPOINT_PATH: Path | None = None
+LOG_PATH: Path | None = None
 
-for d in [DATA_DIR, RESULTS_DIR]:
-    d.mkdir(parents=True, exist_ok=True)
+
+def configure_runtime_paths(remote_workspace: str = "") -> None:
+    value = remote_workspace.strip() or os.environ.get("EVOMIND_HPC_REMOTE_WORKSPACE", "").strip()
+    if not value:
+        raise RuntimeError("EVOMIND_HPC_REMOTE_WORKSPACE must be configured explicitly")
+    root = Path(value).expanduser()
+    if not root.is_absolute():
+        raise RuntimeError("EVOMIND_HPC_REMOTE_WORKSPACE must be an absolute path")
+    data_dir = root / "mlebench_data"
+    results_dir = root / "mlebench_results"
+    checkpoint_path = root / "mlebench_75_checkpoint.json"
+    log_path = root / "mlebench_75_runner.log"
+    for directory in (data_dir, results_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+
+    global BASE_DIR, DATA_DIR, RESULTS_DIR, CHECKPOINT_PATH, LOG_PATH
+    BASE_DIR = root
+    DATA_DIR = data_dir
+    RESULTS_DIR = results_dir
+    CHECKPOINT_PATH = checkpoint_path
+    LOG_PATH = log_path
+
+
+def _runtime_paths() -> tuple[Path, Path, Path, Path, Path]:
+    if any(path is None for path in (BASE_DIR, DATA_DIR, RESULTS_DIR, CHECKPOINT_PATH, LOG_PATH)):
+        configure_runtime_paths()
+    if BASE_DIR is None or DATA_DIR is None or RESULTS_DIR is None or CHECKPOINT_PATH is None or LOG_PATH is None:
+        raise RuntimeError("HPC runtime paths were not initialized")
+    return BASE_DIR, DATA_DIR, RESULTS_DIR, CHECKPOINT_PATH, LOG_PATH
 
 # ─── All 75 MLE-Bench Competitions ───────────────────────────────────────
 COMPETITIONS = [
@@ -72,23 +109,17 @@ COMPETITIONS = [
     ("icecube-neutrinos-in-deep-ice", "medium_high", "physics"),
     ("imet-2020-fgvc7", "medium_high", "image_classification"),
     ("inaturalist-2019-fgvc6", "medium_high", "image_classification"),
-    ("invasive-species-monitoring", "medium_high", "image_classification"),
     ("iwildcam-2019-fgvc6", "medium_high", "image_classification"),
     ("iwildcam-2020-fgvc7", "medium_high", "image_classification"),
     ("jigsaw-unintended-bias-in-toxicity-classification", "medium_high", "nlp"),
     ("kuzushiji-recognition", "medium_high", "image_classification"),
     ("learning-agency-lab-automated-essay-scoring-2", "medium_high", "nlp"),
     ("lmsys-chatbot-arena", "medium_high", "nlp"),
-    ("ml2021spring-hw2", "medium_high", "tabular"),
-    ("movie-review-sentiment-analysis-kernels-only", "medium_high", "nlp"),
     ("multi-modal-gesture-recognition", "medium_high", "tabular"),
     ("nfl-player-contact-detection", "medium_high", "tabular"),
     ("osic-pulmonary-fibrosis-progression", "medium_high", "tabular"),
-    ("paddy-disease-classification", "medium_high", "image_classification"),
     ("petfinder-pawpularity-score", "medium_high", "tabular"),
     ("plant-pathology-2021-fgvc8", "medium_high", "image_classification"),
-    ("plant-seedlings-classification", "medium_high", "image_classification"),
-    ("playground-series-s3e18", "medium_high", "tabular"),
     ("predict-volcanic-eruptions-ingv-oe", "medium_high", "tabular"),
     ("rsna-2022-cervical-spine-fracture-detection", "medium_high", "image_classification"),
     ("rsna-breast-cancer-detection", "medium_high", "image_classification"),
@@ -96,7 +127,6 @@ COMPETITIONS = [
     ("seti-breakthrough-listen", "medium_high", "tabular"),
     ("siim-covid19-detection", "medium_high", "image_classification"),
     ("smartphone-decimeter-2022", "medium_high", "tabular"),
-    ("spaceship-titanic", "medium_high", "tabular"),
     ("stanford-covid-vaccine", "medium_high", "nlp"),
     ("statoil-iceberg-classifier-challenge", "medium_high", "image_classification"),
     ("tensorflow-speech-recognition-challenge", "medium_high", "audio"),
@@ -158,23 +188,17 @@ KAGGLE_SLUGS = {
     "icecube-neutrinos-in-deep-ice": "icecube-neutrinos-in-deep-ice",
     "imet-2020-fgvc7": "imet-2020-fgvc7",
     "inaturalist-2019-fgvc6": "inaturalist-2019-fgvc6",
-    "invasive-species-monitoring": "invasive-species-monitoring",
     "iwildcam-2019-fgvc6": "iwildcam-2019-fgvc6",
     "iwildcam-2020-fgvc7": "iwildcam-2020-fgvc7",
     "jigsaw-unintended-bias-in-toxicity-classification": "jigsaw-unintended-bias-in-toxicity-classification",
     "kuzushiji-recognition": "kuzushiji-recognition",
     "learning-agency-lab-automated-essay-scoring-2": "learning-agency-lab-automated-essay-scoring-2",
     "lmsys-chatbot-arena": "lmsys-chatbot-arena",
-    "ml2021spring-hw2": "ml2021spring-hw2",
-    "movie-review-sentiment-analysis-kernels-only": "movie-review-sentiment-analysis-kernels-only",
     "multi-modal-gesture-recognition": "multi-modal-gesture-recognition",
     "nfl-player-contact-detection": "nfl-player-contact-detection",
     "osic-pulmonary-fibrosis-progression": "osic-pulmonary-fibrosis-progression",
-    "paddy-disease-classification": "paddy-disease-classification",
     "petfinder-pawpularity-score": "petfinder-pawpularity-score",
     "plant-pathology-2021-fgvc8": "plant-pathology-2021-fgvc8",
-    "plant-seedlings-classification": "plant-seedlings-classification",
-    "playground-series-s3e18": "playground-series-s3e18",
     "predict-volcanic-eruptions-ingv-oe": "predict-volcanic-eruptions-ingv-oe",
     "rsna-2022-cervical-spine-fracture-detection": "rsna-2022-cervical-spine-fracture-detection",
     "rsna-breast-cancer-detection": "rsna-breast-cancer-detection",
@@ -182,7 +206,6 @@ KAGGLE_SLUGS = {
     "seti-breakthrough-listen": "seti-breakthrough-listen",
     "siim-covid19-detection": "siim-covid19-detection",
     "smartphone-decimeter-2022": "smartphone-decimeter-2022",
-    "spaceship-titanic": "spaceship-titanic",
     "stanford-covid-vaccine": "stanford-covid-vaccine",
     "statoil-iceberg-classifier-challenge": "statoil-iceberg-classifier-challenge",
     "tensorflow-speech-recognition-challenge": "tensorflow-speech-recognition-challenge",
@@ -199,49 +222,111 @@ KAGGLE_SLUGS = {
 
 
 def log(msg):
+    _, _, _, _, log_path = _runtime_paths()
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     line = f"[{timestamp}] {msg}"
     print(line, flush=True)
     try:
-        with open(LOG_PATH, "a") as f:
+        with open(log_path, "a") as f:
             f.write(line + "\n")
-    except:
+    except OSError:
         pass
 
 
 def load_checkpoint():
-    if CHECKPOINT_PATH.exists():
-        with open(CHECKPOINT_PATH) as f:
+    _, _, _, checkpoint_path, _ = _runtime_paths()
+    if checkpoint_path.exists():
+        with open(checkpoint_path) as f:
             return json.load(f)
     return None
 
 
 def save_checkpoint(results):
+    _, _, _, checkpoint_path, _ = _runtime_paths()
     ckpt = {
         "updated_at": datetime.now().isoformat(),
         "results": results,
     }
-    with open(CHECKPOINT_PATH, "w") as f:
+    with open(checkpoint_path, "w") as f:
         json.dump(ckpt, f, indent=2)
 
 
+def _archive_target(root, name):
+    """Resolve an archive member below root or reject it."""
+    if not name or "\x00" in name:
+        raise ValueError("archive member has an empty or invalid name")
+    member_path = PurePosixPath(name.replace("\\", "/"))
+    if member_path.is_absolute() or PureWindowsPath(name).drive:
+        raise ValueError(f"archive member uses an absolute path: {name!r}")
+    if any(part == ".." for part in member_path.parts):
+        raise ValueError(f"archive member escapes the destination: {name!r}")
+    relative = Path(*(part for part in member_path.parts if part not in ("", ".")))
+    target = (root / relative).resolve()
+    target.relative_to(root)
+    return target
+
+
+def _safe_extract_zip(archive, out_dir, max_bytes=100 * 1024**3, max_members=100_000):
+    root = Path(out_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    total_bytes = 0
+    for member_count, member in enumerate(archive.infolist(), start=1):
+        if member_count > max_members:
+            raise ValueError("archive contains too many members")
+        total_bytes += member.file_size
+        if total_bytes > max_bytes:
+            raise ValueError("archive expands beyond the configured size limit")
+        target = _archive_target(root, member.filename)
+        if stat.S_ISLNK(member.external_attr >> 16):
+            raise ValueError(f"zip symbolic links are not supported: {member.filename!r}")
+        if member.is_dir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with archive.open(member, "r") as source, target.open("wb") as output:
+            shutil.copyfileobj(source, output)
+
+
+def _safe_extract_tar(archive, out_dir, max_bytes=100 * 1024**3, max_members=100_000):
+    root = Path(out_dir).resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    total_bytes = 0
+    for member_count, member in enumerate(archive.getmembers(), start=1):
+        if member_count > max_members:
+            raise ValueError("archive contains too many members")
+        total_bytes += member.size
+        if member.size < 0 or total_bytes > max_bytes:
+            raise ValueError("archive expands beyond the configured size limit")
+        target = _archive_target(root, member.name)
+        if member.isdir():
+            target.mkdir(parents=True, exist_ok=True)
+            continue
+        if not member.isfile():
+            raise ValueError(f"unsupported tar member type: {member.name!r}")
+        source = archive.extractfile(member)
+        if source is None:
+            raise ValueError(f"cannot read tar member: {member.name!r}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with source, target.open("wb") as output:
+            shutil.copyfileobj(source, output)
+
+
 def extract_archive(arc_path):
-    """Extract archive using Python stdlib (no external tools needed)."""
-    import zipfile, tarfile
+    """Extract an archive without allowing it to write outside its directory."""
     arc_str = str(arc_path)
-    out_dir = str(arc_path.parent)
+    out_dir = arc_path.parent
     try:
         if arc_str.endswith('.zip'):
             with zipfile.ZipFile(arc_str, 'r') as zf:
-                zf.extractall(out_dir)
+                _safe_extract_zip(zf, out_dir)
             return True
         elif arc_str.endswith('.tar.gz') or arc_str.endswith('.tgz'):
             with tarfile.open(arc_str, 'r:gz') as tf:
-                tf.extractall(out_dir)
+                _safe_extract_tar(tf, out_dir)
             return True
         elif arc_str.endswith('.tar'):
             with tarfile.open(arc_str, 'r:') as tf:
-                tf.extractall(out_dir)
+                _safe_extract_tar(tf, out_dir)
             return True
         elif arc_str.endswith('.7z'):
             result = subprocess.run(["7z", "x", arc_str, f"-o{out_dir}", "-y"],
@@ -254,8 +339,9 @@ def extract_archive(arc_path):
 
 def download_data(comp_id):
     """Download Kaggle competition data. Uses Python stdlib for extraction."""
+    _, data_dir, _, _, _ = _runtime_paths()
     slug = KAGGLE_SLUGS.get(comp_id, comp_id)
-    comp_dir = DATA_DIR / comp_id
+    comp_dir = data_dir / comp_id
     comp_dir.mkdir(parents=True, exist_ok=True)
 
     csv_files = list(comp_dir.glob("*.csv"))
@@ -301,12 +387,13 @@ def download_data(comp_id):
 
 def train_tabular(comp_id, gpu_id=0, seed=42):
     """Autonomous tabular ML: auto-detect target, preprocess, ensemble, predict."""
-    from sklearn.preprocessing import LabelEncoder, StandardScaler
     from sklearn.impute import SimpleImputer
-    from sklearn.model_selection import StratifiedKFold, KFold
     from sklearn.metrics import accuracy_score, mean_squared_error
+    from sklearn.model_selection import KFold, StratifiedKFold
+    from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-    comp_dir = DATA_DIR / comp_id
+    _, data_dir, results_dir, _, _ = _runtime_paths()
+    comp_dir = data_dir / comp_id
 
     # Auto-find CSV files
     train_file = None
@@ -528,7 +615,7 @@ def train_tabular(comp_id, gpu_id=0, seed=42):
         sub = pd.DataFrame({"id": range(len(oof)), "prediction": oof})
 
     # Save
-    out_dir = RESULTS_DIR / comp_id
+    out_dir = results_dir / comp_id
     out_dir.mkdir(parents=True, exist_ok=True)
     sub.to_csv(out_dir / f"submission_seed{seed}.csv", index=False)
 
@@ -557,16 +644,18 @@ def train_tabular(comp_id, gpu_id=0, seed=42):
 
 def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
     """PyTorch ResNet50 fine-tuning for image classification."""
-    import torch, torch.nn as nn
-    from torch.utils.data import Dataset, DataLoader
-    from torchvision import transforms, models
+    import torch
+    import torch.nn as nn
     from PIL import Image
+    from torch.utils.data import DataLoader, Dataset
+    from torchvision import models, transforms
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     log(f"  [{comp_id}] Device: {device}")
 
-    comp_dir = DATA_DIR / comp_id
+    _, data_dir, results_dir, _, _ = _runtime_paths()
+    comp_dir = data_dir / comp_id
 
     # Find image data
     img_col = None
@@ -586,7 +675,7 @@ def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
                 df = df_tmp
                 log(f"  [{comp_id}] Found: {csv_file.name}, img={img_col}, labels={label_cols[:5]}")
                 break
-        except:
+        except (OSError, UnicodeError, ValueError, pd.errors.ParserError):
             continue
 
     if df is None:
@@ -623,7 +712,7 @@ def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
                 p = comp_dir / p
             try:
                 img = Image.open(p).convert("RGB")
-            except:
+            except (OSError, ValueError):
                 img = Image.new("RGB", (224, 224))
             if self.transform:
                 img = self.transform(img)
@@ -689,7 +778,7 @@ def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
         if epoch % 3 == 0:
             log(f"  Epoch {epoch+1}/{epochs}: tr={tr_loss/len(tr_dl):.4f}, va={va_loss/len(va_dl):.4f}")
 
-    model.load_state_dict(torch.load(best_path))
+    model.load_state_dict(torch.load(best_path, map_location=device, weights_only=True))
 
     # Generate predictions on full dataset
     full_ds = ImageDS(df, val_tf, is_test=not bool(label_cols))
@@ -704,7 +793,7 @@ def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
     all_preds = np.concatenate(preds)
 
     # Save
-    out_dir = RESULTS_DIR / comp_id
+    out_dir = results_dir / comp_id
     out_dir.mkdir(parents=True, exist_ok=True)
     sub = pd.DataFrame({"id": range(len(all_preds)), "prediction": all_preds[:, 0] if all_preds.ndim > 1 else all_preds})
     sub.to_csv(out_dir / "submission_cv.csv", index=False)
@@ -730,15 +819,16 @@ def train_cv(comp_id, gpu_id=0, epochs=10, batch_size=32):
 # ═══════════════════════════════════════════════════════════════════════════
 
 def run_all(start_from=0, single=None, max_seeds=3):
+    base_dir, data_dir, results_dir, _, _ = _runtime_paths()
     global_start = datetime.now()
     checkpoint = load_checkpoint()
     completed = set(checkpoint.get("completed", []) if checkpoint else [])
     failed = set(checkpoint.get("failed", []) if checkpoint else [])
 
     log(f"{'='*60}")
-    log(f"MLE-Bench 75 Autonomous Runner STARTING")
-    log(f"Server: AI-X86_NVIDIA GPU Server (87739), 2x A40 49GB")
-    log(f"Data: {DATA_DIR}  |  Results: {RESULTS_DIR}")
+    log("MLE-Bench 75 Autonomous Runner STARTING")
+    log("Server: operator-configured HPC/GPU runtime")
+    log(f"Data: {data_dir}  |  Results: {results_dir}")
     log(f"Already completed: {len(completed)}  |  Failed: {len(failed)}")
     log(f"{'='*60}")
 
@@ -811,7 +901,7 @@ def run_all(start_from=0, single=None, max_seeds=3):
                         log(f"  [{comp_id}] Fallback succeeded: score={res['oof_score_mean']:.5f}")
                     else:
                         failed.add(comp_id)
-                except:
+                except Exception:
                     failed.add(comp_id)
 
             elapsed = time.time() - t_start
@@ -828,7 +918,7 @@ def run_all(start_from=0, single=None, max_seeds=3):
     # Final report
     total_time = (datetime.now() - global_start).total_seconds() / 3600
     log(f"\n{'='*60}")
-    log(f"MLE-Bench 75 Autonomous Runner - COMPLETE")
+    log("MLE-Bench 75 Autonomous Runner - COMPLETE")
     log(f"Completed: {len(completed)}/{len(competition_list)}")
     log(f"Failed: {len(failed)}")
     log(f"Total time: {total_time:.1f}h")
@@ -845,8 +935,10 @@ def run_all(start_from=0, single=None, max_seeds=3):
         "failed_list": sorted(failed),
         "total_time_hours": total_time,
     }
-    json.dump(report, open(BASE_DIR / "mlebench_75_final_report.json", "w"), indent=2)
-    log(f"Report saved: {BASE_DIR / 'mlebench_75_final_report.json'}")
+    report_path = base_dir / "mlebench_75_final_report.json"
+    with report_path.open("w") as report_file:
+        json.dump(report, report_file, indent=2)
+    log(f"Report saved: {report_path}")
 
 
 if __name__ == "__main__":
@@ -856,10 +948,16 @@ if __name__ == "__main__":
     parser.add_argument("--single", type=str, help="Run single competition")
     parser.add_argument("--start-from", type=int, default=0)
     parser.add_argument("--max-seeds", type=int, default=3)
-    parser.add_argument("--test", action="store_true", help="Run spaceship-titanic as quick test")
+    parser.add_argument("--test", action="store_true", help="Run aerial-cactus-identification as quick test")
+    parser.add_argument(
+        "--remote-workspace",
+        default=os.environ.get("EVOMIND_HPC_REMOTE_WORKSPACE", ""),
+        help="dedicated remote workspace (or set EVOMIND_HPC_REMOTE_WORKSPACE)",
+    )
     args = parser.parse_args()
+    configure_runtime_paths(args.remote_workspace)
 
     if args.test:
-        run_all(start_from=0, single="spaceship-titanic", max_seeds=1)
+        run_all(start_from=0, single="aerial-cactus-identification", max_seeds=1)
     else:
         run_all(start_from=args.start_from, single=args.single, max_seeds=args.max_seeds)

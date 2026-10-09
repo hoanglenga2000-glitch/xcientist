@@ -13,7 +13,7 @@ from typing import Any, Iterable
 import numpy as np
 
 try:
-    from diagnose_taxi_cpu_longhaul_expert import (
+    from scripts.diagnose_taxi_cpu_longhaul_expert import (
         CLIP_LOWER,
         CLIP_UPPER,
         TaxiLonghaulDiagnosticError,
@@ -25,7 +25,7 @@ try:
         write_json_atomic,
     )
 except ModuleNotFoundError:
-    from scripts.diagnose_taxi_cpu_longhaul_expert import (
+    from diagnose_taxi_cpu_longhaul_expert import (
         CLIP_LOWER,
         CLIP_UPPER,
         TaxiLonghaulDiagnosticError,

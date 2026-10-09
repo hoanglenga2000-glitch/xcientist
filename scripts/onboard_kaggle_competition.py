@@ -204,7 +204,13 @@ def build_config(
         thresholds["require_positive_predictions"] = True
     if task_type == "classification":
         observed = sorted(train[target].dropna().unique().tolist())
-        if len(observed) <= 20:
+        if metric.lower() in {"roc_auc", "auc", "roc_auc_score"}:
+            positive_label = 1 if 1 in observed else "Yes"
+            if len(observed) != 2 or positive_label not in observed or (positive_label == "Yes" and set(observed) != {"No", "Yes"}):
+                raise ValueError("Binary ROC-AUC onboarding requires positive label 1 or the No/Yes domain")
+            thresholds["require_probability_predictions"] = True
+            thresholds["require_id_order_match"] = True
+        elif len(observed) <= 20:
             thresholds["allowed_prediction_values"] = [value.item() if hasattr(value, "item") else value for value in observed]
 
     return {
@@ -216,6 +222,7 @@ def build_config(
             "metric": metric,
             "id_column": sample_columns[0],
             "prediction_column": sample_columns[1] if len(sample_columns) > 1 else "prediction",
+            **({"positive_label": positive_label} if task_type == "classification" and metric.lower() in {"roc_auc", "auc", "roc_auc_score"} else {}),
         },
         "data": {
             "task_dir": rel(task_dir),

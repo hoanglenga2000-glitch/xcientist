@@ -50,12 +50,12 @@ def main():
     p.add_argument("--trainer-file", default="generic_trainer_v2.py")
     p.add_argument("--mode", choices=["sync", "async", "poll"], default="sync")
     p.add_argument("--timeout-seconds", type=int, default=560)
-    p.add_argument("--host", default="100.85.169.63")
+    p.add_argument("--host", required=True)
     p.add_argument("--port", type=int, default=1235)
     p.add_argument("--user", required=True)
     p.add_argument("--proxy-host", default="127.0.0.1")
     p.add_argument("--proxy-port", type=int, default=7890)
-    p.add_argument("--password-env", default="GPU_SSH_PASSWORD")
+    p.add_argument("--password-env", required=True)
     a = p.parse_args()
 
     rdir = f"{REMOTE_ROOT}/{a.task_id}/{a.exp_id}_{a.model}"

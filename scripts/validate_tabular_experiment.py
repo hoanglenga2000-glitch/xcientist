@@ -3,10 +3,12 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import math
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import numpy as np
 import yaml
 
 
@@ -30,6 +32,11 @@ def resolve_path(path_text: str, experiment_dir: Path | None = None) -> Path:
     path = Path(path_text.replace("\\", "/"))
     if path.is_absolute() and path.exists():
         return path
+    evidence_root_text = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    if evidence_root_text and not path.is_absolute():
+        candidate = Path(evidence_root_text).resolve() / path
+        if candidate.exists():
+            return candidate
     normalized = path_text.replace("\\", "/")
     marker = "/experiments/"
     if marker in normalized:
@@ -45,12 +52,31 @@ def resolve_path(path_text: str, experiment_dir: Path | None = None) -> Path:
     return Path.cwd() / path
 
 
+def resolve_evidence_path(path_text: str, experiment_dir: Path | None = None) -> Path:
+    return resolve_path(path_text, experiment_dir)
+
+
 def validate_metric(config: dict[str, Any], log: dict[str, Any]) -> dict[str, Any]:
     thresholds = config["thresholds"]
     evaluation = log["evaluation"]
     best_model = evaluation["best_model"]
     best_metrics = evaluation["model_results"][best_model]
     metric = config["task"]["metric"]
+    if str(metric).lower() in {"roc_auc", "auc", "roc_auc_score"}:
+        if evaluation.get("metric") not in {"roc_auc", "auc", "roc_auc_score"}:
+            fail("ROC-AUC task has a different evaluation metric")
+        score = best_metrics.get("oof_roc_auc")
+        cv = best_metrics.get("cv_roc_auc_mean")
+        if any(not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1 for value in [score, cv]):
+            fail("ROC-AUC metrics must be finite and in [0,1]")
+        threshold = thresholds.get("min_validation_roc_auc")
+        cv_threshold = thresholds.get("min_cv_roc_auc")
+        if threshold is not None and score < threshold:
+            fail("OOF ROC-AUC is below the configured threshold")
+        if cv_threshold is not None and cv < cv_threshold:
+            fail("Mean fold ROC-AUC is below the configured threshold")
+        return {"best_model": best_model, "oof_roc_auc": score, "cv_roc_auc_mean": cv,
+                "metric_gate_mode": "threshold" if threshold is not None or cv_threshold is not None else "advisory"}
 
     if config["task"]["type"] == "regression":
         metric_name = str(metric).lower()
@@ -108,6 +134,23 @@ def validate_submission(config: dict[str, Any], log: dict[str, Any], experiment_
         fail(f"submission rows {len(submission)} != sample rows {len(sample)}")
     if submission.iloc[:, 1].isna().any():
         fail("submission has missing prediction values")
+    if str(config["task"]["metric"]).lower() in {"roc_auc", "auc", "roc_auc_score"}:
+        id_column = config["task"].get("id_column", sample.columns[0])
+        prediction_column = config["task"].get("prediction_column", sample.columns[1])
+        try:
+            probabilities = pd.to_numeric(submission[prediction_column], errors="raise").to_numpy(dtype=float)
+        except (TypeError, ValueError):
+            fail("probability predictions are not numeric")
+        if not np.isfinite(probabilities).all() or ((probabilities < 0) | (probabilities > 1)).any():
+            fail("probability predictions must be finite and in [0,1]")
+        test = pd.read_csv(resolve_path(config["data"]["test"]))
+        if id_column not in test or id_column not in submission:
+            fail("test/submission ID column is missing")
+        for frame in (test, sample, submission):
+            if frame[id_column].isna().any() or not frame[id_column].is_unique:
+                fail("test/sample/submission IDs must be unique and nonmissing")
+        if not np.array_equal(test[id_column].to_numpy(), sample[id_column].to_numpy()) or not np.array_equal(submission[id_column].to_numpy(), sample[id_column].to_numpy()):
+            fail("test/sample/submission ID order differs")
     if thresholds.get("require_positive_predictions", False) and not (submission.iloc[:, 1] > 0).all():
         fail("submission prediction values must be positive")
 

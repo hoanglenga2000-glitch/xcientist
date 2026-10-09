@@ -5,12 +5,19 @@ import json
 import os
 import socket
 import subprocess
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from manage_workstation_dashboard import _bind_loopback_gateway_credentials
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE_URL = "http://127.0.0.1:65068/v1"
@@ -127,7 +134,7 @@ def managed_process_matches(pid: int | None) -> bool:
     return bool(expected and command and expected in command)
 
 
-def probe(base_url: str, timeout: float = 2.5) -> dict[str, Any]:
+def probe(base_url: str, timeout: float = 2.5, *, credential: str | None = None) -> dict[str, Any]:
     parsed = urllib.parse.urlparse(base_url)
     tcp = False
     try:
@@ -140,12 +147,12 @@ def probe(base_url: str, timeout: float = 2.5) -> dict[str, Any]:
         "tcp_reachable": tcp,
         "http_status": None,
         "models_endpoint_ok": False,
-        "credential_present": bool(os.environ.get("OPENAI_API_KEY", "").strip()),
+        "credential_present": bool((credential if credential is not None else os.environ.get("OPENAI_API_KEY", "")).strip()),
     }
     if not tcp:
         return result
     headers = {"Accept": "application/json"}
-    key = os.environ.get("OPENAI_API_KEY", "").strip()
+    key = (credential if credential is not None else os.environ.get("OPENAI_API_KEY", "")).strip()
     if key:
         headers["Authorization"] = f"Bearer {key}"
     request = urllib.request.Request(base_url + "/models", headers=headers)
@@ -299,6 +306,10 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     base_url = validate_base_url(args.base_url)
+    credential_env = os.environ.copy()
+    credential_env["OPENAI_BASE_URL"] = base_url
+    _bind_loopback_gateway_credentials(credential_env)
+    gateway_key = credential_env.get("OPENAI_API_KEY", "")
     runtime_action = "status_only"
     managed_pid = read_pid()
     if args.command == "stop":
@@ -306,13 +317,13 @@ def main() -> int:
         result = {"status": "stopped" if clean else "still_running", "managed_pid": stopped_pid, "clean": clean}
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0 if clean else 1
-    result = probe(base_url)
+    result = probe(base_url, credential=gateway_key)
     if args.command == "start" and not result["models_endpoint_ok"] and not result["tcp_reachable"]:
         managed_pid, runtime_action = start_runtime()
         if managed_pid:
             deadline = time.monotonic() + args.timeout
             while time.monotonic() < deadline:
-                result = probe(base_url)
+                result = probe(base_url, credential=gateway_key)
                 if result["tcp_reachable"]:
                     break
                 if not process_alive(managed_pid):

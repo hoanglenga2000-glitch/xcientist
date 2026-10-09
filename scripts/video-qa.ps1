@@ -114,7 +114,7 @@ Write-Utf8Json $subtitleReport (Join-Path $reportRoot "subtitle-timing.json") 8
 
 $textFiles = Get-ChildItem -LiteralPath $project -Recurse -File | Where-Object Extension -in @('.json', '.md', '.srt', '.txt', '.ffscript', '.log')
 $secretPatterns = [ordered]@{
-    private_key = '-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----'
+    private_key_pattern = '-----BEGIN (?:RSA |OPENSSH |EC )?PRIVATE KEY-----'
     bearer_token = '(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{16,}'
     assigned_secret = '(?i)\b(?:token|cookie|authorization|password|secret|api[_-]?key)\s*[:=]\s*["'']?[A-Za-z0-9._~+/=-]{16,}'
     user_absolute_path = '(?i)\b[A-Z]:\\Users\\[^\\\s"'']+'

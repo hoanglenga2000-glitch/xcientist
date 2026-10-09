@@ -54,6 +54,8 @@ fi
 
 # ── 3. Frontend build ──────────────────────────────────────
 step "Step 3/6: Build frontend"
+(cd "$WEB" && npm run db:push 2>&1) && ok "npm run db:push" || fail "Database initialization failed"
+(cd "$WEB" && npm run db:generate 2>&1) && ok "npm run db:generate" || fail "Prisma client generation failed"
 (cd "$WEB" && npm run build 2>&1) && ok "npm run build" || fail "Build failed"
 
 # ── 4. CLI wrappers ────────────────────────────────────────

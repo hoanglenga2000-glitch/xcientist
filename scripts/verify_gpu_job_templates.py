@@ -5,11 +5,15 @@ import json
 import subprocess
 import sys
 import urllib.request
+import urllib.parse
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 REQUIRED_TEMPLATES = {
     "house_prices_baseline",
     "titanic_baseline",
@@ -28,10 +32,12 @@ def fail(message: str) -> None:
 
 
 def post_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=authenticated_headers(origin, {"Content-Type": "application/json", "Origin": origin}),
         method="POST",
     )
     with urllib.request.urlopen(request, timeout=30) as response:

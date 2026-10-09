@@ -3,9 +3,12 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import json
+import urllib.parse
 import urllib.request
 from pathlib import Path
 from typing import Any
+
+from workstation_local_auth import authenticated_headers
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,7 +73,13 @@ def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
 
 
 def get_json(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url, timeout=20) as response:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    request = urllib.request.Request(
+        url,
+        headers=authenticated_headers(origin, {"Accept": "application/json"}),
+    )
+    with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -253,7 +262,11 @@ def main() -> None:
         fail("final delivery document is missing required terms", {"missing_terms": missing_terms})
 
     base = args.url.rstrip("/")
-    summary = get_json(f"{base}/api/workstation-summary")
+    # The default summary is intentionally lightweight and bounds recent runs.
+    # Final delivery validation needs the report detail projection so historical
+    # passed evidence for the three core tasks cannot be displaced by newer
+    # planned runs from unrelated demonstrations.
+    summary = get_json(f"{base}/api/workstation-summary/detail/report?force=1")
     tasks = {task.get("id"): task for task in summary.get("tasks", [])}
     runs = summary.get("runs", [])
     connector_status = summary.get("connector_status") or {}

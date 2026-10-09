@@ -9,6 +9,11 @@ import ipaddress
 
 import paramiko
 
+try:
+    from scripts.hpc_connect import secure_ssh_client
+except ModuleNotFoundError:  # direct script execution
+    from hpc_connect import secure_ssh_client
+
 
 def recv_exact(sock: socket.socket, size: int) -> bytes:
     chunks: list[bytes] = []
@@ -85,47 +90,6 @@ def connect_with_password_or_keyboard_interactive(
     transport.auth_interactive(username, handler)
 
 
-def connect_transport_password(
-    client: paramiko.SSHClient,
-    host: str,
-    port: int,
-    username: str,
-    password: str,
-    sock: socket.socket | None,
-) -> None:
-    transport = paramiko.Transport(sock if sock is not None else (host, port))
-    transport.banner_timeout = 60
-    transport.auth_timeout = 30
-    transport.connect(username=username, password=password)
-    if not transport.is_authenticated():
-        transport.close()
-        raise paramiko.ssh_exception.AuthenticationException("Password authentication did not complete.")
-    client._transport = transport
-
-
-def connect_keyboard_interactive(
-    client: paramiko.SSHClient,
-    host: str,
-    port: int,
-    username: str,
-    password: str,
-    sock: socket.socket | None,
-) -> None:
-    transport = paramiko.Transport(sock if sock is not None else (host, port))
-    transport.banner_timeout = 15
-    transport.auth_timeout = 25
-    transport.start_client(timeout=15)
-
-    def handler(_title: str, _instructions: str, prompt_list: list[tuple[str, bool]]) -> list[str]:
-        return [password for _prompt, _echo in prompt_list]
-
-    transport.auth_interactive(username, handler)
-    if not transport.is_authenticated():
-        transport.close()
-        raise paramiko.ssh_exception.AuthenticationException("Keyboard-interactive authentication did not complete.")
-    client._transport = transport
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run one whitelisted command on the HPC SSH gateway without printing secrets.")
     parser.add_argument("--host", required=True)
@@ -135,7 +99,7 @@ def main() -> int:
     parser.add_argument("--proxy-port", type=int, default=0)
     parser.add_argument("--command", default="")
     parser.add_argument("--command-file", default="")
-    parser.add_argument("--password-env", default="GPU_SSH_PASSWORD")
+    parser.add_argument("--password-env", required=True)
     args = parser.parse_args()
 
     command = args.command
@@ -152,26 +116,17 @@ def main() -> int:
         return 2
 
     sock: socket.socket | None = None
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = secure_ssh_client()
     try:
         if args.proxy_host:
             sock = socks5_connect(args.proxy_host, args.proxy_port, args.host, args.port)
         try:
-            connect_transport_password(
-                client,
-                args.host,
-                args.port,
-                args.user,
-                password,
-                sock,
-            )
+            connect_with_password_or_keyboard_interactive(client, args.host, args.port, args.user, password, sock)
         except paramiko.ssh_exception.AuthenticationException:
             client.close()
             if sock:
                 sock.close()
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            client = secure_ssh_client()
             sock = socks5_connect(args.proxy_host, args.proxy_port, args.host, args.port) if args.proxy_host else None
             connect_with_password_or_keyboard_interactive(
                 client,

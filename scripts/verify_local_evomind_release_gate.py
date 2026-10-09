@@ -40,9 +40,9 @@ REQUIRED_EVIDENCE = {
     "assistant_quality": ROOT / "workspace/evaluation/assistant_novice_quality_gpt56_current.json",
     "assistant_quality_gate": ROOT / "workspace/evaluation/assistant_novice_quality_gate_current.json",
     "new_user_readiness": ROOT / "workspace/new_user_release_readiness.json",
-    "authenticated_web_report": ROOT / "artifacts/authenticated-web-report-20260805.json",
-    "authenticated_web_security": ROOT / "artifacts/authenticated-web-security-20260805.json",
-    "web_isolated_build": ROOT / "artifacts/web-isolated-build-20260805.json",
+    "authenticated_web_report": ROOT / "artifacts/authenticated-web-report-current.json",
+    "authenticated_web_security": ROOT / "artifacts/authenticated-web-security-current.json",
+    "web_isolated_build": ROOT / "artifacts/web-isolated-build-current.json",
     "live_assistant_demo_smoke": ROOT / "workspace/evaluation/live_assistant_demo_smoke_current.json",
 }
 
@@ -85,12 +85,15 @@ RELEASE_RELEVANT_SOURCE_FILES = (
     ROOT / "tests/test_assistant_context.py",
     ROOT / "tests/test_assistant_quality_evaluation.py",
     ROOT / "tests/test_assistant_stream.py",
+    ROOT / "tests/test_kaggle_conversation_tool_loop.py",
     ROOT / "tests/test_user_request_protocol.py",
     # Runtime service used by both 8765 and the browser NDJSON bridge.
     *EVOMIND_RUNTIME_SOURCE_FILES,
     *EVOMIND_RUNTIME_TEST_FILES,
     # Local lifecycle, gateway profile, and fail-closed HPC route.
     ROOT / "scripts/verify_new_user_release_readiness.py",
+    ROOT / "scripts/verify_backend_resource_status.py",
+    ROOT / "tests/test_backend_resource_status.py",
     ROOT / "scripts/run_authenticated_web_contract.py",
     ROOT / "scripts/verify_web_isolated_build.py",
     ROOT / "tests/test_verify_web_isolated_build.py",
@@ -113,6 +116,9 @@ RELEASE_RELEVANT_SOURCE_FILES = (
     ROOT / "web/research-agent-workstation/src/app/api/assistant/stream/route.ts",
     ROOT / "web/research-agent-workstation/src/components/workstation/LocalSessionBootstrap.tsx",
     ROOT / "web/research-agent-workstation/src/components/workstation/screens/AssistantScreen.tsx",
+    ROOT / "web/research-agent-workstation/src/lib/server/scientific-report.ts",
+    ROOT / "web/research-agent-workstation/src/lib/server/reviewed-existing-report.ts",
+    ROOT / "web/research-agent-workstation/src/lib/server/reviewed-existing-report.test.ts",
     ROOT / "web/research-agent-workstation/src/lib/server/local-session.ts",
     ROOT / "web/research-agent-workstation/src/lib/server/paths.ts",
     ROOT / "web/research-agent-workstation/src/lib/server/local-session-security.test.ts",
@@ -627,7 +633,10 @@ def check_live_assistant_demo(evidence: dict[str, Any], checks: list[Check]) -> 
         and bool(assistant.get("tool_names"))
         and bool(followup.get("tool_names"))
         and "verified_context" in list(literature.get("tool_names") or [])
-        and "hpc_connection_status" in list(connection.get("tool_names") or [])
+        and bool(
+            {"hpc_connection_status", "hpc_verify"}
+            & set(connection.get("tool_names") or [])
+        )
         and int(assistant.get("answer_characters") or 0) >= 500
         and int(followup.get("answer_characters") or 0) >= 300
         and int(literature.get("answer_characters") or 0) >= 400

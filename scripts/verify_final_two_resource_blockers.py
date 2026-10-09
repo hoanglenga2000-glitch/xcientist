@@ -47,6 +47,8 @@ def rel(path: Path) -> str:
 def blocker_groups_from_launch(launch: dict[str, Any]) -> list[dict[str, Any]]:
     groups: list[dict[str, Any]] = []
     external = launch.get("external_resources") or {}
+    strict_hpc = external.get("hpc_gpu_strict_runtime") or {}
+    strict_hpc_ready = strict_hpc.get("configured") is True and strict_hpc.get("state") == "strict_hpc_runtime_verified"
     for group, required_keys in ALLOWED_BLOCKER_GROUPS.items():
         item = external.get(group) or {}
         missing = item.get("missing_keys") or []
@@ -58,12 +60,26 @@ def blocker_groups_from_launch(launch: dict[str, Any]) -> list[dict[str, Any]]:
                     "allowed": sorted(missing) == sorted(required_keys),
                 }
             )
+    ignored_evidence_keys = {
+        "gpu_ssh_gateway_legacy_env",
+        "hpc_gpu_legacy_web_terminal",
+        "hpc_gpu_strict_runtime",
+        "kaggle_official_api_optional",
+    }
     unexpected = [
         key
         for key, item in external.items()
-        if key not in {*ALLOWED_BLOCKER_GROUPS.keys(), "kaggle_official_api_optional"}
+        if key not in {*ALLOWED_BLOCKER_GROUPS.keys(), *ignored_evidence_keys}
         and (item or {}).get("missing_keys")
     ]
+    if not strict_hpc_ready:
+        groups.append(
+            {
+                "group": "strict_hpc_runtime",
+                "missing_keys": strict_hpc.get("missing_keys") or ["strict_hpc_runtime_verified"],
+                "allowed": False,
+            }
+        )
     if unexpected:
         groups.append({"group": "unexpected_external_resources", "missing_keys": unexpected, "allowed": False})
     return groups
@@ -177,6 +193,8 @@ def main() -> None:
     passed = (
         local_ready
         and training_ready
+        and launch.get("overall_status") == "fully_ready"
+        and launch.get("strict_hpc_runtime_status") == "ready"
         and allowed_blockers_only
         and not unexpected_required_external
         and kaggle_optional_not_blocking

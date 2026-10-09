@@ -9,6 +9,8 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from workstation_local_auth import authenticated_headers
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
@@ -160,7 +162,7 @@ def live_post(base_url: str, payload: dict[str, Any], timeout: int) -> dict[str,
         url,
         data=data,
         method="POST",
-        headers={"Content-Type": "application/json", "Accept": "application/json"},
+        headers=authenticated_headers(base_url, {"Content-Type": "application/json", "Accept": "application/json", "Origin": base_url.rstrip("/")}),
     )
     try:
         with urlopen(request, timeout=timeout) as response:

@@ -90,6 +90,9 @@ function Get-PortalFailureMessage([string]$Reason) {
     "portal_empty_reply" {
       return "The HPC portal accepted a connection but returned an empty response."
     }
+    "portal_response_pending" {
+      return "The managed proxy route is ready, but the HPC portal page is still waiting for an HTTP response."
+    }
     default {
       return "The HPC portal proxy health check failed: $Reason."
     }
@@ -123,12 +126,16 @@ try {
   ) {
     $health = Repair-PortalCredential
   }
-  if ($health.status -ne "passed") {
+  if ($health.status -notin @("passed", "route_ready")) {
     $message = Get-PortalFailureMessage -Reason ([string]$health.failure_reason)
     if ($health.failure_reason -eq "proxy_auth_failed" -and $NoCredentialPrompt) {
       $message += " Reopen the desktop shortcut to refresh it securely."
     }
     throw $message
+  }
+  if ($health.status -eq "route_ready") {
+    Write-Host "The managed proxy route is ready; the HPC portal application is responding slowly." -ForegroundColor Yellow
+    Write-Host "Opening Chrome so the page can continue loading without blocking the launcher." -ForegroundColor DarkGray
   }
 
   if ($SkipBrowser) {
@@ -136,6 +143,9 @@ try {
       status = "ready"
       proxy = "127.0.0.1:$ProxyPort"
       http_status = $health.http_status
+      health_status = $health.status
+      route_verified = $health.route_verified
+      http_response_pending = $health.http_response_pending
       browser_started = $false
     } | ConvertTo-Json -Compress
     exit 0

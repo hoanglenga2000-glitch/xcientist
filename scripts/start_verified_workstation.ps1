@@ -9,6 +9,7 @@ param(
   [string]$ClaudeModel = "claude-opus-4-8",
   [switch]$AllowRealExternal,
   [switch]$AllowResourceBlockers,
+  [switch]$RunFullAcceptance,
   [switch]$SkipFullAcceptance,
   [switch]$Build
 )
@@ -21,7 +22,7 @@ try {
   # Best effort for legacy Windows PowerShell.
 }
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
-$StateDir = Join-Path $env:APPDATA "ResearchAgentWorkstation"
+$StateDir = if ($env:EVOMIND_DPAPI_STATE_DIR) { [IO.Path]::GetFullPath($env:EVOMIND_DPAPI_STATE_DIR) } else { Join-Path $env:APPDATA "ResearchAgentWorkstation" }
 $ManagedSecretsDir = if ($env:EVOMIND_SECRETS_DIR) { [IO.Path]::GetFullPath($env:EVOMIND_SECRETS_DIR) } else { Join-Path $env:APPDATA "EvoMind\secrets" }
 
 function Resolve-DpapiStateFile([string]$Name) {
@@ -73,6 +74,7 @@ function Enable-InstalledDpapiSecrets {
     claude = $false
     kaggle = $false
     hpc_ssh = $false
+    credential_errors = [ordered]@{}
   }
 
   if (Test-Path $OpenAICredentialPath) {
@@ -100,11 +102,17 @@ function Enable-InstalledDpapiSecrets {
   }
 
   if (Test-Path $DeepSeekCredentialPath) {
-    $credential = Import-Clixml -Path $DeepSeekCredentialPath
-    $env:DEEPSEEK_API_KEY = $credential.GetNetworkCredential().Password
-    $env:DEEPSEEK_MODEL = $DeepSeekModel
-    $env:DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-    $loaded.deepseek = $true
+    try {
+      $credential = Import-Clixml -Path $DeepSeekCredentialPath
+      if ($credential -isnot [System.Management.Automation.PSCredential] -or $credential.UserName -ne "__DEEPSEEK_API_KEY__" -or $credential.Password.Length -eq 0) { throw "invalid" }
+      $env:DEEPSEEK_API_KEY = $credential.GetNetworkCredential().Password
+      $env:DEEPSEEK_MODEL = $DeepSeekModel
+      $env:DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+      $loaded.deepseek = $true
+    } catch {
+      Remove-Item Env:DEEPSEEK_API_KEY -ErrorAction SilentlyContinue
+      $loaded.credential_errors.deepseek = "invalid_or_unreadable"
+    }
   }
 
   if (Test-Path $ClaudeCredentialPath) {
@@ -188,6 +196,22 @@ function Invoke-JsonCommand {
   }
 }
 
+function Invoke-DashboardManagerJson {
+  param([string[]]$Arguments)
+  $previousErrorActionPreference = $ErrorActionPreference
+  $ErrorActionPreference = "Continue"
+  try {
+    $raw = @(& $python (Join-Path $Root "scripts\manage_workstation_dashboard.py") @Arguments 2>&1)
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousErrorActionPreference
+  }
+  if ($exitCode -ne 0) {
+    throw "Dashboard manager failed with exit code $exitCode`: $($raw -join "`n")"
+  }
+  ($raw -join "`n") | ConvertFrom-Json
+}
+
 function Invoke-SmokeSuite {
   param(
     [hashtable]$Loaded,
@@ -195,6 +219,15 @@ function Invoke-SmokeSuite {
   )
   $results = @()
   $baseUrl = "http://127.0.0.1:$Port"
+
+  $kaggleReadinessArgs = @(
+    (Join-Path $Root "scripts\verify_kaggle_dpapi_readiness.py"),
+    "--write-report"
+  )
+  if ($AllowRealExternal) {
+    $kaggleReadinessArgs += "--allow-real-external"
+  }
+  $results += Invoke-JsonCommand -Label "kaggle_dpapi_readiness" -Executable $Python -Arguments $kaggleReadinessArgs
 
   $results += Invoke-JsonCommand -Label "backend_resource_status" -Executable $Python -Arguments @(
     (Join-Path $Root "scripts\verify_backend_resource_status.py"),
@@ -235,18 +268,7 @@ function Invoke-SmokeSuite {
     (Join-Path $Root "scripts\manage_kaggle_secret.ps1"),
     "smoke"
   )
-  if ($AllowRealExternal) {
-    $kaggleArgs += "-AllowRealExternal"
-  }
   $results += Invoke-JsonCommand -Label "kaggle_secret_smoke" -Executable "powershell" -Arguments $kaggleArgs
-
-  if (-not $SkipFullAcceptance) {
-    $results += Invoke-JsonCommand -Label "full_acceptance" -Executable $Python -Arguments @(
-      (Join-Path $Root "scripts\run_full_acceptance.py"),
-      "--dashboard-url",
-      $baseUrl
-    )
-  }
 
   $results += Invoke-JsonCommand -Label "plaintext_secret_scan" -Executable $Python -Arguments @(
     (Join-Path $Root "scripts\verify_no_plaintext_secrets.py")
@@ -270,6 +292,36 @@ function Convert-ResultSummary {
   param([object[]]$Results)
   $Results | ForEach-Object {
     $output = [string]$_.output
+    $signals = [ordered]@{}
+    try {
+      $payload = $output | ConvertFrom-Json -ErrorAction Stop
+      if ($payload.credential_status -eq "authenticated_real_api" -or $payload.authenticated -eq $true -or $payload.real_api_smoke.real_external_called -eq $true) {
+        $signals.kaggle_authenticated_real_api = $true
+      }
+      if ($payload.human_gate_required_for_submission -eq $true -or $payload.real_api_smoke.human_gate_required_for_submission -eq $true) {
+        $signals.human_gate_required_for_submission = $true
+      }
+      if ($payload.verification_state -eq "configured_not_invoked" -or $payload.credential_status -eq "configured_unverified") {
+        $signals.kaggle_configured_not_invoked = $true
+      }
+      if ($payload.code_agent.status -eq "configured_not_invoked") {
+        $signals.code_agent_configured_not_invoked = $true
+      }
+      if ($payload.code_agent.status -eq "real_smoke_passed") {
+        $signals.code_agent_smoke_tested = $true
+      }
+      if ($payload.gpu.status -eq "configured_not_invoked") {
+        $signals.gpu_configured_not_invoked = $true
+      }
+      if ($payload.gpu.status -eq "real_smoke_passed") {
+        $signals.gpu_smoke_tested = $true
+      }
+      if ($payload.gpu.status -in @("blocked_resource_gateway", "failed")) {
+        $signals.gpu_resource_blocked = $true
+      }
+    } catch {
+      # Non-JSON verifier failures are represented by exit_code/ok/hash only.
+    }
     [ordered]@{
       label = $_.label
       command = $_.command
@@ -277,7 +329,7 @@ function Convert-ResultSummary {
       ok = $_.ok
       allow_failure = $_.allow_failure
       output_sha256 = Get-StringSha256 $output
-      output_excerpt = if ($output.Length -gt 900) { $output.Substring(0, 900) } else { $output }
+      signals = $signals
     }
   }
 }
@@ -308,14 +360,50 @@ function Write-Utf8FileAtomic {
   }
 }
 
+function Write-PendingAuditReport {
+  param([Parameter(Mandatory = $true)][string]$RunId)
+  $pending = [ordered]@{
+    status = "running"
+    run_id = $RunId
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
+    command = $Command
+    dashboard_url = "http://${HostName}:$Port"
+    secret_policy = "No secret values are written to this audit report."
+    result_summaries = @()
+    remaining_external_requirements = @("Current verification run has not completed")
+  }
+  Write-Utf8FileAtomic -Path $AuditJsonPath -Value (($pending | ConvertTo-Json -Depth 5) + "`n")
+  $markdown = @(
+    "# Verified Workstation Launch Audit",
+    "",
+    "- Run ID: $RunId",
+    "- Generated at: $($pending.generated_at)",
+    "- Status: running",
+    "- Dashboard: $($pending.dashboard_url)",
+    "",
+    "The current verification run has not completed. This report must not be used as release evidence."
+  ) -join "`n"
+  Write-Utf8FileAtomic -Path $AuditMarkdownPath -Value ($markdown + "`n")
+}
+
 function Write-VerifiedAuditReport {
   param(
+    [Parameter(Mandatory = $true)][string]$RunId,
     [string]$LaunchCommand,
     [hashtable]$Loaded,
-    [object[]]$Results
+    [object[]]$Results,
+    [Parameter(Mandatory = $true)][object]$DashboardRuntime
   )
   $resultSummaries = @(Convert-ResultSummary -Results $Results)
   $overallPassed = -not ($resultSummaries | Where-Object { -not $_.ok -and -not $_.allow_failure })
+  $providerVerified = [bool]($resultSummaries | Where-Object {
+    $_.ok -and $_.label -in @("openai_gateway_smoke", "deepseek_smoke")
+  })
+  if (-not $providerVerified) {
+    $providerVerified = [bool]($resultSummaries | Where-Object {
+      $_.ok -and $_.label -eq "external_gateway_smoke" -and $_.signals.code_agent_smoke_tested
+    })
+  }
   $statusText = if ($overallPassed) { "passed" } else { "failed" }
   $remainingRequirements = @()
   if (-not $Loaded.openai) {
@@ -329,9 +417,11 @@ function Write-VerifiedAuditReport {
   }
   $report = [ordered]@{
     status = $statusText
-    generated_at = (Get-Date).ToString("s")
+    run_id = $RunId
+    generated_at = (Get-Date).ToUniversalTime().ToString("o")
     command = $LaunchCommand
     dashboard_url = "http://${HostName}:$Port"
+    dashboard_runtime = $DashboardRuntime
     dpapi_loaded = $Loaded
     active_llm = [ordered]@{
       provider = $(if ($Loaded.openai -and $gatewayReady) { "openai" } else { "local_fallback" })
@@ -342,8 +432,9 @@ function Write-VerifiedAuditReport {
     }
     allow_real_external = [bool]$AllowRealExternal
     allow_resource_blockers = [bool]$AllowResourceBlockers
+    external_provider_runtime_verified = $providerVerified
     skipped_full_acceptance = [bool]$SkipFullAcceptance
-    secret_policy = "No secret values are written to this audit report; only DPAPI presence booleans, command labels, exit codes, hashes and short verifier excerpts are recorded."
+    secret_policy = "No secret values or raw command output are written to this audit report; only DPAPI presence booleans, command labels, exit codes, hashes and bounded verifier signals are recorded."
     result_summaries = $resultSummaries
     remaining_external_requirements = $remainingRequirements
   }
@@ -419,12 +510,12 @@ if (-not $gatewayReady) {
 }
 
 if ($Command -eq "status") {
-  $managerOutput = & $python (Join-Path $Root "scripts\manage_workstation_dashboard.py") status --host $HostName --port $Port 2>&1
-  $managerExitCode = $LASTEXITCODE
-  $managerStatus = $null
-  try { $managerStatus = ($managerOutput -join "`n") | ConvertFrom-Json } catch {}
+  $dashboardPayload = Invoke-DashboardManagerJson -Arguments @("status", "--host", $HostName, "--port", [string]$Port)
+  $managerStatus = $dashboardPayload
+  $managerExitCode = 0
   Write-Output ([ordered]@{
     status = "ok"
+    workstation_python = $python
     dpapi_loaded = $loaded
     active_llm = [ordered]@{
       provider = $(if ($loaded.openai -and $gatewayReady) { "openai" } else { "local_fallback" })
@@ -454,10 +545,8 @@ if ($Command -eq "start" -or $Command -eq "restart") {
   $managerCommand = if ($Command -eq "start") { "start" } else { "restart" }
   $managerArgs = @((Join-Path $Root "scripts\manage_workstation_dashboard.py"), $managerCommand, "--host", $HostName, "--port", [string]$Port, "--timeout", "90")
   if ($Build) { $managerArgs += "--build" }
-  $managerOutput = & $python @managerArgs 2>&1
-  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-  $managerStatus = $null
-  try { $managerStatus = ($managerOutput -join "`n") | ConvertFrom-Json } catch {}
+  $dashboardPayload = Invoke-DashboardManagerJson -Arguments $managerArgs[1..($managerArgs.Count - 1)]
+  $managerStatus = $dashboardPayload
   Write-Output ([ordered]@{
     status = "passed"
     command = $Command
@@ -470,8 +559,51 @@ if ($Command -eq "start" -or $Command -eq "restart") {
   exit 0
 }
 
+if ($Command -eq "smoke" -and $Build) {
+  $managerStatus = Invoke-DashboardManagerJson -Arguments @(
+    "restart", "--host", $HostName, "--port", [string]$Port, "--timeout", "90", "--build"
+  )
+  if ($managerStatus.status -notin @("started", "running")) {
+    throw "Verified workstation build/restart did not reach a running dashboard state."
+  }
+}
+
+$runId = [guid]::NewGuid().ToString("N")
+Write-PendingAuditReport -RunId $runId
 $smokeResults = Invoke-SmokeSuite -Loaded $loaded -Python $python
-$auditPaths = Write-VerifiedAuditReport -LaunchCommand $Command -Loaded $loaded -Results $smokeResults
+$ShouldRunFullAcceptance = [bool]($RunFullAcceptance -and -not $SkipFullAcceptance)
+if ($ShouldRunFullAcceptance) {
+  $smokeResults += Invoke-JsonCommand -Label "full_acceptance" -Executable $python -Arguments @(
+    (Join-Path $Root "scripts\run_full_acceptance.py"),
+    "--dashboard-url", "http://${HostName}:$Port",
+    "--skip-verified-launch-audit"
+  )
+}
+$dashboardStatus = Invoke-DashboardManagerJson -Arguments @("status", "--host", $HostName, "--port", [string]$Port)
+$buildIdPath = Join-Path $Root "web\research-agent-workstation\.next\BUILD_ID"
+$buildId = if (Test-Path -LiteralPath $buildIdPath -PathType Leaf) { (Get-Content -LiteralPath $buildIdPath -Raw).Trim() } else { "" }
+$sourceDigestRaw = @(& $python -c "from scripts.manage_workstation_dashboard import source_tree_digest; print(source_tree_digest())" 2>&1)
+if ($LASTEXITCODE -ne 0) {
+  throw "Unable to calculate dashboard source digest: $($sourceDigestRaw -join [Environment]::NewLine)"
+}
+$dashboardRuntime = [ordered]@{
+  status = $dashboardStatus.status
+  pid = $dashboardStatus.pid
+  port = $Port
+  mode = "source-standalone"
+  build_id = $buildId
+  source_digest = ($sourceDigestRaw -join "").Trim()
+  build_requested = [bool]$Build
+  source_build_stale = $dashboardStatus.source_build_stale
+  dashboard_identity_verified = $dashboardStatus.dashboard_identity_verified
+  runtime_identity_verified = $dashboardStatus.runtime_identity_verified
+  runtime_pid = $dashboardStatus.runtime_pid
+  runtime_port = $dashboardStatus.runtime_port
+}
+$auditPaths = Write-VerifiedAuditReport -RunId $runId -LaunchCommand $Command -Loaded $loaded -Results $smokeResults -DashboardRuntime $dashboardRuntime
+$null = Invoke-JsonCommand -Label "verified_launch_audit" -Executable $python -Arguments @(
+  (Join-Path $Root "scripts\verify_verified_workstation_launch_audit.py")
+)
 Write-Output ([ordered]@{
   status = "passed"
   command = $Command

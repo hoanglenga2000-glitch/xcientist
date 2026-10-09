@@ -70,6 +70,10 @@ if (-not $SkipBuild) {
   Step "Step 3/5: Build frontend"
   Push-Location $Web
   try {
+    npm run db:push
+    if ($LASTEXITCODE -ne 0) { throw "npm run db:push failed with exit code $LASTEXITCODE" }
+    npm run db:generate
+    if ($LASTEXITCODE -ne 0) { throw "npm run db:generate failed with exit code $LASTEXITCODE" }
     npm run build
     if ($LASTEXITCODE -ne 0) {
       throw "npm run build failed with exit code $LASTEXITCODE"

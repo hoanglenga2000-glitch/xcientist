@@ -36,6 +36,10 @@ CANONICAL_HASH_SCHEMA = experience_mcgs.CANONICAL_HASH_SCHEMA
 EXPECTED_TASK_ID = "evomind_demo_customer_churn"
 EXPECTED_OPERATORS = {"Draft", "Improve", "Debug", "Crossover"}
 EXPECTED_EXPERIMENT_IDS = [f"EXP{index:03d}" for index in range(8)]
+# The product-demo runner is intentionally stricter than the generic local
+# subprocess runner.  Both names are accepted here so evidence produced by the
+# bounded demo runner is verified by the same contract as legacy fixtures.
+EXPECTED_LOCAL_RUNNERS = {"DemoLocalValidationRunner", "LocalSubprocessRunner"}
 PLAN_ID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
     re.IGNORECASE,
@@ -687,7 +691,7 @@ def verify_demo_campaign_evidence(
         and sorted(str(item.get("exp_id")) for item in scores) == EXPECTED_EXPERIMENT_IDS
         and solution_ids == EXPECTED_EXPERIMENT_IDS
         and validation_ids == EXPECTED_EXPERIMENT_IDS
-        and all(item.get("runner") == "LocalSubprocessRunner" for item in exec_begin)
+        and all(item.get("runner") in EXPECTED_LOCAL_RUNNERS for item in exec_begin)
         and contract.get("runner") == "local"
         and contract.get("evidence_class") == "real_local_cpu_execution"
         and contract.get("demo_campaign") is True
@@ -955,19 +959,27 @@ def verify_demo_campaign_evidence(
         detail="All eight proposals must identify the deterministic, isolated demo generator.",
         evidence={"generator_count": len(observed_generators), "status": provenance.get("status")},
     ))
-    environment_known = all(
+    successful_cards = [
+        card for card in cards
+        if isinstance(card, dict) and card.get("status") == "success"
+    ]
+    environment_known = len(successful_cards) == success_count and all(
         isinstance(card.get("provenance"), dict)
         and card["provenance"].get("environment_hash") not in {None, "", "not_recorded"}
         and card["provenance"].get("evaluator_version") not in {None, "", "unknown"}
-        for card in cards
-        if isinstance(card, dict)
+        for card in successful_cards
     )
     checks.append(_new_check(
         "execution_environment_provenance",
         environment_known,
         blocking=False,
-        detail="Environment hash and evaluator version should be captured before using the demo as portable benchmark evidence.",
-        evidence={"cards": len(cards), "environment_provenance_complete": environment_known},
+        detail="Environment hash and evaluator version must be captured for every successful candidate before using the demo as portable benchmark evidence; a deliberate failed Debug candidate may have no output provenance.",
+        evidence={
+            "cards": len(cards),
+            "successful_cards": len(successful_cards),
+            "failed_cards_exempted": len(cards) - len(successful_cards),
+            "environment_provenance_complete": environment_known,
+        },
     ))
 
     cli_receipt_path = evidence_paths["cli_receipt"]

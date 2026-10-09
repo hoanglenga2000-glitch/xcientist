@@ -23,6 +23,12 @@ for import_root in (PROJECT_ROOT / "src", PROJECT_ROOT):
     if str(import_root) not in sys.path:
         sys.path.insert(0, str(import_root))
 
+from scripts.pinned_source_identity import (  # noqa: E402
+    PinnedPathError,
+    bind_legacy_record_to_project_anchor,
+    resolve_pinned_project_path,
+)
+
 RUNNER = PROJECT_ROOT / "scripts" / "run_mlebench_lite_full.py"
 TEST_FILE = PROJECT_ROOT / "tests" / "test_mlebench_lite_full.py"
 TAXI_CACHE_COLLECTION = (
@@ -52,10 +58,10 @@ DEFAULT_BUNDLE = (
     PROJECT_ROOT
     / "workspace"
     / "deploy"
-    / "mlebench_unified_20260728_134508"
+    / "mlebench_unified_20260806_220719"
     / "mlebench_unified_bundle.tar.gz"
 )
-EXPECTED_BUNDLE_SHA256 = "6ba428151245c9c4ccee1add67e50548193ad281a79482c4086abe1c52bd5721"
+EXPECTED_BUNDLE_SHA256 = "5c09e4a9875654e3401d2a205dee43349a71cacca9e6c396766ba7b9bd08e9ec"
 REQUIRED_FROZEN_SOURCE_PATHS = frozenset(
     {
         "scripts/mlebench_medal_recovery_adapters.py",
@@ -80,6 +86,11 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def canonical_source_bytes(path: Path) -> bytes:
+    """Return text bytes normalized to the repository's LF identity."""
+    return Path(path).read_bytes().replace(b"\r\n", b"\n")
 
 
 def file_record(path: Path) -> dict[str, Any]:
@@ -213,9 +224,10 @@ def verify_frozen_source_bindings(
         if not candidate.is_file():
             source_mismatches.append(relative)
             continue
-        actual_sha = sha256_file(candidate)
+        canonical = canonical_source_bytes(candidate)
+        actual_sha = hashlib.sha256(canonical).hexdigest()
         if (
-            raw_record.get("bytes") != candidate.stat().st_size
+            raw_record.get("bytes") != len(canonical)
             or raw_record.get("sha256") != actual_sha
         ):
             source_mismatches.append(relative)
@@ -459,7 +471,18 @@ def verify() -> dict[str, Any]:
 
     route_collection = json.loads(TAXI_ROUTE_STAT_COLLECTION.read_text(encoding="utf-8"))
     route_manifest_record = route_collection.get("manifest") or {}
-    route_manifest_path = Path(str(route_manifest_record.get("path") or "")).resolve()
+    try:
+        portable_route_manifest_record = bind_legacy_record_to_project_anchor(
+            route_manifest_record,
+            "workspace/hpc/job89941_taxi_route_stats",
+        )
+        route_manifest_path = resolve_pinned_project_path(
+            portable_route_manifest_record,
+            PROJECT_ROOT,
+            label="Taxi route-stat manifest",
+        )
+    except PinnedPathError as exc:
+        raise RuntimeError(str(exc)) from exc
     route_manifest = json.loads(route_manifest_path.read_text(encoding="utf-8"))
     route_contracts = route_manifest.get("contracts") or {}
     base_cache_record = route_manifest.get("base_cache_manifest") or {}

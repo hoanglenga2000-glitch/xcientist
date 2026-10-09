@@ -9,6 +9,11 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+try:
+    from scripts.workstation_local_auth import authenticated_headers
+except ModuleNotFoundError:  # direct script execution
+    from workstation_local_auth import authenticated_headers
+
 
 ROOT = Path(__file__).resolve().parents[1]
 WEB = ROOT / "web" / "research-agent-workstation"
@@ -76,7 +81,7 @@ def extract_client_static_get_paths() -> list[str]:
 def request_get(base_url: str, path: str, timeout: int) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        request = Request(url, headers={"Accept": "text/html,application/json"})
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}))
         with urlopen(request, timeout=timeout) as response:
             body = response.read(1024)
             content_type = response.headers.get("content-type", "")

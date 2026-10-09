@@ -5,12 +5,19 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from manage_workstation_dashboard import _bind_loopback_gateway_credentials
 
 
 def endpoint(base_url: str, suffix: str) -> str:
@@ -122,7 +129,15 @@ def main() -> int:
         default=os.environ.get("OPENAI_SERVICE_TIER") or None,
     )
     args = parser.parse_args()
-    key = os.environ.get("OPENAI_API_KEY", "")
+    # Use the same loopback-gateway credential binding as the managed
+    # dashboard.  The dashboard may load its key from the local sidecar or a
+    # DPAPI file even when the parent shell deliberately has no OPENAI_API_KEY.
+    # Keeping the verifier on the old environment-only path made one healthy
+    # gateway appear configured in the UI and "not_configured" here.
+    credential_env = os.environ.copy()
+    credential_env["OPENAI_BASE_URL"] = args.base_url
+    _bind_loopback_gateway_credentials(credential_env)
+    key = credential_env.get("OPENAI_API_KEY", "")
     request_profile = {
         **(
             {"reasoning_effort": args.reasoning_effort}

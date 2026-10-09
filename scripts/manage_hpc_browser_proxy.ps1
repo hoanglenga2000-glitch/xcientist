@@ -113,6 +113,95 @@ function Resolve-PortalFailureReason([int]$CurlExit, [string]$BridgeDetail) {
   return "portal_health_check_failed"
 }
 
+function Read-ExactBytes([System.IO.Stream]$Stream, [int]$Count) {
+  if ($Count -lt 0 -or $Count -gt 4096) {
+    throw "Portal route reply length is invalid."
+  }
+  $buffer = [byte[]]::new($Count)
+  $offset = 0
+  while ($offset -lt $Count) {
+    $read = $Stream.Read($buffer, $offset, $Count - $offset)
+    if ($read -le 0) {
+      throw "Portal route closed before the SOCKS reply completed."
+    }
+    $offset += $read
+  }
+  return ,$buffer
+}
+
+function Test-PortalRoute {
+  $result = [ordered]@{
+    route_verified = $false
+    socks_reply_code = $null
+    failure_reason = "portal_route_unverified"
+  }
+  $client = [System.Net.Sockets.TcpClient]::new()
+  try {
+    $uri = [Uri]$WebUrl
+    if (-not $uri.IsAbsoluteUri -or $uri.Scheme -notin @("http", "https")) {
+      throw "The HPC portal URL must use absolute HTTP or HTTPS."
+    }
+    $hostBytes = [System.Text.Encoding]::ASCII.GetBytes($uri.DnsSafeHost)
+    if ($hostBytes.Length -lt 1 -or $hostBytes.Length -gt 255) {
+      throw "The HPC portal host is invalid."
+    }
+    $port = if ($uri.IsDefaultPort) {
+      if ($uri.Scheme -eq "https") { 443 } else { 80 }
+    } else {
+      $uri.Port
+    }
+
+    $connectTask = $client.ConnectAsync("127.0.0.1", $ListenPort)
+    if (-not $connectTask.Wait(5000) -or -not $client.Connected) {
+      $result.failure_reason = "local_proxy_unavailable"
+      return [pscustomobject]$result
+    }
+    $stream = $client.GetStream()
+    $stream.ReadTimeout = 8000
+    $stream.WriteTimeout = 8000
+    $methodRequest = [byte[]](5, 1, 0)
+    $stream.Write($methodRequest, 0, $methodRequest.Length)
+    $methodReply = Read-ExactBytes -Stream $stream -Count 2
+    if ($methodReply[0] -ne 5 -or $methodReply[1] -ne 0) {
+      $result.failure_reason = "local_proxy_method_rejected"
+      return [pscustomobject]$result
+    }
+
+    $request = [System.Collections.Generic.List[byte]]::new()
+    $request.AddRange([byte[]](5, 1, 0, 3, [byte]$hostBytes.Length))
+    $request.AddRange($hostBytes)
+    $request.Add([byte](($port -shr 8) -band 255))
+    $request.Add([byte]($port -band 255))
+    $requestBytes = $request.ToArray()
+    $stream.Write($requestBytes, 0, $requestBytes.Length)
+
+    $reply = Read-ExactBytes -Stream $stream -Count 4
+    $result.socks_reply_code = [int]$reply[1]
+    $addressBytes = switch ([int]$reply[3]) {
+      1 { 4 }
+      3 { [int](Read-ExactBytes -Stream $stream -Count 1)[0] }
+      4 { 16 }
+      default { throw "The portal route returned an unsupported address type." }
+    }
+    [void](Read-ExactBytes -Stream $stream -Count ($addressBytes + 2))
+    if ($reply[0] -eq 5 -and $reply[1] -eq 0) {
+      $result.route_verified = $true
+      $result.failure_reason = ""
+    } else {
+      $result.failure_reason = "portal_destination_unreachable"
+    }
+  } catch [System.TimeoutException] {
+    $result.failure_reason = "portal_route_timeout"
+  } catch [System.IO.IOException] {
+    $result.failure_reason = "portal_route_io_failed"
+  } catch [System.Net.Sockets.SocketException] {
+    $result.failure_reason = "portal_route_socket_failed"
+  } finally {
+    $client.Dispose()
+  }
+  return [pscustomobject]$result
+}
+
 function Test-WebPortal {
   $curl = Get-Command "curl.exe" -ErrorAction Stop
   $logOffset = if (Test-Path -LiteralPath $ErrLog -PathType Leaf) {
@@ -139,18 +228,34 @@ function Test-WebPortal {
   Start-Sleep -Milliseconds 150
   $bridgeDetail = (Read-NewLogText -Path $ErrLog -Offset $logOffset).Trim()
   $passed = $curlExit -eq 0 -and [string]$httpCode -match "^[23][0-9][0-9]$"
+  $route = if ($passed) {
+    [pscustomobject]@{ route_verified = $true; socks_reply_code = 0; failure_reason = "" }
+  } else {
+    Test-PortalRoute
+  }
+  $routeReady = -not $passed -and $route.route_verified -and $curlExit -in @(28, 52)
   $failureReason = if ($passed) {
     $null
+  } elseif ($routeReady) {
+    "portal_response_pending"
   } else {
-    Resolve-PortalFailureReason -CurlExit $curlExit -BridgeDetail $bridgeDetail
+    $resolved = Resolve-PortalFailureReason -CurlExit $curlExit -BridgeDetail $bridgeDetail
+    if ($resolved -eq "portal_health_check_failed" -and $route.failure_reason) {
+      $route.failure_reason
+    } else {
+      $resolved
+    }
   }
   [pscustomobject]@{
-    status = $(if ($passed) { "passed" } else { "failed" })
+    status = $(if ($passed) { "passed" } elseif ($routeReady) { "route_ready" } else { "failed" })
     proxy = "127.0.0.1:$ListenPort"
     http_status = $(if ([string]$httpCode -match "^[0-9]{3}$") { [int]$httpCode } else { $null })
     curl_exit = $curlExit
     failure_reason = $failureReason
     credential_refresh_available = $failureReason -eq "proxy_auth_failed"
+    route_verified = $route.route_verified
+    socks_reply_code = $route.socks_reply_code
+    http_response_pending = $routeReady
   }
 }
 
@@ -250,7 +355,7 @@ if ($Command -eq "test") {
   }
   $result = Test-WebPortal
   Write-Output ($result | ConvertTo-Json -Compress)
-  exit $(if ($result.status -eq "passed") { 0 } else { 1 })
+  exit $(if ($result.status -in @("passed", "route_ready")) { 0 } else { 1 })
 }
 
 $status = Get-Listener

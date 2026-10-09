@@ -21,11 +21,32 @@ from sklearn.metrics import (
 # catboost is imported lazily inside train_single so this module stays importable
 # (e.g. for unit-testing the pure helpers) on machines without the GPU package.
 
-BASE_DIR = Path.home() / "jinghw" / "scripts" / "gpu_tra"
-DATA_DIR = BASE_DIR / "data"
-FALLBACK_DATA_DIR = BASE_DIR / "mlebench_prepared"  # for competitions not in data/
-RESULTS_DIR = BASE_DIR / "results"
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+BASE_DIR = None
+DATA_DIR = None
+FALLBACK_DATA_DIR = None
+RESULTS_DIR = None
+
+
+def configure_runtime_paths(workspace):
+    global BASE_DIR, DATA_DIR, FALLBACK_DATA_DIR, RESULTS_DIR
+    path = Path(workspace).expanduser()
+    if not path.is_absolute():
+        raise RuntimeError("EVOMIND_HPC_REMOTE_WORKSPACE must be an absolute path")
+    BASE_DIR = path
+    DATA_DIR = path / "data"
+    FALLBACK_DATA_DIR = path / "mlebench_prepared"
+    RESULTS_DIR = path / "results"
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    return BASE_DIR, DATA_DIR, FALLBACK_DATA_DIR, RESULTS_DIR
+
+
+def _runtime_paths():
+    if BASE_DIR is not None:
+        return BASE_DIR, DATA_DIR, FALLBACK_DATA_DIR, RESULTS_DIR
+    configured = os.environ.get("EVOMIND_HPC_REMOTE_WORKSPACE", "").strip()
+    if not configured:
+        raise RuntimeError("EVOMIND_HPC_REMOTE_WORKSPACE must be configured explicitly")
+    return configure_runtime_paths(configured)
 
 # ── P1: model_selection integration ──
 # model_selection.py is pure stdlib. It is uploaded alongside this trainer so the
@@ -623,6 +644,7 @@ def _cross_validate(*, family, hyperparams, cv_seed, X_train, y_train, X_test,
 
 def train_single(comp_name, cfg, n_folds=5, seed=42):
     """Train a single competition, return metrics + submission path."""
+    _runtime_paths()
     # Model libraries are imported lazily inside _GBDTModel (GPU-only deps), so this
     # module stays importable on the control plane for unit tests.
     data_dir = DATA_DIR / comp_name

@@ -4,13 +4,19 @@ import argparse
 import json
 import os
 import subprocess
+import sys
 import urllib.request
+import urllib.error
+import urllib.parse
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 CODE_AGENT_MISSING = ["ANTHROPIC_API_KEY", "DEEPSEEK_API_KEY"]
 GPU_MISSING_BASE = ["GPU_SSH_HOST", "GPU_SSH_USER", "GPU_REMOTE_WORKSPACE"]
 GPU_MISSING_AUTH = ["GPU_SSH_KEY_PATH", "GPU_SSH_KEY_PATH_OR_GPU_SSH_PASSWORD", "GPU_SSH_PASSWORD"]
@@ -21,18 +27,34 @@ def fail(message: str) -> None:
 
 
 def post_json(url: str, payload: dict[str, Any], timeout: int = 45) -> dict[str, Any]:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
+        headers=authenticated_headers(origin, {"Content-Type": "application/json", "Origin": origin}),
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return json.loads(response.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        try:
+            payload = json.loads(body)
+        except json.JSONDecodeError:
+            payload = {"error": body or str(exc.reason)}
+        if isinstance(payload, dict):
+            payload["http_status"] = exc.code
+            return payload
+        return {"http_status": exc.code, "error": str(exc.reason)}
 
 
 def get_json(url: str) -> dict[str, Any]:
-    with urllib.request.urlopen(url, timeout=20) as response:
+    parsed = urllib.parse.urlsplit(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    request = urllib.request.Request(url, headers=authenticated_headers(origin))
+    with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
@@ -149,6 +171,19 @@ def verify_code_agent(base_url: str, container_name: str | None, allow_real_exte
 def verify_gpu(base_url: str, container_name: str | None, allow_real_external: bool) -> dict[str, Any]:
     summary = get_json(f"{base_url}/api/workstation-summary")
     configured = connector_configured(summary, "gpu")
+    strict_report_path = ROOT / "docs" / "launch_resource_readiness.json"
+    try:
+        strict_report = json.loads(strict_report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        strict_report = {}
+    strict_hpc = ((strict_report.get("external_resources") or {}).get("hpc_gpu_strict_runtime") or {})
+    strict_configured = (
+        strict_report.get("strict_hpc_runtime_status") == "ready"
+        and strict_hpc.get("configured") is True
+        and (strict_hpc.get("live_probe") or {}).get("samples_passed") == 5
+        and (strict_hpc.get("bounded_smoke") or {}).get("status") == "passed"
+    )
+    configured = configured or strict_configured
     invalid = post_json(f"{base_url}/api/gpu/jobs", {"task_id": "house_prices", "template": "not_allowed_shell"})
     if invalid.get("status") != "rejected":
         fail(f"GPU invalid template endpoint did not reject unsupported template: {invalid}")
@@ -161,6 +196,7 @@ def verify_gpu(base_url: str, container_name: str | None, allow_real_external: b
             "configured": True,
             "invalid_template_status": invalid.get("status"),
             "invalid_template_artifact": invalid.get("artifact_path"),
+            "strict_named_profile_ready": strict_configured,
             "note": "GPU SSH env is configured; real SSH smoke test was skipped because --allow-real-external was not set.",
         }
 

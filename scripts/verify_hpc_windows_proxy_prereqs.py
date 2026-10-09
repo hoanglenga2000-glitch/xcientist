@@ -16,7 +16,14 @@ def command_info(name: str) -> dict[str, Any]:
         return {"found": False, "path": None, "version": None}
     version = None
     try:
-        completed = subprocess.run([path, "--version"], text=True, capture_output=True, timeout=10)
+        completed = subprocess.run(
+        [path, "--version"],
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        timeout=10,
+        )
         version = (completed.stdout or completed.stderr).strip().splitlines()[0] if (completed.stdout or completed.stderr).strip() else None
     except Exception:
         version = None
@@ -28,13 +35,18 @@ def run_bridge_status() -> dict[str, Any]:
     completed = subprocess.run(
         ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(manager), "status"],
         text=True,
+        encoding="utf-8",
+        errors="replace",
         capture_output=True,
         timeout=20,
     )
     try:
-        payload = json.loads(completed.stdout)
+        payload = json.loads(completed.stdout or "")
     except json.JSONDecodeError:
-        payload = {"raw_stdout": completed.stdout.strip(), "raw_stderr": completed.stderr.strip()}
+        payload = {
+            "raw_stdout": (completed.stdout or "").strip(),
+            "raw_stderr": (completed.stderr or "").strip(),
+        }
     payload["returncode"] = completed.returncode
     return payload
 

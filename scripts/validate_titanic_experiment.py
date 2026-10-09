@@ -30,6 +30,22 @@ def normalize_recorded_path(path_text: str) -> Path:
     return Path(path_text.replace("\\", "/"))
 
 
+def resolve_evidence_path(path_text: str, experiment_dir: Path | None = None) -> Path:
+    path = normalize_recorded_path(path_text)
+    if path.is_absolute() and path.exists():
+        return path
+    evidence_root_text = os.environ.get("RESEARCH_EVIDENCE_ROOT")
+    if evidence_root_text and not path.is_absolute():
+        candidate = Path(evidence_root_text).resolve() / path
+        if candidate.exists():
+            return candidate
+    if experiment_dir is not None:
+        candidate = experiment_dir / path.name
+        if candidate.exists():
+            return candidate
+    return path if path.is_absolute() else Path.cwd() / path
+
+
 def main() -> None:
     args = parse_args()
     experiment_dir = Path(args.experiment_dir)

@@ -6,6 +6,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
+from urllib.request import Request
+
+from workstation_local_auth import authenticated_headers
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,7 +40,8 @@ SIDE_EFFECT_ENDPOINTS = [
 def get_json(base_url: str, path: str) -> tuple[bool, int | str, dict[str, Any]]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        with urlopen(url, timeout=15) as response:
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "application/json"}))
+        with urlopen(request, timeout=15) as response:
             payload = json.loads(response.read().decode("utf-8"))
             return response.status == 200, response.status, payload
     except Exception as exc:  # pragma: no cover - smoke utility

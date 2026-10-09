@@ -63,12 +63,12 @@ def download_outputs_with_retries(
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run EXP016 LightGBM Optuna search on the HPC SSH path.")
-    parser.add_argument("--host", default="100.85.169.63")
+    parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=1235)
     parser.add_argument("--user", required=True)
     parser.add_argument("--proxy-host", default="127.0.0.1")
     parser.add_argument("--proxy-port", type=int, default=7890)
-    parser.add_argument("--password-env", default="GPU_SSH_PASSWORD")
+    parser.add_argument("--password-env", required=True)
     parser.add_argument("--remote-root", default="/hpc2ssd/JH_DATA/spooler/aimslab/research_agent_workstation")
     parser.add_argument("--python-executable", default="/hpc2ssd/JH_DATA/spooler/aimslab/research_agent_workstation/pyenvs/tabular_s6e6_lightgbm/bin/python")
     parser.add_argument("--timeout-seconds", type=int, default=28800)

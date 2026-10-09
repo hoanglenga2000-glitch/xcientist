@@ -154,8 +154,8 @@ def run(cmd: list[str], *, cwd: Path = ROOT, timeout: int = 60) -> dict:
         }
 
 
-def http_json(path: str, timeout: int = 8) -> dict:
-    url = f"http://127.0.0.1:8088{path}"
+def http_json(path: str, *, base_url: str = "http://127.0.0.1:8088", timeout: int = 8) -> dict:
+    url = f"{base_url.rstrip('/')}{path}"
     req = Request(url, headers={"Accept": "application/json"})
     last_error = ""
     for attempt in range(3):
@@ -179,7 +179,7 @@ def http_json(path: str, timeout: int = 8) -> dict:
             last_error = clean_report_text(str(exc))
             if attempt < 2:
                 time.sleep(1.5)
-    return {"ok": False, "status": None, "url": url, "error": last_error}
+    return {"ok": False, "status": None, "url": url, "error": last_error, "connection_error": True}
 
 
 def read_text(path: Path) -> str:
@@ -263,15 +263,14 @@ def check_python_compile() -> list[dict]:
     return [{"id": "python:core_compile", "ok": result["ok"], "result": result}]
 
 
-def check_frontend_runtime(*, require_live_server: bool) -> list[dict]:
-    health = http_json("/api/healthz")
-    checks = [{"id": "http:healthz", **health}]
+def check_frontend_runtime(*, require_live_server: bool, base_url: str = "http://127.0.0.1:8088") -> list[dict]:
+    checks: list[dict] = []
     for name, path in (
         ("workstation_summary", "/api/workstation-summary"),
         ("tasks", "/api/tasks"),
         ("settings", "/api/settings"),
     ):
-        probe = http_json(path)
+        probe = http_json(path, base_url=base_url)
         checks.append({
             "id": f"http:anonymous_{name}_rejected",
             **probe,
@@ -285,8 +284,7 @@ def check_frontend_runtime(*, require_live_server: bool) -> list[dict]:
         if item.get("ok"):
             normalized.append(item)
             continue
-        error = str(item.get("error", ""))
-        server_down = "10061" in error or "Connection refused" in error or "actively refused" in error
+        server_down = item.get("connection_error") is True
         if server_down:
             normalized.append({
                 **item,
@@ -366,14 +364,14 @@ def check_assistant_quality_gate() -> list[dict]:
     }]
 
 
-def build_report(*, require_live_server: bool = False) -> dict:
+def build_report(*, require_live_server: bool = False, base_url: str = "http://127.0.0.1:8088") -> dict:
     checks: list[dict] = []
     for group in [
         check_files(),
         check_docs(),
         check_python_compile(),
         check_cli(),
-        check_frontend_runtime(require_live_server=require_live_server),
+        check_frontend_runtime(require_live_server=require_live_server, base_url=base_url),
         check_existing_launch_gate(),
         check_assistant_quality_gate(),
     ]:
@@ -442,8 +440,9 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--write-report", action="store_true")
     parser.add_argument("--require-live-server", action="store_true")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8088")
     args = parser.parse_args()
-    report = build_report(require_live_server=args.require_live_server)
+    report = build_report(require_live_server=args.require_live_server, base_url=args.base_url)
     if args.write_report:
         WORKSPACE.mkdir(parents=True, exist_ok=True)
         REPORTS.mkdir(parents=True, exist_ok=True)

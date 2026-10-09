@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -13,13 +14,74 @@ ROOT = Path(__file__).resolve().parents[1]
 MANAGER = ROOT / "scripts" / "manage_kaggle_secret.ps1"
 JSON_REPORT = ROOT / "docs" / "kaggle_dpapi_readiness.json"
 MD_REPORT = ROOT / "docs" / "kaggle_dpapi_readiness.md"
+STRONG_EVIDENCE_MAX_AGE_SECONDS = 24 * 60 * 60
 
 
 def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
     raise SystemExit(json.dumps({"status": "failed", "message": message, "evidence": evidence or {}}, ensure_ascii=False, indent=2))
 
 
-def run_manager(command: str) -> dict[str, Any]:
+def _manager_environment() -> dict[str, str]:
+    """Return a clean PowerShell environment with Windows security modules first."""
+
+    env = os.environ.copy()
+    windir = Path(env.get("WINDIR") or r"C:\Windows")
+    windows_modules = windir / "System32" / "WindowsPowerShell" / "v1.0" / "Modules"
+    existing = [item for item in env.get("PSModulePath", "").split(os.pathsep) if item]
+    env["PSModulePath"] = os.pathsep.join([str(windows_modules), *[item for item in existing if item.casefold() != str(windows_modules).casefold()]])
+    return env
+
+
+def build_report(manager_status: dict[str, Any], *, real_smoke: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Build a truthful report: installed DPAPI is not authenticated evidence."""
+
+    tool = manager_status.get("tool_status") if isinstance(manager_status.get("tool_status"), dict) else {}
+    installed = manager_status.get("credential_installed") is True
+    authenticated = bool(installed and real_smoke and real_smoke.get("status") == "passed" and real_smoke.get("real_external_called") is True)
+    credential_status = "authenticated_real_api" if authenticated else "configured_dpapi_unverified" if installed else "not_configured"
+    return {
+        "generated_at": datetime.now().isoformat(timespec="seconds"),
+        "status": "passed" if authenticated else "auth_pending",
+        "verification_method": "dpapi_real_api" if authenticated else "dpapi_status",
+        "credential_status": credential_status,
+        "credential_installed": installed,
+        "authenticated": authenticated,
+        "token_type": str(manager_status.get("token_type") or ("unknown" if installed else "none")),
+        "tool_status": tool,
+        "real_api_smoke": real_smoke or {"status": "not_run", "real_external_called": False},
+        "human_gate_required_for_submission": True,
+        "conclusion": (
+            "Kaggle DPAPI credential and explicit real read-only API smoke passed; submission remains human-gated."
+            if authenticated
+            else "Kaggle tooling is available, but strict authentication remains pending until an explicit real read-only API smoke passes."
+        ),
+    }
+
+
+def preserve_fresh_authenticated_evidence(
+    candidate: dict[str, Any],
+    existing: dict[str, Any] | None,
+    *,
+    existing_age_seconds: float,
+) -> dict[str, Any]:
+    """Prevent a local-only status probe from downgrading fresh real-API proof."""
+
+    if candidate.get("credential_installed") is not True or not isinstance(existing, dict):
+        return candidate
+    same_credential = str(candidate.get("credential_path") or "") == str(existing.get("credential_path") or "")
+    existing_is_strong = (
+        existing.get("status") == "passed"
+        and existing.get("verification_method") == "dpapi_real_api"
+        and existing.get("credential_status") == "authenticated_real_api"
+        and existing.get("authenticated") is True
+        and existing.get("human_gate_required_for_submission") is True
+    )
+    if same_credential and existing_is_strong and 0 <= existing_age_seconds <= STRONG_EVIDENCE_MAX_AGE_SECONDS:
+        return existing
+    return candidate
+
+
+def run_manager(command: str, *extra_arguments: str) -> dict[str, Any]:
     completed = subprocess.run(
         [
             "powershell",
@@ -29,20 +91,30 @@ def run_manager(command: str) -> dict[str, Any]:
             "-File",
             str(MANAGER),
             command,
+            *extra_arguments,
         ],
         cwd=ROOT,
+        env=_manager_environment(),
         capture_output=True,
         timeout=60,
     )
     stdout = decode_process_bytes(completed.stdout)
     stderr = decode_process_bytes(completed.stderr)
     if completed.returncode != 0:
+        manager_error: dict[str, Any] = {}
+        try:
+            parsed = json.loads(stdout)
+            if isinstance(parsed, dict):
+                for key in ("status", "error_code", "error_type", "credential_installed"):
+                    if key in parsed:
+                        manager_error[key] = parsed[key]
+        except json.JSONDecodeError:
+            pass
         fail(
             f"Kaggle secret manager {command} failed",
             {
                 "returncode": completed.returncode,
-                "stdout": stdout[-1000:],
-                "stderr": stderr[-1000:],
+                "manager_error": manager_error,
             },
         )
     try:
@@ -58,7 +130,12 @@ def decode_process_bytes(data: bytes) -> str:
     # PowerShell defaults to UTF-16 LE; try it first.
     # The Python subprocess pipe inherits the system codepage so
     # the raw bytes may be UTF-16, UTF-8-BOM, or Chinese locale.
-    for encoding in ("utf-16-le", "utf-16", "utf-8-sig", "utf-8", "cp936", "gb18030"):
+    encodings = (
+        ("utf-16-le", "utf-16", "utf-8-sig", "utf-8", "cp936", "gb18030")
+        if data.startswith((b"\xff\xfe", b"\xfe\xff")) or (data and data.count(b"\x00") > len(data) // 4)
+        else ("utf-8-sig", "utf-8", "cp936", "gb18030", "utf-16-le", "utf-16")
+    )
+    for encoding in encodings:
         try:
             decoded = data.decode(encoding)
             # Reject false-success decodes: if we see replacement
@@ -170,6 +247,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Verify Kaggle CLI and Windows DPAPI token readiness without exposing secrets.")
     parser.add_argument("--write-report", action="store_true", help="Write docs/kaggle_dpapi_readiness.json and a Markdown report.")
     parser.add_argument("--skip-dpapi", action="store_true", help="Skip DPAPI secret manager check; use kaggle CLI fallback directly.")
+    parser.add_argument(
+        "--allow-real-external",
+        action="store_true",
+        help="Run the explicit read-only Kaggle API smoke through the DPAPI manager.",
+    )
     args = parser.parse_args()
 
     dpapi_status: dict[str, Any] | None = None
@@ -183,6 +265,8 @@ def main() -> None:
             use_dpapi_fallback = True
 
     if use_dpapi_fallback:
+        if args.allow_real_external:
+            fail("strict real Kaggle API smoke requires the Windows DPAPI credential path")
         # Try the Kaggle CLI directly as a practical readiness check
         cli_result = run_kaggle_cli()
         require(cli_result["ok"], "Kaggle CLI fallback also failed; Kaggle is not ready.", cli_result)
@@ -259,6 +343,28 @@ def main() -> None:
             "human_gate_required_for_submission": True,
             "conclusion": conclusion,
         }
+        if args.allow_real_external:
+            real_smoke = run_manager("smoke", "-AllowRealExternal")
+            report = build_report(status, real_smoke=real_smoke)
+            report.update(
+                {
+                    "credential_path": credential_path,
+                    "safe_install_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 install-token -ApiToken <token>",
+                    "real_api_smoke_command": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts\\manage_kaggle_secret.ps1 smoke -AllowRealExternal",
+                }
+            )
+
+    if args.write_report and not args.allow_real_external and JSON_REPORT.is_file():
+        try:
+            existing_report = json.loads(JSON_REPORT.read_text(encoding="utf-8-sig"))
+            existing_age_seconds = max(0.0, datetime.now().timestamp() - JSON_REPORT.stat().st_mtime)
+            report = preserve_fresh_authenticated_evidence(
+                report,
+                existing_report,
+                existing_age_seconds=existing_age_seconds,
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            pass
 
     if args.write_report:
         JSON_REPORT.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

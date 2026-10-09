@@ -37,8 +37,8 @@ def main() -> None:
 
     compose = yaml.safe_load(read(COMPOSE))
     ports = compose["services"]["research-agent-workstation"].get("ports", [])
-    if "8088:3090" not in ports:
-        fail("docker compose must expose user-facing 8088 to internal 3090", {"ports": ports})
+    if "127.0.0.1:8088:3090" not in ports:
+        fail("docker compose must expose loopback-only user-facing 8088 to internal 3090", {"ports": ports})
 
     dockerfile = read(DOCKERFILE)
     if "--port 3090" not in dockerfile:
@@ -49,7 +49,7 @@ def main() -> None:
         fail("action contract default URL must be 8088", {"file": str(ACTION_CONTRACT.relative_to(ROOT))})
 
     restart_ps1 = read(RESTART_PS1)
-    if "[int]$Port = 8088" not in restart_ps1:
+    if '[string]$Port = "8088"' not in restart_ps1:
         fail("PowerShell restart helper default port must be 8088", {"file": str(RESTART_PS1.relative_to(ROOT))})
 
     manager = read(MANAGER)

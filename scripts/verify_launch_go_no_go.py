@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 import socket
 import struct
+import sys
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -14,10 +15,15 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT / "scripts") not in sys.path:
+    sys.path.insert(0, str(ROOT / "scripts"))
+from workstation_local_auth import authenticated_headers
 MANIFEST = ROOT / "configs" / "external_resources.yaml"
 PROBE = ROOT / "workspace" / "hpc" / "web_terminal_probe.txt"
 JSON_REPORT = ROOT / "docs" / "launch_go_no_go_20260613.json"
 MD_REPORT = ROOT / "docs" / "上线Go-No-Go判定-20260613.md"
+STRICT_RESOURCE_REPORT = ROOT / "docs" / "launch_resource_readiness.json"
+KAGGLE_READINESS_REPORT = ROOT / "docs" / "kaggle_dpapi_readiness.json"
 
 
 def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
@@ -26,7 +32,9 @@ def fail(message: str, evidence: dict[str, Any] | None = None) -> None:
 
 def get_json(url: str) -> dict[str, Any]:
     try:
-        with urllib.request.urlopen(url, timeout=20) as response:
+        base_url = url.split("/api/", 1)[0]
+        request = urllib.request.Request(url, headers=authenticated_headers(base_url))
+        with urllib.request.urlopen(request, timeout=20) as response:
             return json.loads(response.read().decode("utf-8"))
     except (urllib.error.URLError, TimeoutError, OSError, json.JSONDecodeError) as exc:
         fail(
@@ -120,7 +128,8 @@ def write_markdown(report: dict[str, Any]) -> None:
         "",
         f"- HPC SSH banner：`{report['hpc']['banner']}`",
         f"- GPU live state：`{report['live_connectors']['gpu']['state']}`",
-        f"- DeepSeek live state：`{report['live_connectors']['deepseek']['state']}`",
+        f"- OpenAI-compatible live state：`{report['live_connectors']['openai']['state']}`",
+        f"- DeepSeek live state（optional）：`{report['live_connectors']['deepseek']['state']}`",
         f"- Claude Code live state：`{report['live_connectors']['code_agent']['state']}`",
         f"- Kaggle live state：`{report['live_connectors']['kaggle']['state']}`",
         f"- Web Terminal proof：`{report['hpc_web_terminal_probe']['status']}`",
@@ -154,6 +163,14 @@ def write_markdown(report: dict[str, Any]) -> None:
     MD_REPORT.write_text("\n".join(lines), encoding="utf-8")
 
 
+def primary_llm_ready(connectors: dict[str, dict[str, Any]]) -> bool:
+    return any(
+        connectors[key].get("configured") is True
+        and str(connectors[key].get("state") or "").upper() == "READY"
+        for key in ("openai", "deepseek")
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate and verify a launch Go/No-Go decision from live dashboard and resource evidence.")
     parser.add_argument("--dashboard-url", default="http://127.0.0.1:8088")
@@ -165,8 +182,31 @@ def main() -> None:
     manifest = yaml.safe_load(MANIFEST.read_text(encoding="utf-8")) or {}
     summary = get_json(f"{args.dashboard_url.rstrip('/')}/api/workstation-summary")
     connectors = summary.get("connector_status") or {}
+    try:
+        strict_resources = json.loads(STRICT_RESOURCE_REPORT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        strict_resources = {}
+    try:
+        kaggle_readiness = json.loads(KAGGLE_READINESS_REPORT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        kaggle_readiness = {}
+    strict_hpc = (
+        ((strict_resources.get("external_resources") or {}).get("hpc_gpu_strict_runtime") or {})
+    )
+    strict_gpu_ready = (
+        strict_resources.get("strict_hpc_runtime_status") == "ready"
+        and strict_hpc.get("configured") is True
+        and (strict_hpc.get("live_probe") or {}).get("samples_passed") == 5
+        and (strict_hpc.get("bounded_smoke") or {}).get("status") == "passed"
+    )
+    kaggle_authenticated = (
+        kaggle_readiness.get("status") == "passed"
+        and kaggle_readiness.get("credential_status") == "authenticated_real_api"
+        and (kaggle_readiness.get("real_api_smoke") or {}).get("real_external_called") is True
+        and kaggle_readiness.get("human_gate_required_for_submission") is True
+    )
 
-    required_connector_keys = ["gpu", "deepseek", "code_agent", "kaggle"]
+    required_connector_keys = ["gpu", "openai", "deepseek", "code_agent", "kaggle"]
     missing_connectors = [key for key in required_connector_keys if key not in connectors]
     if missing_connectors:
         fail("live dashboard summary is missing connector statuses", {"missing": missing_connectors})
@@ -187,7 +227,7 @@ def main() -> None:
     unsafe_claims: list[str] = []
     if connectors["gpu"].get("configured") and not (probe.get("fully_ready_allowed") or "SSH Gateway Ready" in gpu_state):
         unsafe_claims.append("GPU is configured/ready in live summary without Web Terminal proof or SSH gateway readiness.")
-    for key in ["deepseek", "code_agent", "kaggle"]:
+    for key in ["openai", "deepseek", "code_agent", "kaggle"]:
         state = str(connectors[key].get("state", ""))
         configured = bool(connectors[key].get("configured"))
         if not configured and "Ready" in state:
@@ -197,24 +237,24 @@ def main() -> None:
 
     no_go_conditions = []
     pending_hardening_items = []
-    if not connectors["deepseek"].get("configured"):
-        no_go_conditions.append("DeepSeek runtime key is not configured in the current 8088 process.")
+    if not primary_llm_ready(connectors):
+        no_go_conditions.append("No primary Agent LLM provider is READY (OpenAI-compatible or DeepSeek).")
     if not connectors["code_agent"].get("configured"):
         no_go_conditions.append("Code Agent is not configured through DeepSeek or Anthropic.")
-    if not connectors["kaggle"].get("configured"):
+    if not kaggle_authenticated:
         no_go_conditions.append("Kaggle official API token is not configured.")
-    if not probe.get("fully_ready_allowed") and "SSH Gateway Ready" not in gpu_state:
+    if not strict_gpu_ready and not probe.get("fully_ready_allowed") and "SSH Gateway Ready" not in gpu_state:
         no_go_conditions.append("GPU cannot be marked fully ready until Web Terminal nvidia-smi proves 4 x A800.")
-    if connectors["gpu"].get("current_allocation_blocked") or (
+    if not strict_gpu_ready and (connectors["gpu"].get("current_allocation_blocked") or (
         connectors["gpu"].get("configured") and connectors["gpu"].get("current_gate_ready") is False and "SSH Gateway Ready" not in gpu_state
-    ):
+    )):
         no_go_conditions.append("Current GPU allocation gate is blocked until a fresh SSH/CUDA smoke passes.")
     if "SSH-2.0-SSHPiper" not in banner:
         no_go_conditions.append("HPC login-node SSH banner is not currently verified; external GPU training must stay pending.")
-    if "Permission denied" in str(hpc_manifest.get("current_blocker")):
+    if not strict_gpu_ready and "Permission denied" in str(hpc_manifest.get("current_blocker")):
         no_go_conditions.append("HPC SSH login node still rejects the provided account authentication.")
     normalized_blocker = str(hpc_manifest.get("current_blocker")).lower().replace("public key", "publickey")
-    if probe.get("fully_ready_allowed") and "publickey" in normalized_blocker:
+    if not strict_gpu_ready and probe.get("fully_ready_allowed") and "publickey" in normalized_blocker:
         pending_hardening_items.append("GPU hardware/container access is verified, but the remote environment still requires an already-authorized public key before automated SSH jobs can run.")
 
     decision = "go_fully_ready" if not no_go_conditions and not pending_hardening_items else "go_local_ready_external_pending"
@@ -224,12 +264,25 @@ def main() -> None:
         "dashboard_url": args.dashboard_url,
         "decision": decision,
         "live_connectors": {key: connectors[key] for key in required_connector_keys},
+        "authoritative_external_readiness": {
+            "gpu": {
+                "ready": strict_gpu_ready,
+                "profile": (strict_hpc.get("profile") or {}).get("profile"),
+                "samples_passed": (strict_hpc.get("live_probe") or {}).get("samples_passed"),
+                "bounded_smoke_status": (strict_hpc.get("bounded_smoke") or {}).get("status"),
+            },
+            "kaggle": {
+                "authenticated_real_api": kaggle_authenticated,
+                "human_gate_required_for_submission": kaggle_readiness.get("human_gate_required_for_submission"),
+            },
+        },
         "hpc": {
             "local_bridge": listen,
             "ssh_destination": f"{hpc_manifest.get('ssh_host')}:{hpc_manifest.get('ssh_port')}",
             "banner": banner,
             "banner_error": banner_error,
-            "current_blocker": hpc_manifest.get("current_blocker"),
+            "current_blocker": None if strict_gpu_ready else hpc_manifest.get("current_blocker"),
+            "authoritative_profile": (strict_hpc.get("profile") or {}).get("profile") if strict_gpu_ready else None,
         },
         "hpc_web_terminal_probe": probe,
         "no_go_conditions": no_go_conditions,

@@ -12,6 +12,11 @@ from typing import Any
 
 import paramiko
 
+try:
+    from scripts.hpc_connect import secure_ssh_client
+except ModuleNotFoundError:  # direct script execution
+    from hpc_connect import secure_ssh_client
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -42,8 +47,7 @@ def connect(args: argparse.Namespace) -> paramiko.SSHClient:
     if not password:
         raise RuntimeError(f"{args.password_env} is not configured.")
     sock = socks5_connect(args.proxy_host, args.proxy_port, args.host, args.port) if args.proxy_host else None
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client = secure_ssh_client()
     client.connect(
         args.host,
         port=args.port,
@@ -98,12 +102,12 @@ def remote_file_exists(sftp: paramiko.SFTPClient, path: str) -> bool:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run EXP001 Logistic Regression CV on the verified HPC SSH path.")
-    parser.add_argument("--host", default="100.85.169.63")
+    parser.add_argument("--host", required=True)
     parser.add_argument("--port", type=int, default=1235)
     parser.add_argument("--user", required=True)
     parser.add_argument("--proxy-host", default="127.0.0.1")
     parser.add_argument("--proxy-port", type=int, default=7890)
-    parser.add_argument("--password-env", default="GPU_SSH_PASSWORD")
+    parser.add_argument("--password-env", required=True)
     parser.add_argument("--remote-root", default="/hpc2ssd/JH_DATA/spooler/aimslab/research_agent_workstation")
     parser.add_argument("--timeout-seconds", type=int, default=7200)
     args = parser.parse_args()
