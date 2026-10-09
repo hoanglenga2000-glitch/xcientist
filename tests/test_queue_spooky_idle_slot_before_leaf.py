@@ -5,6 +5,8 @@ from __future__ import annotations
 import inspect
 from pathlib import Path
 
+import pytest
+
 from scripts import queue_spooky_idle_slot_before_leaf as queue
 
 
@@ -50,6 +52,8 @@ def test_classifier_fails_closed_for_existing_target_or_missing_data():
 
 
 def test_live_frozen_plans_produce_an_eligible_or_priority_snapshot():
+    if not queue.DEFAULT_DATA_REPORT.is_file():
+        pytest.skip("Spooky public staging report (workspace/local_gpu/mlebench_official_data) is not present in this checkout")
     spooky = queue.spooky_queue.validate_frozen_plan(queue.DEFAULT_SPOOKY_PLAN)
     siim = queue.siim_queue.validate_frozen_plan(queue.DEFAULT_SIIM_PLAN)
     snapshot = queue.opportunity_snapshot(

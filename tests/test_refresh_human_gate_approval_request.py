@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import pytest
+
 from scripts import refresh_human_gate_approval_request as refresh
 
 
 def test_live_approval_index_contains_verified_unapproved_candidates_only():
+    # Live candidates are re-verified against gitignored workspace/ state.
+    if not refresh.stage.ALLOWED_OUTPUT_ROOT.is_dir():
+        pytest.skip("Live staged Human Gate fixtures are not present")
+    if not refresh.stage.DEFAULT_PUBLIC_DATA_ROOT.is_dir():
+        pytest.skip("Local MLE-bench public data (workspace/local_gpu/mlebench_official_data) is not present in this checkout")
     request = refresh.build_request()
     run_ids = {item["run_id"] for item in request["candidates"]}
     assert "hg_jigsaw_multiseed_v3_20260727" in run_ids

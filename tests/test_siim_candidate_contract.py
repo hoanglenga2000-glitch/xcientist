@@ -91,6 +91,13 @@ def test_new_approved_operation_has_distinct_receipt_and_idempotency_key(tmp_pat
 def test_suite_keeps_legacy_index_and_requires_controller_outcome():
     root=Path(__file__).resolve().parents[1]
     source=(root/'scripts/siim_calibration_suite.py').read_text(encoding='utf-8')
-    assert 'if not controller_completed' in source
+    # Admission rests on hash-bound verified tool records (admitted_metrics), while the
+    # controller outcome is still recorded and drives the deferral reason
+    # (scripts/siim_calibration_suite.py admission comment: "widens evidence, not claims").
+    assert 'controller_ok=controller_completed(' in source
+    assert "'controller_not_completed' if not controller_ok" in source
+    assert "'controller_completed':controller_ok" in source
+    assert 'admitted_metrics(metrics,workspace)' in source
+    assert "'admission_basis':'verified_candidate_evidence'" in source
     assert "save('case-results.json'" not in source
     assert "save('case-results-admitted-v2.json'" in source

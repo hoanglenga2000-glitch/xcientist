@@ -80,7 +80,7 @@ export function ExecutionBudgetPanel({ locale }: { locale: "zh-CN" | "en-US" }) 
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[[t(locale, "Total remaining (h)", "总剩余额度（小时）"), data.budget.gpu_remaining_seconds], [t(locale, "Engineering remaining (h)", "工程剩余额度（小时）"), data.budget.engineering_remaining_seconds], [t(locale, "Charged (h)", "累计消耗（小时）"), data.budget.charged_wall_seconds], [t(locale, "Reserved (h)", "当前预留（小时）"), data.budget.pending_reserved_seconds]].map(([label, value]) => <div key={String(label)} className="rounded border border-edge p-3"><div className="text-ink-muted">{label}</div><div className="mt-1 text-lg font-semibold tabular-nums">{hours(Number(value))}</div></div>)}
         </div>
-        {data.budget.reconciliation_required && <p role="alert" className="text-amber-600">{t(locale, "Reconciliation required. Raising the budget cannot clear this execution block.", "存在待对账操作；提高额度也不会清除此执行阻断。")}</p>}
+        {data.budget.reconciliation_required && <p role="alert" className="text-warning-text">{t(locale, "Reconciliation required. Raising the budget cannot clear this execution block.", "存在待对账操作；提高额度也不会清除此执行阻断。")}</p>}
         <fieldset disabled={busy || !data.can_manage} className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="space-y-1"><span>{t(locale, "Total limit (hours)", "总额度上限（小时）")}</span><input aria-label={t(locale, "Total limit (hours)", "总额度上限（小时）")} type="number" min="0" max="8760" step="0.0001" value={gpu} onChange={(e) => { setGpu(e.target.value); setConfirmed(false); }} className="w-full rounded border border-edge bg-surface px-3 py-2" /></label>

@@ -200,8 +200,15 @@ def test_progress_tool_schema_accepts_only_fixed_competition_enum() -> None:
     assert set(properties) == {"competition"}
     assert properties["competition"]["enum"] == [
         "cure_bench", "e2lmc", "mindgames", "ariel_2025", "weather4cast", "open_polymer",
+        # Local MLE-bench prepared source, intentionally exposed through the same
+        # read-only tools (src/evomind_runtime/competition_data.py LOCAL_PREPARED_SOURCES).
+        "histopathologic_cancer",
     ]
-    serialized = json.dumps(spec.input_schema, sort_keys=True).casefold()
+    # The enum values are pinned exactly above; scan the remaining schema for forbidden
+    # parameter names (enum value "histopathologic_cancer" contains the substring "path").
+    schema_without_enum_values = json.loads(json.dumps(spec.input_schema))
+    schema_without_enum_values["properties"]["competition"].pop("enum")
+    serialized = json.dumps(schema_without_enum_values, sort_keys=True).casefold()
     for forbidden in ("job_id", "credential_profile", "path", "command", "password", "token", "secret"):
         assert forbidden not in serialized
 

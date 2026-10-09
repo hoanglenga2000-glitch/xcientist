@@ -34,6 +34,18 @@ from evomind_runtime.tools import (
 )
 
 
+def _bash_with_python3() -> str:
+    """The adapter harnesses run under bash and call python3 (Linux host contract)."""
+    bash = shutil.which("bash")
+    if not bash:
+        pytest.skip("bash unavailable on this Windows test host")
+    probe = subprocess.run([bash, "-c", "command -v python3"], capture_output=True, check=False)
+    if probe.returncode != 0:
+        # e.g. Git-for-Windows bash (first on PATH inside git hooks) ships without python3.
+        pytest.skip("python3 unavailable inside the selected bash on this test host")
+    return bash
+
+
 def test_six_competition_catalog_has_fixed_hpc_roots_and_stable_identity() -> None:
     assert list(COMPETITION_CATALOG) == [
         "cure_bench",
@@ -954,9 +966,7 @@ def test_weather_accelerate_has_recursive_resume_worker_contract() -> None:
 
 
 def test_weather_status_prefers_a_current_valid_manifest_over_stale_failure_state() -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash unavailable on this Windows test host")
+    bash = _bash_with_python3()
 
     status_script = build_adapter_script("weather4cast", "status")
     harness = r'''\
@@ -1056,9 +1066,7 @@ PY
 def test_weather_status_rejects_false_full_when_evidence_binding_differs(
     evidence_tamper: str,
 ) -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash unavailable on this Windows test host")
+    bash = _bash_with_python3()
 
     status_script = build_adapter_script("weather4cast", "status")
     harness = r'''\
@@ -1151,9 +1159,7 @@ PY
 
 
 def test_weather_status_never_falls_back_when_current_attempt_selector_is_invalid() -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash unavailable on this Windows test host")
+    bash = _bash_with_python3()
 
     status_script = build_adapter_script("weather4cast", "status")
     harness = r'''\
@@ -1177,9 +1183,7 @@ PY
 
 
 def test_weather_running_receipt_does_not_inherit_a_previous_attempt_manifest() -> None:
-    bash = shutil.which("bash")
-    if not bash:
-        pytest.skip("bash unavailable on this Windows test host")
+    bash = _bash_with_python3()
 
     status_script = build_adapter_script("weather4cast", "status")
     harness = r'''\

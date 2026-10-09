@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import pytest
 import subprocess
 import sys
 import zipfile
@@ -21,11 +22,23 @@ CANDIDATE_TREE = "a9595ab4ed9a86786ca65f4456893d64741b449ec84cf8c9ddb42e9bf4110d
 PACKAGED_TOOLS = "8176c799277f7c56f67232dbfc3f4fda9c5fad88e1aa280087d94393433e97fd"
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_candidate_is_single_tools_overlay_on_r120() -> None:
+    _require_deploy_artifacts()
     assert sha(BASELINE) == BASELINE_SHA
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     build = json.loads(BUILD.read_text(encoding="utf-8"))
@@ -55,6 +68,7 @@ def test_candidate_is_single_tools_overlay_on_r120() -> None:
 
 
 def test_builder_dry_run_binds_r120_and_output_contract(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     completed = subprocess.run(
         [
             sys.executable,
@@ -111,6 +125,7 @@ def test_release_scripts_py_compile() -> None:
 
 
 def test_validation_only_approval_and_deployer_are_non_authorizing(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     approval = APPROVAL_ARTIFACT / "evomind-runtime-r121-hpc-asset-probe-deployment-approval.json"
     assert approval.is_file()
     payload = json.loads(approval.read_text(encoding="utf-8"))

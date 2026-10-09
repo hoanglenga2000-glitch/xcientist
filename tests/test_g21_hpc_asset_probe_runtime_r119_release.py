@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import pytest
 import shutil
 import subprocess
 import sys
@@ -16,11 +17,23 @@ RUNNER = ROOT / "scripts/Deploy-G21HpcAssetProbeRuntimeR119Remote.ps1"
 BOARD_SHA = "6b908173083889ac21f8afea52528b4b5e35d2ff862a880a6065d65b169f443c"
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace", check=False, timeout=180)
 
 
 def test_candidate_is_exact_one_file_overlay_with_independent_receipt() -> None:
+    _require_deploy_artifacts()
     build = json.loads((ARTIFACT / f"{PREFIX}-build-result.json").read_text(encoding="utf-8"))
     receipt = json.loads((ARTIFACT / f"{PREFIX}-independent-receipt.json").read_text(encoding="utf-8"))
     assert build["status"] == "built_and_verified"
@@ -40,6 +53,7 @@ def test_candidate_is_exact_one_file_overlay_with_independent_receipt() -> None:
 
 
 def test_builder_dry_run_reconstructs_from_r118_without_dirty_tools_copy(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     result = _run(
         sys.executable,
         "scripts/build_g21_hpc_asset_probe_runtime_r119.py",
@@ -111,6 +125,7 @@ def test_ps7_and_ps5_parse_wrapper_and_remote() -> None:
 
 
 def test_fresh_validation_only_approval_passes_ps7_and_ps5_without_production(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     output = tmp_path / "approval"
     result = _run(
         sys.executable,

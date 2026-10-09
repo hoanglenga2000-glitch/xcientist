@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+import pytest
 import subprocess
 import sys
 import zipfile
@@ -21,11 +22,23 @@ SOURCE_SHA = "519820314f63d2e5ae6ba354e044ea7df55c544a6c0ab85de43102279af0af4d"
 CANDIDATE_HTTP_SHA = "6d2d17f1257736683c4bc590f346c183c9feb25e06cce7a77d63d35843e23a9d"
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_r120_candidate_is_exact_http_server_overlay_on_r119() -> None:
+    _require_deploy_artifacts()
     assert sha(BASELINE) == BASELINE_SHA
     manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
     build = json.loads(BUILD.read_text(encoding="utf-8"))
@@ -54,6 +67,7 @@ def test_r120_candidate_is_exact_http_server_overlay_on_r119() -> None:
 
 
 def test_builder_dry_run_is_bound_to_r119_and_exact_ast_scope(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     completed = subprocess.run(
         [
             sys.executable,

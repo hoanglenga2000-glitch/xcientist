@@ -21,7 +21,19 @@ BASELINE_ZIP = Path(
 )
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def test_r123_overlay_changes_only_three_allowlisted_files() -> None:
+    _require_deploy_artifacts()
     assert BASELINE_ZIP.is_file()
     baseline, _ = builder.inspect_baseline(BASELINE_ZIP)
     overlays = builder.build_overlays(ROOT / "src", baseline)
@@ -45,6 +57,7 @@ def test_r123_overlay_changes_only_three_allowlisted_files() -> None:
 
 
 def test_r123_builder_rejects_unbound_source_bytes(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     assert BASELINE_ZIP.is_file()
     baseline, _ = builder.inspect_baseline(BASELINE_ZIP)
     source_root = tmp_path / "src"

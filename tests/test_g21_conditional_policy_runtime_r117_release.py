@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import pytest
 import shutil
 import subprocess
 import sys
@@ -20,6 +21,17 @@ WRAPPER = ROOT / "scripts/Deploy-G21ConditionalPolicyRuntimeR117.ps1"
 RUNNER = ROOT / "scripts/Deploy-G21ConditionalPolicyRuntimeR117Remote.ps1"
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def _run(*args: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         args,
@@ -34,6 +46,7 @@ def _run(*args: str) -> subprocess.CompletedProcess[str]:
 
 
 def test_formal_candidate_and_independent_receipt_are_closed() -> None:
+    _require_deploy_artifacts()
     build = json.loads((ARTIFACT / f"{PREFIX}-build-result.json").read_text(encoding="utf-8"))
     receipt = json.loads(
         (ARTIFACT / f"{PREFIX}-independent-receipt.json").read_text(encoding="utf-8")
@@ -56,6 +69,7 @@ def test_formal_candidate_and_independent_receipt_are_closed() -> None:
 
 
 def test_builder_dry_run_rejects_worktree_drift_and_closes_exact_scope(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     result = _run(
         sys.executable,
         "scripts/build_g21_conditional_policy_runtime_r117.py",
@@ -117,6 +131,7 @@ def test_powershell_7_and_5_parse_deployers() -> None:
 
 
 def test_fresh_local_approval_validates_on_ps7_and_ps5_without_production(tmp_path: Path) -> None:
+    _require_deploy_artifacts()
     output = tmp_path / "approval"
     result = _run(
         sys.executable,

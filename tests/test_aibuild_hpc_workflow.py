@@ -44,6 +44,26 @@ def _data_hash(data_dir: Path) -> str:
     return hashlib.sha256("".join(_sha256(path) for path in paths).encode("ascii")).hexdigest()
 
 
+def _synthetic_titanic_data(data_dir: Path) -> Path:
+    """Titanic-shaped synthetic inputs; the real Kaggle data under /tasks/ is gitignored."""
+    data_dir.mkdir(parents=True)
+    train_ids = range(1, 41)
+    test_ids = range(41, 61)
+    pd.DataFrame({
+        "PassengerId": list(train_ids),
+        "Survived": [index % 2 for index in train_ids],
+        "Pclass": [1 + index % 3 for index in train_ids],
+        "Sex": ["male" if index % 3 else "female" for index in train_ids],
+    }).to_csv(data_dir / "train.csv", index=False)
+    pd.DataFrame({
+        "PassengerId": list(test_ids),
+        "Pclass": [1 + index % 3 for index in test_ids],
+        "Sex": ["male" if index % 3 else "female" for index in test_ids],
+    }).to_csv(data_dir / "test.csv", index=False)
+    pd.DataFrame({"PassengerId": list(test_ids), "Survived": 0}).to_csv(data_dir / "sample_submission.csv", index=False)
+    return data_dir
+
+
 def _write_json(path: Path, payload: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -619,7 +639,7 @@ def test_manifest_hashes_only_immutable_research_artifacts(tmp_path):
 
 
 def test_reviewer_accepts_only_fully_bound_raw_evidence(tmp_path):
-    data_dir = Path(__file__).resolve().parents[1] / "tasks" / "titanic" / "data"
+    data_dir = _synthetic_titanic_data(tmp_path / "data")
     run_id = "run-review-test"
     _, combined_hash = _write_valid_candidate(tmp_path, data_dir, run_id=run_id)
 
@@ -641,7 +661,7 @@ def test_reviewer_accepts_only_fully_bound_raw_evidence(tmp_path):
 
 @pytest.mark.parametrize("injection", ["forged_score", "old_run", "missing_oof", "source_mismatch"])
 def test_reviewer_rejects_forged_or_stale_evidence(tmp_path, injection):
-    data_dir = Path(__file__).resolve().parents[1] / "tasks" / "titanic" / "data"
+    data_dir = _synthetic_titanic_data(tmp_path / "data")
     run_id = "run-review-test"
     _, combined_hash = _write_valid_candidate(tmp_path, data_dir, run_id=run_id)
     solution_dir = tmp_path / "solutions" / "solution_01"

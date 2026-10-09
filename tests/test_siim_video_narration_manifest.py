@@ -13,6 +13,8 @@ SCRIPTS_DIR = (
     / "siim-isic-melanoma-commercial-v1"
     / "scripts"
 )
+if not (SCRIPTS_DIR / "build_narration_manifest.py").is_file() or not (SCRIPTS_DIR / "verify_pre_recording_gate.py").is_file():
+    pytest.skip("video-production/ scripts are not present in this checkout (video-production/ is gitignored)", allow_module_level=True)
 sys.path.insert(0, str(SCRIPTS_DIR))
 import build_narration_manifest as narration  # noqa: E402
 import verify_pre_recording_gate as gate  # noqa: E402

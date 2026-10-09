@@ -143,6 +143,8 @@ def test_staged_live_candidates_match_regrade_source_contract():
     }
     if not all((root / run_id).is_dir() for run_id in candidates):
         pytest.skip("Live staged Human Gate fixtures are not present")
+    if not stage.DEFAULT_PUBLIC_DATA_ROOT.is_dir():
+        pytest.skip("Local MLE-bench public data (workspace/local_gpu/mlebench_official_data) is not present in this checkout")
 
     for run_id, competition_id in candidates.items():
         run_root = root / run_id

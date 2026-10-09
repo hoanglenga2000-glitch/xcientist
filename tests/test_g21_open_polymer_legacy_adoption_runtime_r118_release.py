@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 import hashlib
 from pathlib import Path
+import pytest
 import subprocess
 import sys
 
@@ -19,11 +20,23 @@ FINAL = Path(
 )
 
 
+DEPLOY_ARTIFACTS_ROOT = Path(r"D:\AI-Outputs\EvoMind-Cloud-Deploy\artifacts")
+
+
+def _require_deploy_artifacts() -> None:
+    # Frozen release artifacts live in the out-of-repo deploy archive. Skip only when the
+    # whole archive is absent on this machine; a missing file inside an existing archive
+    # still fails the release-binding assertions below.
+    if not DEPLOY_ARTIFACTS_ROOT.is_dir():
+        pytest.skip("EvoMind-Cloud-Deploy release artifacts archive is not present on this machine")
+
+
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def test_builder_is_frozen_to_final_two_file_allowlist_and_dry_run() -> None:
+    _require_deploy_artifacts()
     source = BUILDER.read_text(encoding="utf-8")
     ast.parse(source)
     assert "5d7a9d1977434796d490c380f1c1447d5a2e7359bd0cf9e0c124085df7d84977" in source
@@ -50,6 +63,7 @@ def test_builder_is_frozen_to_final_two_file_allowlist_and_dry_run() -> None:
 
 
 def test_final_candidate_and_receipt_are_hash_bound() -> None:
+    _require_deploy_artifacts()
     assert _sha(FINAL / "evomind-runtime-r118-g21-open-polymer-legacy-adoption-r117-base.zip") == (
         "6e0c5c67a9cb69c68f5f2f88777e41a0db86c4340cfb2b0d04b981e84259908c"
     )

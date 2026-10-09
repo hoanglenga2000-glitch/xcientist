@@ -31,6 +31,17 @@ def load_module():
     return module
 
 
+def _validated_frozen_plan(module):
+    # The frozen plan pins gitignored local evidence (workspace/local_gpu/...) that only
+    # exists on the machine that produced job89941. Skip when those local-required
+    # sources/inputs are absent; otherwise validate the plan with every check intact.
+    payload = json.loads(PLAN.read_text(encoding="utf-8-sig"))
+    records = [*(payload.get("sources") or []), *(payload.get("inputs") or [])]
+    if any(not Path(str(record.get("local_path"))).is_file() for record in records):
+        pytest.skip("job89941 frozen Leaf local evidence (workspace/local_gpu) is not present in this checkout")
+    return module.validate_plan(PLAN)
+
+
 def decode_python(command: str) -> str:
     marker = "base64.b64decode('"
     encoded = command.split(marker, 1)[1].split("')", 1)[0]
@@ -39,7 +50,7 @@ def decode_python(command: str) -> str:
 
 def test_current_frozen_plan_is_complete_and_hash_verified() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
 
     assert plan.payload["job_id"] == 89941
     assert plan.payload["resource_mode"] == "cpu_only"
@@ -98,7 +109,7 @@ def test_plan_rejects_source_hash_drift(tmp_path: Path) -> None:
 
 def test_argv_environment_and_stage_paths_are_cpu_only_and_confined() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     environment = module.runtime_environment(plan)
     runner_argv = module.runner_argv(plan)
     verifier_argv = module.verifier_argv(plan)
@@ -117,7 +128,7 @@ def test_argv_environment_and_stage_paths_are_cpu_only_and_confined() -> None:
 
 def test_readonly_preflight_hashes_public_files_without_writes() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     source = decode_python(module.render_readonly_preflight(plan))
 
     for record in plan.payload["public_files"]:
@@ -130,7 +141,7 @@ def test_readonly_preflight_hashes_public_files_without_writes() -> None:
 
 def test_staged_smoke_loads_override_manifest_and_both_caches() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     source = decode_python(module.render_staged_smoke(plan))
 
     assert "validate_reference_manifest" in source
@@ -141,7 +152,7 @@ def test_staged_smoke_loads_override_manifest_and_both_caches() -> None:
 
 def test_launch_is_exclusive_detached_and_contains_no_signal_api() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     source = decode_python(module.render_launch(plan))
     lowered = source.lower()
 
@@ -165,7 +176,7 @@ def test_resumable_prefix_hash_matches_exact_local_prefix(tmp_path: Path) -> Non
 
 def test_all_remote_python_payloads_compile() -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     commands = (
         module.render_readonly_preflight(plan),
         module.render_staged_smoke(plan),
@@ -270,7 +281,7 @@ def test_collection_reuses_existing_exact_file_without_connecting(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     payload = b"verified immutable artifact"
     destination = tmp_path / "collected"
     destination.mkdir()
@@ -299,7 +310,7 @@ def test_collection_rejects_existing_drifted_file(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     payload = b"expected artifact"
     destination = tmp_path / "collected"
     destination.mkdir()
@@ -322,7 +333,7 @@ def test_collection_resumes_existing_partial_from_exact_offset(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     payload = b"abcdefghij"
     destination = tmp_path / "collected"
     destination.mkdir()
@@ -352,7 +363,7 @@ def test_collection_reconnects_after_transport_drop_and_resumes(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     payload = b"0123456789"
     destination = tmp_path / "collected"
     seek_offsets: list[int] = []
@@ -392,7 +403,7 @@ def test_collection_rejects_oversized_partial_before_connect(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     payload = b"abc"
     destination = tmp_path / "collected"
     destination.mkdir()
@@ -415,7 +426,7 @@ def test_collection_rejects_final_sha_mismatch_without_atomic_promotion(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     module = load_module()
-    plan = module.validate_plan(PLAN)
+    plan = _validated_frozen_plan(module)
     expected = b"expected"
     remote_payload = b"tampered"
     assert len(expected) == len(remote_payload)

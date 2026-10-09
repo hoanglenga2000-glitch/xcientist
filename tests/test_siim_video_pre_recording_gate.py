@@ -13,6 +13,8 @@ SCRIPT = (
     / "scripts"
     / "verify_pre_recording_gate.py"
 )
+if not SCRIPT.is_file():
+    pytest.skip("video-production/ scripts are not present in this checkout (video-production/ is gitignored)", allow_module_level=True)
 SPEC = importlib.util.spec_from_file_location("verify_pre_recording_gate", SCRIPT)
 assert SPEC and SPEC.loader
 gate = importlib.util.module_from_spec(SPEC)

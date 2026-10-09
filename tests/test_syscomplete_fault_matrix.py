@@ -157,7 +157,15 @@ def test_gpt55_loopback_fault_retry_dispatches_only_valid_terminal_once(tmp_path
         client = _client(monkeypatch, endpoint, protocol, events, delays)
         turn = client.send([{"role": "user", "content": "Write proof once."}], system="Synthetic fixture only", tools=[WRITE])
     assert [item["status"] for item in events] == ["failed", "completed"]
-    assert events[0]["error_code"] == code and events[0]["token_usage_known"] is False
+    assert events[0]["error_code"] == code
+    # HTTP-200 faults still carry provider usage (fixture _reply); failed attempts report it
+    # as known, consistent with test_model_transport_reliability.py truncated-response case.
+    usage_reported = fault in {"empty", "invalid_arguments"}
+    assert events[0]["token_usage_known"] is usage_reported
+    if usage_reported:
+        assert events[0]["input_tokens"] == 7 and events[0]["output_tokens"] == 9
+    else:
+        assert events[0]["input_tokens"] is None and events[0]["output_tokens"] is None
     assert events[1]["input_tokens"] == 7 and events[1]["output_tokens"] == 9
     assert client.last_attempt_count == len(seen) == 2
     assert {item["model"] for item in seen} == {MODEL}

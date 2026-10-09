@@ -129,7 +129,7 @@ def test_descriptor_digest_cannot_select_other_paths(tmp_path):
 
 
 def test_generic_execution_cannot_inject_private_values(tmp_path):
-    result = tools._hpc_execute_solution({}, SimpleNamespace(approval_verified=False), secret_files={downloads.CDN_SECRET_ENV: b"fixture"})
+    result = tools._hpc_execute_solution({}, SimpleNamespace(approval_verified=False, metadata={}), secret_files={downloads.CDN_SECRET_ENV: b"fixture"})
     assert not result.ok and result.error == "managed_secret_approval_required"
 
 

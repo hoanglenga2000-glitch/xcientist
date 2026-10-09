@@ -17,6 +17,8 @@ def test_live_human_gate_readiness_audit_is_candidate_only() -> None:
     request = audit.DEFAULT_REQUEST
     if not request.is_file():
         pytest.skip("Live Human Gate approval request is not present")
+    if not audit.stage.DEFAULT_PUBLIC_DATA_ROOT.is_dir():
+        pytest.skip("Local MLE-bench public data (workspace/local_gpu/mlebench_official_data) is not present in this checkout")
 
     payload = audit.build_audit(approval_request_path=request)
 
@@ -36,6 +38,8 @@ def test_cli_writes_machine_readable_readiness_audit(tmp_path: Path) -> None:
     request = audit.DEFAULT_REQUEST
     if not request.is_file():
         pytest.skip("Live Human Gate approval request is not present")
+    if not audit.stage.DEFAULT_PUBLIC_DATA_ROOT.is_dir():
+        pytest.skip("Local MLE-bench public data (workspace/local_gpu/mlebench_official_data) is not present in this checkout")
     output = tmp_path / "audit.json"
 
     completed = subprocess.run(

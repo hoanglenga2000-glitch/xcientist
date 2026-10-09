@@ -208,8 +208,22 @@ def test_candidate_smoke_uses_extracted_runtime_and_real_goal_http_api(tmp_path:
     candidate = tmp_path / "candidate"
     shutil.copytree(Path("src/evomind_runtime"), candidate / "evomind_runtime")
     bootstrap_path = tmp_path / "bootstrap.json"
+    # This builder is pinned to the v1 Goal spec (EXPECTED_GOAL_SPEC_FILE_SHA256). The live
+    # configs/g21_five_competition_goal.json was intentionally advanced by the R117 builder
+    # (OLD_SPEC_FILE_SHA256 -> NEW_SPEC_FILE_SHA256); v1 is preserved byte-for-byte as
+    # configs/g21_five_competition_goal_v1_frozen.json, so stage it as the builder input.
+    source_root = tmp_path / "source"
+    (source_root / "configs").mkdir(parents=True)
+    shutil.copyfile(
+        Path("configs/g21_five_competition_goal_v1_frozen.json"),
+        source_root / "configs" / "g21_five_competition_goal.json",
+    )
+    shutil.copyfile(
+        Path("configs/g21_five_competition_human_baseline_gate.json"),
+        source_root / "configs" / "g21_five_competition_human_baseline_gate.json",
+    )
     bootstrap = load_bootstrap_artifact(
-        Path(".").resolve(),
+        source_root,
         Path("configs/g21_five_competition_goal_board_bootstrap.json").resolve(),
     )
     write_json(bootstrap_path, bootstrap)

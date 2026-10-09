@@ -4,6 +4,8 @@ import importlib.util
 import json
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "deploy_hpc88240_siim_continuation.py"
 
@@ -14,6 +16,12 @@ def load_module():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+def _require_local_inventory(module) -> None:
+    # Plans bind the gitignored local SIIM public staging inventory (workspace/local_gpu/...).
+    if not module.LOCAL_INVENTORY.is_file():
+        pytest.skip("SIIM local public_staging_inventory.json (workspace/local_gpu) is not present in this checkout")
 
 
 def fake_inventory() -> dict:
@@ -28,6 +36,7 @@ def fake_inventory() -> dict:
 
 def test_hpc_plans_preserve_siim_model_contract(tmp_path, monkeypatch) -> None:
     module = load_module()
+    _require_local_inventory(module)
     monkeypatch.setattr(module, "LOCAL_ABLATION_PLAN", tmp_path / "ablation-plan.json")
     sources = module.source_records()
     ablation_base = json.loads(module.LOCAL_ABLATION_BASE.read_text(encoding="utf-8-sig"))
@@ -52,6 +61,7 @@ def test_hpc_plans_preserve_siim_model_contract(tmp_path, monkeypatch) -> None:
 
 def test_wrapper_is_serial_non_preemptive_and_human_gated() -> None:
     module = load_module()
+    _require_local_inventory(module)
     sources = module.source_records()
     wrapper = module.render_wrapper(
         ablation_plan_sha256="a" * 64,
