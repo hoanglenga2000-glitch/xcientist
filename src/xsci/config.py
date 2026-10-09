@@ -357,7 +357,12 @@ _PLAIN_ENV = {
 }
 
 
-def inject_engine_env(cfg: "Config", *, override: bool = False) -> list[str]:
+def inject_engine_env(
+    cfg: "Config",
+    *,
+    override: bool = False,
+    include_gpu: bool = True,
+) -> list[str]:
     """Export resolved secrets/provider choice into os.environ so the engine
     (research_os.llm_client, kaggle) can read them. Returns the list of env var
     NAMES set (never values, so this is safe to log). Existing env vars are kept
@@ -365,11 +370,15 @@ def inject_engine_env(cfg: "Config", *, override: bool = False) -> list[str]:
     """
     injected: list[str] = []
     for skey, env_name in _SECRET_ENV.items():
+        if not include_gpu and env_name.startswith("GPU_"):
+            continue
         val = cfg.get(f"secrets.{skey}")
         if val and (override or not os.environ.get(env_name)):
             os.environ[env_name] = str(val)
             injected.append(env_name)
     for dotted, env_name in _PLAIN_ENV.items():
+        if not include_gpu and env_name.startswith("GPU_"):
+            continue
         val = cfg.get(dotted)
         if val not in (None, "") and (override or not os.environ.get(env_name)):
             os.environ[env_name] = str(val)

@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from research_os.hpc_policy import validate_remote_workspace
+
 
 @dataclass(slots=True)
 class RetryPolicy:
@@ -88,6 +90,7 @@ class JobManifest:
     status: str = "draft"
     attempt: int = 0
     job_id: str | None = None
+    dispatch_receipt: dict[str, Any] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -112,6 +115,7 @@ class JobManifestBuilder:
         resource_request: dict[str, Any] | None = None,
         max_retries: int = 2,
     ) -> JobManifest:
+        remote_workspace = validate_remote_workspace(remote_workspace)
         if not log_path:
             log_path = f"workspace/gpu/{task_id}/{run_id}/remote_stdout.log"
         if not artifact_pullback:
@@ -139,11 +143,22 @@ class JobManifestBuilder:
             timeout=timeout,
             retry_policy=RetryPolicy(max_retries=max_retries),
             submission_gate=SubmissionGate(gate_id=gate_id),
+            status="manifest_prepared",
             metadata={
                 "schema": "academic_research_os.job_manifest.v1",
                 "builder": "JobManifestBuilder",
             },
         )
+
+    @staticmethod
+    def mark_queued(manifest: JobManifest, *, remote_job_id: str, dispatch_receipt: dict[str, Any]) -> None:
+        if str(dispatch_receipt.get("job_id") or "") != str(remote_job_id):
+            raise ValueError("dispatch_receipt job id does not match remote job id")
+        if dispatch_receipt.get("status") != "accepted":
+            raise ValueError("dispatch_receipt status must be accepted")
+        manifest.job_id = str(remote_job_id)
+        manifest.dispatch_receipt = dict(dispatch_receipt)
+        manifest.status = "queued"
 
     def write(self, manifest: JobManifest, output_dir: Path) -> Path:
         data = {
@@ -174,6 +189,7 @@ class JobManifestBuilder:
             "status": manifest.status,
             "attempt": manifest.attempt,
             "job_id": manifest.job_id,
+            "dispatch_receipt": manifest.dispatch_receipt,
             "metadata": manifest.metadata,
         }
         path = output_dir / "job_manifest.json"

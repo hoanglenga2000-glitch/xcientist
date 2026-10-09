@@ -4,39 +4,31 @@ Implements the same ``Runner`` protocol as ``LocalSubprocessRunner`` so the
 evolution loop is identical whether it runs locally or on the GPU. This is how
 the two historical tracks (mock local loop vs. real GPU training) become one.
 
-Policy: every remote file lives under ``$GPU_REMOTE_WORKSPACE`` (default
-``~/jinghw/scripts/gpu_tra``), honoring the standing GPU file rule. Credentials
+Policy: every remote file lives under the explicitly configured
+``$EVOMIND_HPC_REMOTE_WORKSPACE``. Credentials
 come from ``gpu_credentials`` (env / ``*_FILE``); nothing is hardcoded or logged.
 """
 from __future__ import annotations
 
 import json
 import os
-import posixpath
 import shlex
 from dataclasses import dataclass
 from typing import Optional
 
 from .evolution_loop import RunResult
-
-ALLOWED_REMOTE_ROOT = "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra"
+from .hpc_policy import (
+    HPCPolicyError,
+    join_remote_workspace,
+    require_remote_workspace,
+    validate_remote_relative_path,
+    validate_remote_workspace,
+)
 
 
 def _remote_root() -> str:
-    root = os.environ.get("GPU_REMOTE_WORKSPACE", ALLOWED_REMOTE_ROOT).rstrip("/")
-    if root != ALLOWED_REMOTE_ROOT:
-        raise ValueError("GPU_REMOTE_WORKSPACE must equal the dedicated EvoMind HPC root")
-    return root
-
-
-def _validated_remote_path(path: str, *, root: str) -> str:
-    if "~" in path:
-        raise ValueError("remote paths must be absolute and cannot use shell expansion")
-    normalized = posixpath.normpath(path)
-    root = posixpath.normpath(root)
-    if normalized != root and not normalized.startswith(root + "/"):
-        raise ValueError("remote path escapes the dedicated EvoMind HPC root")
-    return normalized
+    legacy = os.environ.get("GPU_REMOTE_WORKSPACE", "").strip()
+    return validate_remote_workspace(legacy) if legacy else require_remote_workspace()
 
 
 @dataclass
@@ -45,15 +37,48 @@ class GPURunnerConfig:
     evolution_subdir: str = "evolution"
     remote_python: str = "python3"
     timeout: int = 3600
-    data_root: str = ""  # remote dir that holds per-task data subdirs
+    data_root: str = "mlebench_raw_data"  # workspace-relative parent for per-task data
 
     def __post_init__(self) -> None:
         if not self.remote_root:
             self.remote_root = _remote_root()
-        if not self.data_root:
-            self.data_root = posixpath.join(self.remote_root, "mlebench_raw_data")
-        self.remote_root = _validated_remote_path(self.remote_root, root=ALLOWED_REMOTE_ROOT)
-        self.data_root = _validated_remote_path(self.data_root, root=self.remote_root)
+        else:
+            self.remote_root = validate_remote_workspace(self.remote_root)
+        if self.remote_root.startswith("~/"):
+            raise HPCPolicyError(
+                "GPURunner requires an absolute POSIX remote workspace; '~/...' is ambiguous over SFTP"
+            )
+        self.evolution_subdir = validate_remote_relative_path(
+            self.evolution_subdir, field="evolution_subdir"
+        )
+        self.data_root = validate_remote_relative_path(
+            self.data_root, field="data_root"
+        )
+        self.remote_python = _validate_remote_python(self.remote_python)
+        if isinstance(self.timeout, bool):
+            raise HPCPolicyError("timeout must be a positive integer")
+        try:
+            normalized_timeout = int(self.timeout)
+        except (TypeError, ValueError) as exc:
+            raise HPCPolicyError("timeout must be a positive integer") from exc
+        if str(normalized_timeout) != str(self.timeout).strip() or normalized_timeout <= 0:
+            raise HPCPolicyError("timeout must be a positive integer")
+        self.timeout = normalized_timeout
+
+
+def _validate_remote_python(value: str) -> str:
+    executable = str(value or "")
+    if not executable:
+        raise HPCPolicyError("remote_python must not be empty")
+    if executable.startswith("~/"):
+        raise HPCPolicyError("remote_python must not use a '~/' path")
+    relative = executable[1:] if executable.startswith("/") else executable
+    validate_remote_relative_path(relative, field="remote_python")
+    return executable
+
+
+def _shell_arg(value: object) -> str:
+    return shlex.quote(str(value))
 
 
 class GPURunner:
@@ -61,7 +86,9 @@ class GPURunner:
 
     def __init__(self, task_data_dirname: str, *, config: Optional[GPURunnerConfig] = None,
                  connect=None) -> None:
-        self.task_data_dirname = task_data_dirname
+        self.task_data_dirname = validate_remote_relative_path(
+            task_data_dirname, field="task_data_dirname"
+        )
         self.config = config or GPURunnerConfig()
         # connect is injectable for testing; defaults to the secure credential path.
         self._connect = connect
@@ -94,17 +121,24 @@ class GPURunner:
         return code, out, err
 
     def run(self, code: str, *, data_dir: str, out_dir: str, exp_id: str) -> RunResult:
-        # data_dir/out_dir are interpreted as remote-relative names here; the
-        # remote absolute paths are derived under remote_root to honor policy.
+        # data_dir is remote-relative. out_dir belongs to the local Runner
+        # protocol and is deliberately never interpolated into a remote command.
         cfg = self.config
-        remote_exp = posixpath.join(cfg.remote_root, cfg.evolution_subdir, self.task_data_dirname, exp_id)
-        remote_script = posixpath.join(remote_exp, "solution.py")
-        remote_out = posixpath.join(remote_exp, "out")
-        remote_data = data_dir if data_dir.startswith("/") \
-            else posixpath.join(cfg.data_root, self.task_data_dirname)
-        remote_exp = _validated_remote_path(remote_exp, root=cfg.remote_root)
-        remote_out = _validated_remote_path(remote_out, root=cfg.remote_root)
-        remote_data = _validated_remote_path(remote_data, root=cfg.remote_root)
+        safe_exp_id = validate_remote_relative_path(exp_id, field="exp_id")
+        safe_data_dir = validate_remote_relative_path(data_dir, field="data_dir")
+        remote_exp = join_remote_workspace(
+            cfg.remote_root, cfg.evolution_subdir, self.task_data_dirname, safe_exp_id
+        )
+        remote_script = join_remote_workspace(
+            cfg.remote_root, cfg.evolution_subdir, self.task_data_dirname, safe_exp_id, "solution.py"
+        )
+        remote_out = join_remote_workspace(
+            cfg.remote_root, cfg.evolution_subdir, self.task_data_dirname, safe_exp_id, "out"
+        )
+        if "/" in safe_data_dir:
+            remote_data = join_remote_workspace(cfg.remote_root, safe_data_dir)
+        else:
+            remote_data = join_remote_workspace(cfg.remote_root, cfg.data_root, safe_data_dir)
 
         client = self._open()
         try:
@@ -113,9 +147,15 @@ class GPURunner:
             # otherwise survive here. On a kill (timeout/OOM) the current run prints no
             # CV_SCORE, and the fallback below would then read that STALE metrics.json
             # and attribute a phantom score to a failed run -> fabricated result.
-            q_exp = shlex.quote(remote_exp)
-            q_out = shlex.quote(remote_out)
-            self._exec(client, f"mkdir -p {q_exp} && rm -rf {q_out} && mkdir -p {q_out}", timeout=60)
+            self._exec(
+                client,
+                (
+                    f"mkdir -p -- {_shell_arg(remote_exp)} "
+                    f"&& rm -rf -- {_shell_arg(remote_out)} "
+                    f"&& mkdir -p -- {_shell_arg(remote_out)}"
+                ),
+                timeout=60,
+            )
             sftp = client.open_sftp()
             try:
                 with sftp.file(remote_script, "w") as handle:
@@ -123,8 +163,10 @@ class GPURunner:
             finally:
                 sftp.close()
             cmd = (
-                f"cd {q_exp} && timeout {int(cfg.timeout)} {shlex.quote(cfg.remote_python)} -u solution.py "
-                f"--data-dir {shlex.quote(remote_data)} --out-dir {q_out} 2>&1"
+                f"cd -- {_shell_arg(remote_exp)} "
+                f"&& timeout {_shell_arg(cfg.timeout)} {_shell_arg(cfg.remote_python)} -u "
+                f"{_shell_arg(remote_script)} --data-dir {_shell_arg(remote_data)} "
+                f"--out-dir {_shell_arg(remote_out)} 2>&1"
             )
             rc, out, err = self._exec(client, cmd, timeout=cfg.timeout + 60)
             score = _parse_remote_score(out)
@@ -134,14 +176,26 @@ class GPURunner:
             # would fabricate a cv_score for a run that never emitted one. The clean-dir
             # step above already removes stale files; this gate is the belt-and-braces.
             if score is None and rc == 0:
-                rc2, mout, _ = self._exec(client, f"cat {q_out}/metrics.json 2>/dev/null", timeout=60)
+                metrics_path = join_remote_workspace(
+                    cfg.remote_root,
+                    cfg.evolution_subdir,
+                    self.task_data_dirname,
+                    safe_exp_id,
+                    "out",
+                    "metrics.json",
+                )
+                rc2, mout, _ = self._exec(
+                    client, f"cat -- {_shell_arg(metrics_path)} 2>/dev/null", timeout=60
+                )
                 if rc2 == 0 and mout.strip():
                     try:
                         score = float(json.loads(mout).get("cv_score"))
                     except (ValueError, TypeError, json.JSONDecodeError):
                         score = None
-            rc3, listing, _ = self._exec(client, f"ls -1 {q_out} 2>/dev/null", timeout=60)
-            artifacts = [posixpath.join(remote_out, name.strip()) for name in listing.splitlines() if name.strip()]
+            rc3, listing, _ = self._exec(
+                client, f"ls -1 -- {_shell_arg(remote_out)} 2>/dev/null", timeout=60
+            )
+            artifacts = [f"{remote_out}/{name.strip()}" for name in listing.splitlines() if name.strip()]
             success = rc == 0 and score is not None
             # A remote kill (timeout=124, OOM/SIGKILL=137, segfault=139) leaves NO
             # traceback, only the last normal stdout line. Prepend an explicit

@@ -247,10 +247,102 @@ def _artifact_summary(root: Path, run_dir: Path, manifest: dict[str, Any]) -> di
     }
 
 
-def _current_run(root: Path) -> dict[str, Any]:
+def _task_key(value: Any) -> str:
+    return str(value or "").strip().casefold().replace("_", "-")
+
+
+def _historical_run_pointer(root: Path, selected_task: str) -> dict[str, Any]:
+    """Resolve the strongest completed/verified Run bound to ``selected_task``.
+
+    ``current_run.json`` is intentionally global, so it may point at another
+    task. Historical evidence remains usable only when a Run artifact carries
+    an explicit task identity; directory-name or objective-text guesses are not
+    accepted. This keeps the Assistant task-scoped without mixing evidence.
+    """
+
+    task_id = str(selected_task or "").strip()
+    if not _SAFE_ID.fullmatch(task_id):
+        return {}
+    expected = _task_key(task_id)
+    runs_root = root / "workspace" / "evomind_runs"
+    try:
+        candidates = [
+            item
+            for item in runs_root.iterdir()
+            if item.is_dir() and _SAFE_ID.fullmatch(item.name)
+        ]
+    except OSError:
+        return {}
+
+    ranked: list[tuple[int, int, dict[str, Any]]] = []
+    status_rank = {
+        "verified": 5,
+        "completed": 4,
+        "complete": 4,
+        "reporting": 3,
+        "failed": 1,
+    }
+    for run_dir in candidates:
+        manifest = _read_json(run_dir / "artifact_manifest.json")
+        run = _read_json(run_dir / "run.json")
+        request = _read_json(run_dir / "request.json")
+        identities = {
+            _task_key(value)
+            for value in (
+                manifest.get("task_id"),
+                run.get("task_id"),
+                request.get("task_id"),
+            )
+            if str(value or "").strip()
+        }
+        if not identities or identities != {expected}:
+            continue
+        declared_run_ids = {
+            str(value).strip()
+            for value in (manifest.get("run_id"), run.get("run_id"), request.get("run_id"))
+            if str(value or "").strip()
+        }
+        if declared_run_ids and declared_run_ids != {run_dir.name}:
+            continue
+        status = str(run.get("status") or manifest.get("status") or "unknown").strip()
+        try:
+            modified_ns = max(
+                item.stat().st_mtime_ns
+                for item in (run_dir / "run.json", run_dir / "artifact_manifest.json")
+                if item.is_file()
+            )
+        except (OSError, ValueError):
+            modified_ns = 0
+        pointer = {
+            "schema": "evomind.current_run.v1",
+            "task_id": task_id,
+            "run_id": run_dir.name,
+            "run_dir": run_dir.relative_to(root).as_posix(),
+            "status": status,
+        }
+        ranked.append((status_rank.get(status.casefold(), 2), modified_ns, pointer))
+    if not ranked:
+        return {}
+    ranked.sort(key=lambda item: (item[0], item[1]), reverse=True)
+    return ranked[0][2]
+
+
+def _current_run(root: Path, *, selected_task: str = "") -> dict[str, Any]:
     pointer = _read_json(root / "workspace" / "current_run.json")
     if pointer.get("schema") != "evomind.current_run.v1":
         return {"available": False, "status": "none"}
+    selection_source = "current_pointer"
+    selected_key = _task_key(selected_task)
+    if selected_key and _task_key(pointer.get("task_id")) != selected_key:
+        pointer = _historical_run_pointer(root, selected_task)
+        selection_source = "historical_task_evidence"
+        if not pointer:
+            return {
+                "available": False,
+                "status": "none_for_selected_task",
+                "task_id": _redact(selected_task, limit=160),
+                "selection_source": "none",
+            }
     run_dir = _safe_run_dir(root, pointer)
     if run_dir is None:
         return {"available": False, "status": "invalid_pointer"}
@@ -306,6 +398,8 @@ def _current_run(root: Path) -> dict[str, Any]:
 
     return {
         "available": True,
+        "selection_source": selection_source,
+        "is_current_pointer": selection_source == "current_pointer",
         "task_id": _redact(pointer.get("task_id"), limit=160),
         "run_id": _redact(pointer.get("run_id"), limit=180),
         "status": _redact(run.get("status") or pointer.get("status"), limit=60),
@@ -594,9 +688,14 @@ class AssistantContextPacket:
         }
 
 
-def build_assistant_context(root: str | Path, *, live_environment: bool = False) -> AssistantContextPacket:
+def build_assistant_context(
+    root: str | Path,
+    *,
+    live_environment: bool = False,
+    selected_task: str = "",
+) -> AssistantContextPacket:
     workspace = Path(root).resolve()
-    current_run = _current_run(workspace)
+    current_run = _current_run(workspace, selected_task=selected_task)
     return AssistantContextPacket(
         schema="evomind.assistant_context.v1",
         generated_at=datetime.now(timezone.utc).isoformat(),

@@ -272,10 +272,10 @@ def _build_scientific_critique(
         actionability_score -= 15
     actionability_score = max(0, min(100, actionability_score))
 
-    if hard_gaps:
-        decision = "repair_or_observe_before_execution"
-    elif _is_meta_scientist_goal(prompt, payload):
+    if _is_meta_scientist_goal(prompt, payload):
         decision = "self_audit_then_consolidate_memory"
+    elif hard_gaps:
+        decision = "repair_or_observe_before_execution"
     elif actionability_score >= 70 and intent_kind == EXECUTION:
         decision = "ready_for_gated_execution_plan"
     elif actionability_score >= 55:

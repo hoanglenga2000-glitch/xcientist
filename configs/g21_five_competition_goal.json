@@ -1,0 +1,92 @@
+{
+  "schema": "evomind.five_competition_goal.v2",
+  "goal_id": "goal_g21_five_competition",
+  "goal_key": "g21_five_competition",
+  "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+  "allocation": "G21",
+  "previous_goal_spec_file_sha256": "380a3b2c037c8067a4618717cb7aaf8847d323d4be401a88d64009468132848f",
+  "previous_goal_spec_canonical_sha256": "a569bae731723fc7046817df737876d6dc7674eadd9f7b812fe7b4a87e521655",
+  "policy_migration_id": "g21-conditional-strong-baseline-v2",
+  "policy_evidence_path": "configs/g21_conditional_strong_baseline_policy_evidence.json",
+  "policy_evidence_sha256": "f81701f13aeebef146659e091cacfc4e39ae18df345ee6b58be2ad5ef40829f0",
+  "policy_evidence_file_sha256": "47df860192502afcaacd7b1b6bc7fc4d86110c2e665278c8b7b3ea421893b7a7",
+  "human_baseline_evidence_sha256": "5b6ed3d912ad1cd4655c96f832629cf9603a4b0ad58ab6e27c01861fadd69c5f",
+  "competitions": [
+    "cure_bench",
+    "e2lmc",
+    "mindgames",
+    "open_polymer",
+    "ariel_2025"
+  ],
+  "execution": {
+    "mode": "single_gpu_serial",
+    "max_concurrent_solutions": 1,
+    "preflight": [
+      "effective_active=0",
+      "pending=0",
+      "same_solution_has_no_unsettled_call"
+    ],
+    "call_sequence": [
+      "training_route",
+      "hpc_verify",
+      "hpc_execute_solution",
+      "artifact_collect",
+      "independent_verify"
+    ],
+    "hpc_identity_samples": 5,
+    "new_idempotency_key_per_call": true
+  },
+  "persistence": {
+    "mode": "thread_goal",
+    "heartbeat_enabled": false
+  },
+  "metric_gate": {
+    "mode": "organizer_or_public_strong_with_conditional_human",
+    "primary_baseline_required": true,
+    "accepted_primary_baseline_types": [
+      "official_organizer",
+      "publicly_reproducible_strong"
+    ],
+    "primary_baseline_source_required": true,
+    "human_baseline_required_when_verified_available": true,
+    "human_baseline_source_required_when_claimed": true,
+    "point_estimate_must_improve": true,
+    "confidence_interval": "bootstrap_95_percent",
+    "confidence_interval_lower_bound_must_improve": true,
+    "direction_values": [
+      "higher_is_better",
+      "lower_is_better"
+    ]
+  },
+  "artifact_requirements": [
+    "command_sha256",
+    "environment_sha256",
+    "data_manifest_sha256",
+    "source_code_sha256",
+    "model_sha256",
+    "metrics_sha256",
+    "rollback_sha256",
+    "artifact_manifest_sha256"
+  ],
+  "forbidden": [
+    "weather4cast",
+    "competition_data_prepare",
+    "competition_data_accelerate",
+    "kaggle_download",
+    "kaggle_submit",
+    "join_competition",
+    "accept_terms",
+    "test_labels",
+    "online_dependency_install",
+    "online_model_download",
+    "replacement_run",
+    "other_gpu_process_modification"
+  ],
+  "external_gates": {
+    "cure_bench": "existing_managed_frozen_transformer_and_sha_manifest_and_unconsumed_holdout_ledger_and_primary_baseline",
+    "e2lmc": "new_organizer_experiment_or_private_evaluator_and_primary_baseline",
+    "mindgames": "managed_textarena_0.7.4_and_trueskill_and_frozen_model_and_primary_baseline",
+    "open_polymer": "official_wmae_or_publicly_reproducible_strong_baseline_with_protocol_mapping",
+    "ariel_2025": "external_blind_evaluator_or_official_scoring_endpoint_and_primary_baseline"
+  }
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .config import PROJECT_DIRNAME
+from research_os.hpc_policy import require_hpc_compute
 
 # Patterns we guarantee are git-ignored inside a project so a stray key or a
 # fetched dataset never lands in version control.
@@ -53,7 +54,8 @@ def _ensure_gitignore(root: Path) -> str:
     return "gitignore: created with secret/data guards"
 
 
-def run_init(root: Path | None = None, *, compute: str = "local", force: bool = False) -> int:
+def run_init(root: Path | None = None, *, compute: str = "gpu", force: bool = False) -> int:
+    require_hpc_compute(compute)
     root = (root or Path.cwd()).resolve()
     xdir = root / PROJECT_DIRNAME
     cfg_path = xdir / "config.toml"

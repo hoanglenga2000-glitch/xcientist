@@ -1,7 +1,7 @@
 {
   "schema": "evomind.assistant_quality_suite.v1",
   "suite_id": "evomind_novice_research_agent_v1",
-  "version": 2,
+  "version": 3,
   "language": "zh-CN",
   "selected_task": "siim-isic-melanoma-classification",
   "required_provider": "openai",
@@ -9,6 +9,7 @@
   "pass_threshold": 0.85,
   "allowed_tool_names": [
     "verified_context",
+    "experiment_results",
     "model_status",
     "system_status",
     "task_list",
@@ -47,7 +48,7 @@
       "case_id": "siim_results_for_novice",
       "category": "evidence_grounded_explanation",
       "prompt": "我是小白，想让你帮我理解上次 SIIM-ISIC 实验结果。请用大白话告诉我：这次实验做了什么、结果好不好、有哪些证据、有没有官方 Kaggle 成绩、交付物在哪里，以及下一步如果要继续进化模型应该怎么做。",
-      "required_tools": ["verified_context"],
+      "required_tools": ["experiment_results"],
       "minimum_answer_chars": 800,
       "maximum_answer_chars": 8000,
       "checks": [

@@ -46,6 +46,10 @@ class RetryableTransportError(CredentialError):
 ALLOWED_GPU_REMOTE_ROOT = "/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra"
 DEFAULT_CREDENTIAL_PROFILE = "default"
 SAFE_CREDENTIAL_PROFILE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
+LEGACY_JOB_PROFILE = re.compile(r"job([1-9][0-9]*)")
+TENANT_JOB_PROFILE = re.compile(
+    r"(tenant_[a-f0-9]{24})_job([1-9][0-9]*)_g([1-9][0-9]*)"
+)
 PROFILE_CREDENTIAL_FILENAME = "hpc_ssh_credential.xml"
 PROFILE_METADATA_FILENAME = "hpc_ssh_metadata.json"
 PROFILE_KNOWN_HOSTS_FILENAME = "known_hosts"
@@ -258,6 +262,15 @@ class GpuSshConfig:
         return bool(self.password or self.key_path)
 
 
+@dataclass(frozen=True)
+class NamedHpcProfileIdentity:
+    """Identity encoded by one legacy or tenant-scoped named HPC profile."""
+
+    job_id: int
+    tenant_id: Optional[str] = None
+    allocation_generation: Optional[int] = None
+
+
 def load_socks_config() -> Optional[SocksConfig]:
     """Return SOCKS proxy config if GPU_SSH_SOCKS_HOST is set, else None."""
     host = _read_value("GPU_SSH_SOCKS_HOST")
@@ -334,14 +347,27 @@ def load_gpu_ssh_config(
     return config
 
 
+def parse_named_hpc_profile_identity(profile: str) -> NamedHpcProfileIdentity:
+    """Parse the two supported fail-closed profile identity formats."""
+
+    legacy = LEGACY_JOB_PROFILE.fullmatch(profile)
+    if legacy:
+        return NamedHpcProfileIdentity(job_id=int(legacy.group(1)))
+    tenant = TENANT_JOB_PROFILE.fullmatch(profile)
+    if tenant:
+        return NamedHpcProfileIdentity(
+            job_id=int(tenant.group(2)),
+            tenant_id=tenant.group(1),
+            allocation_generation=int(tenant.group(3)),
+        )
+    raise CredentialError(
+        "named HPC profile must use job<job_id> or "
+        "tenant_<24hex>_job<job_id>_g<allocation_generation>"
+    )
+
+
 def _named_job_id(profile: str) -> int:
-    match = re.fullmatch(r"job([0-9]+)", profile)
-    if not match:
-        raise CredentialError("named HPC profile must use job<job_id>")
-    job_id = int(match.group(1))
-    if job_id <= 0:
-        raise CredentialError("named HPC profile job binding is invalid")
-    return job_id
+    return parse_named_hpc_profile_identity(profile).job_id
 
 
 def _profile_tombstone_paths(profile_dir: Path) -> tuple[Path, Path]:
@@ -406,9 +432,13 @@ def profile_lifecycle_lock(profile_dir: Path):
                     if time.monotonic() >= deadline:
                         raise
                     time.sleep(0.05)
+    except OSError as exc:
+        handle.close()
+        raise CredentialError("named HPC profile lifecycle lock failed") from exc
+    try:
+        yield
+    finally:
         try:
-            yield
-        finally:
             handle.seek(0)
             if os.name == "nt":
                 import msvcrt
@@ -418,10 +448,10 @@ def profile_lifecycle_lock(profile_dir: Path):
                 import fcntl
 
                 fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-    except OSError as exc:
-        raise CredentialError("named HPC profile lifecycle lock failed") from exc
-    finally:
-        handle.close()
+        except OSError as exc:
+            raise CredentialError("named HPC profile lifecycle unlock failed") from exc
+        finally:
+            handle.close()
 
 
 def _validate_profile_instance_id(value: object) -> str:
@@ -492,7 +522,8 @@ def _validate_named_profile_lifecycle(
 ) -> dict[str, object]:
     """Validate lifecycle metadata before any DPAPI credential is decrypted."""
 
-    expected_job_id = _named_job_id(profile)
+    profile_identity = parse_named_hpc_profile_identity(profile)
+    expected_job_id = profile_identity.job_id
     tombstones = [
         path for path in _profile_tombstone_paths(profile_dir) if _profile_marker_present(path)
     ]
@@ -524,6 +555,12 @@ def _validate_named_profile_lifecycle(
         metadata.get("allocation_generation"),
         "named HPC profile allocation generation is invalid",
     )
+    if profile_identity.tenant_id is not None:
+        metadata_tenant_id = str(metadata.get("tenant_id") or "").strip()
+        if metadata_tenant_id != profile_identity.tenant_id:
+            raise CredentialError("named HPC profile tenant binding changed")
+        if generation != profile_identity.allocation_generation:
+            raise CredentialError("named HPC profile allocation generation changed")
     instance_id = _validate_profile_instance_id(metadata.get("profile_instance_id"))
     revision = _positive_int(
         metadata.get("lifecycle_revision"),
@@ -1005,11 +1042,19 @@ def verify_job_container_identity(
 ) -> dict:
     """Verify the routed job container on the same SSH connection, read-only."""
 
-    expected_profile = f"job{int(expected_job_id)}"
+    profile_identity = parse_named_hpc_profile_identity(config.credential_profile)
     if not config.strict_named_profile:
         raise CredentialError("job-container verification requires a strict named profile")
-    if config.credential_profile != expected_profile or config.job_id != int(expected_job_id):
+    if (
+        profile_identity.job_id != int(expected_job_id)
+        or config.job_id != int(expected_job_id)
+    ):
         raise CredentialError("job-container credential binding changed")
+    if (
+        profile_identity.allocation_generation is not None
+        and config.allocation_generation != profile_identity.allocation_generation
+    ):
+        raise CredentialError("job-container allocation generation binding changed")
     if config.host != HPC_SSH_GATEWAY_HOST or config.port != HPC_SSH_GATEWAY_PORT:
         raise CredentialError("job-container gateway binding changed")
     if config.socks is None:
@@ -1117,6 +1162,13 @@ print(json.dumps({
         "gpu_memory_total_mib": int(gpu.get("memory_total_mib") or 0),
         "remote_root": expected_root,
         "designated_proxy_path_verified": True,
+        "pinned_gateway_host_key_verified": True,
+        "allocation_role_authenticated": True,
+        "expected_host_uuid_match": True,
+        "expected_gpu_uuid_match": True,
+        "expected_gpu_model_and_memory_match": True,
+        "allowed_remote_root_match": True,
+        # Retain the older field while callers migrate to the contract name.
         "pinned_host_key_verified": True,
         "job_container_verified": True,
         "read_only": True,

@@ -1,0 +1,37 @@
+{
+  "schema": "evomind.g21_goal_policy_migration_evidence.v1",
+  "migration_id": "g21-conditional-strong-baseline-v2",
+  "goal_id": "goal_g21_five_competition",
+  "goal_key": "g21_five_competition",
+  "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+  "allocation": "G21",
+  "previous_goal_spec_file_sha256": "380a3b2c037c8067a4618717cb7aaf8847d323d4be401a88d64009468132848f",
+  "previous_goal_spec_canonical_sha256": "a569bae731723fc7046817df737876d6dc7674eadd9f7b812fe7b4a87e521655",
+  "authorization": {
+    "source": "explicit_user_confirmation",
+    "normalized_statement_sha256": "f1edf39c1be5a03ff0da8e02acbfecfe906d72f39abb2e912f5fad6aafd754ae"
+  },
+  "authorized_policy": {
+    "primary_baseline_required": true,
+    "accepted_primary_baseline_types": [
+      "official_organizer",
+      "publicly_reproducible_strong"
+    ],
+    "point_estimate_must_improve": true,
+    "bootstrap_95_percent_ci_lower_bound_must_improve": true,
+    "human_baseline_additionally_required_only_when_verified_available": true,
+    "protocol_comparable_human_baseline_must_not_be_ignored": true
+  },
+  "preserved_guards": {
+    "fixed_run_only": true,
+    "fixed_allocation_only": true,
+    "single_gpu_serial": true,
+    "test_labels_forbidden": true,
+    "fake_human_evidence_forbidden": true,
+    "weather_forbidden": true,
+    "automatic_submission_forbidden": true,
+    "join_forbidden": true,
+    "terms_acceptance_forbidden": true,
+    "other_gpu_process_modification_forbidden": true
+  }
+}

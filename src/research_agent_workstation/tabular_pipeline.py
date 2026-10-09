@@ -17,7 +17,7 @@ from sklearn.ensemble import ExtraTreesClassifier, ExtraTreesRegressor, Gradient
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression, Ridge
-from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, mean_squared_log_error
+from sklearn.metrics import accuracy_score, f1_score, mean_absolute_error, mean_squared_error, mean_squared_log_error, roc_auc_score
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -51,6 +51,63 @@ def is_classification_task(config: dict[str, Any]) -> bool:
 
 def is_regression_task(config: dict[str, Any]) -> bool:
     return "regression" in str(config["task"]["type"]).lower()
+
+
+def is_probability_task(config: dict[str, Any]) -> bool:
+    return is_classification_task(config) and str(config["task"].get("metric", "")).lower() in {"roc_auc", "auc", "roc_auc_score"}
+
+
+def positive_class_probabilities(model: Any, features: pd.DataFrame, positive_label: Any = 1) -> np.ndarray:
+    """Return the named positive class, never assume it is column one."""
+    classes = np.asarray(getattr(model, "classes_", []))
+    indices = np.flatnonzero(classes == positive_label)
+    if classes.ndim != 1 or len(classes) != 2 or len(indices) != 1:
+        raise ValueError("ROC-AUC requires two classes and an explicit positive class")
+    probabilities = np.asarray(model.predict_proba(features), dtype=float)
+    if probabilities.shape != (len(features), 2):
+        raise ValueError("Invalid binary predict_proba shape")
+    if not np.isfinite(probabilities).all() or ((probabilities < 0) | (probabilities > 1)).any():
+        raise ValueError("Predicted probabilities must be finite and in [0, 1]")
+    if not np.allclose(probabilities.sum(axis=1), 1, atol=1e-6, rtol=0):
+        raise ValueError("Binary probability rows must sum to one")
+    return probabilities[:, int(indices[0])]
+
+
+def evaluate_binary_auc(x: pd.DataFrame, y: pd.Series, config: dict[str, Any], random_state: int) -> tuple[dict[str, Any], Pipeline]:
+    positive_label = config["task"].get("positive_label", 1)
+    if y.isna().any() or y.nunique() != 2 or positive_label not in y.unique():
+        raise ValueError("ROC-AUC requires nonmissing binary targets and the positive label")
+    split_seed = int(config.get("scaffold", {}).get("split_seed", random_state))
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=split_seed)
+    results: dict[str, Any] = {}
+    best_pipeline: Pipeline | None = None
+    best_name, best_score, best_seconds = "", -1.0, float("inf")
+    binary_y = (y.to_numpy() == positive_label).astype(int)
+    for name, model in selected_models(config, random_state).items():
+        pipeline = Pipeline(steps=[("preprocessor", build_preprocessor(x)), ("model", model)])
+        started = time.monotonic()
+        oof = np.full(len(y), np.nan)
+        scores = []
+        for train_idx, valid_idx in cv.split(x, y):
+            fold_pipeline = clone(pipeline)
+            fold_pipeline.fit(x.iloc[train_idx], y.iloc[train_idx])
+            probabilities = positive_class_probabilities(fold_pipeline, x.iloc[valid_idx], positive_label)
+            oof[valid_idx] = probabilities
+            scores.append(float(roc_auc_score(binary_y[valid_idx], probabilities)))
+        if not np.isfinite(oof).all():
+            raise ValueError("Incomplete OOF predictions")
+        score = float(roc_auc_score(binary_y, oof))
+        elapsed = time.monotonic() - started
+        results[name] = {"cv_roc_auc_mean": float(np.mean(scores)), "cv_roc_auc_std": float(np.std(scores)),
+                         "oof_roc_auc": score, "fold_roc_auc": scores, "seconds": elapsed}
+        if score > best_score or (score == best_score and elapsed < best_seconds):
+            best_name, best_score, best_seconds, best_pipeline = name, score, elapsed, pipeline
+    if best_pipeline is None:
+        raise RuntimeError("No probability model was trained")
+    best_pipeline.fit(x, y)
+    return {"metric": "roc_auc", "best_model": best_name, "selection_direction": "maximize",
+            "selection_metric": "oof_roc_auc", "split_seed": split_seed,
+            "validation_scope": "training_internal_oof_not_official", "model_results": results}, best_pipeline
 
 
 def make_encoder() -> OneHotEncoder:
@@ -230,6 +287,8 @@ def selected_models(config: dict[str, Any], random_state: int) -> dict[str, Any]
 
 
 def evaluate_classification(x: pd.DataFrame, y: pd.Series, config: dict[str, Any], random_state: int) -> tuple[dict[str, Any], Pipeline]:
+    if is_probability_task(config):
+        return evaluate_binary_auc(x, y, config, random_state)
     x_train, x_valid, y_train, y_valid = train_test_split(x, y, test_size=0.2, random_state=random_state, stratify=y)
     cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=random_state)
     models = selected_models(config, random_state)
@@ -437,12 +496,22 @@ def write_scaffold(output_dir: Path, scaffold: dict[str, Any]) -> None:
     (output_dir / "task_scaffold.md").write_text("\n".join(lines), encoding="utf-8-sig")
 
 
-def make_submission(best_pipeline: Pipeline, test_features: pd.DataFrame, sample: pd.DataFrame, config: dict[str, Any], output_dir: Path) -> dict[str, Any]:
+def make_submission(best_pipeline: Pipeline, test_features: pd.DataFrame, sample: pd.DataFrame, config: dict[str, Any], output_dir: Path, *, test_ids: pd.Series | None = None) -> dict[str, Any]:
     task = config["task"]
     submission = sample.copy()
     prediction_column = task.get("prediction_column", sample.columns[1])
 
-    raw_predictions = best_pipeline.predict(test_features)
+    if is_probability_task(config):
+        id_column = task.get("id_column", sample.columns[0])
+        if test_ids is None and id_column in test_features:
+            test_ids = test_features[id_column]
+        if (test_ids is None or id_column not in sample or test_ids.isna().any()
+                or sample[id_column].isna().any() or not test_ids.is_unique or not sample[id_column].is_unique
+                or not np.array_equal(test_ids.to_numpy(), sample[id_column].to_numpy())):
+            raise ValueError("Probability submission requires unique test/sample IDs in identical order")
+        raw_predictions = positive_class_probabilities(best_pipeline, test_features, task.get("positive_label", 1))
+    else:
+        raw_predictions = best_pipeline.predict(test_features)
     if is_regression_task(config):
         target_transform = config.get("feature_engineering", {}).get("target_transform")
         if target_transform is None and str(config["task"].get("metric", "")).lower() == "rmsle":
@@ -476,6 +545,11 @@ def make_submission(best_pipeline: Pipeline, test_features: pd.DataFrame, sample
             }
         )
         checks["valid"] = checks["rows_match"] and checks["columns_match"] and checks["missing_predictions"] == 0 and checks["positive_predictions"]
+    elif is_probability_task(config):
+        checks.update({"prediction_kind": "positive_class_probability", "positive_label": task.get("positive_label", 1),
+                       "probabilities_finite": bool(np.isfinite(prediction_values).all()),
+                       "probabilities_in_range": bool(prediction_values.between(0, 1).all()), "ids_match": True})
+        checks["valid"] = checks["rows_match"] and checks["columns_match"] and checks["missing_predictions"] == 0 and checks["probabilities_finite"] and checks["probabilities_in_range"]
     else:
         observed_values = sorted(prediction_values.dropna().unique().tolist())
         configured_allowed = config.get("thresholds", {}).get("allowed_prediction_values")
@@ -512,6 +586,13 @@ def metrics_pass(config: dict[str, Any], evaluation: dict[str, Any]) -> bool:
     thresholds = config["thresholds"]
     best_metrics = evaluation["model_results"][evaluation["best_model"]]
     metric = str(config["task"]["metric"]).lower()
+    if is_probability_task(config):
+        score = best_metrics["oof_roc_auc"]
+        threshold = thresholds.get("min_validation_roc_auc")
+        cv_threshold = thresholds.get("min_cv_roc_auc")
+        return bool(np.isfinite(score) and 0 <= score <= 1
+                    and (threshold is None or score >= threshold)
+                    and (cv_threshold is None or best_metrics["cv_roc_auc_mean"] >= cv_threshold))
     if is_regression_task(config):
         cv_key = f"cv_{metric}_mean"
         holdout_key = f"holdout_{metric}"
@@ -823,6 +904,10 @@ def write_markdown_report(
 
 
 def run(config: dict[str, Any], output_base: Path, random_state: int) -> dict[str, Any]:
+    from research_os.hpc_policy import HPCPolicyError
+    raise HPCPolicyError("blocked_local_training_disabled: Local training is disabled by release policy")
+
+    # Retained implementation below is not reachable from the public package.
     data_cfg = config["data"]
     task = config["task"]
     paths = {
@@ -852,7 +937,8 @@ def run(config: dict[str, Any], output_base: Path, random_state: int) -> dict[st
     test_features = apply_feature_preset(test, config)
 
     evaluation, best_pipeline = evaluate_models(x, y, config, random_state)
-    submission = make_submission(best_pipeline, test_features, sample, config, output_dir)
+    submission = make_submission(best_pipeline, test_features, sample, config, output_dir,
+                                 test_ids=test[task["id_column"]] if is_probability_task(config) else None)
     accepted = bool(quality["train_test_feature_columns_match"] and submission["valid"] and metrics_pass(config, evaluation))
 
     improvement = build_post_scaffold_improvement(config, evaluation, submission, accepted)
@@ -896,11 +982,8 @@ def run(config: dict[str, Any], output_base: Path, random_state: int) -> dict[st
 
 
 def main() -> None:
-    args = parse_args()
-    config = load_yaml(Path(args.config))
-    output_base = Path(args.output_dir) if args.output_dir else Path("experiments")
-    summary = run(config, output_base, args.random_state)
-    print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps({"status": "blocked_local_training_disabled", "training_started": False}, ensure_ascii=False))
+    raise SystemExit(2)
 
 
 if __name__ == "__main__":

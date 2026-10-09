@@ -1,7 +1,7 @@
 {
   "schema": "evomind.hpc.connection_memory_core.v1",
   "status": "mandatory",
-  "updated_at": "2026-07-30T15:23:37+08:00",
+  "updated_at": "2026-10-09T13:45:00+08:00",
   "source": {
     "path": "D:/桌面/AIMSLAB HPC校外连接指南（实习生版本）.pdf",
     "sha256": "7850dea325dd61cccf9ae19c5b11dcc75f840d12ec881d86259ffe3fe45a7b51",
@@ -249,8 +249,8 @@
     "other_processes_modified": false
   },
   "current_binding": {
-    "job_id": 90353,
-    "credential_profile": "job90353",
+    "job_id": 96434,
+    "credential_profile": "job96434",
     "credential_profile_is_role_account": false,
     "role_account_storage": "windows_dpapi_profile_credential",
     "role_account_value_embedded": false,

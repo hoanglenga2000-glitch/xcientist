@@ -434,6 +434,11 @@ _REAL_SCIENTIST_HYPOTHESIS_REVIEW = (
     "评价假设", "哪一个假设", "哪个假设", "最佳假设", "评审创新",
     "创新评审", "方案评审", "评审方案", "排序方案",
 )
+_REAL_SCIENTIST_HYPOTHESIS_PANEL = (
+    "hypothesis panel", "research panel", "parallel hypotheses",
+    "multi agent hypotheses", "multi-agent hypotheses", "independent critics",
+    "parallel hypothesis generation", "adversarial hypothesis panel",
+)
 _REAL_SCIENTIST_EXPERIMENT_BLUEPRINT = (
     "experiment blueprint", "candidate blueprint", "execution blueprint",
     "plan experiment", "blueprint", "gated experiment plan",
@@ -651,6 +656,12 @@ def classify(text: str) -> Intent:
             and not (_contains(execution_scoring_text, _EXECUTION) or _contains(execution_scoring_text, _REAL_EXECUTION))):
         # Preserve the complete user turn for the shared live literature API.
         return Intent(TOOL_QUERY, payload="literature_search", args=[raw])
+    if any(token in low for token in ("external capability certification", "external certification status")):
+        return Intent(TOOL_QUERY, payload="scientist_capability_certification")
+    if "upgrade campaign status" in low:
+        return Intent(TOOL_QUERY, payload="scientist_upgrade_campaign")
+    if "research parity gate" in low:
+        return Intent(TOOL_QUERY, payload="scientist_research_parity_gate")
     if (_contains(low, _REAL_SCIENTIST_MEMORY_CONSOLIDATION)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_memory_consolidation")
@@ -681,6 +692,9 @@ def classify(text: str) -> Intent:
     if (_contains(low, _REAL_SCIENTIST_STRATEGY_OPTIMIZER)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_strategy_optimizer")
+    if (_contains(low, _REAL_SCIENTIST_HYPOTHESIS_PANEL)
+            and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
+        return Intent(TOOL_QUERY, payload="scientist_hypothesis_panel")
     if (_contains(low, _REAL_SCIENTIST_HYPOTHESIS_REVIEW)
             and not (_contains(low, _HARD_NOW) or _contains(low, _REAL_HARD_NOW))):
         return Intent(TOOL_QUERY, payload="scientist_hypothesis_review")
@@ -811,6 +825,42 @@ def classify(text: str) -> Intent:
     if request.requests_research or wants_plan:
         return Intent(PLANNING, request=request)
     return Intent(CHAT)
+
+
+_LLM_INTENT_CACHE: dict[str, tuple[float, Intent]] = {}
+_LLM_INTENT_TTL = 600.0
+
+
+def classify_with_llm_fallback(text: str, *, generate_fn=None) -> Intent:
+    """classify() with optional LLM fallback for ambiguous inputs."""
+    result = classify(text)
+    if result.kind != CHAT or generate_fn is None or len((text or "").strip()) < 8:
+        return result
+    import time
+    key = (text or "").strip()[:200]
+    now = time.monotonic()
+    cached = _LLM_INTENT_CACHE.get(key)
+    if cached and now - cached[0] < _LLM_INTENT_TTL:
+        return cached[1]
+    try:
+        prompt = (
+            "Classify user intent into ONE category: STATUS, PLANNING, EXECUTION, "
+            "REPORT, MEMORY, TOOL_QUERY, or CHAT.\n"
+            f"User: {key}\nCategory:"
+        )
+        reply = (generate_fn(prompt, max_tokens=20) or "").strip().upper()
+        kind_map = {
+            "STATUS": STATUS, "PLANNING": PLANNING, "EXECUTION": EXECUTION,
+            "REPORT": REPORT, "MEMORY": MEMORY, "TOOL_QUERY": TOOL_QUERY,
+        }
+        for k, v in kind_map.items():
+            if k in reply:
+                intent = Intent(v)
+                _LLM_INTENT_CACHE[key] = (now, intent)
+                return intent
+    except Exception:
+        pass
+    return result
 
 
 def is_execution(text: str) -> bool:

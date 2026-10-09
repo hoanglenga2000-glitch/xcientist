@@ -32,7 +32,7 @@ def _build_parser() -> argparse.ArgumentParser:
     cfg.add_argument("key", nargs="?", help="optional dotted key to print (e.g. llm.provider)")
 
     ini = sub.add_parser("init", help="scaffold a research project in the current dir")
-    ini.add_argument("--compute", choices=["local", "gpu"], default="local",
+    ini.add_argument("--compute", choices=["gpu"], default="gpu",
                      help="default compute backend for this project")
     ini.add_argument("--force", action="store_true", help="overwrite an existing project config")
 
@@ -55,7 +55,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     run = sub.add_parser("run", help="run the research loop on a task")
     run.add_argument("task", help="task slug (see `xsci task list`) or path to a task .json")
-    run.add_argument("--compute", choices=["local", "gpu"], help="override the compute backend")
+    run.add_argument("--compute", choices=["gpu"], default="gpu", help="HPC/GPU compute backend")
     run.add_argument("--iterations", type=int, help="number of search iterations")
     run.add_argument("--data-dir", default="", help="data dir (local) / remote dirname (gpu)")
     run.add_argument("--no-mcgs", action="store_true", help="disable the MCGS selection brain")
@@ -71,7 +71,7 @@ def _build_parser() -> argparse.ArgumentParser:
     agt = sub.add_parser("agent", help="interactive deep research agent (the model drives)")
     agt.add_argument("task", help="task slug (see `xsci task list`) or path to a task .json")
     agt.add_argument("--goal", help="run a single goal non-interactively, then exit")
-    agt.add_argument("--compute", choices=["local", "gpu"], help="override the compute backend")
+    agt.add_argument("--compute", choices=["gpu"], default="gpu", help="HPC/GPU compute backend")
     agt.add_argument("--data-dir", default="", help="data dir (local) / remote dirname (gpu)")
     agt.add_argument("--no-mcgs", action="store_true",
                      help="disable the MCGS selection brain (model chooses freely; Phase A behavior)")

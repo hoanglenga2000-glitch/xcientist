@@ -60,16 +60,60 @@ class Runner(Protocol):
     def run(self, code: str, *, data_dir: str, out_dir: str, exp_id: str) -> RunResult: ...
 
 
+SCORE_VERIFICATION_UNVERIFIED = "self_reported_unverified"
+
+
+def _finite_score(value: Any) -> Optional[float]:
+    """Return ``value`` as a finite float, or None (rejects NaN/inf, bools, junk)."""
+    if value is None or isinstance(value, bool):
+        return None
+    try:
+        score = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return score if math.isfinite(score) else None
+
+
 def _parse_cv_score(text: str) -> Optional[float]:
+    """Return the LAST ``CV_SCORE=`` value if it is a finite number.
+
+    Unparseable lines are skipped (unchanged behaviour), but a non-finite final
+    emission (``nan``/``inf``) fails closed: an earlier per-fold value must not
+    silently become the run's score.
+    """
     score = None
     for line in text.splitlines():
         line = line.strip()
         if line.startswith("CV_SCORE="):
             try:
-                score = float(line.split("=", 1)[1].strip())
+                value = float(line.split("=", 1)[1].strip())
             except ValueError:
                 continue
+            score = value if math.isfinite(value) else None
     return score
+
+
+def read_metrics_json(out_dir: str | Path) -> tuple[dict[str, Any], Optional[float], str]:
+    """Read ``metrics.json`` without discarding valid metadata.
+
+    Returns ``(metrics, cv_score, problem)``. A missing or invalid ``cv_score``
+    keeps the rest of the metrics (evaluator_version, environment_hash, ...)
+    and only reports the score as absent; an undecodable file is reported
+    separately from a missing one. ``problem`` is "" when a finite score exists.
+    """
+    metrics_path = Path(out_dir) / "metrics.json"
+    if not metrics_path.is_file():
+        return {}, None, "metrics_json_absent"
+    try:
+        decoded = json.loads(metrics_path.read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}, None, "metrics_json_invalid"
+    if not isinstance(decoded, dict):
+        return {}, None, "metrics_json_invalid"
+    if decoded.get("cv_score") is None:
+        return decoded, None, "metrics_cv_score_missing"
+    score = _finite_score(decoded.get("cv_score"))
+    return decoded, score, ("" if score is not None else "metrics_cv_score_invalid")
 
 
 class LocalSubprocessRunner:
@@ -81,6 +125,8 @@ class LocalSubprocessRunner:
         self.python_exe = python_exe or sys.executable
 
     def run(self, code: str, *, data_dir: str, out_dir: str, exp_id: str) -> RunResult:
+        from research_os.hpc_policy import require_hpc_compute
+        require_hpc_compute("local")
         script_dir = self.workdir / exp_id
         script_dir.mkdir(parents=True, exist_ok=True)
         script_path = script_dir / "solution.py"
@@ -95,19 +141,9 @@ class LocalSubprocessRunner:
             return RunResult(False, None, error=f"timeout after {self.timeout}s", out_dir=out_dir, exit_code=124)
         combined = (proc.stdout or "") + "\n" + (proc.stderr or "")
         score = _parse_cv_score(proc.stdout or "")
-        metrics_path = Path(out_dir) / "metrics.json"
-        metrics: dict[str, Any] = {}
-        if metrics_path.exists():
-            try:
-                decoded = json.loads(metrics_path.read_text(encoding="utf-8"))
-                if isinstance(decoded, dict):
-                    metrics = decoded
-                    if score is None:
-                        score = float(decoded.get("cv_score"))
-            except (ValueError, TypeError, json.JSONDecodeError, OSError):
-                metrics = {}
-                if score is None:
-                    score = None
+        metrics, metrics_score, _metrics_problem = read_metrics_json(out_dir)
+        if score is None:
+            score = metrics_score
         evaluator_version = str(metrics.get("evaluator_version") or "")[:200]
         environment_hash = str(metrics.get("environment_hash") or "").lower()
         if not re.fullmatch(r"[0-9a-f]{64}", environment_hash):
@@ -143,6 +179,9 @@ class EvolutionConfig:
     # Immutable public-data contract hashes supplied by the campaign launcher.
     # Private answer/grader hashes are deliberately excluded.
     public_data_hashes: tuple[str, ...] = ()
+    # Optional fixed acceptance threshold used when there is no incumbent to
+    # compare against. ``None`` means a first candidate cannot be "accepted".
+    acceptance_threshold: Optional[float] = None
 
 
 @dataclass
@@ -155,6 +194,8 @@ class IterationRecord:
     note: str
     provider: str = ""
     model: str = ""
+    applied_strategies: list[str] = field(default_factory=list)
+    memory_ref_ids: list[str] = field(default_factory=list)
 
 
 class EvolutionLoop:
@@ -315,24 +356,38 @@ class EvolutionLoop:
     def _record_memory(self, proposal: VariationProposal, result: RunResult,
                        promoted: bool, delta: Optional[float]) -> None:
         evidence_level, outcome_status = self._outcome_evidence(result, promoted, delta)
+        run_id = str(self._run_meta.get("run_id") or "").strip()
+        memory_id = (
+            f"{self.context.task_name}:{run_id}:{proposal.exp_id}"
+            if run_id
+            else f"{self.context.task_name}:{proposal.exp_id}"
+        )
+        linked_exp_id = f"{run_id}:{proposal.exp_id}" if run_id else proposal.exp_id
+        dataset_profile = {
+            "modality": self.context.modality,
+            "n_train": self.context.n_train,
+            "run_success": result.success,
+            "promoted": promoted,
+            "evidence_level": evidence_level,
+            "outcome_status": outcome_status,
+        }
+        if run_id:
+            dataset_profile = {
+                "task_name": self.context.task_name,
+                "run_id": run_id,
+                **dataset_profile,
+            }
         self.memory.add_memory(MemoryRecord(
-            memory_id=f"{self.context.task_name}:{proposal.exp_id}",
+            memory_id=memory_id,
             task_type=self.context.task_type,
-            dataset_profile={
-                "modality": self.context.modality,
-                "n_train": self.context.n_train,
-                "run_success": result.success,
-                "promoted": promoted,
-                "evidence_level": evidence_level,
-                "outcome_status": outcome_status,
-            },
+            dataset_profile=dataset_profile,
             method=f"{proposal.code_generation_mode}:{','.join(proposal.applied_strategies) or 'baseline'}",
             what_worked=(proposal.hypothesis if promoted else ""),
             what_failed=("" if result.success else _salient_error(result.error, max_chars=300)),
             metric_delta=delta,
             reusable_strategy=(",".join(proposal.applied_strategies) if promoted else ""),
             failure_pattern=("" if result.success else _classify_failure(result.error)),
-            linked_exp_ids=[proposal.exp_id],
+            linked_exp_ids=[linked_exp_id],
         ))
         self._record_innovation_attempt(
             proposal, result, promoted, delta, evidence_level,
@@ -476,6 +531,7 @@ class EvolutionLoop:
                 parent_exp_ids=parent_exp_ids,
                 changes_summary=proposal.changes_summary,
                 strategies=list(proposal.applied_strategies or []),
+                memory_ref_ids=list(proposal.memory_ref_ids or []),
                 provider=proposal.provider, model=proposal.model,
             )
             out_dir = str(self.work_dir / exp_id / "out")
@@ -496,6 +552,7 @@ class EvolutionLoop:
                     result = RunResult(False, None, error=err, out_dir=out_dir)
                     break
             execution_wall_seconds = max(0.0, time.monotonic() - execution_started)
+            result = _reject_non_finite_score(result)
             self._emit(ev.SCORE, exp_id=exp_id, success=result.success,
                        cv_score=result.cv_score, exit_code=result.exit_code)
             promoted, delta = self._integrate(
@@ -552,6 +609,8 @@ class EvolutionLoop:
                             cv_score=result.cv_score, promoted=promoted,
                             note=self.terminal_reason, provider=proposal.provider,
                             model=proposal.model,
+                            applied_strategies=list(proposal.applied_strategies or []),
+                            memory_ref_ids=list(proposal.memory_ref_ids or []),
                         ))
                         self._emit(ev.ITER_END, exp_id=exp_id, mode=mode,
                                    success=False, cv_score=result.cv_score,
@@ -584,6 +643,8 @@ class EvolutionLoop:
                 promoted=promoted,
                 note=(_clean_error_for_feedback(result.error, max_chars=120) if not result.success else "ok"),
                 provider=proposal.provider, model=proposal.model,
+                applied_strategies=list(proposal.applied_strategies or []),
+                memory_ref_ids=list(proposal.memory_ref_ids or []),
             ))
             self._emit(ev.ITER_END, exp_id=exp_id, mode=mode, success=result.success,
                        cv_score=result.cv_score, promoted=promoted)
@@ -632,6 +693,13 @@ class EvolutionLoop:
         parent_for_tree = tree_parent if tree_parent is not None else (resolved_parents[0] if resolved_parents else self.best_exp_id)
         if parent_for_tree and parent_for_tree not in resolved_parents:
             resolved_parents.insert(0, parent_for_tree)
+        incumbent_exp_id = self.best_exp_id
+        incumbent_node = self.graph.nodes.get(incumbent_exp_id) if incumbent_exp_id else None
+        incumbent_score = (
+            _finite_score(incumbent_node.cv_score)
+            if incumbent_node is not None and getattr(incumbent_node, "run_success", True)
+            else None
+        )
         node = ExperimentNode(
             exp_id=proposal.exp_id, parent_id=parent_for_tree, branch_type=proposal.code_generation_mode,
             task_name=self.context.task_name, hypothesis=proposal.hypothesis,
@@ -663,22 +731,43 @@ class EvolutionLoop:
         if promoted:
             self.best_code = proposal.code
             self.best_exp_id = proposal.exp_id
-        self._emit_audit(proposal, result, decision)
+        self._emit_audit(proposal, result, decision,
+                         incumbent_exp_id=incumbent_exp_id if incumbent_score is not None else None,
+                         incumbent_score=incumbent_score)
         self._append_history(
             proposal.exp_id, proposal.code_generation_mode, result.cv_score, promoted,
             (_clean_error_for_feedback(result.error, max_chars=120) if not result.success else decision.get("reason", "")),
         )
         return promoted, decision.get("promotion_delta")
 
-    def _emit_audit(self, proposal: VariationProposal, result: RunResult, decision: dict[str, Any]) -> None:
+    def _acceptance_criteria(self, incumbent_score: Optional[float]) -> tuple[dict[str, Any], str]:
+        """Acceptance is judged against the incumbent (+min_delta) or a fixed
+        threshold, never against the candidate's own score."""
+        minimize = self.context.metric_direction.lower() in {"minimize", "lower", "lower_is_better"}
+        if incumbent_score is not None:
+            delta = abs(float(self.config.min_delta))
+            bound = incumbent_score - delta if minimize else incumbent_score + delta
+            return {"cv_score": {"max" if minimize else "min": bound}}, "incumbent"
+        threshold = _finite_score(self.config.acceptance_threshold)
+        if threshold is not None:
+            return {"cv_score": {"max" if minimize else "min": threshold}}, "fixed_threshold"
+        return {}, "none"
+
+    def _emit_audit(self, proposal: VariationProposal, result: RunResult, decision: dict[str, Any],
+                    *, incumbent_exp_id: Optional[str] = None,
+                    incumbent_score: Optional[float] = None) -> None:
         """Write library-sourced validation_contract.json + claim_audit.json.
 
         Uses research_os.{validation_contract,claim_audit} so the new engine and
         any other caller share ONE audit implementation (no inline .v1 fork).
+
+        The scores here are self-reported by the candidate script; they are
+        marked unverified and never license a promotion claim on their own.
         """
         exp_dir = self.work_dir / proposal.exp_id
         exp_dir.mkdir(parents=True, exist_ok=True)
         artifact_names = [Path(a).name for a in result.artifacts]
+        criteria, acceptance_basis = self._acceptance_criteria(incumbent_score)
 
         contract = create_contract(
             contract_id=f"{self.context.task_name}:{proposal.exp_id}:contract",
@@ -687,15 +776,22 @@ class EvolutionLoop:
             hypothesis=proposal.hypothesis,
             implementation_requirement="Runnable script emitting CV_SCORE, submission.csv, metrics.json.",
             metric="cv_score",
-            baseline_exp_id=proposal.parent_exp_id or "",
-            acceptance_criteria={"cv_score": {"min" if self.context.metric_direction == "maximize" else "max": result.cv_score}}
-            if result.cv_score is not None else {},
+            baseline_exp_id=incumbent_exp_id or "",
+            acceptance_criteria=criteria,
             ablation_plan=list(proposal.applied_strategies),
             conclusion_boundary="Local CV/proxy only; no official rank without a Kaggle response artifact.",
             required_artifacts=list(self.config.required_artifacts),
         )
         artifact_check = check_required_artifacts(contract, artifact_names)
-        acceptance = evaluate_acceptance(contract, {"cv_score": result.cv_score} if result.cv_score is not None else {})
+        if criteria and result.success and result.cv_score is not None:
+            acceptance = evaluate_acceptance(contract, {"cv_score": result.cv_score})
+        else:
+            acceptance = {
+                "passed": False,
+                "checks": [],
+                "reason": ("no_incumbent_or_fixed_threshold" if not criteria
+                           else "candidate_run_failed_or_unscored"),
+            }
         contract_payload = {
             "schema": "academic_research_os.validation_contract.v1",
             "contract_id": contract.contract_id, "exp_id": proposal.exp_id,
@@ -705,27 +801,43 @@ class EvolutionLoop:
             "artifact_check": artifact_check, "acceptance": acceptance,
             "conclusion_boundary": contract.conclusion_boundary,
             "run_success": result.success, "cv_score": result.cv_score,
+            "baseline_exp_id": contract.baseline_exp_id,
+            "baseline_score": incumbent_score,
+            "acceptance_basis": acceptance_basis,
+            "acceptance_criteria": contract.acceptance_criteria,
+            "score_verification": SCORE_VERIFICATION_UNVERIFIED,
+            "independent_rescoring": "not_performed",
         }
         (exp_dir / "validation_contract.json").write_text(
             json.dumps(contract_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
         claim_text = (f"{self.context.task_name} {proposal.exp_id} reached cv_score={result.cv_score}"
                       if result.success else f"{proposal.exp_id} failed to produce a valid score")
+        # No ablation or mechanism experiment is executed by this loop, so a
+        # successful run is NOT evidence for either. A comparison experiment
+        # exists only when the candidate was measured against an incumbent.
+        missing = [] if artifact_check["passed"] else list(artifact_check["missing_artifacts"])
+        missing.append("independent_rescoring")
+        evidence = {"has_required_experiments": bool(result.success and incumbent_score is not None),
+                    "has_mechanistic_evidence": False,
+                    "missing_evidence": missing}
         audit = audit_claim(
             claim_id=f"{self.context.task_name}:{proposal.exp_id}:claim",
             claim_text=claim_text, related_exp_ids=[proposal.exp_id],
             contract={"hypothesis": proposal.hypothesis, "conclusion_boundary": contract.conclusion_boundary},
             supporting_metrics={"cv_score": result.cv_score},
             required_ablations=list(proposal.applied_strategies),
-            completed_ablations=list(proposal.applied_strategies) if result.success else [],
-            evidence={"has_required_experiments": result.success,
-                      "has_mechanistic_evidence": result.success,
-                      "missing_evidence": [] if artifact_check["passed"] else artifact_check["missing_artifacts"]},
+            completed_ablations=[],
+            evidence=evidence,
         )
         from dataclasses import asdict
         audit_payload = {"schema": "academic_research_os.claim_audit.v1",
                          "created_at": datetime.now().isoformat(timespec="seconds"),
-                         "task_id": self.context.task_name, **asdict(audit)}
+                         "task_id": self.context.task_name, **asdict(audit),
+                         "completed_ablations": [], "evidence": evidence,
+                         "score_verification": SCORE_VERIFICATION_UNVERIFIED,
+                         "promotion_claim_allowed": False,
+                         "search_decision": "promote" if decision.get("promoted") else "hold"}
         (exp_dir / "claim_audit.json").write_text(
             json.dumps(audit_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -746,12 +858,28 @@ class EvolutionLoop:
             "n_iterations": len(self.iterations),
             "n_promotions": sum(1 for it in self.iterations if it.promoted),
             "terminal_reason": self.terminal_reason,
+            # Search-internal promotions rank self-reported CV scores. They are
+            # not verified results until an independent re-score (e.g.
+            # research_os.independent_holdout) confirms them.
+            "score_verification": SCORE_VERIFICATION_UNVERIFIED,
+            "promotion_claims_allowed": False,
+            "run_id": str(self._run_meta.get("run_id") or "") or None,
             "budget": (
                 self.selector.budget.to_dict()
                 if self.selector is not None and hasattr(self.selector, "budget")
                 else None
             ),
         }
+
+
+def _reject_non_finite_score(result: RunResult) -> RunResult:
+    """A NaN/inf score is a failed, unscored run (never a promotable incumbent)."""
+    if result.cv_score is None or _finite_score(result.cv_score) is not None:
+        return result
+    from dataclasses import replace
+    reason = f"non-finite cv_score rejected: {result.cv_score!r}"
+    return replace(result, success=False, cv_score=None,
+                   error=(reason + ("\n" + result.error if result.error else "")))
 
 
 def _clean_error_for_feedback(error: str, *, max_chars: int = 1200) -> str:

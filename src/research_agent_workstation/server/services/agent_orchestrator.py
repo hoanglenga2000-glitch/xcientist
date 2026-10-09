@@ -1384,3 +1384,90 @@ class AgentOrchestrator:
         if isinstance(value, dict):
             return {key: self._relative_payload(item) for key, item in value.items()}
         return value
+
+
+def _blocked_local_tabular_closed_loop(self, config_path: Path, output_base: Path | None = None, random_state: int = 42) -> dict[str, Any]:
+    del self, config_path, output_base, random_state
+    from research_os.hpc_policy import HPCPolicyError
+    raise HPCPolicyError("blocked_local_training_disabled: Local training is disabled by release policy")
+
+
+def _manifest_only_ensemble_closed_loop(
+    self,
+    config_path: Path,
+    template_id: str = "sklearn_rf_hgb_et_ensemble",
+    output_base: Path | None = None,
+    random_state: int = 42,
+    fast_mode: bool = False,
+    sample_rows: int = 20000,
+    n_folds: int | None = None,
+    seeds: list[int] | None = None,
+    training_timeout_seconds: int = 3600,
+    branch_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Prepare an HPC manifest and stop before dispatch or training."""
+
+    del random_state, fast_mode, sample_rows, n_folds, seeds, branch_metadata
+    from research_os.hpc_policy import require_remote_workspace
+
+    task_profile = self.task_service.import_from_config(config_path)
+    template = EnsembleTemplateRegistry.get(template_id)
+    if template is None or not template.approved or not template.hpc_required:
+        raise ValueError(f"Template is not approved for HPC dispatch: {template_id}")
+    remote_workspace = require_remote_workspace()
+    run_id = f"wr_{datetime.now().isoformat().replace(':', '-')}_{uuid4().hex[:8]}"
+    output_base = output_base or self.workspace_root / "experiments"
+    output_dir = output_base / task_profile.task_id / run_id
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    state = TaskStateMachine(task_profile.task_id)
+    for target, reason in (
+        (TaskState.IMPORTED, "Task config imported."),
+        (TaskState.UNDERSTANDING, "Task understanding started."),
+        (TaskState.UNDERSTOOD, "Task understood."),
+        (TaskState.EDA_RUNNING, "Data contract inspection started."),
+        (TaskState.EDA_DONE, "Data contract inspection completed."),
+        (TaskState.PLANNING, "HPC experiment planning started."),
+        (TaskState.PLAN_WAITING_APPROVAL, "Plan gate created."),
+        (TaskState.PLAN_APPROVED, "Plan gate approved for manifest preparation."),
+        (TaskState.CODE_GENERATING, "Registered template selected."),
+        (TaskState.CODE_READY, "Registered template ready."),
+        (TaskState.MANIFEST_PREPARED, "HPC manifest prepared; dispatch receipt required."),
+    ):
+        state.transition(target, reason)
+
+    builder = JobManifestBuilder(self.workspace_root)
+    manifest = builder.build(
+        task_id=task_profile.task_id,
+        run_id=run_id,
+        agent_id="workstation_orchestrator",
+        template_id=template_id,
+        remote_workspace=remote_workspace,
+        command_template=template.command_template,
+        timeout=int(training_timeout_seconds),
+    )
+    manifest_path = builder.write(manifest, output_dir)
+    summary = {
+        "status": "manifest_prepared_awaiting_dispatch",
+        "task_state": state.snapshot(),
+        "run": {
+            "run_id": run_id,
+            "output_dir": str(output_dir),
+            "job_manifest": str(manifest_path),
+            "training_started": False,
+            "accepted": False,
+            "hpc_job_queued": False,
+            "manifest_prepared": True,
+            "remote_job_id": None,
+            "dispatch_receipt": None,
+            "best_model": None,
+            "best_metrics": {},
+        },
+        "pending_gates": [{"gate_id": manifest.gate_id, "type": "HPC_DISPATCH", "status": "pending", "reviewer": None, "decided_at": None}],
+    }
+    self.storage.write_json(output_dir / "orchestrator_run.json", summary)
+    return summary
+
+
+AgentOrchestrator.run_local_tabular_closed_loop = _blocked_local_tabular_closed_loop
+AgentOrchestrator.run_ensemble_closed_loop = _manifest_only_ensemble_closed_loop

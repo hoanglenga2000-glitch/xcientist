@@ -11,8 +11,39 @@ import webbrowser
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-MANAGER = ROOT / "scripts" / "manage_workstation_dashboard.py"
+SOURCE_ROOT = Path(__file__).resolve().parents[2]
+ROOT_POINTER = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "EvoMind" / "workstation-root.txt"
+
+
+def _is_full_workstation_root(candidate: Path) -> bool:
+    return (
+        (candidate / "scripts" / "manage_workstation_dashboard.py").is_file()
+        and (candidate / "web" / "research-agent-workstation" / "package.json").is_file()
+    )
+
+
+def resolve_workstation_root() -> Path:
+    candidates: list[Path] = []
+    explicit = os.environ.get("EVOMIND_WORKSTATION_ROOT")
+    if explicit:
+        candidates.append(Path(explicit))
+    if ROOT_POINTER.is_file():
+        try:
+            candidates.append(Path(ROOT_POINTER.read_text(encoding="utf-8-sig").strip()))
+        except OSError:
+            pass
+    candidates.append(SOURCE_ROOT)
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve()
+        except (OSError, RuntimeError):
+            continue
+        if _is_full_workstation_root(resolved):
+            return resolved
+    raise RuntimeError("full EvoMind workstation source bundle was not found")
+
+
+ROOT = resolve_workstation_root()
 
 
 def bootstrap_url_path(port: int = 8088) -> Path:
@@ -59,13 +90,19 @@ def run_dashboard(
     if command not in {"start", "stop", "restart", "status"}:
         print("usage: xsci dashboard {start|stop|restart|status}")
         return 2
-    if not MANAGER.exists():
-        print(f"dashboard manager not found: {MANAGER}")
+    try:
+        root = resolve_workstation_root()
+    except RuntimeError as exc:
+        print(str(exc))
+        return 1
+    manager = root / "scripts" / "manage_workstation_dashboard.py"
+    if not manager.exists():
+        print(f"dashboard manager not found: {manager}")
         return 1
 
     args = [
         sys.executable,
-        str(MANAGER),
+        str(manager),
         command,
         "--port",
         str(port),
@@ -77,7 +114,7 @@ def run_dashboard(
     if force:
         args.append("--force")
 
-    proc = subprocess.run(args, cwd=ROOT, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.run(args, cwd=root, text=True, encoding="utf-8", errors="replace")
     return int(proc.returncode)
 
 
@@ -89,11 +126,12 @@ def open_dashboard(
 ) -> int:
     """Open a fresh authenticated workstation session in the default browser.
 
-    A running dashboard is restarted through the verified lifecycle manager so
-    every invocation receives a new one-time bootstrap token. The token stays
-    in the URL fragment and is never printed.
+    Every invocation restarts through the verified lifecycle manager so the
+    browser always receives a newly minted one-time bootstrap token. Merely
+    finding a bootstrap file is insufficient: another browser or verifier may
+    already have consumed its server-side token while leaving the file behind.
+    The token stays in the URL fragment and is never printed.
     """
-
     rc = run_dashboard("restart", port=port, timeout=timeout, build=build, force=True)
     if rc != 0:
         return rc

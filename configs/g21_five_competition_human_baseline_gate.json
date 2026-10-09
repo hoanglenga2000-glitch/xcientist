@@ -1,0 +1,166 @@
+{
+  "schema": "evomind.five_competition_human_baseline_audit.v1",
+  "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+  "allocation": "G21",
+  "checked_at_utc": "2026-08-30T13:44:15Z",
+  "classification": "HUMAN_BASELINE_UNDEFINED",
+  "policy": {
+    "requires_human_participants": true,
+    "requires_protocol_comparable_metric": true,
+    "requires_numeric_mean_and_uncertainty": true,
+    "model_baseline_is_not_human_baseline": true,
+    "leaderboard_is_not_human_baseline": true
+  },
+  "competitions": {
+    "cure_bench": {
+      "status": "HUMAN_BASELINE_UNDEFINED",
+      "sources_checked": [
+        {
+          "url": "https://neurips.cc/virtual/2025/competition/127720",
+          "role": "official competition description",
+          "finding": "Mentions human expert evaluation but gives no participant count, comparable accuracy mean, or uncertainty."
+        },
+        {
+          "url": "https://curebench.ai/assets/index-BrqrqNcG.js",
+          "sha256": "7fbd0aa4eb14c3439df2a7f9143edf636552b215433e744667abc72458ebd231",
+          "role": "official site bundle",
+          "finding": "Describes expert review of top teams but gives no protocol-comparable human metric mean."
+        },
+        {
+          "url": "https://arxiv.org/abs/2512.11682",
+          "sha256": "3221f86d0fc8af0494279eea98b509bc5ea81526bfb48d19e39a04f232189de",
+          "role": "related benchmark paper",
+          "finding": "Mentions expert review but reports no human participant sample mean or uncertainty."
+        },
+        {
+          "url": "https://arxiv.org/abs/2512.05576",
+          "sha256": "237b544f211e13c9b442fc6b294f4b82d82d970c11877d84879645210cc74021",
+          "role": "related agent paper",
+          "finding": "Reports model accuracy only; no protocol-comparable human participant mean."
+        }
+      ],
+      "non_evidence": ["expert review description", "model or team leaderboard"],
+      "unique_gate": "authoritative CURE-Bench human participant study with sample size, accuracy protocol, numeric mean, and uncertainty",
+      "resume_point": "human_baseline_evidence"
+    },
+    "e2lmc": {
+      "status": "HUMAN_BASELINE_UNDEFINED",
+      "sources_checked": [
+        {
+          "url": "https://e2lmc.github.io/evaluations.html",
+          "role": "official evaluation rules",
+          "finding": "Defines model SQ/RC/CS evaluation and hidden checkpoints; no human participant mean."
+        },
+        {
+          "url": "https://e2lmc.github.io/rules.html",
+          "role": "official rules",
+          "finding": "Describes model evaluation protocol, not a human participant study."
+        },
+        {
+          "url": "https://arxiv.org/abs/2506.07731",
+          "sha256": "5d81634711744a0f6afef2f9f6f0b6d8b852f8108b135974e53299264cf7d9b6",
+          "role": "E2LMC proposal paper",
+          "finding": "Defines SQ/RC/CS model benchmark metrics and checkpoint evaluation; no human participant mean or uncertainty."
+        }
+      ],
+      "non_evidence": ["model checkpoint scores", "public leaderboard"],
+      "unique_gate": "organizer or peer-reviewed E2LMC human participant study with comparable metric, protocol, mean, and uncertainty",
+      "resume_point": "human_baseline_evidence"
+    },
+    "mindgames": {
+      "status": "HUMAN_BASELINE_UNDEFINED",
+      "sources_checked": [
+        {
+          "url": "https://raw.githubusercontent.com/mind-games-challenge/mindgames-starter-kit/main/README.md",
+          "sha256": "eda65260d86fb4bbbf0f7b9192041ca8d8180fc5015417160602146384f584b2",
+          "role": "official starter kit",
+          "finding": "Provides HumanAgent manual play and model reference agents; TrueSkill is for model/team ranking, not a human participant sample mean."
+        },
+        {
+          "url": "https://www.mindgamesarena.com/assets/index-DidadbJe.js",
+          "sha256": "05c7a7b5be7b7b3c1b7c09c3711890de7007d6da1b5176ecd904a9098e9d61f",
+          "role": "official MindGames Arena site bundle",
+          "finding": "States that human or official-bot matches count and describes game-count/TrueSkill confidence rules, but gives no human participant sample mean or uncertainty."
+        },
+        {
+          "url": "https://www.mindgamesarena.com/NeurIPS%20-%20Generalization%20%28All%20Large%20Models%29.csv",
+          "sha256": "f25e9e29980598474cfeaebc8345f48f469b58be1b6bfae395470239ca950b61",
+          "role": "official leaderboard CSV",
+          "finding": "Model/team rows only; no aggregated human participant mean or uncertainty."
+        },
+        {
+          "url": "https://www.mindgamesarena.com/NeurIPS%20-%20Generalization%20%28All%20Small%20Models%29.csv",
+          "sha256": "0c12cb6cac174d478963fb2b25682ddefd34a0921df73260264970c10fe418ec",
+          "role": "official leaderboard CSV",
+          "finding": "Model/team rows only; no aggregated human participant mean or uncertainty."
+        },
+        {
+          "url": "https://www.mindgamesarena.com/NeurIPS%20-%20Social%20Deduction%20%28All%20Large%20Models%29.csv",
+          "sha256": "204e3d82a6e9986f7fc5a6766d5c24cd7516e658de708b06cd0124d50a4803ed",
+          "role": "official leaderboard CSV",
+          "finding": "Contains one three-game Test_Human_Player row without a valid human identity or population aggregate; not a human mean."
+        },
+        {
+          "url": "https://www.mindgamesarena.com/NeurIPS%20-%20Social%20Deduction%20%28All%20Small%20Models%29.csv",
+          "sha256": "c908a2bfaca72010930358232d2f0c5a7c853437f54ad0a3021bfbdf9f880acd",
+          "role": "official leaderboard CSV",
+          "finding": "Model/team rows only; no aggregated human participant mean or uncertainty."
+        },
+        {
+          "url": "https://arxiv.org/abs/2605.29512",
+          "role": "organizer-style MindGames Arena paper",
+          "finding": "Reports 944 submitted agents, 76 teams, 29,571 agent games, TrueSkill, and MG-Ref, but no protocol-comparable human cohort mean or uncertainty."
+        },
+        {
+          "url": "https://arxiv.org/abs/2507.16196",
+          "role": "rejected same-name non-evidence",
+          "finding": "The n=124 and 29%/22% human results belong to a different multi-step persuasion task named MindGames, not the four-game MindGames Arena competition."
+        }
+      ],
+      "non_evidence": ["model-agent TrueSkill references", "manual-play instructions without aggregated results", "arXiv 2507.16196 same-name persuasion task"],
+      "unique_gate": "protocol-comparable MindGames Arena human cohort using the same four-game frozen-pool protocol, with sample identity/count, mean TrueSkill or reward, and uncertainty",
+      "resume_point": "human_baseline_evidence"
+    },
+    "open_polymer": {
+      "status": "HUMAN_BASELINE_UNDEFINED",
+      "sources_checked": [
+        {
+          "url": "https://open-polymer-challenge.github.io/public/opc.pdf",
+          "sha256": "3600267c6eb34a8cc855751d0448bfffd4859b7aea2840e565215e74696fcdf0",
+          "role": "official post-competition report",
+          "finding": "Reports about 2,600 entrants, 2,000 teams, 50,000 model submissions, and official wMAE, but no human task-metric mean or uncertainty. Entrants submitted models rather than human predictions."
+        }
+      ],
+      "non_evidence": ["participant count", "team count", "submission count", "model leaderboard"],
+      "metric_protocol_gate": "The official metric is lower-is-better wMAE; the current local normalized RMSE proxy is not protocol-equivalent without a source-backed mapping.",
+      "unique_gate": "official Open Polymer human participant results under wMAE with numeric mean and uncertainty, plus a verified mapping from any local proxy metric to the official protocol",
+      "resume_point": "human_baseline_evidence"
+    },
+    "ariel_2025": {
+      "status": "HUMAN_BASELINE_UNDEFINED",
+      "sources_checked": [
+        {
+          "url": "https://www.kaggle.com/competitions/ariel-data-challenge-2025",
+          "sha256": "d3d7f57d5717c917dbae7d9878ad2a2b508387be16f4fde63e308fde23f9597e",
+          "role": "official competition page",
+          "finding": "Provides competition/model scoring context but no protocol-comparable human participant mean."
+        },
+        {
+          "url": "https://arxiv.org/abs/2505.04638",
+          "role": "rejected acronym collision",
+          "finding": "ARIEL in this paper means Expert-involved Learning; its doctoral researchers and 39.93 score are unrelated to Ariel Data Challenge 2025 exoplanet-spectrum prediction."
+        }
+      ],
+      "non_evidence": ["Kaggle model scores", "internal holdout score", "arXiv 2505.04638 acronym collision"],
+      "metric_protocol_gate": "The local normalized RMSE is an internal proxy and is not a verified human-comparable official protocol.",
+      "unique_gate": "official Ariel Data Challenge 2025 human cohort under the same spectrum-prediction protocol, with sample size, metric mean, uncertainty, and verified proxy-to-official mapping",
+      "resume_point": "human_baseline_evidence"
+    }
+  },
+  "completion": {
+    "human_baseline_gate_passed": false,
+    "all_five_verified": false,
+    "training_authorized_by_this_artifact": false,
+    "claim_boundary": "This artifact records unresolved evidence gates; it does not claim that a human baseline exists or that any competition is complete."
+  }
+}

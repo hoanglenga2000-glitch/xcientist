@@ -28,6 +28,10 @@ _PYTHON_DEV_URL = (
     "http://archive.ubuntu.com/ubuntu/pool/main/p/python3.10/"
     + _PYTHON_DEV_DEB
 )
+_MAX_SOLUTION_INPUT_FILES = 256
+_MAX_SOLUTION_INPUT_BYTES = 256 * 1024 * 1024
+_MAX_SOLUTION_OUTPUT_FILES = 512
+_MAX_SOLUTION_OUTPUT_BYTES = 2 * 1024 * 1024 * 1024
 
 
 def _now() -> str:
@@ -123,6 +127,8 @@ class HpcRuntime:
     @staticmethod
     def classify_failure(*, exit_code: int | None = None, error: str = "") -> str:
         low = error.lower()
+        if any(term in low for term in ("filenotfounderror", "file not found", "data directory", "input directory")):
+            return "input"
         if any(term in low for term in ("authentication", "auth fail", "permission denied")):
             return "connection_auth"
         if any(term in low for term in ("socks", "connect", "ssh", "banner", "socket", "network", "eoferror")):
@@ -447,24 +453,38 @@ class HpcRuntime:
         local_root: Path,
         *,
         skip_directories: set[str] | None = None,
+        max_files: int | None = None,
+        max_bytes: int | None = None,
     ) -> list[dict[str, Any]]:
         artifacts: list[dict[str, Any]] = []
         skipped = skip_directories or set()
+        downloaded_bytes = 0
         local_root.mkdir(parents=True, exist_ok=True)
 
         def walk(remote_dir: str, local_dir: Path) -> None:
+            nonlocal downloaded_bytes
             local_dir.mkdir(parents=True, exist_ok=True)
             for entry in sftp.listdir_attr(remote_dir):
                 remote_path = _validate_remote(posixpath.join(remote_dir, entry.filename))
                 local_path = local_dir / entry.filename
-                if entry.st_mode & 0o170000 == 0o040000:
+                file_type = entry.st_mode & 0o170000
+                if file_type == 0o040000:
                     if entry.filename in skipped:
                         continue
                     walk(remote_path, local_path)
                     continue
+                if file_type != 0o100000:
+                    continue
+                size = int(getattr(entry, "st_size", 0) or 0)
+                if max_files is not None and len(artifacts) >= max_files:
+                    raise RuntimeError("remote output exceeds the bounded artifact file count")
+                if max_bytes is not None and downloaded_bytes + size > max_bytes:
+                    raise RuntimeError("remote output exceeds the bounded artifact byte limit")
                 sftp.get(remote_path, str(local_path))
+                downloaded_bytes += local_path.stat().st_size
                 artifacts.append({
                     "path": str(local_path),
+                    "relative_path": local_path.relative_to(local_root).as_posix(),
                     "sha256": _sha256(local_path),
                     "bytes": local_path.stat().st_size,
                 })
@@ -750,59 +770,109 @@ class HpcRuntime:
                 client.close()
 
     def execute_solution(self, *, solution_id: str, script_path: str | Path, data_dir: str | Path) -> HpcJobResult:
+        """Execute one assistant-generated solution against a bounded Run input tree.
+
+        The older ``stage_data`` contract remains available to Kaggle workflows that
+        require train/test/sample_submission.  Assistant runs may contain any verified
+        input filenames, so this path stages the exact script plus every regular file
+        below ``data_dir`` and exposes both CLI arguments and stable environment paths.
+        """
         solution_id = _validate_component(solution_id, "solution_id")
         script_path = Path(script_path)
-        stage = self.stage_data(data_dir)
+        data_dir = Path(data_dir)
         remote_solution = _validate_remote(posixpath.join(self.remote_run_dir, "solutions", solution_id))
         remote_output = _validate_remote(posixpath.join(remote_solution, "output"))
+        remote_work = _validate_remote(posixpath.join(remote_solution, "work"))
         local_output = self.local_run_dir / "solutions" / solution_id / "output"
-        local_output.mkdir(parents=True, exist_ok=True)
         client = None
         try:
+            if script_path.is_symlink() or not script_path.is_file():
+                raise FileNotFoundError(f"solution script file not found: {script_path}")
+            if data_dir.is_symlink() or not data_dir.is_dir():
+                raise FileNotFoundError(f"data directory not found: {data_dir}")
+
+            bundle_files: dict[str, Path] = {"work/train_gpu.py": script_path}
+            input_bytes = 0
+            for path in sorted(data_dir.rglob("*"), key=lambda value: value.as_posix().casefold()):
+                if path.is_symlink():
+                    raise ValueError(f"input directory contains a symbolic link: {path.name}")
+                if not path.is_file():
+                    continue
+                relative = _validate_relative_path(path.relative_to(data_dir).as_posix())
+                input_bytes += path.stat().st_size
+                if len(bundle_files) > _MAX_SOLUTION_INPUT_FILES:
+                    raise ValueError("input directory exceeds the bounded file count")
+                if input_bytes > _MAX_SOLUTION_INPUT_BYTES:
+                    raise ValueError("input directory exceeds the bounded byte limit")
+                bundle_files[f"inputs/{relative}"] = path
+            if len(bundle_files) == 1:
+                raise FileNotFoundError(f"input directory contains no regular files: {data_dir}")
+
+            bundle_fingerprint = hashlib.sha256(
+                "".join(
+                    f"{relative}\0{_sha256(path)}\n"
+                    for relative, path in sorted(bundle_files.items())
+                ).encode("utf-8")
+            ).hexdigest()
+            remote_subdir = f"solutions/{solution_id}/bundle_{bundle_fingerprint[:16]}"
+            stage = self.stage_bundle(bundle_files, remote_subdir=remote_subdir)
+            remote_bundle = _validate_remote(str(stage["remote_dir"]))
+            remote_inputs = _validate_remote(posixpath.join(remote_bundle, "inputs"))
+            remote_script = _validate_remote(posixpath.join(remote_bundle, "work", "train_gpu.py"))
+            remote_compat_output = _validate_remote(posixpath.join(remote_bundle, "outputs"))
+
+            if local_output.exists():
+                shutil.rmtree(local_output)
+            local_output.mkdir(parents=True, exist_ok=True)
             client = self._connector()
-            sftp = client.open_sftp()
-            try:
-                self._mkdirs(sftp, remote_solution)
-                sftp.put(str(script_path), posixpath.join(remote_solution, "solution.py"))
-            finally:
-                sftp.close()
-            q_solution = shlex.quote(remote_solution)
+            q_bundle = shlex.quote(remote_bundle)
             q_output = shlex.quote(remote_output)
-            q_data = shlex.quote(str(stage["remote_data_dir"]))
+            q_work = shlex.quote(remote_work)
+            q_inputs = shlex.quote(remote_inputs)
+            q_script = shlex.quote(remote_script)
+            q_compat_output = shlex.quote(remote_compat_output)
             command = (
-                f"cd {q_solution} && rm -rf {q_output} && mkdir -p {q_output} && "
-                f"timeout {self.timeout_seconds} env PYTHONPATH={shlex.quote(self.remote_python_deps)} "
-                f"python3 -u solution.py --data-dir {q_data} --out-dir {q_output}"
+                f"cd {q_bundle} && rm -rf {q_output} {q_work} {q_compat_output} && mkdir -p {q_output} {q_work} && "
+                f"timeout {self.timeout_seconds} env "
+                f"PYTHONPATH={shlex.quote(self.remote_python_deps)} "
+                f"EVOMIND_RUN_ID={shlex.quote(self.run_id)} "
+                f"EVOMIND_TASK_ROOT={q_bundle} EVOMIND_INPUT_DIR={q_inputs} "
+                f"EVOMIND_OUTPUT_DIR={q_output} EVOMIND_WORK_DIR={q_work} "
+                f"CUDA_VISIBLE_DEVICES=0 python3 -u {q_script} --data-dir {q_inputs} --out-dir {q_output}; "
+                "rc=$?; "
+                f"if test -d {q_compat_output}; then cp -a {q_compat_output}/. {q_output}/; fi; "
+                f"if test -f {q_work}/execution-summary.json; then cp {q_work}/execution-summary.json {q_output}/execution-summary.json; fi; "
+                "exit $rc"
             )
             rc, out, err = self._exec(client, command, timeout=self.timeout_seconds + 60)
-            (local_output / "training.log").write_text(out + ("\n[stderr]\n" + err if err else ""), encoding="utf-8")
+            training_log = local_output / "training.log"
+            training_log.write_text(out + ("\n[stderr]\n" + err if err else ""), encoding="utf-8")
             artifacts = [{
-                "path": str(local_output / "training.log"),
-                "sha256": _sha256(local_output / "training.log"),
-                "bytes": (local_output / "training.log").stat().st_size,
+                "path": str(training_log),
+                "relative_path": "training.log",
+                "sha256": _sha256(training_log),
+                "bytes": training_log.stat().st_size,
             }]
-            if rc == 0:
-                sftp = client.open_sftp()
+            sftp = client.open_sftp()
+            try:
                 try:
-                    for name in ("metrics.json", "oof_predictions.csv", "submission.csv", "environment.json"):
-                        remote_file = posixpath.join(remote_output, name)
-                        local_file = local_output / name
-                        try:
-                            sftp.stat(remote_file)
-                            sftp.get(remote_file, str(local_file))
-                        except OSError:
-                            continue
-                        artifacts.append({"path": str(local_file), "sha256": _sha256(local_file), "bytes": local_file.stat().st_size})
-                finally:
-                    sftp.close()
-            required_names = {"metrics.json", "oof_predictions.csv", "submission.csv", "environment.json"}
-            present_names = {Path(item["path"]).name for item in artifacts}
-            success = rc == 0 and required_names.issubset(present_names)
-            evidence_error = "" if success else f"missing artifacts: {sorted(required_names - present_names)}"
-            failure_type = "" if success else self.classify_failure(
-                exit_code=rc,
-                error=evidence_error if rc == 0 else (err or out or evidence_error),
-            )
+                    artifacts.extend(
+                        self._download_tree(
+                            sftp,
+                            remote_output,
+                            local_output,
+                            max_files=_MAX_SOLUTION_OUTPUT_FILES,
+                            max_bytes=_MAX_SOLUTION_OUTPUT_BYTES,
+                        )
+                    )
+                except OSError:
+                    pass
+            finally:
+                sftp.close()
+            output_count = len(artifacts) - 1
+            success = rc == 0 and output_count > 0
+            evidence_error = "" if success else "solution produced no downloadable output artifacts"
+            primary_error = evidence_error if rc == 0 else (err or out or evidence_error)
             return HpcJobResult(
                 status="completed" if success else "failed",
                 run_id=self.run_id,
@@ -812,7 +882,7 @@ class HpcRuntime:
                 stdout_tail=out[-1200:],
                 stderr_tail=err[-1200:],
                 local_artifacts=artifacts,
-                failure_type=failure_type,
+                failure_type="" if success else self.classify_failure(exit_code=rc, error=primary_error),
                 error=evidence_error or (err[-1200:] if rc else ""),
             )
         except Exception as exc:

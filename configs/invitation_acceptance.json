@@ -1,0 +1,20 @@
+{
+  "schema": "evomind.invitation_acceptance.v1",
+  "audience": "laboratory_invitation_only",
+  "rollout": {"default_aibuild_mode": "off", "enable_after_engineering_acceptance": true, "initial_invited_users": 1, "load_test_users": 5},
+  "runtime": {"gpu_concurrency": 1, "planning_cpu_concurrency": 2, "heartbeat_seconds": 15, "stale_seconds": 45, "stalled_seconds": 180},
+  "engineering_gate": {"api_p95_seconds": 1, "progress_visibility_seconds": 20, "cross_tenant_leaks": 0, "duplicate_workers": 0, "false_completion": 0},
+  "research_gate": {
+    "status": "NOT_EXECUTED",
+    "total_gpu_seconds": 43200,
+    "trial_gpu_seconds": 1200,
+    "reserve_gpu_seconds": 10800,
+    "seeds": [17, 43, 97],
+    "arms": ["direct_tool_loop", "aibuildai2_mechanisms", "evomind_enhanced"],
+    "tasks": ["cure_public_validation", "ariel_independent_protocol", "e2lmc_new_independent_groups"],
+    "requires_frozen_same_model_data_scorer_budget": true,
+    "consumed_holdouts_allowed_for_scientific_claims": false,
+    "failed_trials_in_denominator": true,
+    "missing_independent_evaluator": "BLOCKED_NOT_SUBSTITUTED"
+  }
+}

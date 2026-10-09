@@ -505,7 +505,7 @@ def audit_web_response(
         if not passed:
             missing.append(f"cover_facet:{facet}")
     if contract.evidence_required:
-        passed = "verified_context" in tools
+        passed = any(name in tools for name in ("verified_context", "experiment_results"))
         checks["verified_evidence_used"] = passed
         if not passed:
             missing.append("use_verified_context")

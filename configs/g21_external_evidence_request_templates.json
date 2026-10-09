@@ -1,0 +1,510 @@
+{
+  "schema": "evomind.g21_external_evidence_request_templates.v1",
+  "status": "LOCAL_REQUEST_TEMPLATES_ONLY",
+  "claim_boundary": "This file neither proves that human evidence or a private evaluator exists nor authorizes training. It must not be sent automatically or treated as an organizer response.",
+  "binding": {
+    "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+    "allocation": "G21",
+    "goal_spec": {
+      "path": "configs/g21_five_competition_goal.json",
+      "bytes": 2257,
+      "sha256": "380a3b2c037c8067a4618717cb7aaf8847d323d4be401a88d64009468132848f"
+    },
+    "negative_human_evidence": {
+      "path": "configs/g21_five_competition_human_baseline_gate.json",
+      "bytes": 9367,
+      "sha256": "5b6ed3d912ad1cd4655c96f832629cf9603a4b0ad58ab6e27c01861fadd69c5f"
+    },
+    "protocol_source": {
+      "path": "docs/g21_five_competition_human_participant_protocols.md",
+      "bytes": 13962,
+      "sha256": "49f480ab0d59a8a3f0e82c372d087ee05fce4147b887de558ac71ca8e388db6b"
+    }
+  },
+  "common_requirements": {
+    "authority": [
+      "official_organizer",
+      "peer_reviewed",
+      "official_dataset"
+    ],
+    "source_delivery_fields": [
+      "source_url_or_doi",
+      "source_title",
+      "source_authority",
+      "source_filename",
+      "source_content_type",
+      "source_bytes",
+      "source_sha256",
+      "organizer_signature_or_publication_receipt"
+    ],
+    "human_result_fields": [
+      "participant_type",
+      "target_population",
+      "included_count",
+      "protocol_id",
+      "protocol_text",
+      "protocol_sha256",
+      "protocol_comparable",
+      "metric",
+      "direction",
+      "participant_level_scores_artifact_sha256",
+      "mean",
+      "uncertainty.lower",
+      "uncertainty.upper",
+      "uncertainty.confidence_level",
+      "uncertainty.method",
+      "uncertainty.source_sha256"
+    ],
+    "minimum_independent_participants": 30,
+    "confidence_level": 0.95,
+    "default_uncertainty": "participant-cluster bootstrap; use participant-by-item, participant-by-seed, participant-by-experiment, participant-by-polymer, or participant-by-planet two-level bootstrap when repeated measures apply",
+    "comparability": [
+      "human and candidate receive the same blinded inputs",
+      "human and candidate use the same frozen task or environment manifest",
+      "human and candidate are scored by the same official scorer, metric, direction, valid-pair policy, and aggregation unit",
+      "the cohort mean and uncertainty are computed over independent human participants",
+      "source bytes, source SHA-256, evidence artifact SHA-256, protocol bytes, and protocol SHA-256 close exactly"
+    ],
+    "privacy_and_leakage": {
+      "participant_blind_to_labels": true,
+      "participant_blind_to_candidate_outputs": true,
+      "analyst_blind_to_condition_until_freeze": true,
+      "candidate_blind_to_human_responses": true,
+      "test_labels_exposed": false,
+      "prior_holdout_overlap": 0,
+      "pii_in_artifacts": false,
+      "participant_id_scheme": "irreversible_research_id_only"
+    }
+  },
+  "organizer_evidence_requests": {
+    "e2lmc": {
+      "request_kind": "organizer_private_human_evaluator",
+      "reason": "The public competition scores evaluation methods on hidden early-training experiments; ordinary human question accuracy is not the same estimand.",
+      "requested_contract_is_proposed_not_observed": true,
+      "requested_endpoints": [
+        {
+          "method": "GET",
+          "path": "/v1/e2lmc/human-evaluator/v1/protocol",
+          "purpose": "Return signed protocol, frozen evaluator list, SQ/RC/CS scorer manifest, participant eligibility, budget, and private-experiment policy."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/e2lmc/human-evaluator/v1/evaluations",
+          "purpose": "Atomically claim one new organizer-private experiment and score the frozen human-selection cohort and candidate on that same experiment.",
+          "request_fields": [
+            "protocol_id",
+            "protocol_sha256",
+            "human_response_artifact_id",
+            "human_response_artifact_sha256",
+            "participant_flow_artifact_sha256",
+            "candidate_artifact_id",
+            "candidate_artifact_sha256",
+            "private_experiment_claim_nonce",
+            "client_idempotency_key"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/v1/e2lmc/human-evaluator/v1/evaluations/{evaluation_id}/receipt",
+          "purpose": "Return the immutable signed evidence receipt without hidden checkpoint labels."
+        }
+      ],
+      "required_response_fields": [
+        "evaluation_id",
+        "status",
+        "protocol_id",
+        "protocol_sha256",
+        "private_experiment_claim_id",
+        "private_experiment_manifest_sha256",
+        "private_experiment_previously_consumed",
+        "human_included_count",
+        "participant_level_sq_rc_cs_artifact_sha256",
+        "human_composite_mean",
+        "human_composite_ci95_lower",
+        "human_composite_ci95_upper",
+        "candidate_sq",
+        "candidate_rc",
+        "candidate_cs",
+        "candidate_composite",
+        "official_scorer_sha256",
+        "experiment_overlap_count",
+        "test_labels_exposed",
+        "source_filename",
+        "source_bytes",
+        "source_sha256",
+        "artifact_manifest_sha256",
+        "organizer_signature"
+      ],
+      "protocol_specific_acceptance": [
+        "human experts select or rank evaluators from blinded early-checkpoint curves under one frozen budget",
+        "the same new private experiment and the same SQ/RC/CS scorer evaluate human selections and candidate",
+        "included_count >= 30",
+        "participant-by-experiment bootstrap confidence level equals 0.95",
+        "private_experiment_previously_consumed is false, experiment_overlap_count is 0, and test_labels_exposed is false"
+      ]
+    },
+    "ariel_2025": {
+      "request_kind": "organizer_private_human_expert_workflow_evaluator",
+      "reason": "A 283-dimensional spectrum regression is comparable only as a frozen human-expert workflow with a defined tool and time budget and the official private scorer.",
+      "requested_contract_is_proposed_not_observed": true,
+      "requested_endpoints": [
+        {
+          "method": "GET",
+          "path": "/v1/ariel-2025/human-expert-workflow/v1/protocol",
+          "purpose": "Return signed planet/input/output schemas, allowed software and reference manifests, time budget, official metric, and scorer manifest."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/ariel-2025/human-expert-workflow/v1/evaluations",
+          "purpose": "Atomically claim one unseen private planet manifest and score human and candidate 283-value predictions without releasing labels.",
+          "request_fields": [
+            "protocol_id",
+            "protocol_sha256",
+            "human_prediction_artifact_id",
+            "human_prediction_artifact_sha256",
+            "participant_flow_artifact_sha256",
+            "tools_and_references_manifest_sha256",
+            "candidate_prediction_artifact_id",
+            "candidate_prediction_artifact_sha256",
+            "private_planet_claim_nonce",
+            "client_idempotency_key"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/v1/ariel-2025/human-expert-workflow/v1/evaluations/{evaluation_id}/receipt",
+          "purpose": "Return the immutable signed score and closure receipt, never private spectra labels."
+        }
+      ],
+      "required_response_fields": [
+        "evaluation_id",
+        "status",
+        "protocol_id",
+        "protocol_sha256",
+        "private_planet_claim_id",
+        "private_planet_manifest_sha256",
+        "private_planet_previously_consumed",
+        "human_included_count",
+        "participant_level_official_metric_artifact_sha256",
+        "human_metric_mean",
+        "human_metric_ci95_lower",
+        "human_metric_ci95_upper",
+        "candidate_official_metric",
+        "metric",
+        "direction",
+        "official_scorer_sha256",
+        "input_manifest_equal_for_human_and_candidate",
+        "planet_overlap_count",
+        "test_labels_exposed",
+        "source_filename",
+        "source_bytes",
+        "source_sha256",
+        "artifact_manifest_sha256",
+        "organizer_signature"
+      ],
+      "protocol_specific_acceptance": [
+        "result is explicitly named human_expert_workflow and binds allowed tool, reference, compute, and time-budget versions",
+        "human and candidate receive the same blinded planet, signal, and star-metadata manifest and emit the same 283-value schema",
+        "included_count >= 30",
+        "participant-by-planet bootstrap confidence level equals 0.95",
+        "private_planet_previously_consumed is false, planet_overlap_count is 0, and test_labels_exposed is false"
+      ]
+    },
+    "open_polymer": {
+      "request_kind": "organizer_private_human_expert_workflow_evaluator",
+      "reason": "The official lower-is-better wMAE is not interchangeable with the current local normalized RMSE proxy.",
+      "requested_contract_is_proposed_not_observed": true,
+      "requested_endpoints": [
+        {
+          "method": "GET",
+          "path": "/v1/open-polymer/human-expert-workflow/v1/protocol",
+          "purpose": "Return signed private molecule/target schema, allowed workflow, valid-pair and missing-prediction rules, target weights, and official wMAE scorer manifest."
+        },
+        {
+          "method": "POST",
+          "path": "/v1/open-polymer/human-expert-workflow/v1/evaluations",
+          "purpose": "Atomically claim one unseen molecule/target manifest and score human and candidate predictions with the same official wMAE implementation.",
+          "request_fields": [
+            "protocol_id",
+            "protocol_sha256",
+            "human_prediction_artifact_id",
+            "human_prediction_artifact_sha256",
+            "participant_flow_artifact_sha256",
+            "tools_and_references_manifest_sha256",
+            "candidate_prediction_artifact_id",
+            "candidate_prediction_artifact_sha256",
+            "private_molecule_claim_nonce",
+            "client_idempotency_key"
+          ]
+        },
+        {
+          "method": "GET",
+          "path": "/v1/open-polymer/human-expert-workflow/v1/evaluations/{evaluation_id}/receipt",
+          "purpose": "Return immutable signed human and candidate wMAE evidence without private target labels."
+        }
+      ],
+      "required_response_fields": [
+        "evaluation_id",
+        "status",
+        "protocol_id",
+        "protocol_sha256",
+        "private_molecule_claim_id",
+        "private_molecule_target_manifest_sha256",
+        "private_molecule_manifest_previously_consumed",
+        "targets",
+        "target_weights_sha256",
+        "valid_pair_manifest_sha256",
+        "missing_prediction_policy_sha256",
+        "human_included_count",
+        "participant_level_wmae_artifact_sha256",
+        "human_wmae_mean",
+        "human_wmae_ci95_lower",
+        "human_wmae_ci95_upper",
+        "candidate_wmae",
+        "metric",
+        "direction",
+        "official_scorer_sha256",
+        "valid_pairs_equal_for_human_and_candidate",
+        "polymer_overlap_count",
+        "test_labels_exposed",
+        "source_filename",
+        "source_bytes",
+        "source_sha256",
+        "artifact_manifest_sha256",
+        "organizer_signature"
+      ],
+      "protocol_specific_acceptance": [
+        "targets equal [Tg, FFV, Tc, Density, Rg], metric is wMAE, and direction is lower_is_better",
+        "human and candidate use identical private molecule/target and valid-pair manifests, target weights, missing-prediction policy, and scorer",
+        "included_count >= 30",
+        "participant-by-polymer bootstrap confidence level equals 0.95",
+        "private_molecule_manifest_previously_consumed is false, polymer_overlap_count is 0, and test_labels_exposed is false"
+      ]
+    }
+  },
+  "cohort_intake_manifest_templates": {
+    "cure_bench": {
+      "schema": "evomind.human-participant-baseline-study.v1",
+      "status": "DRAFT_UNFILLED_NOT_EVIDENCE",
+      "competition": "cure_bench",
+      "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+      "allocation": "G21",
+      "required_identity_fields": [
+        "study_id",
+        "protocol_id",
+        "protocol_version",
+        "protocol_text",
+        "protocol_sha256",
+        "preregistration_url_or_doi",
+        "title",
+        "source_authority",
+        "organizer_protocol_url",
+        "organizer_protocol_bytes",
+        "organizer_protocol_sha256",
+        "created_at_utc",
+        "frozen_at_utc"
+      ],
+      "participant_plan": {
+        "participant_type": "human",
+        "target_population": "licensed clinicians; senior medical students or residents only as separately preregistered strata",
+        "minimum_sample_size": 30,
+        "sample_size_stop_rule": "continue to the preregistered participant-level accuracy CI half-width or power target, whichever requires more participants",
+        "required_fields": [
+          "inclusion_criteria",
+          "exclusion_criteria",
+          "qualification_test_id",
+          "qualification_test_sha256",
+          "experience_bands",
+          "age_policy",
+          "language_policy",
+          "consent_form_sha256",
+          "ethics_review_reference",
+          "compensation_policy",
+          "planned_sample_size",
+          "sample_size_rationale",
+          "enrolled_count",
+          "excluded_count",
+          "included_count",
+          "exclusion_reason_counts",
+          "participant_id_scheme"
+        ]
+      },
+      "task_plan": {
+        "task_definition": "Answer official CURE-Bench multiple-choice medical items using question, question_type, options, and no answer or model output.",
+        "official_metric": "accuracy",
+        "metric_direction": "higher_is_better",
+        "minimum_items_per_participant": 100,
+        "aggregation_unit": "participant",
+        "ci_method": "participant-by-item two-level bootstrap",
+        "required_fields": [
+          "task_manifest_id",
+          "task_manifest_sha256",
+          "item_count",
+          "item_id_sha256",
+          "answer_key_or_private_evaluator_sha256",
+          "official_scoring_code_sha256",
+          "time_budget_seconds",
+          "allowed_tools",
+          "forbidden_tools",
+          "training_or_familiarization_protocol",
+          "randomization_seed",
+          "assignment_manifest_sha256",
+          "item_order_balance",
+          "holdout_ledger_id",
+          "holdout_ledger_sha256",
+          "holdout_claim_id",
+          "holdout_claim_sha256"
+        ]
+      },
+      "acceptance_constants": {
+        "participant_blind_to_labels": true,
+        "participant_blind_to_candidate_outputs": true,
+        "analyst_blind_to_condition_until_freeze": true,
+        "candidate_blind_to_human_responses": true,
+        "prior_holdout_overlap": 0,
+        "test_labels_exposed": false,
+        "confidence_level": 0.95
+      }
+    },
+    "mindgames": {
+      "schema": "evomind.human-participant-baseline-study.v1",
+      "status": "DRAFT_UNFILLED_NOT_EVIDENCE",
+      "competition": "mindgames",
+      "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+      "allocation": "G21",
+      "required_identity_fields": [
+        "study_id",
+        "protocol_id",
+        "protocol_version",
+        "protocol_text",
+        "protocol_sha256",
+        "preregistration_url_or_doi",
+        "title",
+        "source_authority",
+        "organizer_protocol_url",
+        "organizer_protocol_bytes",
+        "organizer_protocol_sha256",
+        "created_at_utc",
+        "frozen_at_utc"
+      ],
+      "participant_plan": {
+        "participant_type": "human",
+        "target_population": "adults who understand the competition language and pass each frozen game's rules test",
+        "minimum_sample_size": 30,
+        "minimum_games_per_participant_per_environment": 8,
+        "minimum_total_games_per_participant": 32,
+        "required_fields": [
+          "inclusion_criteria",
+          "exclusion_criteria",
+          "qualification_test_id",
+          "qualification_test_sha256",
+          "experience_bands",
+          "age_policy",
+          "language_policy",
+          "consent_form_sha256",
+          "ethics_review_reference",
+          "compensation_policy",
+          "planned_sample_size",
+          "sample_size_rationale",
+          "enrolled_count",
+          "excluded_count",
+          "included_count",
+          "exclusion_reason_counts",
+          "participant_id_scheme"
+        ]
+      },
+      "task_plan": {
+        "environments": [
+          "Codenames-v0",
+          "ColonelBlotto-v0",
+          "ThreePlayerIPD-v0",
+          "SecretMafia-v0"
+        ],
+        "official_metric": "organizer-defined TrueSkill under the frozen reference pool",
+        "metric_direction": "higher_is_better",
+        "secondary_metrics": [
+          "mean_reward_difference",
+          "win_draw_loss",
+          "invalid_move_rate"
+        ],
+        "ci_method": "participant-cluster bootstrap plus separately reported TrueSkill posterior mu and sigma",
+        "required_fields": [
+          "textarena_version",
+          "trueskill_version",
+          "starter_kit_commit_sha",
+          "offline_evaluator_sha256",
+          "opponent_pool_manifest_sha256",
+          "seed_schedule_sha256",
+          "seat_schedule_sha256",
+          "official_scoring_code_sha256",
+          "time_budget_seconds",
+          "allowed_tools",
+          "forbidden_tools",
+          "training_or_familiarization_protocol",
+          "assignment_manifest_sha256",
+          "holdout_ledger_id",
+          "holdout_ledger_sha256",
+          "holdout_claim_id",
+          "holdout_claim_sha256"
+        ]
+      },
+      "frozen_dependency_requirements": {
+        "textarena": "0.7.4",
+        "trueskill": "required_managed_version_and_sha",
+        "opponent_pool": "frozen_manifest_required",
+        "model_or_reference_agents": "frozen_manifest_required"
+      },
+      "acceptance_constants": {
+        "participant_blind_to_labels": true,
+        "participant_blind_to_candidate_outputs": true,
+        "analyst_blind_to_condition_until_freeze": true,
+        "candidate_blind_to_human_responses": true,
+        "prior_holdout_overlap": 0,
+        "test_labels_exposed": false,
+        "seat_balance_required": true,
+        "confidence_level": 0.95
+      }
+    }
+  },
+  "required_artifact_closure": [
+    "protocol.json",
+    "preregistration-receipt.json",
+    "participant-flow.json",
+    "qualification-manifest.json",
+    "task-manifest.json",
+    "assignment-manifest.json",
+    "holdout-ledger-receipt.json",
+    "raw-responses.redacted.jsonl",
+    "scored-responses.jsonl",
+    "participant-metrics.json",
+    "human-baseline.json",
+    "bootstrap-replicates-or-seed-receipt.json",
+    "leakage-audit.json",
+    "independent-review.json",
+    "artifact-manifest.json"
+  ],
+  "response_acceptance_checklist": [
+    "The response is an actual completed study or organizer evaluation, not a plan, blank template, recruitment intent, model baseline, leaderboard, expert review narrative, or single anonymous player row.",
+    "The source is official_organizer, peer_reviewed, or official_dataset and exact source filename, content type, byte count, bytes SHA-256, URL or DOI, and signature or publication receipt are present.",
+    "The protocol bytes hash to protocol_sha256 and are protocol-comparable to the candidate for inputs, task manifest, scorer, metric, direction, valid-pair policy, and aggregation unit.",
+    "There are at least 30 independent included human participants, or a stricter preregistered power or precision calculation requiring more; enrollment and exclusions reconcile by reason.",
+    "Participant-level scores, the numeric human mean, and a 95% uncertainty interval are independently recomputable from the redacted raw and scored response artifacts.",
+    "The uncertainty source SHA-256 equals the authoritative human-baseline source artifact SHA-256; evidence_artifact_sha256 equals source_sha256.",
+    "The holdout or private evaluator was atomically claimed once, was previously unconsumed, and has zero overlap with every prior holdout, experiment, architecture, item, seed, polymer, or planet used for selection or tuning.",
+    "Participants never saw labels or candidate outputs; the candidate never saw human responses; analysts remained blinded until freeze; test_labels_exposed is false.",
+    "All 15 required regular files exist, artifact-manifest.json lists exact relative path, byte count, and SHA-256 for every file, and there are no extra, missing, symlink, duplicate, or unsafe-path entries.",
+    "The private evaluator receipt exposes scores and hashes only, never hidden labels, and binds the organizer signature, scorer SHA-256, task manifest SHA-256, claim ID, protocol SHA-256, and response artifact SHA-256.",
+    "human-baseline.json has status VERIFIED, participant_type human, source URL or DOI, authority, title, sample size, protocol, metric, direction, mean, uncertainty, and exact evidence/source hash closure.",
+    "Independent review recomputes the official metric and CI, confirms zero leakage and overlap, and records an explicit ACCEPT or REJECT decision with reviewer artifact SHA-256.",
+    "Only after every applicable checklist item passes may the competition change from WAITING_EXACT_GATE to READY_FOR_GPU; this template alone always leaves training_authorized false."
+  ],
+  "side_effect_policy": {
+    "send_requests": false,
+    "contact_organizers": false,
+    "production_access": false,
+    "hpc_access": false,
+    "gpu_access": false,
+    "remote_writes": false,
+    "training_authorized": false
+  }
+}

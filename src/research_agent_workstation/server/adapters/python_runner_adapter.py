@@ -36,7 +36,6 @@ class LocalPythonRunnerAdapter(PythonRunnerAdapter):
 
     def __init__(self, log_root: Path) -> None:
         self.log_root = log_root
-        self.log_root.mkdir(parents=True, exist_ok=True)
 
     def run_script(self, script_path: Path, args: list[str], cwd: Path, env: dict[str, str] | None = None) -> RunResult:
         run_id = f"run_{uuid4().hex[:10]}"

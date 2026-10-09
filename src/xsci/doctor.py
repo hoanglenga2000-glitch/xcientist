@@ -9,10 +9,20 @@ CI-friendly.
 from __future__ import annotations
 
 import importlib
+import platform
+import shutil
 import sys
+from pathlib import Path
 from typing import Callable
 
-from .config import load_config
+from research_os.hpc_policy import require_hpc_compute
+
+from .config import active_root, load_config
+from .kaggle_session import (
+    KAGGLE_AUTHENTICATED,
+    KAGGLE_CONFIGURED_UNVERIFIED,
+    kaggle_auth_state,
+)
 
 OK, WARN, FAIL = "PASS", "WARN", "FAIL"
 
@@ -49,37 +59,57 @@ def _check_llm(cfg) -> tuple[str, str]:
     return WARN, "no LLM key - run `xsci login` (phase 2) or set ANTHROPIC_API_KEY"
 
 
-def _check_kaggle(cfg) -> tuple[str, str]:
-    if cfg.get("secrets.kaggle_key") and cfg.get("secrets.kaggle_username"):
-        return OK, "Kaggle credentials present"
-    return WARN, "no Kaggle credentials - needed to fetch competitions"
+def _check_kaggle(cfg, root: Path) -> tuple[str, str]:
+    state = kaggle_auth_state(cfg, root)
+    if state.status == KAGGLE_AUTHENTICATED:
+        return OK, "Kaggle authenticated by explicit real API smoke evidence"
+    if state.status == KAGGLE_CONFIGURED_UNVERIFIED:
+        return WARN, "Kaggle configured_unverified (auth_pending) - run the explicit real API smoke"
+    return WARN, "Kaggle not_configured - install a protected credential and run the explicit real API smoke"
 
 
 def _check_compute(cfg) -> tuple[str, str]:
-    backend = cfg.get("compute.backend", "local")
-    if backend != "gpu":
-        return OK, f"compute backend = {backend} (no remote needed)"
-    # GPU selected: verify the SSH config resolves WITHOUT connecting.
+    backend = str(cfg.get("compute.backend", "gpu") or "gpu")
+    try:
+        require_hpc_compute(backend)
+    except Exception as exc:  # noqa: BLE001
+        return FAIL, str(exc)
+    # GPU selected: resolve configuration without claiming a runtime smoke.
     try:
         from research_agent_workstation.server.core.gpu_credentials import (
             load_gpu_ssh_config,
         )
         conf = load_gpu_ssh_config(require_auth=True)
-        return OK, f"GPU SSH config resolves (host set, auth={conf.has_auth()})"
+        return WARN, f"GPU SSH config resolves (auth={conf.has_auth()}); fresh remote SSH/CUDA smoke still required"
     except Exception as exc:  # noqa: BLE001
         return FAIL, f"compute=gpu but SSH config invalid: {exc}"
 
 
+def _check_disk_space() -> tuple[str, str]:
+    usage = shutil.disk_usage(Path.cwd())
+    free_gb = usage.free / (1024 ** 3)
+    if free_gb < 5:
+        return WARN, f"disk free {free_gb:.1f} GB (< 5 GB)"
+    return OK, f"disk free {free_gb:.1f} GB"
+
+
+def _check_os() -> tuple[str, str]:
+    return OK, platform.platform()
+
+
 def run_doctor() -> int:
-    cfg = load_config()
+    root = active_root()
+    cfg = load_config(root)
     checks: list[tuple[str, Callable[[], tuple[str, str]]]] = [
         ("python", _check_python),
         ("deps: pandas", lambda: _check_import("pandas")),
         ("deps: sklearn", lambda: _check_import("sklearn")),
         ("engine", _check_engine),
         ("llm", lambda: _check_llm(cfg)),
-        ("kaggle", lambda: _check_kaggle(cfg)),
+        ("kaggle", lambda: _check_kaggle(cfg, root)),
         ("compute", lambda: _check_compute(cfg)),
+        ("disk", _check_disk_space),
+        ("os", _check_os),
     ]
     symbols = {OK: "[+]", WARN: "[!]", FAIL: "[x]"}
     n_fail = n_warn = 0

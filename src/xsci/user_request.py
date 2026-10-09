@@ -236,6 +236,7 @@ class ComputePolicy:
     gpu_count: int = 1
     credential_profile: str | None = None
     job_id: int | None = None
+    resource_profile: str | None = None
 
 
 @dataclass(frozen=True)
@@ -316,6 +317,9 @@ class UserRequest:
                     str(compute.get("credential_profile")) if compute.get("credential_profile") else None
                 ),
                 job_id=int(compute["job_id"]) if compute.get("job_id") is not None else None,
+                resource_profile=(
+                    str(compute.get("resource_profile")) if compute.get("resource_profile") else None
+                ),
             ),
             negative_constraints=[str(item) for item in payload.get("negative_constraints") or []],
             submission_policy=SubmissionPolicy(

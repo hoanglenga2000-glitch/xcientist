@@ -829,9 +829,29 @@ class SiimHpcExecutors:
         _require(dataset.get("complete") is True, "dataset profile is not complete")
         runtime_path = _copy_file(runtime_source, self.run_dir / "hpc_runtime.json")
         dataset_path = _copy_file(dataset_source, self.run_dir / "dataset_profile.json")
+        receipt_path = self.run_dir / "hpc_job_receipt.json"
+        _atomic_json(
+            receipt_path,
+            {
+                "schema": "evomind.hpc_job_receipt.v1",
+                "run_id": run.run_id,
+                "task_id": TASK_ID,
+                "job_id": self.binding.job_id,
+                "cluster": "aimslab",
+                "owner": "workstation_orchestrator",
+                "status": "job_container_verified",
+                "verified": True,
+                "credential_profile": self.binding.credential_profile,
+                "remote_root": REMOTE_ROOT,
+                "source_artifact": "hpc_runtime.json",
+                "source_sha256": _sha256(runtime_path),
+                "created_time": _now(),
+            },
+        )
         artifacts = [
             _artifact(runtime_path, self.run_dir, kind="hpc_runtime"),
             _artifact(dataset_path, self.run_dir, kind="dataset_profile"),
+            _artifact(receipt_path, self.run_dir, kind="hpc_job_receipt"),
         ]
         return AgentResult(
             task.task_id,

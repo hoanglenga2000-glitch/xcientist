@@ -153,6 +153,7 @@ class VariationProposal:
     llm_output_tokens: int = 0
     raw_response: str = ""
     prompt: str = ""
+    memory_ref_ids: list[str] = field(default_factory=list)
 
 
 _SYSTEM_PREAMBLE = (
@@ -505,4 +506,9 @@ class VariationGenerator:
             llm_output_tokens=response.output_tokens,
             raw_response=response.text,
             prompt=user,
+            memory_ref_ids=[
+                str(item.get("memory_id"))
+                for item in list(lessons or [])
+                if isinstance(item, dict) and isinstance(item.get("memory_id"), str)
+            ],
         )

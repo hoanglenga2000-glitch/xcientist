@@ -12,6 +12,9 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import re
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +25,7 @@ from sklearn.datasets import make_classification
 from sklearn.metrics import roc_auc_score
 
 from .experience_mcgs import CANONICAL_HASH_SCHEMA, canonical_json as _experience_canonical_json
+from .evolution_loop import RunResult, _parse_cv_score
 from .variation_generator import TaskContext, VariationProposal
 
 DEMO_SCHEMA_VERSION = 1
@@ -732,20 +736,99 @@ class DemoVariationGenerator:
         "complementary_soft_voting",
     )
 
+    def __init__(self) -> None:
+        self._plan_indices: tuple[int, ...] | None = None
+        self._memory_ref_ids: tuple[str, ...] = ()
+        self.plan_source = "canonical_no_memory"
+
+    @classmethod
+    def _strategy_from_lesson(cls, lesson: dict[str, Any]) -> str:
+        reusable = str(lesson.get("reusable_strategy") or "").strip()
+        if reusable in cls.STRATEGIES:
+            return reusable
+        method = str(lesson.get("method") or "")
+        strategy = method.split(":", 1)[-1].split(",", 1)[0].strip()
+        return strategy if strategy in cls.STRATEGIES else ""
+
+    def _initialize_plan(self, lessons: list[dict[str, Any]]) -> None:
+        observations: dict[str, dict[str, Any]] = {}
+        memory_ref_ids: list[str] = []
+        for lesson in lessons:
+            if not isinstance(lesson, dict):
+                continue
+            memory_id = str(lesson.get("memory_id") or "")
+            profile = lesson.get("dataset_profile")
+            profile = profile if isinstance(profile, dict) else {}
+            if profile.get("task_name") != DEMO_TASK_ID and not memory_id.startswith(f"{DEMO_TASK_ID}:"):
+                continue
+            strategy = self._strategy_from_lesson(lesson)
+            if not strategy:
+                continue
+            observations[strategy] = lesson
+            if memory_id and memory_id not in memory_ref_ids:
+                memory_ref_ids.append(memory_id)
+
+        if not observations:
+            self._plan_indices = tuple(range(DEMO_MAX_NODES))
+            self._memory_ref_ids = ()
+            self.plan_source = "canonical_no_memory"
+            return
+
+        def rank(index: int) -> tuple[int, float, int]:
+            strategy = self.STRATEGIES[index]
+            lesson = observations.get(strategy)
+            if lesson is None:
+                return (2, 0.0, index)
+            profile = lesson.get("dataset_profile")
+            profile = profile if isinstance(profile, dict) else {}
+            failed = bool(lesson.get("what_failed") or lesson.get("failure_pattern")) or profile.get("run_success") is False
+            promoted = profile.get("promoted") is True or bool(lesson.get("reusable_strategy"))
+            delta_value = lesson.get("metric_delta")
+            delta = float(delta_value) if isinstance(delta_value, (int, float)) and math.isfinite(float(delta_value)) else float("-inf")
+            if failed:
+                return (3, 0.0, index)
+            if promoted:
+                return (0, -delta, index)
+            return (1, 0.0, index)
+
+        ranked = list(sorted(range(DEMO_MAX_NODES), key=rank))
+        known_failures = [index for index in ranked if rank(index)[0] == 3]
+        if known_failures:
+            # The frozen demo deliberately keeps one real failing candidate so
+            # the next node can exercise the Debug operator. Memory should move
+            # proven approaches earlier, but placing every known failure last
+            # would erase the recovery step and make the claim audit correctly
+            # hold. Keep one bounded diagnostic probe at the canonical third
+            # step, then continue with the memory-ranked successful candidates.
+            non_failures = [index for index in ranked if index not in known_failures]
+            probe = known_failures[0]
+            ranked = [*non_failures[:2], probe, *non_failures[2:], *known_failures[1:]]
+            self.plan_source = "retrospective_memory_ranked_with_debug_probe"
+        else:
+            self.plan_source = "retrospective_memory_ranked"
+        self._plan_indices = tuple(ranked)
+        self._memory_ref_ids = tuple(memory_ref_ids)
+
     def propose(self, context: TaskContext, *, exp_id: str, mode: str = "Base", parent_exp_id: str | None = None,
-                expansion_type: str = "primary", **_: Any) -> VariationProposal:
-        index = int(exp_id.removeprefix("EXP"))
-        if context.task_name != DEMO_TASK_ID or index not in range(DEMO_MAX_NODES):
+                expansion_type: str = "primary", lessons: list[dict[str, Any]] | None = None,
+                **_: Any) -> VariationProposal:
+        step = int(exp_id.removeprefix("EXP"))
+        if context.task_name != DEMO_TASK_ID or step not in range(DEMO_MAX_NODES):
             raise ValueError("deterministic demo plan is bound to the isolated demo task and eight nodes")
+        if self._plan_indices is None:
+            self._initialize_plan(list(lessons or []))
+        assert self._plan_indices is not None
+        index = self._plan_indices[step]
         strategy = self.STRATEGIES[index]
         prompt = (
-            f"Verified demo proposal {index}: operator mode={mode}; expansion={expansion_type}; "
-            f"strategy={strategy}. Execute against the synthetic public-validation split."
+            f"Verified demo proposal step={step}, candidate={index}: operator mode={mode}; "
+            f"expansion={expansion_type}; strategy={strategy}; plan_source={self.plan_source}. "
+            "Execute against the synthetic public-validation split."
         )
         return VariationProposal(
             exp_id=exp_id,
             code=_candidate_code(index),
-            hypothesis=f"Round {index + 1} evaluates {strategy} using real local CPU execution.",
+            hypothesis=f"Round {step + 1} evaluates {strategy} using real local CPU execution ({self.plan_source}).",
             changes_summary=f"{mode}/{expansion_type}: {strategy}",
             applied_strategies=[strategy],
             parent_exp_id=parent_exp_id,
@@ -756,6 +839,103 @@ class DemoVariationGenerator:
             llm_output_tokens=0,
             raw_response="",
             prompt=prompt,
+            memory_ref_ids=list(self._memory_ref_ids),
+        )
+
+
+class DemoLocalValidationRunner:
+    """Execute only the frozen deterministic CPU demo candidates.
+
+    General local training remains disabled.  This runner is deliberately
+    incapable of accepting arbitrary generated code, another task, another
+    dataset, or an output path outside its isolated campaign.
+    """
+
+    def __init__(self, workdir: str | Path, campaign_root: str | Path, *, timeout: int = 120) -> None:
+        self.workdir = Path(workdir).resolve()
+        self.campaign_root = Path(campaign_root).resolve()
+        self.data_dir = (self.campaign_root / "data").resolve()
+        self.experiment_root = self.workdir.parent.resolve()
+        self.timeout = timeout
+
+    def run(self, code: str, *, data_dir: str, out_dir: str, exp_id: str) -> RunResult:
+        if not re.fullmatch(r"EXP00[0-7]", exp_id):
+            raise ValueError("demo validation runner accepts only the canonical eight experiment ids")
+        canonical_index = next(
+            (index for index in range(DEMO_MAX_NODES) if code == _candidate_code(index)),
+            None,
+        )
+        if canonical_index is None:
+            raise ValueError("demo validation runner rejected non-canonical candidate code")
+        supplied_data = Path(data_dir).resolve()
+        supplied_out = Path(out_dir).resolve()
+        expected_out = (self.experiment_root / exp_id / "out").resolve()
+        if supplied_data != self.data_dir or supplied_out != expected_out:
+            raise ValueError("demo validation runner path binding mismatch")
+        manifest_path = self.campaign_root / "dataset-manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        if manifest.get("schema") != "evomind.demo.dataset_manifest.v1" or manifest.get("task_id") != DEMO_TASK_ID:
+            raise ValueError("demo validation dataset manifest mismatch")
+        manifest_files = {
+            str(item.get("path")): str(item.get("sha256"))
+            for item in manifest.get("files", [])
+            if isinstance(item, dict)
+        }
+        for relative in ("data/train.csv", "data/test.csv"):
+            path = self.campaign_root / relative
+            if not path.is_file() or path.is_symlink() or manifest_files.get(relative) != _sha256(path):
+                raise ValueError(f"demo validation dataset integrity mismatch: {relative}")
+
+        script_dir = self.workdir / exp_id
+        script_dir.mkdir(parents=True, exist_ok=True)
+        script_path = script_dir / "solution.py"
+        script_path.write_text(code, encoding="utf-8")
+        supplied_out.mkdir(parents=True, exist_ok=True)
+        try:
+            process = subprocess.run(
+                [sys.executable, str(script_path), "--data-dir", str(supplied_data), "--out-dir", str(supplied_out)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=self.timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return RunResult(False, None, error=f"timeout after {self.timeout}s", out_dir=str(supplied_out), exit_code=124)
+
+        combined = (process.stdout or "") + "\n" + (process.stderr or "")
+        score = _parse_cv_score(process.stdout or "")
+        metrics_path = supplied_out / "metrics.json"
+        metrics: dict[str, Any] = {}
+        if metrics_path.is_file():
+            try:
+                loaded = json.loads(metrics_path.read_text(encoding="utf-8"))
+                metrics = loaded if isinstance(loaded, dict) else {}
+                if score is None:
+                    score = float(metrics.get("cv_score"))
+            except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                score = None
+        artifacts = [str(path) for path in supplied_out.glob("*") if path.is_file()]
+        if process.returncode != 0 or score is None:
+            return RunResult(
+                False,
+                score,
+                stdout_tail=combined[-1500:],
+                error=(process.stderr or "no CV_SCORE emitted")[-1500:],
+                out_dir=str(supplied_out),
+                artifacts=artifacts,
+                exit_code=process.returncode,
+            )
+        return RunResult(
+            True,
+            score,
+            stdout_tail=combined[-800:],
+            out_dir=str(supplied_out),
+            artifacts=artifacts,
+            exit_code=0,
+            evaluator_version=str(metrics.get("evaluator_version") or ""),
+            environment_hash=str(metrics.get("environment_hash") or ""),
         )
 
 

@@ -1,0 +1,54 @@
+{
+  "schema": "evomind.goal-board.v2",
+  "run_id": "run_7b1efb878afb40f396db431e91f093a5",
+  "allocation": "G21",
+  "target_count": 5,
+  "weather_actions": 0,
+  "goal_record_status": "blocked",
+  "completion_count": 0,
+  "competitions": [
+    {
+      "competition": "cure_bench",
+      "goal_status": "WAITING_EXACT_GATE",
+      "exact_gate": "PRETRAINED_ENCODER_MANIFEST_MISSING",
+      "additional_gates": [
+        "UNCONSUMED_HOLDOUT_LEDGER_REQUIRED",
+        "HUMAN_BASELINE_UNDEFINED"
+      ]
+    },
+    {
+      "competition": "e2lmc",
+      "goal_status": "WAITING_EXACT_GATE",
+      "exact_gate": "ORGANIZER_EXPERIMENT_OR_PRIVATE_EVALUATOR_REQUIRED",
+      "additional_gates": [
+        "HUMAN_BASELINE_UNDEFINED"
+      ]
+    },
+    {
+      "competition": "mindgames",
+      "goal_status": "WAITING_EXACT_GATE",
+      "exact_gate": "RUNTIME_DEPENDENCY_MISSING:trueskill",
+      "additional_gates": [
+        "MANAGED_TEXTARENA_0_7_4_REQUIRED",
+        "FROZEN_MODEL_REQUIRED",
+        "HUMAN_BASELINE_UNDEFINED"
+      ]
+    },
+    {
+      "competition": "open_polymer",
+      "goal_status": "WAITING_EXACT_GATE",
+      "exact_gate": "HUMAN_WMAE_BASELINE_UNDEFINED",
+      "additional_gates": [
+        "NORMALIZED_RMSE_TO_WMAE_PROTOCOL_MAPPING_MISSING"
+      ]
+    },
+    {
+      "competition": "ariel_2025",
+      "goal_status": "WAITING_EXACT_GATE",
+      "exact_gate": "EXTERNAL_BLIND_EVALUATOR_OR_OFFICIAL_SCORING_ENDPOINT_REQUIRED",
+      "additional_gates": [
+        "HUMAN_BASELINE_UNDEFINED"
+      ]
+    }
+  ]
+}

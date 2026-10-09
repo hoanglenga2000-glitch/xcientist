@@ -52,37 +52,42 @@ def _save_history(messages: list[dict[str, Any]]) -> None:
 # ═══════════════════════════════════════════════════════════════════════
 
 _SCIENTIST_SYSTEM = textwrap.dedent("""\
-你是一位资深的机器学习研究科学家，工作在一个名为 EvoMind 的 AI 科研终端中。
-你不是聊天机器人——你的职责是深入理解数据、形成可验证的假说、设计实验、
-并在配置就绪时启动可审计的训练。
+你是 EvoMind —— 一位严谨的 AI 科研科学家，运行在可审计的研究终端中。
+你拥有 40+ 个终端工具、完整的进化搜索引擎、回溯记忆系统和多 Agent 管线。
+你不是聊天机器人——你是用户的科研合作伙伴，能独立完成从数据探索到报告交付的全流程。
 
-你的思维方式：
-1. 先观察（Observe）—— 查看数据长什么样、有什么特征、缺失值情况、分布特点
-2. 再分析（Analyze）—— 这个任务是什么类型？metric 的方向是什么？数据的挑战在哪？
-3. 然后提议（Propose）—— 基于分析提出 2-3 个可操作的改进方向
-4. 最后执行（Execute）—— 如果用户同意且门禁通过，启动训练
+核心思维方式（每次回答都遵循）：
+1. 先观察（Observe）—— 主动调用 system_status 了解当前环境，调用 data_check 确认数据
+2. 再分析（Analyze）—— 任务类型？metric 方向？数据挑战？历史经验（调用 evolution_status）
+3. 然后提议（Propose）—— 基于分析和证据提出 2-3 个可操作的改进方向，引用具体数据
+4. 最后执行（Execute）—— 门禁通过后启动训练，运行后客观分析结果
 
-你可以调用的终端工具（结果已注入到你的上下文中）：
-- 模型状态（当前使用的 LLM provider/model）
-- 任务列表（已注册的比赛）
-- 任务详情（modality, metric, schema, 数据目录）
-- 数据可用性（train.csv/test.csv 是否存在）
-- 最近训练结果（best CV, promotions）
-- GPU/HPC 状态
-- Kaggle 配置状态
-- 下一步建议
+主动行为（不等用户要求就做）：
+- 遇到新用户时，引导式对话："你想研究什么课题？我来帮你从 Kaggle 找合适的数据集"
+- 有历史实验时，主动调用 evolution_status 回顾经验，避免重复犯错
+- 回答中引用具体证据："根据 EXP003 的 CV=0.923，比基线提升了 2.1%"
+- 训练完成后，主动提出下一步改进假设并设计验证实验
+- 用户表述模糊时，主动调用相关工具获取上下文后再回答
+
+你可以调用的终端工具：
+- system_status / model_status —— 环境和 LLM 状态
+- task_list / inspect_task / data_check —— 任务和数据
+- recent_run / evolution_status —— 实验历史和进化状态
+- gpu_status / hpc_connection_status —— 计算资源
+- kaggle_status —— Kaggle 配置
+- literature_search —— 文献搜索
+- next_steps —— 阻塞门禁和建议
+- scientist_situation_model —— 综合态势评估
+- scientist_self_audit —— 系统自检
 
 RULES（硬性规则）:
 - 用用户的语言回复（中文用户用中文，英文用户用英文）
 - 绝对不要虚构 Kaggle 分数、排名、奖牌 —— 除非有真实的 Kaggle response artifact
 - 绝对不要读取或打印 API key, Kaggle token, SSH 密码
 - 官方 Kaggle 提交必须 human gate —— 永远不能自动提交
-- 如果被问到模型/数据/任务状态，基于已注入的工具结果回答，不要瞎编
+- 基于工具结果回答，不瞎编；不确定时说"让我检查一下"
 - 训练前的门禁必须全部通过（LLM key, task selected, data available）
-- 不要过度承诺 —— 对不确定的事情说"让我检查一下"而不是猜测
-- 当数据可用时，主动建议可行的下一步实验方向
-- 当训练完成后，客观分析结果并提出改进建议
-- 像个真正的科学家：诚实、严谨、好奇、有洞察力
+- 像个真正的科学家：诚实、严谨、好奇、有洞察力、证据驱动
 """)
 
 _CHAT_SYSTEM = textwrap.dedent("""\
@@ -100,14 +105,15 @@ _CHAT_SYSTEM = textwrap.dedent("""\
 用用户的语言回答；不知道的事实明确说明，不虚构运行结果、分数或产物。
 """)
 
-_WEB_AGENT_SYSTEM = textwrap.dedent("""+你是 EvoMind 的真实科研 Agent。像 Codex 一样先理解用户目标，再用最窄的只读工具取证，
-最后把证据转成普通用户能执行的答案；不要像模板、FAQ 或状态播报器。
+_WEB_AGENT_SYSTEM = textwrap.dedent("""\
+你是 EvoMind 的真实通用 Agent 与科研助手。像 Codex 一样先理解用户最终目标，再决定直接回答、读取证据、修改文件、运行命令或管理进程，
+持续推进到得到可验证结果或遇到需要用户补充的信息；不要像模板、FAQ 或状态播报器。
 
 硬规则：
 0. 面向完全小白；像 Codex/Claude Code 一样做任务编排。
 1. 先回答用户真正关心的结论，再讲依据和下一步；用户是小白时先说“简单说/大白话”。
-2. 涉及当前 Run、指标、文献、交付物、系统能力或连接状态时，必须基于 verified_context
-   或本轮只读工具结果回答；不要凭记忆猜测。
+2. 涉及当前 Run、指标、文献、交付物、系统能力、任务切换、文件操作或连接状态时，必须基于
+   verified_context 或本轮工具结果回答；不要凭记忆猜测。
 3. 精确复制工具返回的 Run ID、指标、状态、bytes、SHA-256、download_url 和审计字段。
    工具返回的 download_url 必须逐字复制为 Markdown 链接。
 4. 区分已验证事实、文献背景、历史记录、计划和未知项；本地验证不得说成 Kaggle 官方成绩、
@@ -122,6 +128,9 @@ _WEB_AGENT_SYSTEM = textwrap.dedent("""+你是 EvoMind 的真实科研 Agent。�
 10. 只有用户明确询问文件、交付物、报告、下载链接或完整证据包时才展开 artifacts。
 11. HPC 连接只有在本轮工具明确返回 job_container_verified=True 时才可说“已连接/ready”；
     profile_state=active、旧 readiness 文件、SOCKS 监听或 SSH gateway banner 单独都不构成容器连接证明。
+12. 普通知识问题直接用模型回答；涉及本地文件、代码、运行状态或用户要求的实际操作时，自主使用 file_*、shell_exec、process_* 和 runtime_health。
+13. 工具失败时先读错误、修正参数并重试合理的下一步；完成修改后必须读取结果或运行测试验证，不能只声称“已完成”。
+14. 不要因为提示词未命中某个固定关键词就放弃工具；工具描述和本轮目标才是选择依据。
 
 常用结构：
 - 小白解释：结论 → 我理解你的目标 → 我查到的证据 → 这意味着什么 → 你可以直接发这句话。
@@ -136,7 +145,7 @@ _WEB_AGENT_SYSTEM = textwrap.dedent("""+你是 EvoMind 的真实科研 Agent。�
 _TOOL_HINT_RE = re.compile(
     r'\[(?:tool|check|检查|查看):\s*(model_status|system_status|task_list|inspect_task|'
     r'data_check|recent_run|gpu_status|hpc_connection_status|kaggle_status|dashboard|next_steps|'
-    r'evolution_status|scientist_checkpoint|research_decision|scientist_workplan|scientist_turn_plan|scientist_repair_plan|scientist_execution_contract|scientist_step_trace|scientist_recovery|scientist_action_queue|scientist_next_action|scientist_autopilot|scientist_loop|scientist_self_audit|scientist_upgrade_plan|scientist_self_upgrade_loop|scientist_memory_consolidation|scientist_innovation_backlog|scientist_hypothesis_review|scientist_experiment_blueprint|scientist_situation_model|switch_task)]',
+    r'evolution_status|scientist_checkpoint|research_decision|scientist_workplan|scientist_turn_plan|scientist_repair_plan|scientist_execution_contract|scientist_step_trace|scientist_recovery|scientist_action_queue|scientist_next_action|scientist_autopilot|scientist_loop|scientist_self_audit|scientist_upgrade_plan|scientist_self_upgrade_loop|scientist_memory_consolidation|scientist_innovation_backlog|scientist_hypothesis_panel|scientist_hypothesis_review|scientist_experiment_blueprint|scientist_situation_model|switch_task)]',
     re.IGNORECASE,
 )
 
@@ -144,6 +153,22 @@ _TOOL_HINT_RE = re.compile(
 def _forced_tool_hints(user: str) -> list[str]:
     """Return read-only tools that should run before broad AI Scientist answers."""
     text = (user or "").lower()
+    if any(token in text for token in ("external capability certification", "external certification status")):
+        return ["scientist_capability_certification"]
+    if "upgrade campaign status" in text:
+        return ["scientist_upgrade_campaign"]
+    if "research parity gate" in text:
+        return ["scientist_research_parity_gate"]
+    panel_tokens = (
+        "hypothesis panel",
+        "research panel",
+        "parallel hypotheses",
+        "multi-agent hypotheses",
+        "independent critics",
+        "adversarial hypothesis panel",
+    )
+    if any(token in text for token in panel_tokens):
+        return ["scientist_hypothesis_panel"]
     hpc_connection_tokens = (
         "hpc connection",
         "ssh connection",
@@ -915,34 +940,103 @@ def _scan_all_experiment_results(session: "SessionState") -> list[str]:
     return results
 
 
+def _experiment_results_payload(root: Path, task: str) -> dict[str, Any]:
+    wanted = _task_norm(task)
+    runs: list[dict[str, Any]] = []
+    for summary in sorted(
+        (root / "experiments" / "evolution").glob("*/summary.json"),
+        key=lambda path: path.parent.name,
+    ):
+        try:
+            data = json.loads(summary.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        task_name = str(data.get("task") or "")
+        if wanted and _task_norm(task_name) != wanted:
+            continue
+        iterations = data.get("iterations") if isinstance(data.get("iterations"), list) else []
+        promotions = data.get("promotion_history") if isinstance(data.get("promotion_history"), list) else []
+        runs.append(
+            {
+                "run_id": summary.parent.name,
+                "task": task_name,
+                "best_exp_id": data.get("best_exp_id"),
+                "best_cv_score": data.get("best_cv_score"),
+                "metric": data.get("metric"),
+                "metric_direction": data.get("metric_direction"),
+                "iterations": int(data.get("n_iterations") or len(iterations)),
+                "promotions": int(data.get("n_promotions") or sum(1 for item in promotions if isinstance(item, dict) and item.get("promoted"))),
+                "successful_candidates": sum(1 for item in iterations if isinstance(item, dict) and item.get("success")),
+                "terminal_reason": data.get("terminal_reason"),
+                "summary_path": str(summary),
+            }
+        )
+    metric = next((str(row.get("metric") or "") for row in runs if row.get("metric")), "")
+    direction = next((str(row.get("metric_direction") or "") for row in runs if row.get("metric_direction")), "")
+    scores = [
+        float(row["best_cv_score"])
+        for row in runs
+        if isinstance(row.get("best_cv_score"), (int, float))
+    ]
+    best_score = None
+    if scores:
+        best_score = min(scores) if direction == "minimize" else max(scores)
+    return {
+        "schema": "evomind.experiment_results.v1",
+        "task": task,
+        "run_count": len(runs),
+        "metric": metric,
+        "metric_direction": direction,
+        "best_cv_score": best_score,
+        "total_iterations": sum(int(row["iterations"]) for row in runs),
+        "total_promotions": sum(int(row["promotions"]) for row in runs),
+        "runs": runs,
+        "claim_boundary": "local validation evidence; not an official Kaggle score or rank",
+    }
+
+
+def _results_task_from_prompt(user: str, session: "SessionState") -> str:
+    text = str(user or "").casefold()
+    if "客户流失" in text or "customer churn" in text or "evomind_demo_customer_churn" in text:
+        return "evomind_demo_customer_churn"
+    if "黑色素瘤" in text or "siim-isic" in text or "melanoma" in text:
+        return "siim-isic-melanoma-classification"
+    return str(getattr(session, "selected_task", "") or "")
+
+
+def _is_experiment_results_query(user: str) -> bool:
+    text = str(user or "").casefold()
+    return any(
+        token in text
+        for token in (
+            "实验结果",
+            "训练结果",
+            "最佳分数",
+            "评价指标",
+            "运行次数",
+            "迭代次数",
+            "晋升次数",
+            "best score",
+            "experiment results",
+            "run count",
+            "iterations",
+            "promotions",
+        )
+    )
+
+
 def _execute_terminal_tool(name: str, session: "SessionState") -> str:
     """Execute a terminal tool and return a formatted result string."""
-    from .tasks import list_tasks, resolve_task
+
     from .terminal_tools import TerminalTools
 
     root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
 
     # ── Special tool: switch_task ──────────────────────────────────
     if name == "switch_task":
-        # Find a task by fuzzy match from registered tasks
-        tasks = list_tasks(root)
-        # Try to match from the user's request / context
-        best_match = None
-        user_mention = str(session.last_goal or "").lower()
-        for slug, _ in tasks:
-            if slug in user_mention or slug.replace("-", " ").replace("_", " ") in user_mention:
-                best_match = slug
-                break
-        if best_match:
-            try:
-                resolve_task(best_match, project_root=root)
-                session.selected_task = best_match
-                session.refresh_task_brief(root)
-                session.persist()
-                return f"[TOOL RESULT: switch_task]\nstatus: OK\nswitched to: {best_match}\nbrief: {session.task_brief}"
-            except FileNotFoundError:
-                return f"[TOOL RESULT: switch_task]\nstatus: FAILED\nmessage: task '{best_match}' cannot be resolved"
-        return f"[TOOL RESULT: switch_task]\nstatus: FAILED\nmessage: no matching task found in: {[s for s,_ in tasks]}"
+        best_match = _infer_switch_task_target(str(session.last_goal or ""), root)
+        out, _ok = _switch_session_task(session, root, best_match)
+        return "[TOOL RESULT: switch_task]\n" + out
 
     result = TerminalTools.dispatch(name, session, root)
     try:
@@ -980,6 +1074,140 @@ def _execute_terminal_tool(name: str, session: "SessionState") -> str:
     return "\n".join(lines)
 
 
+def _task_norm(value: str) -> str:
+    return (value or "").casefold().replace("-", "").replace("_", "").replace(" ", "")
+
+
+def _evolution_task_candidates(root: Path) -> list[tuple[str, Path]]:
+    candidates: list[tuple[str, Path]] = []
+    for path in sorted((root / "configs" / "evolution").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        slug = str(data.get("task_name") or path.stem).strip()
+        if slug:
+            candidates.append((slug, path))
+    return candidates
+
+
+def _all_switchable_task_candidates(root: Path) -> list[tuple[str, Path, str]]:
+    from .tasks import list_tasks
+
+    seen: set[str] = set()
+    rows: list[tuple[str, Path, str]] = []
+    for slug, path in list_tasks(root):
+        key = _task_norm(slug)
+        if key and key not in seen:
+            seen.add(key)
+            rows.append((slug, Path(path), "registered_task"))
+    for slug, path in _evolution_task_candidates(root):
+        key = _task_norm(slug)
+        if key and key not in seen:
+            seen.add(key)
+            rows.append((slug, Path(path), "evolution_config"))
+    return rows
+
+
+def _infer_switch_task_target(user: str, root: Path) -> str:
+    """Infer a requested task slug from natural language or an explicit tool arg."""
+
+    folded = str(user or "").casefold()
+    if not folded:
+        return ""
+    switch_words = (
+        "切换", "换到", "切到", "选择", "选中", "switch", "select", "use task", "change task",
+    )
+    if not any(word in folded for word in switch_words):
+        return ""
+    compact_user = _task_norm(folded)
+    best_slug = ""
+    best_score = 0
+    for slug, _path, source in _all_switchable_task_candidates(root):
+        slug_norm = _task_norm(slug)
+        display_bonus = 1 if source == "registered_task" else 0
+        score = 0
+        if slug.casefold() in folded:
+            score = 100 + len(slug)
+        elif slug_norm and slug_norm in compact_user:
+            score = 90 + len(slug_norm)
+        else:
+            tokens = [token for token in re.split(r"[-_\s]+", slug.casefold()) if len(token) >= 3]
+            matched = sum(1 for token in tokens if token in folded)
+            if matched >= max(1, min(2, len(tokens))):
+                score = 20 + matched * 10 + display_bonus
+        if score > best_score:
+            best_slug = slug
+            best_score = score
+    return best_slug
+
+
+def _build_evolution_task_brief(path: Path) -> str:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return ""
+    parts = [
+        f"name={data.get('task_name') or path.stem}",
+        f"display={data.get('display_name') or ''}",
+        f"modality={data.get('modality') or ''}",
+        f"type={data.get('task_type') or ''}",
+        f"metric={data.get('metric') or ''}",
+        f"direction={data.get('metric_direction') or ''}",
+        f"data={data.get('local_data_dir') or data.get('gpu_data_dir') or ''}",
+    ]
+    notes = str(data.get("data_schema") or data.get("extra_notes") or "").strip()
+    if notes:
+        parts.append(f"notes={notes[:700]}")
+    return "; ".join(part for part in parts if not part.endswith("="))
+
+
+def _switch_session_task(session: "SessionState", root: Path, requested: str) -> tuple[str, bool]:
+    from .tasks import resolve_task
+
+    want = str(requested or "").strip()
+    if not want:
+        return "[switch_task] status=FAILED — missing task", False
+    want_norm = _task_norm(want)
+    target: tuple[str, Path, str] | None = None
+    for slug, path, source in _all_switchable_task_candidates(root):
+        slug_norm = _task_norm(slug)
+        if (
+            slug.casefold() == want.casefold()
+            or slug_norm == want_norm
+            or (want_norm and want_norm in slug_norm)
+            or (slug_norm and slug_norm in want_norm)
+        ):
+            target = (slug, path, source)
+            break
+    if target is None:
+        names = [slug for slug, _path, _source in _all_switchable_task_candidates(root)]
+        return f"[switch_task] status=FAILED — no task matching '{want}'. Registered: {names}", False
+
+    slug, path, source = target
+    if source == "registered_task":
+        try:
+            resolve_task(slug, project_root=root)
+        except FileNotFoundError:
+            return f"[switch_task] status=FAILED — cannot resolve '{slug}'", False
+        session.selected_task = slug
+        session.refresh_task_brief(root)
+    else:
+        session.selected_task = slug
+        session.task_brief = _build_evolution_task_brief(path)
+    try:
+        session.refresh_recent_run(root)
+    except Exception:
+        session.recent_run_id = ""
+        session.recent_events_path = ""
+        session.recent_best_cv = None
+    session.persist(root)
+    return (
+        f"[switch_task] status=OK switched_to={slug} source={source} config={path} brief={session.task_brief}",
+        True,
+    )
+
+
 def _terminal_tool_specs():
     """Anthropic-native tool specs for the terminal tool-use loop (Plan B)."""
     from research_os.agent.messaging import ToolSpec
@@ -1000,7 +1228,40 @@ def _terminal_tool_specs():
                 "required": ["section"],
             },
         ),
+        ToolSpec(
+            "experiment_results",
+            "Read and aggregate real local evolution summary.json files for one task. Use this before file_search or shell_exec when the user asks for scores, metrics, run counts, iterations, or promotions.",
+            {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "description": "Exact task slug, for example evomind_demo_customer_churn.",
+                    },
+                },
+                "required": ["task"],
+            },
+        ),
         ToolSpec("model_status", "Current LLM provider/model/readiness (never the key).", no_args),
+        ToolSpec("file_list", "List files/directories under the local agent root. Use this when the user asks whether a folder exists or what files are inside.", {"type":"object","properties":{"path":{"type":"string"},"glob":{"type":"string"},"recursive":{"type":"boolean"},"limit":{"type":"integer"}},"required":["path"]}),
+        ToolSpec(
+            "file_search",
+            "Search text in files under the local agent root. For EvoMind research, task, Run, metric, or artifact questions, search D:\\桌面\\codex\\科研港科技 first; do not start at D:\\桌面 unless the user explicitly asks for a desktop-wide search.",
+            {"type":"object","properties":{"path":{"type":"string"},"query":{"type":"string"},"glob":{"type":"string"},"limit":{"type":"integer"}},"required":["path","query"]},
+        ),
+        ToolSpec("file_read", "Read a bounded text file range under the local agent root with hash metadata.", {"type":"object","properties":{"path":{"type":"string"},"start_line":{"type":"integer"},"end_line":{"type":"integer"},"encoding":{"type":"string"}},"required":["path"]}),
+        ToolSpec("file_write", "Atomically create or overwrite a file under the local agent root. Existing files are backed up by the runtime.", {"type":"object","properties":{"path":{"type":"string"},"content":{"type":"string"},"encoding":{"type":"string"},"expected_sha256":{"type":"string"}},"required":["path","content"]}),
+        ToolSpec("file_patch", "Patch an exact text fragment in a file under the local agent root and return a diff.", {"type":"object","properties":{"path":{"type":"string"},"find":{"type":"string"},"replace":{"type":"string"},"expected_count":{"type":"integer"},"expected_sha256":{"type":"string"}},"required":["path","find","replace"]}),
+        ToolSpec("file_copy", "Copy a file or directory under the local agent root.", {"type":"object","properties":{"source":{"type":"string"},"destination":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["source","destination"]}),
+        ToolSpec("file_move", "Move a file or directory under the local agent root.", {"type":"object","properties":{"source":{"type":"string"},"destination":{"type":"string"},"overwrite":{"type":"boolean"}},"required":["source","destination"]}),
+        ToolSpec("shell_exec", "Run an allowlisted local command as an argv array, capturing stdout/stderr/logs and exact exit_code. Prefer PowerShell for Windows filesystem checks.", {"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1},"cwd":{"type":"string"},"timeout_seconds":{"type":"integer"}},"required":["argv"]}),
+        ToolSpec("process_start", "Start an allowlisted background process as an argv array.", {"type":"object","properties":{"argv":{"type":"array","items":{"type":"string"},"minItems":1},"cwd":{"type":"string"},"timeout_seconds":{"type":"integer"}},"required":["argv"]}),
+        ToolSpec("process_list", "List runtime-managed local processes.", no_args),
+        ToolSpec("process_poll", "Poll a runtime-managed process.", {"type":"object","properties":{"process_id":{"type":"string"}},"required":["process_id"]}),
+        ToolSpec("process_log", "Read log tail for a runtime-managed process.", {"type":"object","properties":{"process_id":{"type":"string"},"lines":{"type":"integer"}},"required":["process_id"]}),
+        ToolSpec("process_stdin", "Write text to a runtime-managed process stdin.", {"type":"object","properties":{"process_id":{"type":"string"},"data":{"type":"string"}},"required":["process_id","data"]}),
+        ToolSpec("process_cancel", "Terminate a runtime-managed process tree.", {"type":"object","properties":{"process_id":{"type":"string"}},"required":["process_id"]}),
+        ToolSpec("runtime_health", "Show local agent runtime root, permission state, and managed process count.", no_args),
         ToolSpec("system_status", "Full readiness: LLM, Kaggle, GPU, tasks, recent run.", no_args),
         ToolSpec("task_list", "List all registered competitions/tasks.", no_args),
         ToolSpec("inspect_task", "Details of the selected task (modality/metric/schema).", no_args),
@@ -1077,6 +1338,18 @@ def _terminal_tool_specs():
         ToolSpec("scientist_innovation_backlog",
                  "Read-only memory-guided innovation planner: proposes auditable branches, risk controls, artifacts, and gates before training. Never trains or submits.",
                  no_args),
+        ToolSpec("scientist_hypothesis_panel",
+                 "Read-only parallel specialist hypothesis panel with independent criticism.",
+                 no_args),
+        ToolSpec("scientist_capability_certification",
+                 "Read-only hash-anchored external capability certification status.",
+                 no_args),
+        ToolSpec("scientist_upgrade_campaign",
+                 "Read-only verification of the active immutable upgrade campaign.",
+                 no_args),
+        ToolSpec("scientist_research_parity_gate",
+                 "Read-only combined certification and upgrade parity gate.",
+                 no_args),
         ToolSpec("scientist_hypothesis_review",
                  "Read-only Scientist review board: scores and ranks innovation hypotheses by evidence, readiness, impact, risk, and gates. Never trains or submits.",
                  no_args),
@@ -1094,20 +1367,27 @@ def _terminal_tool_specs():
 
 
 def _web_tool_specs_for_user(user: str, specs: list[Any]) -> list[Any]:
-    """Return the smallest evidence-tool set that still covers the web turn."""
+    """Expose Codex-style core tools plus focused research evidence tools."""
 
     folded = str(user or "").casefold()
-    selected = {"verified_context"}
+    # OpenClaw/Codex-style core tools stay visible on every turn so natural
+    # language requests do not depend on a brittle keyword gate.  The model still
+    # decides whether a tool is needed; research-specific tools remain focused.
+    selected = {"verified_context", *_RUNTIME_AGENT_TOOL_NAMES}
     routing = (
         (("模型", "provider", "model", "网关"), {"model_status"}),
         (("系统状态", "运行状态", "健康", "故障", "坏了", "system status"), {"system_status"}),
         (("任务列表", "有哪些任务", "比赛列表", "task list"), {"task_list"}),
         (("任务详情", "当前任务", "数据模式", "inspect task"), {"inspect_task"}),
+        (("实验结果", "训练结果", "最佳分数", "评价指标", "运行次数", "迭代次数", "晋升次数", "best score", "experiment results", "run count", "iterations", "promotions"), {"experiment_results"}),
         (("数据", "训练集", "测试集", "dataset", "data check"), {"data_check"}),
         (("gpu", "hpc", "显卡", "算力", "训练资源"), {"gpu_status"}),
-        (("连接服务器", "连接集群", "连接 hpc", "连接hpc", "网关", "代理桥", "作业号", "ssh", "socks", "job90673", "job90353"), {"hpc_connection_status"}),
+        (("连接服务器", "链接服务器", "连接集群", "链接集群", "连接 hpc", "连接hpc", "链接 hpc", "链接hpc", "连接了吗", "链接了吗", "网关", "代理桥", "作业号", "ssh", "socks", "job90948", "job90673", "job90353"), {"hpc_connection_status"}),
         (("kaggle 配置", "kaggle api", "提交状态", "账号配置"), {"kaggle_status"}),
-        (("文献", "论文", "doi", "literature", "paper", "citation"), {"literature_search"}),
+        # General paper/citation questions should use the already-reviewed
+        # task-local literature packet inside verified_context. Live retrieval
+        # can be slower and network-dependent, so expose it only on explicit
+        # search/fetch wording below.
         (("系统下一动作", "当前阻塞", "下一安全动作", "next system action", "next safe action"), {"next_steps"}),
         (("进化", "演化", "evolution", "经验板"), {"evolution_status"}),
         (("检查点", "checkpoint"), {"scientist_checkpoint"}),
@@ -1128,11 +1408,46 @@ def _web_tool_specs_for_user(user: str, specs: list[Any]) -> list[Any]:
             "scientist_experiment_blueprint",
         }),
         (("态势", "situation"), {"scientist_situation_model"}),
-        (("切换任务", "switch task"), {"switch_task"}),
+        (("切换任务", "切换到", "换到", "切到", "选择任务", "选中任务", "switch task", "change task"), {"switch_task"}),
     )
     for terms, names in routing:
         if any(term in folded for term in terms):
             selected.update(names)
+    live_literature_terms = (
+        "实时检索", "在线检索", "搜索新论文", "检索新论文", "查新论文", "live literature",
+        "live search", "search papers", "fetch papers", "online paper",
+    )
+    if any(term in folded for term in live_literature_terms):
+        selected.add("literature_search")
+    if any(term in folded for term in ("doi", "引用", "citation", "参考了哪些论文")):
+        selected.add("literature_search")
+    local_tool_terms = (
+        "文件", "目录", "文件夹", "路径", "读取文件", "读文件", "列出文件", "写入", "创建文件",
+        "修改文件", "补丁", "命令", "执行命令", "运行命令", "powershell", "cmd", "shell",
+        "read file", "write file", "list files", "directory", "folder", "run command", "execute command",
+    )
+    if (
+        any(term in folded for term in local_tool_terms)
+        or re.search(r"[a-z]:[\\/]", folded)
+        or any(term in folded for term in ("所有工具", "全部工具", "工具能力", "tool capability", "all tools"))
+    ):
+        selected.update({
+            "file_list",
+            "file_search",
+            "file_read",
+            "file_write",
+            "file_patch",
+            "file_copy",
+            "file_move",
+            "shell_exec",
+            "process_start",
+            "process_list",
+            "process_poll",
+            "process_log",
+            "process_stdin",
+            "process_cancel",
+            "runtime_health",
+        })
     return [spec for spec in specs if getattr(spec, "name", "") in selected]
 
 
@@ -1153,6 +1468,135 @@ def _format_tool_result(name: str, result: dict[str, Any]) -> tuple[str, bool]:
     return "\n".join(lines), ok
 
 
+_RUNTIME_AGENT_TOOL_NAMES = {
+    "file_list",
+    "file_search",
+    "file_read",
+    "file_write",
+    "file_patch",
+    "file_copy",
+    "file_move",
+    "shell_exec",
+    "process_start",
+    "process_list",
+    "process_poll",
+    "process_log",
+    "process_stdin",
+    "process_cancel",
+    "runtime_health",
+}
+
+
+def _web_agent_workspace_root(project_root: Path) -> Path:
+    configured = os.environ.get("EVOMIND_WEB_AGENT_ROOT", "").strip()
+    if configured:
+        return Path(configured).expanduser().resolve(strict=False)
+    try:
+        if project_root.name == "科研港科技" and project_root.parent.name.casefold() == "codex":
+            return project_root.parent.parent.resolve(strict=False)
+    except IndexError:
+        pass
+    return project_root.resolve(strict=False)
+
+
+def _project_relative_runtime_tool_input(
+    tool_input: dict[str, Any],
+    *,
+    agent_root: Path,
+    project_root: Path,
+) -> dict[str, Any]:
+    """Resolve project-relative paths when the web agent owns a wider root.
+
+    The agent intentionally has access to the operator's wider workspace, while
+    novice prompts naturally name files relative to the active EvoMind project.
+    If such a path is absent at the wider root but exists under the project,
+    translate it to the equivalent agent-root-relative path before dispatch.
+    """
+
+    normalized = dict(tool_input or {})
+    agent_root = agent_root.resolve(strict=False)
+    project_root = project_root.resolve(strict=False)
+
+    def translate(value: Any, *, allow_missing_leaf: bool = False) -> Any:
+        raw = str(value or "").strip()
+        if not raw or Path(raw).is_absolute():
+            return value
+        direct = (agent_root / raw).resolve(strict=False)
+        candidate = (project_root / raw).resolve(strict=False)
+        try:
+            candidate.relative_to(agent_root)
+        except ValueError:
+            return value
+        direct_exists = direct.exists()
+        candidate_exists = candidate.exists()
+        candidate_parent_exists = candidate.parent.exists()
+        if not direct_exists and (candidate_exists or (allow_missing_leaf and candidate_parent_exists)):
+            return candidate.relative_to(agent_root).as_posix()
+        return value
+
+    if "path" in normalized:
+        normalized["path"] = translate(
+            normalized["path"],
+            allow_missing_leaf=True,
+        )
+    if "source" in normalized:
+        normalized["source"] = translate(normalized["source"])
+    if "destination" in normalized:
+        normalized["destination"] = translate(
+            normalized["destination"],
+            allow_missing_leaf=True,
+        )
+    if "cwd" in normalized:
+        normalized["cwd"] = translate(normalized["cwd"])
+    return normalized
+
+
+def _execute_runtime_agent_tool(name: str, tool_input: dict[str, Any], session: "SessionState") -> tuple[str, bool]:
+    from evomind_runtime.models import PermissionLevel
+    from evomind_runtime.runtime import AgentRuntime
+
+    project_root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
+    agent_root = _web_agent_workspace_root(project_root)
+    resolved_tool_input = _project_relative_runtime_tool_input(
+        tool_input,
+        agent_root=agent_root,
+        project_root=project_root,
+    )
+    runtime_root = project_root / "workspace" / "runtime" / "web-agent"
+    runtime = AgentRuntime(agent_root, runtime_root=runtime_root)
+    raw_session_id = re.sub(r"[^A-Za-z0-9_.-]+", "_", str(getattr(session, "session_id", "") or "web_agent"))[:80]
+    runtime_session_id = f"web_{raw_session_id}"
+    try:
+        runtime.get_session(runtime_session_id)
+    except KeyError:
+        runtime.create_session(
+            session_id=runtime_session_id,
+            objective="EvoMind web assistant local agent tools",
+            title="EvoMind Web Agent",
+            permission_level=PermissionLevel.FULL_AUTO.value,
+            workspace_root=str(agent_root),
+        )
+    outcome = runtime.invoke_tool(
+        runtime_session_id,
+        name,
+        resolved_tool_input,
+        idempotency_key=f"{name}:{json.dumps(resolved_tool_input, ensure_ascii=False, sort_keys=True, default=str)}",
+    )
+    result = outcome.get("result") if isinstance(outcome, dict) else {}
+    ok = bool(isinstance(result, dict) and result.get("ok"))
+    payload = {
+        "tool": name,
+        "status": outcome.get("status") if isinstance(outcome, dict) else "failed",
+        "ok": ok,
+        "agent_root": str(agent_root),
+        "summary": result.get("summary") if isinstance(result, dict) else "",
+        "error": result.get("error") if isinstance(result, dict) else "",
+        "content": result.get("content") if isinstance(result, dict) else result,
+        "artifacts": result.get("artifacts") if isinstance(result, dict) else [],
+    }
+    return "[RUNTIME TOOL RESULT]\n" + json.dumps(payload, ensure_ascii=False, indent=2, default=str), ok
+
+
 def _execute_agent_tool_call(
     name: str,
     tool_input: dict[str, Any],
@@ -1165,23 +1609,64 @@ def _execute_agent_tool_call(
     Unlike ``_execute_terminal_tool`` (which fuzzy-matches switch targets from the
     last goal), this honours an EXPLICIT ``task`` argument the model supplied.
     """
-    from .tasks import list_tasks, resolve_task
+
     from .terminal_tools import TerminalTools
 
     root = Path(session.workspace_root) if session.workspace_root else Path.cwd()
+
+    if name in _RUNTIME_AGENT_TOOL_NAMES:
+        return _execute_runtime_agent_tool(name, tool_input, session)
+
+    if name == "experiment_results":
+        task = str(tool_input.get("task") or session.selected_task or "").strip()
+        payload = _experiment_results_payload(root, task)
+        ok = bool(payload.get("run_count"))
+        return (
+            "[experiment_results] status="
+            + ("OK" if ok else "FAILED")
+            + "\n"
+            + json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
+            ok,
+        )
 
     if name == "verified_context":
         from .assistant_context import build_assistant_context
 
         section = str(tool_input.get("section") or "summary").strip().lower()
-        packet = build_assistant_context(root)
+        packet = build_assistant_context(root, selected_task=str(session.selected_task or ""))
         run = packet.current_run
+        selected_task = str(session.selected_task or "").strip()
+        run_task = str(run.get("task_id") or "").strip() if isinstance(run, dict) else ""
+
+        def task_key(value: str) -> str:
+            return str(value or "").strip().casefold().replace("_", "-")
+
+        run_matches_selection = bool(
+            isinstance(run, dict)
+            and run.get("available")
+            and (
+                not selected_task
+                or (run_task and task_key(run_task) == task_key(selected_task))
+            )
+        )
         if section == "summary":
             data: Any = packet.public_status()
+            if selected_task:
+                data = {
+                    **data,
+                    "current_task": True,
+                    "task_label": selected_task,
+                    "selected_task": selected_task,
+                    "current_run_matches_selected_task": run_matches_selection,
+                }
         elif section == "current_run":
-            data = run
+            data = run if run_matches_selection else {
+                "available": False,
+                "selected_task": selected_task,
+                "reason": "no_current_run_for_selected_task",
+            }
         elif section == "artifacts":
-            data = {
+            data = ({
                 "artifacts": run.get("artifacts") if isinstance(run, dict) else {},
                 "metrics": run.get("metrics") if isinstance(run, dict) else {},
                 "dataset_counts": run.get("dataset_counts") if isinstance(run, dict) else {},
@@ -1189,19 +1674,32 @@ def _execute_agent_tool_call(
                 "claim_audit": run.get("claim_audit") if isinstance(run, dict) else {},
                 "private_grader": run.get("private_grader") if isinstance(run, dict) else {},
                 "governance": packet.governance,
-            }
+            } if run_matches_selection else {
+                "available": False,
+                "selected_task": selected_task,
+                "reason": "no_artifacts_for_selected_task_in_current_run",
+                "governance": packet.governance,
+            })
         elif section == "metrics":
-            data = {
+            data = ({
                 "metrics": run.get("metrics") if isinstance(run, dict) else {},
                 "review": run.get("review") if isinstance(run, dict) else {},
                 "claim_audit": run.get("claim_audit") if isinstance(run, dict) else {},
                 "private_grader": run.get("private_grader") if isinstance(run, dict) else {},
-            }
+            } if run_matches_selection else {
+                "available": False,
+                "selected_task": selected_task,
+                "reason": "no_metrics_for_selected_task_in_current_run",
+            })
         elif section == "literature":
-            data = {
+            data = ({
                 "literature": packet.evidence.get("literature") or {},
                 "citation_audits": packet.evidence.get("citation_audits") or [],
-            }
+            } if run_matches_selection else {
+                "available": False,
+                "selected_task": selected_task,
+                "reason": "no_literature_for_selected_task_in_current_run",
+            })
         elif section == "capabilities":
             data = {"project": packet.project, "capabilities": packet.capabilities}
         else:
@@ -1210,7 +1708,7 @@ def _execute_agent_tool_call(
                 "error": "invalid_section",
                 "allowed": ["summary", "current_run", "artifacts", "metrics", "literature", "capabilities"],
             }, ensure_ascii=False), False
-        if web_safe and section == "literature" and isinstance(data, dict):
+        if web_safe and section == "literature" and isinstance(data, dict) and data.get("available") is not False:
             literature = data.get("literature") if isinstance(data.get("literature"), dict) else {}
             papers = literature.get("papers") if isinstance(literature.get("papers"), list) else []
             preferred_dois = {
@@ -1265,7 +1763,7 @@ def _execute_agent_tool_call(
                     if isinstance(item, dict)
                 ],
             }
-        if web_safe and section == "metrics" and isinstance(data, dict):
+        if web_safe and section == "metrics" and isinstance(data, dict) and data.get("available") is not False:
             metrics = data.get("metrics") if isinstance(data.get("metrics"), dict) else {}
             review = data.get("review") if isinstance(data.get("review"), dict) else {}
             claim_audit = data.get("claim_audit") if isinstance(data.get("claim_audit"), dict) else {}
@@ -1302,7 +1800,7 @@ def _execute_agent_tool_call(
                     "score": private_grader.get("score"),
                 },
             }
-        if web_safe and section == "artifacts" and isinstance(data, dict):
+        if web_safe and section == "artifacts" and isinstance(data, dict) and data.get("available") is not False:
             # The complete operator view carries dozens of internal hashes and
             # absolute Windows paths.  They cost context, slow synthesis, and
             # are not appropriate for a browser-facing answer.  Keep every
@@ -1335,32 +1833,14 @@ def _execute_agent_tool_call(
         return json.dumps({
             "schema": "evomind.verified_context_tool.v1",
             "section": section,
-            "run_id": run.get("run_id") if isinstance(run, dict) else None,
-            "run_status": run.get("status") if isinstance(run, dict) else None,
+            "selected_task": selected_task,
+            "run_id": run.get("run_id") if run_matches_selection and isinstance(run, dict) else None,
+            "run_status": run.get("status") if run_matches_selection and isinstance(run, dict) else "none_for_selected_task",
             "data": data,
         }, ensure_ascii=False, separators=(",", ":")), True
 
     if name == "switch_task":
-        want = str(tool_input.get("task", "")).strip()
-        norm = want.lower().replace(" ", "").replace("-", "").replace("_", "")
-        target = None
-        for slug, _ in list_tasks(root):
-            s = slug.lower()
-            if s == want.lower() or s.replace("-", "").replace("_", "") == norm or (norm and norm in s.replace("-", "").replace("_", "")):
-                target = slug
-                break
-        if not target:
-            names = [s for s, _ in list_tasks(root)]
-            return (f"[switch_task] status=FAILED — no task matching '{want}'. Registered: {names}", False)
-        try:
-            resolve_task(target, project_root=root)
-        except FileNotFoundError:
-            return (f"[switch_task] status=FAILED — cannot resolve '{target}'", False)
-        session.selected_task = target
-        session.refresh_task_brief(root)
-        session.refresh_recent_run(root)
-        session.persist(root)
-        return (f"[switch_task] status=OK switched_to={target} brief={session.task_brief}", True)
+        return _switch_session_task(session, root, str(tool_input.get("task", "")).strip())
 
     if name == "literature_search":
         result = TerminalTools.dispatch(
@@ -1392,7 +1872,7 @@ class ConversationAgent:
     def __init__(self, *, client=None) -> None:
         self._client = client
         self._resolved = client is not None
-        self._max_tool_rounds = 2  # max tool-execution rounds per turn
+        self._max_tool_rounds = 8  # max tool-execution rounds per turn
         self._reset_llm_execution_evidence()
 
     def _reset_llm_execution_evidence(self) -> None:
@@ -1489,7 +1969,10 @@ class ConversationAgent:
         """Answer an ordinary turn without tools, planning, or research artifacts."""
         from .assistant_context import build_assistant_context, render_grouped_validation_summary, render_metric_interpretation_summary
 
-        packet = context or build_assistant_context(getattr(session, "workspace_root", "") or Path.cwd())
+        packet = context or build_assistant_context(
+            getattr(session, "workspace_root", "") or Path.cwd(),
+            selected_task=str(getattr(session, "selected_task", "") or ""),
+        )
         history = _load_history()
         if self._is_grouped_validation_question(text):
             return render_grouped_validation_summary(packet)
@@ -1530,7 +2013,8 @@ class ConversationAgent:
         from .assistant_context import build_assistant_context
 
         packet = context or build_assistant_context(
-            getattr(session, "workspace_root", "") or Path.cwd()
+            getattr(session, "workspace_root", "") or Path.cwd(),
+            selected_task=str(getattr(session, "selected_task", "") or ""),
         )
         conversation = list(history[-MAX_HISTORY:] if history is not None else _load_history())
         answer = ""
@@ -1647,31 +2131,26 @@ class ConversationAgent:
 
         from .assistant_context import build_assistant_context
 
-        packet = context or build_assistant_context(getattr(session, "workspace_root", "") or Path.cwd())
+        packet = context or build_assistant_context(
+            getattr(session, "workspace_root", "") or Path.cwd(),
+            selected_task=str(getattr(session, "selected_task", "") or ""),
+        )
         conversation = list(history[-MAX_HISTORY:] if history is not None else _load_history())
+        verified_evidence = ""
         if self._is_artifact_location_query(text):
-            verified = self._direct_chat_fallback(text, context=packet)
-            if verified:
-                yield LLMStreamEvent("text_delta", text=verified, provider="verified_context", model="deterministic")
-                yield LLMStreamEvent("done", provider="verified_context", model="deterministic")
-                return
+            verified_evidence = self._direct_chat_fallback(text, context=packet)
         if self._is_grouped_validation_question(text):
             from .assistant_context import render_grouped_validation_summary
 
-            verified = render_grouped_validation_summary(packet)
-            yield LLMStreamEvent("text_delta", text=verified, provider="verified_context", model="deterministic")
-            yield LLMStreamEvent("done", provider="verified_context", model="deterministic")
-            return
+            verified_evidence = render_grouped_validation_summary(packet)
         if self._is_metric_explanation_question(text):
             from .assistant_context import render_metric_interpretation_summary
 
-            verified = render_metric_interpretation_summary(packet)
-            yield LLMStreamEvent("text_delta", text=verified, provider="verified_context", model="deterministic")
-            yield LLMStreamEvent("done", provider="verified_context", model="deterministic")
-            return
+            verified_evidence = render_metric_interpretation_summary(packet)
         if self._llm_available(session):
             prompt = (
                 f"{packet.prompt_block()}\n\n"
+                f"[VERIFIED EVIDENCE FOR THIS QUESTION]\n{verified_evidence or '(use the verified packet above)'}\n\n"
                 f"[RECENT CONVERSATION]\n{json.dumps(conversation[-12:], ensure_ascii=False)}\n\n"
                 f"[USER]\n{text}"
             )
@@ -1855,6 +2334,60 @@ class ConversationAgent:
             system += "\n\n" + recovery
 
         forced_results = ""
+        experiment_results_prefetched = False
+        if web_safe_context:
+            switch_target = _infer_switch_task_target(user, root)
+            if switch_target:
+                if on_tool_event is not None:
+                    on_tool_event("started", "switch_task", True)
+                switch_result, switch_ok = _execute_agent_tool_call(
+                    "switch_task",
+                    {"task": switch_target},
+                    session,
+                    web_safe=True,
+                )
+                forced_results += switch_result + "\n\n"
+                ledger.record(
+                    "switch_task",
+                    {"ok": switch_ok, "target": switch_target, "forced_precheck": True},
+                    ok=switch_ok,
+                    summary=switch_result[:200],
+                )
+                evidence["tool_names"].append("switch_task")
+                evidence["orchestrated_tool_calls"] = int(evidence.get("orchestrated_tool_calls") or 0) + 1
+                evidence["tool_calls_total"] = int(evidence.get("tool_calls_total") or 0) + 1
+                if on_tool_event is not None:
+                    on_tool_event("completed", "switch_task", switch_ok)
+            if _is_experiment_results_query(user):
+                results_task = _results_task_from_prompt(user, session)
+                if on_tool_event is not None:
+                    on_tool_event("started", "experiment_results", True)
+                results_text, results_ok = _execute_agent_tool_call(
+                    "experiment_results",
+                    {"task": results_task},
+                    session,
+                    web_safe=True,
+                )
+                forced_results += results_text + "\n\n"
+                ledger.record(
+                    "experiment_results",
+                    {"ok": results_ok, "task": results_task, "forced_precheck": True},
+                    ok=results_ok,
+                    summary=results_text[:200],
+                )
+                evidence["tool_names"].append("experiment_results")
+                evidence["orchestrated_tool_calls"] = int(evidence.get("orchestrated_tool_calls") or 0) + 1
+                evidence["tool_calls_total"] = int(evidence.get("tool_calls_total") or 0) + 1
+                experiment_results_prefetched = results_ok
+                specs = [spec for spec in specs if getattr(spec, "name", "") != "experiment_results"]
+                if results_ok:
+                    # A result question has one authoritative task-local snapshot.
+                    # Once it is available, the LLM must synthesize that evidence
+                    # directly instead of launching overlapping context/evolution
+                    # lookups that increase latency and can produce mixed snapshots.
+                    specs = []
+                if on_tool_event is not None:
+                    on_tool_event("completed", "experiment_results", results_ok)
         if allow_forced_prechecks:
             for name in _forced_tool_hints(user):
                 if on_tool_event is not None:
@@ -1900,7 +2433,7 @@ class ConversationAgent:
         )
         prefetched_context = ""
         web_verified_context_used = False
-        if web_contract is not None and web_contract.evidence_required:
+        if web_contract is not None and web_contract.evidence_required and not experiment_results_prefetched:
             context_chunks: list[str] = []
             all_prefetch_ok = True
             for section in web_contract.required_evidence_sections:

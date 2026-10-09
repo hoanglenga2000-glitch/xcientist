@@ -245,7 +245,7 @@ test("open claims dashboard bootstrap URLs once without exposing the fragment", 
   const onceFile = path.join(paths.logs, "dashboard.bootstrap.once");
   const hintFile = path.join(paths.data, "bootstrap-path-hint");
   const dashboardUrlOverride = path.join(paths.data, "dashboard-url-override");
-  const token = "bootstrap_token_0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const token = "test-bootstrap-token-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
   const fragmentUrl = `${baseUrl}#bootstrap=${token}`;
   const opened = [];
 
