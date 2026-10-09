@@ -20,6 +20,7 @@ import {
 
 export type PageId =
   | "assistant"
+  | "projects"
   | "tasks"
   | "data"
   | "gpu"
@@ -40,46 +41,28 @@ export type PageId =
 /** Nav items with new IA grouping per the V2 spec */
 export const navSections = [
   {
-    id: "command_center",
-    label: "Command Center",
-    labelZh: "指挥中心",
-    ids: ["assistant", "overview", "control"] as const,
-  },
-  {
-    id: "research_loop",
-    label: "Research Loop",
-    labelZh: "研究循环",
-    ids: ["tasks", "experiments", "evolution", "workflow", "runtime"] as const,
-  },
-  {
-    id: "workbench",
-    label: "Workbench",
+    id: "core",
+    label: "Workspace",
     labelZh: "工作台",
-    ids: ["data", "code", "literature", "report"] as const,
+    ids: ["assistant", "projects", "data", "report", "settings"] as const,
   },
   {
-    id: "infrastructure",
-    label: "Infrastructure",
-    labelZh: "基础设施",
-    ids: ["gpu"] as const,
-  },
-  {
-    id: "governance",
-    label: "Governance",
-    labelZh: "治理",
-    ids: ["evidence", "gates"] as const,
-  },
-  {
-    id: "admin",
-    label: "Admin",
-    labelZh: "管理",
-    ids: ["settings"] as const,
+    id: "advanced",
+    label: "Advanced tools",
+    labelZh: "高级工具",
+    ids: ["overview", "control", "tasks", "experiments", "literature", "code", "gpu", "workflow", "evolution", "runtime", "evidence", "gates"] as const,
   },
 ] as const;
+
+export function navSectionCollapsed(sectionId: string, activeSectionId: string | undefined, sidebarCollapsed: boolean, preference?: boolean): boolean {
+  if (sectionId === "core" || sidebarCollapsed) return false;
+  return preference ?? sectionId !== activeSectionId;
+}
 
 /** Flat nav items for backward compat */
 export const navItems = [
   { id: "assistant", label: "Assistant", icon: MessageSquareText },
+  { id: "projects", label: "Projects and experiments", icon: FlaskConical },
   { id: "overview", label: "Research Overview", icon: Boxes },
   { id: "control", label: "AI Control", icon: Bot },
   { id: "tasks", label: "Task Queue", icon: ListChecks },
@@ -102,7 +85,8 @@ export const navItems = [
 }>;
 
 export const pageTitles: Record<PageId, string> = {
-  assistant: "EvoMind Assistant",
+  assistant: "DeepEvo Assistant",
+  projects: "Projects and experiments",
   overview: "Research Overview",
   control: "AI Control Console",
   tasks: "Task Research Workspace",

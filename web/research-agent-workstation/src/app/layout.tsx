@@ -7,13 +7,13 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "EvoMind Research Workstation",
+  title: "DeepEvo Research Workstation",
   description: "Auditable scientific research and machine-learning operations workstation"
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get("x-nonce") ?? undefined;
-  const enableFigmaCapture = process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_FIGMA_CAPTURE === "true";
+  const enableFigmaCapture = !process.env.EVOMIND_TEST_FIXTURE_ROOT && (process.env.NODE_ENV !== "production" || process.env.NEXT_PUBLIC_FIGMA_CAPTURE === "true");
   return (
     <html lang="zh-CN" data-theme="dark" data-theme-mode="dark" className="dark" suppressHydrationWarning>
       <body>

@@ -15,6 +15,11 @@ const commonSecurityHeaders = [
 const nextConfig = {
   reactStrictMode: true,
   output: "standalone",
+  experimental: {
+    // Proxy must preserve one complete 16 MiB assistant upload chunk. The
+    // request boundary still rejects any mutation body above 16 MiB.
+    proxyClientMaxBodySize: 17 * 1024 * 1024,
+  },
   env: {
     NEXT_PUBLIC_EVOMIND_VERSION: packageVersion,
   },
@@ -31,10 +36,9 @@ const nextConfig = {
       },
       {
         source: "/_next/static/:path*",
-        headers: [
-          ...commonSecurityHeaders,
-          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
-        ],
+        // Next owns immutable static-asset caching. Overriding Cache-Control
+        // here triggers a production-build warning and can break dev caching.
+        headers: commonSecurityHeaders,
       },
       // These download routes intentionally emit a stricter, media-specific
       // CSP. Do not replace it with the application-shell CSP.

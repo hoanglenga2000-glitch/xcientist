@@ -23,10 +23,13 @@ import {
   WorkflowGraph
 } from "@/components/workstation/Screens";
 import type { PageId } from "@/components/workstation/navigation";
+import { ProjectsScreen } from "@/components/workstation/screens/ProjectsScreen";
 
 type Locale = "zh-CN" | "en-US";
 
 const pageIds = [
+  "assistant",
+  "projects",
   "tasks",
   "data",
   "gpu",
@@ -62,6 +65,13 @@ function pageFromLocation(): PageId {
 
 function normalizeTaskId(taskId: string) {
   return taskId === "house-prices" ? "house_prices" : taskId;
+}
+
+function taskFromLocation() {
+  const fallback = "playground_series_s6e6";
+  if (typeof window === "undefined") return fallback;
+  const task = new URL(window.location.href).searchParams.get("task")?.trim() ?? "";
+  return /^[A-Za-z0-9_.-]{1,160}$/.test(task) ? normalizeTaskId(task) : fallback;
 }
 
 function text(locale: Locale, zh: string, en: string) {
@@ -106,6 +116,7 @@ export default function HomeClient({ initialPage }: HomeClientProps) {
   }
 
   useEffect(() => {
+    setSelectedTask(taskFromLocation());
     refreshSummary().catch(() => {
       setRunState({ status: "failed", message: "无法加载工作站摘要。" });
     });
@@ -291,9 +302,12 @@ export default function HomeClient({ initialPage }: HomeClientProps) {
       activePage={activePage}
       onPageChange={changeActivePage}
       onAction={runWorkstationAction}
-      connectorStatus={summary?.connector_status}
       locale={locale}
+      summary={summary}
+      selectedTask={selectedTask}
+      ready={Boolean(summary && selectedTask)}
     >
+      {activePage === "projects" && <ProjectsScreen locale={locale} />}
       {activePage === "tasks" && <ResearchTasks {...screenProps} />}
       {activePage === "data" && <DataKagglePipeline {...screenProps} />}
       {activePage === "gpu" && <GpuHpcConsole {...screenProps} />}

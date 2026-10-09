@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Image from "next/image";
 import {
   ChevronRight,
   Menu,
@@ -12,18 +11,22 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { navSections, navItems, type PageId } from "./navigation";
-import { StatusDot, type StatusTone } from "./primitives/StatusBadge";
+import { navSections, navItems, navSectionCollapsed, type PageId } from "./navigation";
+import { StatusDot } from "./primitives/StatusBadge";
+import { connectorStatus, connectorLabel, preferredModelConnector } from "@/lib/connector-presentation";
+export { preferredModelConnector } from "@/lib/connector-presentation";
 import type { WorkstationSummary } from "@/lib/api/types";
 import { t } from "./localization";
+import { DeepEvoGlyph, DeepEvoLockup } from "./DeepEvoBrand";
 
 type Locale = "zh-CN" | "en-US";
 
 /* ── Unified page names (single source: navigation.ts labelZh) ── */
 const navLabelZh: Record<PageId, string> = {
   assistant: "智能助手",
+  projects: "项目与实验",
   overview: "科研总览",
-  control: "EvoMind 工作站",
+  control: "DeepEvo 工作站",
   experiments: "实验中心",
   evolution: "自进化引擎",
   data: "数据 / Kaggle",
@@ -39,33 +42,6 @@ const navLabelZh: Record<PageId, string> = {
   settings: "系统设置",
   design: "设计治理",
 };
-
-function connectorStatus(summary: WorkstationSummary | null | undefined, key: string): { configured: boolean; state: string; tone: StatusTone } {
-  const connectors = summary?.connector_status as Record<string, Record<string, unknown>> | undefined;
-  const entry = connectors?.[key];
-  if (!entry) return { configured: false, state: "unknown", tone: "unknown" };
-  const configured = Boolean(entry.configured);
-  const state = String(entry.state ?? entry.status ?? "").toLowerCase();
-  const tone: StatusTone = state.includes("blocked") || state.includes("failed")
-    ? "blocked"
-    : configured && (state.includes("verified") || state.includes("ready") || state.includes("passed"))
-    ? "verified"
-    : configured
-    ? "ready"
-    : state.includes("not_configured")
-    ? "unknown"
-    : "pending";
-  return { configured, state, tone };
-}
-
-function connectorLabel(locale: Locale | undefined, cfg: { configured: boolean; state: string }): string {
-  if (cfg.state.includes("blocked") || cfg.state.includes("failed")) return t(locale, "Blocked", "阻断");
-  if (cfg.configured && cfg.state.includes("verified")) return t(locale, "Verified", "已验证");
-  if (cfg.configured && (cfg.state.includes("ready") || cfg.state.includes("passed"))) return t(locale, "Ready", "就绪");
-  if (cfg.configured) return t(locale, "Configured", "已配置");
-  if (cfg.state.includes("not_configured")) return t(locale, "Not configured", "未配置");
-  return t(locale, "Unknown", "未知");
-}
 
 /* ── Shared nav tree (used by desktop sidebar + mobile drawer) ── */
 function NavTree({
@@ -83,11 +59,7 @@ function NavTree({
 }) {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
   const activeSectionId = navSections.find((s) => s.ids.includes(activePage as never))?.id;
-  const isSectionCollapsed = (sectionId: string) => {
-    if (collapsed) return false;
-    if (sectionId === activeSectionId) return false;
-    return collapsedSections[sectionId] ?? true;
-  };
+  const isSectionCollapsed = (sectionId: string) => navSectionCollapsed(sectionId, activeSectionId, collapsed, collapsedSections[sectionId]);
 
   return (
     <nav aria-label={t(locale, "Primary navigation", "主导航")} className="dark-scrollbar mt-3 min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
@@ -99,7 +71,7 @@ function NavTree({
               <button
                 type="button"
                 className="mb-1 flex min-h-8 w-full items-center gap-1 rounded px-2 py-1 text-xs font-medium text-ink-muted/80 hover:bg-surface-raised/5 hover:text-ink-secondary"
-                onClick={() => setCollapsedSections((prev) => ({ ...prev, [section.id]: !isCollapsed }))}
+                onClick={() => { if (section.id !== "core") setCollapsedSections((prev) => ({ ...prev, [section.id]: !isCollapsed })); }}
                 aria-expanded={!isCollapsed}
                 aria-controls={`${idPrefix}-nav-section-${section.id}`}
               >
@@ -113,7 +85,8 @@ function NavTree({
                 if (!item) return null;
                 const Icon = item.icon;
                 const active = item.id === activePage;
-                const label = locale === "zh-CN" ? navLabelZh[item.id] : item.label;
+                const coreLabels: Partial<Record<PageId, [string, string]>> = { assistant: ["助手", "Assistant"], projects: ["项目与实验", "Projects & experiments"], data: ["资料与数据", "Sources & data"], report: ["成果", "Results"], settings: ["设置", "Settings"] };
+                const label = coreLabels[item.id]?.[locale === "zh-CN" ? 0 : 1] ?? (locale === "zh-CN" ? navLabelZh[item.id] : item.label);
                 return (
                   <button
                     key={item.id}
@@ -144,35 +117,23 @@ function NavTree({
   );
 }
 
-function BrandMark({ collapsed }: { collapsed: boolean }) {
+function BrandIdentity({ collapsed }: { collapsed: boolean }) {
+  if (!collapsed) {
+    return <DeepEvoLockup height={40} className="max-w-[146px] rounded-md" />;
+  }
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-edge/80 bg-surface-sunken shadow-raised ring-1 ring-inset ring-accent/10">
-      <Image
-        src="/brand/evomind-mark-symbol.png"
-        alt={collapsed ? "EvoMind" : ""}
-        width={40}
-        height={40}
-        className="h-[34px] w-[34px] object-contain drop-shadow-sm"
-        priority
-      />
-    </div>
-  );
-}
-
-function BrandText() {
-  return (
-    <div className="min-w-0">
-      <div className="truncate text-sm font-bold">EvoMind</div>
-      <div className="text-[11px] font-medium tracking-wide text-ink-muted">Scientific Research OS</div>
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-edge/80 bg-black shadow-raised ring-1 ring-inset ring-accent/10">
+      <DeepEvoGlyph size={38} />
     </div>
   );
 }
 
 function SidebarFooter({ locale, summary, onNavigate }: { locale: Locale; summary?: WorkstationSummary | null; onNavigate: (p: PageId) => void }) {
+  const modelConnector = preferredModelConnector(summary);
   const connectors = [
     { key: "gpu", label: t(locale, "Remote GPU", "远程 GPU") },
     { key: "kaggle", label: "Kaggle API" },
-    { key: "deepseek", label: "DeepSeek API" },
+    ...(modelConnector ? [{ key: modelConnector.key, label: `${t(locale, "AI Model", "AI 模型")} · ${modelConnector.model}` }] : []),
   ];
   return (
     <div className="mt-3 shrink-0 space-y-2">
@@ -256,7 +217,7 @@ function MobileDrawer({
     const restoreTarget = returnFocusRef.current ?? (document.activeElement as HTMLElement | null);
     document.body.setAttribute("data-nav-lock", "true");
     const panel = panelRef.current;
-    const focusables = () => Array.from(panel?.querySelectorAll<HTMLElement>("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])") ?? []).filter((el) => !el.hasAttribute("disabled"));
+    const focusables = () => Array.from(panel?.querySelectorAll<HTMLElement>("button, a, input, select, textarea, [tabindex]:not([tabindex='-1'])") ?? []).filter((el) => !el.hasAttribute("disabled") && el.getClientRects().length > 0);
     focusables()[0]?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
@@ -302,8 +263,7 @@ function MobileDrawer({
         className="shell-drawer flex flex-col bg-frame p-3 text-white lg:hidden"
       >
         <div className="flex items-center gap-2.5">
-          <BrandMark collapsed={false} />
-          <BrandText />
+          <BrandIdentity collapsed={false} />
           <button
             type="button"
             className="ml-auto flex h-11 w-11 items-center justify-center rounded-md border border-white/10 bg-surface-raised/10 text-white hover:bg-surface-raised/15"
@@ -357,8 +317,7 @@ export function Sidebar({
     <>
       {/* Mobile top bar (<1024px) */}
       <div className="sticky top-0 z-sidebar flex items-center gap-2.5 border-b border-frame-border bg-frame p-3 text-white lg:hidden">
-        <BrandMark collapsed={false} />
-        <BrandText />
+        <BrandIdentity collapsed={false} />
         <button
           ref={mobileTriggerRef}
           type="button"
@@ -388,8 +347,7 @@ export function Sidebar({
       {/* Desktop sidebar (real grid track, ≥1024px) */}
       <aside className="shell-sidebar hidden flex-col bg-frame p-3 text-white lg:flex">
         <div className={cn("flex items-center gap-2.5", desktopCollapsed && "flex-col gap-2")}>
-          <BrandMark collapsed={desktopCollapsed} />
-          {!desktopCollapsed && <BrandText />}
+          <BrandIdentity collapsed={desktopCollapsed} />
           <button
             type="button"
             className={cn("ui-tooltip flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-surface-raised/10 text-white hover:bg-surface-raised/15", !desktopCollapsed && "ml-auto")}

@@ -1210,6 +1210,16 @@ type ScientistExecutionContractView = {
   claim_boundary?: string;
 };
 
+type ScientistUpgradeCampaignView = {
+  ok?: boolean;
+  status?: string;
+  action?: string;
+  promotion_approved?: boolean;
+  parity_claim_allowed?: boolean;
+  score_cap?: number;
+  blockers?: string[];
+};
+
 type ScreenProps = {
   selectedTask: string;
   locale?: Locale;
@@ -1319,7 +1329,7 @@ function parseControlCommand(input: string, taskId: string): ParsedControlComman
       taskId,
       metadata: { trigger: "ai_control_console", raw_input: input },
       risk: "safe",
-      description: "Select the highest-priority EvoMind capability gap and create a safe code-agent work order with artifacts, gates, acceptance checks, and no training."
+      description: "Select the highest-priority DeepEvo capability gap and create a safe code-agent work order with artifacts, gates, acceptance checks, and no training."
     };
   }
   if ([
@@ -1398,7 +1408,7 @@ function parseControlCommand(input: string, taskId: string): ParsedControlComman
       taskId,
       metadata: { trigger: "ai_control_console", raw_input: input },
       risk: "safe",
-      description: "Build one read-only EvoMind readiness report: capability, execution gates, claim boundaries, artifacts, and next safe commands."
+      description: "Build one read-only DeepEvo readiness report: capability, execution gates, claim boundaries, artifacts, and next safe commands."
     };
   }
   if ([
@@ -1493,7 +1503,7 @@ function parseControlCommand(input: string, taskId: string): ParsedControlComman
       taskId,
       metadata: { trigger: "ai_control_console", raw_input: input },
       risk: "safe",
-      description: "Run a read-only EvoMind capability audit: scores, gaps, evidence sources, and upgrade backlog."
+      description: "Run a read-only DeepEvo capability audit: scores, gaps, evidence sources, and upgrade backlog."
     };
   }
   if ([
@@ -1812,6 +1822,7 @@ export function AiControlConsole({
   const [scientistStream, setScientistStream] = useState<ScientistStreamView | null>(null);
   const [scientistStreamUpdatedAt, setScientistStreamUpdatedAt] = useState<number | null>(null);
   const [scientistStreamTransport, setScientistStreamTransport] = useState<ScientistStreamTransportMode>("connecting");
+  const [scientistUpgradeCampaign, setScientistUpgradeCampaign] = useState<ScientistUpgradeCampaignView | null>(null);
   const scientistStreamTransportRef = useRef<ScientistStreamTransportMode>("connecting");
   const [autopilotBusy, setAutopilotBusy] = useState(false);
   const [scientistContinuationBusy, setScientistContinuationBusy] = useState(false);
@@ -1959,6 +1970,13 @@ export function AiControlConsole({
       })
       .catch(() => {
         if (alive) setScientistSelfUpgradeLoop(null);
+      });
+    api.getScientistUpgradeCampaign()
+      .then((payload) => {
+        if (alive) setScientistUpgradeCampaign(payload.scientist_upgrade_campaign ?? null);
+      })
+      .catch(() => {
+        if (alive) setScientistUpgradeCampaign(null);
       });
     api.getScientistPatchWorkOrder()
       .then((payload) => {
@@ -2329,7 +2347,7 @@ export function AiControlConsole({
           pushMessage("system", "Claude Code 草稿已生成。");
           break;
         case "deepseek_smoke":
-          rawResponse = await api.testDeepSeek("Hello from EvoMind Gateway");
+          rawResponse = await api.testDeepSeek("Hello from DeepEvo Gateway");
           pushMessage("system", "DeepSeek 连接烟测完成。");
           break;
         case "gpu_smoke":
@@ -2693,7 +2711,7 @@ export function AiControlConsole({
     setScientistTerminalTurnBusy(true);
     try {
       const result = await api.runScientistTurn(
-        prompt || "Analyze the current EvoMind workstation state and propose the next safe research step.",
+        prompt || "Analyze the current DeepEvo workstation state and propose the next safe research step.",
         4
       );
       setScientistTerminalTurn(result.scientist_terminal_turn ?? null);
@@ -2822,6 +2840,8 @@ export function AiControlConsole({
   const turnPlanClaimBoundaries = Array.isArray(turnPlanCritique?.claim_boundaries) ? turnPlanCritique.claim_boundaries : [];
   const turnPlanUncertainty = Array.isArray(turnPlanCritique?.uncertainty_drivers) ? turnPlanCritique.uncertainty_drivers : [];
   const scientistParityLifecycle = scientistTerminalTurn?.parity_lifecycle ?? scientistTurnPlan?.parity_lifecycle ?? null;
+  const scientistPromotionApproved = scientistUpgradeCampaign?.promotion_approved === true;
+  const scientistParityCertified = scientistUpgradeCampaign?.parity_claim_allowed === true;
   const scientistParityPhases: ScientistParityPhaseView[] = Array.isArray(scientistParityLifecycle?.phases) && scientistParityLifecycle.phases.length
     ? scientistParityLifecycle.phases
     : (["observe", "plan", "act", "reflect", "improve"] as const).map((phase) => ({
@@ -2944,6 +2964,16 @@ export function AiControlConsole({
   const currentEvolutionBefore = (currentSelfEvolution.before ?? {}) as Record<string, unknown>;
   const currentEvolutionAfter = (currentSelfEvolution.after ?? {}) as Record<string, unknown>;
   const currentEvolutionDelta = (currentSelfEvolution.delta ?? {}) as Record<string, unknown>;
+  const evolutionParent = typeof currentSelfEvolution.parent_exp_id === "string" ? currentSelfEvolution.parent_exp_id : "";
+  const evolutionChild = typeof currentSelfEvolution.child_exp_id === "string" ? currentSelfEvolution.child_exp_id : "";
+  const evolutionHasMetrics = Object.keys(currentEvolutionBefore).some((key) =>
+    typeof currentEvolutionBefore[key] === "number" && Number.isFinite(currentEvolutionBefore[key])
+    && typeof currentEvolutionAfter[key] === "number" && Number.isFinite(currentEvolutionAfter[key]));
+  const evolutionPassed = currentSelfEvolution.status === "passed" && currentReview?.status === "passed"
+    && Boolean(evolutionParent && evolutionChild && evolutionHasMetrics);
+  const evolutionStatus = evolutionPassed ? "passed"
+    : currentSelfEvolution.status === "rejected" || currentSelfEvolution.status === "failed" ? String(currentSelfEvolution.status)
+      : tx(locale, "Unverified", "未核验");
   const currentRequest = currentRuntime?.runtime_snapshot?.request as {
     objective?: string;
     task_type?: string;
@@ -2995,8 +3025,8 @@ export function AiControlConsole({
       {userDemoMode ? (
         <>
           <PageHeader
-            title={tV2(locale, "EvoMind Analysis Assistant", "EvoMind 分析助手")}
-            subtitle={tV2(locale, "Describe the question in natural language. EvoMind checks the data, runs the analysis, reviews the result, and prepares downloadable files.", "用一句话描述问题。EvoMind 会检查数据、完成分析、复核结果，并准备可下载的报告和文件。")}
+            title={tV2(locale, "DeepEvo Analysis Assistant", "DeepEvo 分析助手")}
+            subtitle={tV2(locale, "Describe the question in natural language. DeepEvo checks the data, runs the analysis, reviews the result, and prepares downloadable files.", "用自然语言描述问题。DeepEvo 会检查数据、完成分析、复核结果，并准备可下载的报告和文件。")}
             breadcrumb={`${tV2(locale, "Home", "首页")} > ${tV2(locale, "Analysis Assistant", "分析助手")}`}
           />
 
@@ -3038,7 +3068,7 @@ export function AiControlConsole({
         </>
       ) : (
         <div>
-          <h2 className="text-xl font-bold tracking-normal text-ink">{tx(locale, "EvoMind Gateway", "EvoMind 工作站入口")}</h2>
+          <h2 className="text-xl font-bold tracking-normal text-ink">{tx(locale, "DeepEvo Gateway", "DeepEvo 工作站入口")}</h2>
           <p className="mt-1 text-sm leading-6 text-ink-muted">
             {tx(locale, "Command the workstation with natural language. All actions are gated and logged.", "用自然语言调度工作站；所有动作都经过门禁并写入审计日志。")}
           </p>
@@ -3065,8 +3095,8 @@ export function AiControlConsole({
               <CardDescription>
                 {tx(
                   locale,
-                  "Authoritative state from workspace/current_run.json. Historical Scientist turns cannot replace it.",
-                  "权威状态来自 workspace/current_run.json，历史 Scientist 回合不会覆盖当前运行。",
+                  "Authoritative state from the Run Ledger. Historical Scientist turns cannot replace it.",
+                  "权威状态来自 Run Ledger，历史 Scientist 回合不会覆盖当前运行。",
                 )}
               </CardDescription>
             </div>
@@ -3116,10 +3146,12 @@ export function AiControlConsole({
               <div className="rounded-md border border-success/35 bg-surface-raised p-3">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="text-sm font-bold text-ink">{tx(locale, "Agent DAG · 7-stage closed loop", "Agent DAG · 七阶段闭环")}</div>
+                    <div className="text-sm font-bold text-ink">{tx(locale, "Agent DAG · Run progress", "Agent DAG · 运行进度")}</div>
                     <div className="text-xs text-ink-muted">{tx(locale, "All nodes, handoffs and acceptance evidence are bound to the same run.", "所有节点、交接与验收证据均绑定到同一 Run。")}</div>
                   </div>
-                  <StatusBadge tone="green">7 / 7 completed</StatusBadge>
+                  <StatusBadge tone={currentRunNodes.length > 0 && currentRunCompletedTasks === currentRunNodes.length ? "green" : "amber"}>
+                    {currentRunNodes.length ? `${currentRunCompletedTasks} / ${currentRunNodes.length} ${tx(locale, "completed", "已完成")}` : tx(locale, "No task graph", "暂无任务图")}
+                  </StatusBadge>
                 </div>
                 <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-7">
                   {currentRunNodes.map((node, index) => (
@@ -3140,13 +3172,13 @@ export function AiControlConsole({
                   <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <div className="text-sm font-bold text-ink">{tx(locale, "Minimal-change self-evolution", "最小改动自进化")}</div>
-                      <div className="text-xs text-ink-muted">EXP001 → EXP002 · unchanged temporal holdout</div>
+                      <div className="text-xs text-ink-muted">{evolutionParent && evolutionChild ? `${evolutionParent} → ${evolutionChild}` : tx(locale, "No comparison evidence", "暂无对比证据")}</div>
                     </div>
-                    <StatusBadge tone="green">passed</StatusBadge>
+                    <StatusBadge tone={evolutionPassed ? "green" : evolutionStatus === "rejected" || evolutionStatus === "failed" ? "red" : "amber"}>{evolutionStatus}</StatusBadge>
                   </div>
                   <div className="overflow-hidden rounded-md border border-edge bg-surface-raised text-xs">
                     <div className="grid grid-cols-4 bg-surface-sunken px-3 py-2 font-bold text-ink-muted">
-                      <div>{tx(locale, "Metric", "指标")}</div><div>EXP001</div><div>EXP002</div><div>Δ</div>
+                      <div>{tx(locale, "Metric", "指标")}</div><div>{evolutionParent || tx(locale, "Parent", "父版本")}</div><div>{evolutionChild || tx(locale, "Child", "子版本")}</div><div>Δ</div>
                     </div>
                     {[
                       ["PR-AUC", "pr_auc", "pr_auc"],
@@ -3163,14 +3195,14 @@ export function AiControlConsole({
                     ))}
                   </div>
                   <div className="mt-2 text-[11px] leading-5 text-ink-muted">
-                    {tx(locale, "Independent offline temporal holdout; threshold was not tuned on holdout; this is not a Kaggle leaderboard score.", "独立离线时间 Holdout；未在 Holdout 上调阈值；不是 Kaggle 榜单成绩。")}
+                    {tx(locale, "Comparison metrics and review status belong to this Run. Consult its validation contract; these are not official Kaggle leaderboard results.", "对比指标与审核状态来自当前 Run；验证方式以该 Run 的验证契约为准，不代表 Kaggle 官方榜单成绩。")}
                   </div>
                 </div>
 
                 <div className="rounded-md border border-edge bg-surface-raised p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="text-sm font-bold text-ink">{tx(locale, "Report & reproducible delivery", "报告与可复现交付")}</div>
-                    <StatusBadge tone="green">{currentArtifacts.length} artifacts</StatusBadge>
+                    <StatusBadge tone={currentArtifacts.length ? "blue" : "slate"}>{currentArtifacts.length} artifacts</StatusBadge>
                   </div>
                   <div className="space-y-1 text-xs leading-5 text-ink-secondary">
                     {currentReportLines.map((line, index) => <div key={`${line}-${index}`} className="break-words">{line.replace(/^[-*]\s*/, "")}</div>)}
@@ -3189,6 +3221,41 @@ export function AiControlConsole({
           ) : (
             <div className="text-xs text-ink-muted">{tx(locale, "No pointer-backed run is active yet.", "尚未创建指针绑定的运行。")}</div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{tx(locale, "Verified Upgrade Campaign", "经验证的升级活动")}</CardTitle>
+          <CardDescription>
+            {tx(
+              locale,
+              "External certification and explicit promotion approval remain fail-closed. Local artifacts never certify research parity.",
+              "外部能力认证与显式晋级审批保持默认关闭；本地证据不会认证研究能力对等。"
+            )}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="grid gap-3 lg:grid-cols-[0.72fr_1.28fr]">
+          <div className="rounded-md border border-edge bg-surface-sunken p-3">
+            <Row
+              label={tx(locale, "Parity Gate", "对等能力门禁")}
+              value={<StatusBadge tone={scientistParityCertified ? "green" : "red"}>{scientistParityCertified ? "certified" : "blocked"}</StatusBadge>}
+            />
+            <Row label={tx(locale, "Campaign Status", "活动状态")} value={scientistUpgradeCampaign?.status ?? "not_run"} />
+            <Row label={tx(locale, "Promotion Approved", "晋级已审批")} value={scientistPromotionApproved ? "yes" : "no"} />
+            <Row label={tx(locale, "Score Cap", "分数上限")} value={scientistUpgradeCampaign?.score_cap ?? 84} />
+          </div>
+          <div className="rounded-md border border-edge bg-surface-raised p-3">
+            <div className="mb-2 text-xs font-bold uppercase text-ink-muted">{tx(locale, "Certification Blockers", "认证阻断项")}</div>
+            <div className="space-y-2">
+              {(scientistUpgradeCampaign?.blockers ?? []).length === 0 ? (
+                <div className="text-xs text-ink-muted">{tx(locale, "No blockers reported.", "当前未报告阻断项。")}</div>
+              ) : null}
+              {(scientistUpgradeCampaign?.blockers ?? []).map((blocker, index) => (
+                <div key={`${blocker}-${index}`} className="break-all rounded border border-danger/30 bg-danger-light px-2 py-1.5 font-mono text-[11px] text-danger-text">{blocker}</div>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
 
@@ -4425,8 +4492,8 @@ export function AiControlConsole({
             <CardDescription>
               {tx(
                 locale,
-                "Read-only capability audit of EvoMind itself: scores, gaps, evidence sources, and system-upgrade backlog.",
-                "只读审计 EvoMind 自身能力：评分、缺口、证据来源和系统升级 backlog。"
+                "Read-only capability audit of DeepEvo itself: scores, gaps, evidence sources, and system-upgrade backlog.",
+                "只读审计 DeepEvo 自身能力：评分、缺口、证据来源和系统升级 backlog。"
               )}
             </CardDescription>
           </div>
@@ -5242,8 +5309,8 @@ export function AiControlConsole({
             <div className="mt-3 rounded-md border border-warning/25 bg-warning-light p-2 text-xs leading-5 text-warning-text">
               {tx(
                 locale,
-                "Ready commands are still gated: EvoMind shows the next command, but long training and official submit remain policy-controlled.",
-                "ready 命令仍受门禁控制：EvoMind 会展示下一步命令，但长训练和官方提交仍由策略门禁控制。"
+                "Ready commands are still gated: DeepEvo shows the next command, but long training and official submit remain policy-controlled.",
+                "ready 命令仍受门禁控制：DeepEvo 会展示下一步命令，但长训练和官方提交仍由策略门禁控制。"
               )}
             </div>
           </div>

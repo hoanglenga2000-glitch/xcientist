@@ -949,7 +949,7 @@ function TerminalKaggleAgentPanel(props: ScreenProps) {
   const scoreLine = `${agent?.best_exp_id || "best pending"} / ${formatScore(agent?.best_cv_score)}`;
   const eventMode = agent?.events_present ? "events.jsonl active" : agent?.summary_present ? "summary.json only" : "waiting for artifacts";
   const terminalLines = [
-    "EvoMind / XCIENTIST Research Agent",
+    "DeepEvo / XCIENTIST Research Agent",
     `Provider : audited xsci gateway / secrets masked`,
     `Workspace: ${shortPath(props.summary?.workspace_root ?? "Research OS Workspace")}`,
     `Task     : ${taskId}`,
@@ -959,13 +959,13 @@ function TerminalKaggleAgentPanel(props: ScreenProps) {
     `Events   : ${eventMode}`,
     `Memory   : ${agent?.memory_count ?? 0} retrospective records`,
     "",
-    "> give EvoMind a data science task, then watch plan -> code -> train -> gate -> report"
+    "> give DeepEvo a data science task, then watch plan -> code -> train -> gate -> report"
   ];
 
   return (
     <Panel
-      title="EvoMind Research Agent"
-      description="8088 工作站和 EvoMind 终端共用 experiments/evolution 证据源；没有 events.jsonl 时只回放 summary，不伪装实时运行"
+      title="DeepEvo Research Agent"
+      description="8088 工作站和 DeepEvo 终端共用 experiments/evolution 证据源；没有 events.jsonl 时只回放 summary，不伪装实时运行"
       action={
         <div className="flex flex-wrap items-center gap-1.5">
           <StatusBadge tone={toneFor(status)}>{terminalAgentStatusLabel(status)}</StatusBadge>
@@ -1293,7 +1293,7 @@ export function AiControlConsole(props: ScreenProps) {
 
 function AiControlConsoleLegacy(props: ScreenProps) {
   return (
-    <Page title="EvoMind 工作站入口" subtitle="用自然语言调度科研工作站，所有动作写入审计日志">
+    <Page title="DeepEvo 工作站入口" subtitle="用自然语言调度科研工作站，所有动作写入审计日志">
       <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
         <Panel title="Command Console" description="科研任务、训练、报告、证据与 Gate 的统一入口">
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">

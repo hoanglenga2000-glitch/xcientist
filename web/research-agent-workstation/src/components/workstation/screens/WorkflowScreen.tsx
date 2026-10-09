@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import {
   ArrowRight,
   GitBranch,
@@ -49,6 +51,8 @@ type ScreenProps = {
 
 export function WorkflowScreen(props: ScreenProps) {
   const { summary, locale = "zh-CN" } = props;
+  const [zoom, setZoom] = useState(100);
+  const [pendingOnly, setPendingOnly] = useState(false);
   const workflows = summary?.workflows ?? [];
   const gates = summary?.gates ?? [];
   const pendingGates = gates.filter((g) => {
@@ -58,6 +62,7 @@ export function WorkflowScreen(props: ScreenProps) {
   const latestWorkflow = workflows[0] as Record<string, unknown> | undefined;
   const stages = (latestWorkflow?.stages ?? summary?.stages ?? []) as Array<Record<string, unknown>>;
   const actions = summary?.actions ?? [];
+  const visibleStages = pendingOnly ? stages.filter((stage) => !["completed", "done", "passed"].includes(String(stage.status ?? "").toLowerCase())) : stages;
 
   return (
     <div className="space-y-4">
@@ -80,16 +85,17 @@ export function WorkflowScreen(props: ScreenProps) {
             title={t(locale, "Agent Handoff Chain", "Agent 交接链")}
             action={
               <div className="flex items-center gap-1">
-                <button type="button" data-ui-action="experiments_zoom_out" className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Zoom out", "缩小")}>−</button>
-                <button type="button" data-ui-action="experiments_zoom_reset" className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Reset zoom", "重置缩放")}>100%</button>
-                <button type="button" data-ui-action="experiments_zoom_in" className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Zoom in", "放大")}>+</button>
-                <button type="button" data-ui-action="experiments_filter_graph" className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Filter graph", "过滤图")}>{t(locale, "Filter", "过滤")}</button>
+                <button type="button" data-ui-action="experiments_zoom_out" data-ui-skip-action="true" disabled={zoom <= 50} onClick={() => setZoom((value) => Math.max(50, value-10))} className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Zoom out", "缩小")}>−</button>
+                <button type="button" data-ui-action="experiments_zoom_reset" data-ui-skip-action="true" onClick={() => setZoom(100)} className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Reset zoom", "重置缩放")}>{zoom}%</button>
+                <button type="button" data-ui-action="experiments_zoom_in" data-ui-skip-action="true" disabled={zoom >= 200} onClick={() => setZoom((value) => Math.min(200,value+10))} className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Zoom in", "放大")}>+</button>
+                <button type="button" data-ui-action="experiments_filter_graph" data-ui-skip-action="true" aria-pressed={pendingOnly} onClick={() => setPendingOnly((value) => !value)} className="rounded border border-edge px-1.5 py-0.5 text-2xs text-ink-secondary hover:bg-surface-sunken" aria-label={t(locale, "Pending stages only", "仅看待处理阶段")}>{t(locale, "Pending stages", "待处理阶段")}</button>
               </div>
             }
           >
-            <div className="flex items-center gap-1 overflow-x-auto pb-1">
+            <p className="mb-3 text-xs text-ink-muted">{t(locale, "Reference role sequence, not evidence of live role execution.", "参考角色分工，不代表这些角色已调用或正在执行。")}</p>
+            <div className="overflow-x-auto pb-1"><div className="flex w-max items-center gap-1" style={{ zoom: zoom / 100 }}>
               {["Scientist", "Planner", "Code Agent", "Trainer", "Validator"].map((agent, idx) => {
-                const isCurrent = idx === 1;
+                const isCurrent = false;
                 return (
                   <div key={agent} className="flex items-center">
                     <div className={cn(
@@ -103,17 +109,17 @@ export function WorkflowScreen(props: ScreenProps) {
                   </div>
                 );
               })}
-            </div>
+            </div></div>
           </Panel>
 
           <Panel title={t(locale, "Stages", "阶段")}>
             <div className="space-y-1.5">
-              {stages.length === 0 ? (
+              {visibleStages.length === 0 ? (
                 <span className="text-xs text-ink-muted">{t(locale, "No stages", "无阶段")}</span>
               ) : (
-                stages.slice(0, 8).map((stage, i) => {
+                visibleStages.slice(0, 8).map((stage, i) => {
                   const status = String(stage.status ?? stage.id ?? "unknown").toLowerCase();
-                  const tone: StatusTone = status.includes("complete") || status.includes("done") ? "verified" : status.includes("running") ? "running" : status.includes("fail") ? "failed" : "pending";
+                  const tone: StatusTone = ["completed", "done", "passed"].includes(status) ? "verified" : status.includes("running") ? "running" : status.includes("fail") ? "failed" : "pending";
                   return (
                     <div key={i} className="flex items-center justify-between rounded-sm border border-edge px-2.5 py-1.5 text-xs">
                       <div className="flex items-center gap-2">

@@ -9,6 +9,13 @@ export type TaskSignal = {
   key: string;
 };
 
+export type AssistantTaskRun = {
+  id?: string | null;
+  prompt?: string | null;
+  selected_task?: string | null;
+  task_id?: string | null;
+};
+
 const taskIdAliases = new Map<string, string>([
   ["house-prices", "house_prices"],
   ["evomind_qwen7b_finetune", "evomind-qwen7b-finetune"],
@@ -17,6 +24,42 @@ const taskIdAliases = new Map<string, string>([
 export function normalizeTaskId(taskId: string | null | undefined): string {
   const value = String(taskId ?? "").trim();
   return taskIdAliases.get(value) ?? value;
+}
+
+function compactTaskLabel(value: string | null | undefined): string {
+  const withoutControls = Array.from(String(value ?? ""), (character) => {
+    const codePoint = character.codePointAt(0) ?? 0;
+    const isControl = codePoint <= 0x1f || (codePoint >= 0x7f && codePoint <= 0x9f);
+    const isBidiControl = (codePoint >= 0x202a && codePoint <= 0x202e) || (codePoint >= 0x2066 && codePoint <= 0x2069);
+    return isControl || isBidiControl ? " " : character;
+  }).join("");
+  return withoutControls
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function promptTaskLabel(run: AssistantTaskRun): string {
+  const prompt = compactTaskLabel(run.prompt).replace(/^\[Selected task: [^\]]+\]\s*/i, "");
+  if (!prompt || /(?:password|passwd|secret|token|api[_ -]?key|\u5bc6\u7801|\u53e3\u4ee4|\u5bc6\u94a5|\u4ee4\u724c)/i.test(prompt)) return "";
+  const sentence = prompt.split(/[\u3002\uff01\uff1f!?]/, 1)[0]?.trim() || prompt;
+  const characters = Array.from(sentence);
+  return characters.length > 42 ? `${characters.slice(0, 42).join("")}\u2026` : sentence;
+}
+
+/**
+ * Resolve the task shown beside the assistant from the durable Run first.
+ * A global task selection is only a fallback when no assistant Run exists.
+ */
+export function assistantRunTaskLabel(
+  run: AssistantTaskRun | null | undefined,
+  selectedTask: string | null | undefined,
+): string {
+  if (!run) return normalizeTaskId(selectedTask);
+  const explicitTask = normalizeTaskId(run.task_id);
+  if (explicitTask) return explicitTask;
+  const promptLabel = promptTaskLabel(run);
+  if (promptLabel) return promptLabel;
+  return compactTaskLabel(run.id) || normalizeTaskId(run.selected_task) || "current-run";
 }
 
 export function runtimeForTask(

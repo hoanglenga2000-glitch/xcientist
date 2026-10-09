@@ -106,6 +106,22 @@ html[data-theme="light"] {
 }
 
 /* When the user collapses the sidebar, flip the current width at the shell root. */
+.report-paper,
+[data-ui-professional-report],
+[data-ui-report-archive-preview] {
+  color-scheme: light;
+  --color-paper: 255 255 253;
+  --color-ink: 12 25 23;
+  --color-ink-secondary: 51 75 71;
+  --color-ink-muted: 91 116 111;
+  --color-surface-raised: 255 255 255;
+  --color-surface-sunken: 234 241 239;
+  --color-edge: 205 220 216;
+  --color-edge-light: 225 235 232;
+  --color-accent: 20 123 112;
+  --color-accent-dark: 9 82 75;
+}
+
 .workstation-shell[data-sidebar="collapsed"] {
   --sidebar-current-width: var(--sidebar-collapsed-width);
 }
@@ -498,4 +514,23 @@ body[data-evidence-lock="true"] {
 
 .workstation-divider {
   background: rgb(var(--color-edge));
+}
+
+@keyframes deepevo-orbit-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.deepevo-orbit {
+  animation: deepevo-orbit-spin 18s linear infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .deepevo-orbit {
+    animation: none;
+    will-change: auto;
+  }
 }

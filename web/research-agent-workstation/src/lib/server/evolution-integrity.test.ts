@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 // @ts-expect-error Node's strip-types test runner requires the explicit .ts suffix.
 import { CANONICAL_HASH_SCHEMA, canonicalJson, sha256Canonical, verifyExperienceBoard } from "./evolution-integrity.ts";
@@ -22,7 +23,9 @@ type CanonicalFixture = {
   equivalence_groups: string[][];
 };
 
-const canonicalFixture = JSON.parse(readFileSync(fileURLToPath(new URL(
+const canonicalFixture = JSON.parse(readFileSync(process.env.EVOMIND_TEST_FIXTURE_ROOT
+  ? path.join(process.env.EVOMIND_TEST_FIXTURE_ROOT, "canonical_json_f64_v1.json")
+  : fileURLToPath(new URL(
   "../../../../../tests/fixtures/canonical_json_f64_v1.json",
   import.meta.url,
 )), "utf8")) as CanonicalFixture;

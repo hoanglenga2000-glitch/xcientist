@@ -1,13 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useState, type MouseEvent } from "react";
-import {
-  Bell,
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Search
-} from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import { cn } from "@/lib/utils";
 import type { UiComponentClickMetadata, WorkstationSummary } from "@/lib/api/types";
 import { Sidebar } from "./Sidebar";
@@ -18,6 +13,7 @@ type Locale = "zh-CN" | "en-US";
 const useIsomorphicLayoutEffect = typeof window === "undefined" ? useEffect : useLayoutEffect;
 const pageIds = [
   "assistant",
+  "projects",
   "overview",
   "control",
   "experiments",
@@ -41,9 +37,10 @@ function copy(locale: Locale | undefined, en: string, zh: string) {
 
 /* ── Page titles with zh/en ── */
 const pageTitles: Record<PageId, { zh: string; en: string; subZh: string; subEn: string }> = {
+  projects: { zh: "项目与实验", en: "Projects and experiments", subZh: "你的真实项目、实验和运行记录", subEn: "Your projects, experiments, and execution records" },
   assistant: { zh: "智能助手", en: "Assistant", subZh: "自然语言对话、研究规划与受控执行入口", subEn: "Natural-language chat, research planning, and controlled execution" },
   overview: { zh: "科研总览", en: "Research Overview", subZh: "科研工作站运行态势与闭环总控", subEn: "Research workstation operating status and mission control" },
-  control: { zh: "EvoMind 工作站", en: "EvoMind Gateway", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
+  control: { zh: "DeepEvo 工作站", en: "DeepEvo Gateway", subZh: "调度 Agent、资源与门禁", subEn: "Orchestrate agents, resources, and gates" },
   experiments: { zh: "实验中心", en: "Experiment Ledger", subZh: "实验台账、分支与分数门禁", subEn: "Experiment ledger, branches, and score gates" },
   evolution: { zh: "自进化引擎", en: "Evolution Engine", subZh: "搜索图、检索记忆与分支扩展规划", subEn: "Search graph, retrospective memory, and branch expansion planning" },
   data: { zh: "数据 / Kaggle", en: "Data / Kaggle", subZh: "数据审计、提交结构与排行榜证据", subEn: "Data audit, submission schema, and leaderboard evidence" },
@@ -409,6 +406,15 @@ export function AppShell({
     if (!onAction) return;
     const target = event.target instanceof Element ? event.target.closest(interactiveSelector) : null;
     if (!target || target.closest("[data-ui-skip-action='true']")) return;
+    const isImplicitFormControl =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement;
+    const hasExplicitAuditMarker =
+      target.hasAttribute("data-ui-action") ||
+      target.hasAttribute("data-ui-component") ||
+      target.hasAttribute("data-testid");
+    if (isImplicitFormControl && !hasExplicitAuditMarker) return;
     const label = cleanText(target.getAttribute("aria-label") ?? target.textContent);
     const componentType = getComponentType(target);
     const metadata: UiComponentClickMetadata = {
@@ -449,29 +455,12 @@ export function AppShell({
     void onAction("ui_component_click", metadata).catch(() => undefined);
   }
 
-  if (userDemoMode) {
-    return (
-      <div className="min-h-screen bg-surface/82 px-3 py-4 text-ink sm:px-6 sm:py-6" data-demo-user="true">
-        <main
-          className="thin-scrollbar mx-auto min-h-[calc(100dvh-2rem)] w-full max-w-[1500px] overflow-y-auto"
-          data-ui-component="workstation-page"
-          data-ui-page={activePage}
-          data-ui-ready={ready ? "true" : "false"}
-          data-ui-task={selectedTask ?? ""}
-          aria-busy={!assistantMode && !ready}
-          onClickCapture={handleUiClick}
-        >
-          {children}
-        </main>
-      </div>
-    );
-  }
-
   return (
     <div
       className="workstation-shell workstation-chrome min-h-screen bg-transparent text-ink"
       data-sidebar={sidebarCollapsed ? "collapsed" : "expanded"}
       data-sidebar-ready={sidebarPreferenceReady ? "true" : "false"}
+      data-demo-user={userDemoMode ? "true" : undefined}
     >
       <Sidebar
         activePage={activePage}
@@ -487,7 +476,7 @@ export function AppShell({
           activePage={activePage}
           onAction={onAction}
           locale={locale}
-          onOpenEvidenceRail={() => setEvidenceRailOpen(true)}
+          onOpenEvidenceRail={() => activePage === "report" ? window.dispatchEvent(new Event("evomind:open-report-evidence")) : setEvidenceRailOpen(true)}
         />
         <main className={cn(
           "min-w-0",
@@ -496,7 +485,7 @@ export function AppShell({
             : "min-h-screen bg-surface/82 px-2 pb-5 pt-2 sm:px-3 lg:h-[calc(100dvh-var(--topbar-height))] lg:overflow-hidden lg:px-3 lg:pb-0"
         )}>
           {/* RunContextBar at top of content */}
-          {!assistantMode && <div className="mb-3">
+          {!assistantMode && activePage !== "projects" && activePage !== "report" && activePage !== "settings" && activePage !== "data" && <div className="mb-3">
             <RunContextBar
               summary={summary}
               locale={locale}
@@ -547,12 +536,9 @@ export function AppShell({
   );
 }
 
-/* ── Topbar: simplified per V2 spec ── */
+/* Shared header controls with real owner-scoped read operations. */
 function Topbar({
-  activePage,
-  onAction,
-  locale,
-  onOpenEvidenceRail
+  activePage, locale, onOpenEvidenceRail
 }: {
   activePage: PageId;
   onAction?: (action: string, metadata?: Record<string, unknown>) => Promise<unknown>;
@@ -562,53 +548,8 @@ function Topbar({
   return (
     <header className="sticky top-0 z-topbar h-[var(--topbar-height)] border-b border-edge bg-surface-raised/95 px-3 shadow-hairline">
       <div className="mx-auto flex h-full max-w-[var(--content-max-width)] items-center gap-2">
-        {/* Breadcrumb only — the page H1 lives once in the PageHeader below */}
-        <div className="min-w-0 shrink-0">
-          <Breadcrumb activePage={activePage} locale={locale ?? "zh-CN"} />
-        </div>
-
-        {/* Search / Command Palette entry */}
-        <label className="relative hidden min-w-[160px] flex-1 sm:block xl:max-w-[380px]">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-muted" />
-          <input
-            className="h-8 w-full rounded-md border border-edge bg-surface-sunken pl-10 pr-14 text-sm text-ink outline-none transition-colors duration-150 focus:border-accent focus:bg-surface-raised focus:ring-2 focus:ring-accent/20"
-            data-ui-action="global_search_input"
-            aria-label={copy(locale, "Search runs, artifacts", "搜索 run、artifact")}
-            placeholder={copy(locale, "Search runs, artifacts…", "搜索 run、artifact…")}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") void onAction?.("search_command", { query: event.currentTarget.value });
-            }}
-          />
-          <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded border border-edge bg-surface-raised px-1.5 py-0.5 text-2xs font-semibold text-ink-muted">
-            ⌘K
-          </kbd>
-        </label>
-
-        {/* Right side: evidence rail + notifications + user */}
-        <div className="ml-auto flex items-center gap-2">
-          <button
-            type="button"
-            className="hidden h-8 items-center gap-1.5 rounded-md border border-edge px-2.5 text-xs font-medium text-ink-secondary hover:bg-surface-sunken sm:flex"
-            data-ui-action="open_evidence_rail"
-            data-ui-skip-action="true"
-            onClick={onOpenEvidenceRail}
-            aria-label={copy(locale, "Open evidence rail", "打开证据轨")}
-          >
-            <FileText className="h-3.5 w-3.5" />
-            {copy(locale, "Evidence", "证据")}
-          </button>
-          <button type="button" className="relative flex h-8 w-8 items-center justify-center rounded-md border border-edge text-ink-secondary hover:bg-surface-sunken" aria-label={copy(locale, "Notifications", "通知")} data-ui-action="open_notifications">
-            <Bell className="h-4 w-4" />
-          </button>
-          <button type="button" className="flex min-w-0 items-center gap-2 rounded-md px-1.5 py-1 text-left hover:bg-surface-sunken" data-ui-action="open_user_menu" aria-label={copy(locale, "User menu", "用户菜单")}>
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-fg">RA</span>
-            <span className="hidden sm:block">
-              <span className="block text-xs font-semibold text-ink">{copy(locale, "Research Admin", "科研管理员")}</span>
-              <span className="block text-2xs text-ink-muted">{copy(locale, "Owner", "负责人")}</span>
-            </span>
-            <ChevronDown className="hidden h-3.5 w-3.5 text-ink-muted sm:block" />
-          </button>
-        </div>
+        <div className="min-w-0 shrink-0"><Breadcrumb activePage={activePage} locale={locale ?? "zh-CN"} /></div>
+        <WorkspaceToolbar locale={locale} onOpenEvidenceRail={onOpenEvidenceRail} />
       </div>
     </header>
   );

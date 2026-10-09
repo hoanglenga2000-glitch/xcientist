@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { connectorStatus, connectorLabel } from "@/lib/connector-presentation";
+
 import {
   Database,
   FileSearch,
@@ -13,6 +16,7 @@ import type { WorkstationSummary } from "@/lib/api/types";
 import { PageHeader, Panel, MetricTile } from "../primitives/Layout";
 import { StatusBadgeV2, StatusDot, type StatusTone } from "../primitives/StatusBadge";
 import { t } from "../localization";
+import { TenantHpcQuickEnrollment } from "../TenantHpcQuickEnrollment";
 
 type Locale = "zh-CN" | "en-US";
 
@@ -51,17 +55,14 @@ export function DataKaggleScreen(props: ScreenProps) {
   const dpapi = summary?.kaggle_dpapi_readiness;
   const inv = summary?.kaggle_experiment_inventory;
   const newComp = summary?.kaggle_new_competition_readiness;
+  const [feedback, setFeedback] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const kaggleStatus = connectorStatus(summary, "kaggle");
+  const boolText = (value: unknown, yes: string, no: string) => value === true ? yes : value === false ? no : t(locale, "Unknown", "未知");
 
   const dpapiTone: StatusTone = dpapi?.configured && dpapi?.toolchain_ready ? "verified"
     : dpapi?.configured ? "ready" : dpapi?.present ? "pending" : "unknown";
 
-  const recordDataAction = (action: string, metadata: Record<string, unknown> = {}) => {
-    void props.runWorkstationAction?.(action, {
-      task_id: props.selectedTask,
-      source: "data_kaggle_screen",
-      ...metadata,
-    });
-  };
 
   return (
     <div className="space-y-4">
@@ -74,9 +75,12 @@ export function DataKaggleScreen(props: ScreenProps) {
             type="button"
             data-ui-action="data_refresh_inventory"
             data-ui-skip-action="true"
-            onClick={() => {
-              recordDataAction("data_refresh_inventory");
-              void props.refreshSummary?.();
+            disabled={refreshing || !props.refreshSummary}
+            onClick={async () => {
+              setRefreshing(true);
+              try { await props.refreshSummary?.(); setFeedback(t(locale, "Status refreshed.", "状态已刷新；缺失证据仍为未知。")); }
+              catch { setFeedback(t(locale, "Refresh failed. Retry.", "刷新失败，请重试。")); }
+              finally { setRefreshing(false); }
             }}
             className="flex items-center gap-1 rounded-md border border-edge px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-surface-sunken"
           >
@@ -85,23 +89,30 @@ export function DataKaggleScreen(props: ScreenProps) {
         }
       />
 
+      <TenantHpcQuickEnrollment />
+      {feedback ? <p role="status" className="text-sm text-ink-secondary">{feedback}</p> : null}
+      {!dpapi || !inv ? <div role="status" className="rounded-md border border-edge p-3 text-sm text-ink-secondary">
+        {t(locale, "Managed Kaggle connector", "受管 Kaggle 连接器")}：{connectorLabel(locale, kaggleStatus)}。
+        {t(locale, "Detailed readiness or inventory is unavailable. Unknown is not zero or unconfigured.", "详细就绪收据或实验清单尚未返回；未知不等于零或未配置。")}
+      </div> : null}
+
       {/* KPI row */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricTile
           label={t(locale, "DPAPI Configured", "DPAPI 已配置")}
-          value={dpapi?.configured ? t(locale, "Yes", "是") : t(locale, "No", "否")}
+          value={boolText(dpapi?.configured, t(locale, "Yes", "是"), t(locale, "No", "否"))}
           icon={ShieldCheck}
           tone={dpapiTone}
         />
         <MetricTile
           label={t(locale, "Toolchain Ready", "工具链就绪")}
-          value={dpapi?.toolchain_ready ? t(locale, "Ready", "就绪") : t(locale, "Not Ready", "未就绪")}
+          value={boolText(dpapi?.toolchain_ready, t(locale, "Ready", "就绪"), t(locale, "Not Ready", "未就绪"))}
           icon={Database}
-          tone={dpapi?.toolchain_ready ? "verified" : "blocked"}
+          tone={dpapi?.toolchain_ready === true ? "verified" : dpapi?.toolchain_ready === false ? "blocked" : "unknown"}
         />
         <MetricTile
           label={t(locale, "Total Runs", "总运行")}
-          value={inv?.total_runs_observed ?? 0}
+          value={inv?.total_runs_observed ?? "—"}
           icon={FileSearch}
           tone="neutral"
         />
@@ -119,10 +130,10 @@ export function DataKaggleScreen(props: ScreenProps) {
           {[
             { label: t(locale, "Credential Status", "凭据状态"), value: dpapi?.credential_status ?? "—", ok: dpapi?.configured },
             { label: t(locale, "Token Type", "Token 类型"), value: dpapi?.token_type ?? "—", ok: dpapi?.token_loaded_in_env },
-            { label: t(locale, "Token in Env", "环境变量 Token"), value: dpapi?.token_loaded_in_env ? t(locale, "Loaded", "已加载") : t(locale, "Missing", "缺失"), ok: dpapi?.token_loaded_in_env },
-            { label: t(locale, "Credential File", "凭据文件"), value: dpapi?.credential_file_present ? t(locale, "Present", "存在") : t(locale, "Missing", "缺失"), ok: dpapi?.credential_file_present },
+            { label: t(locale, "Token in Env", "环境变量 Token"), value: boolText(dpapi?.token_loaded_in_env, t(locale, "Loaded", "已加载"), t(locale, "Missing", "缺失")), ok: dpapi?.token_loaded_in_env },
+            { label: t(locale, "Credential File", "凭据文件"), value: boolText(dpapi?.credential_file_present, t(locale, "Present", "存在"), t(locale, "Missing", "缺失")), ok: dpapi?.credential_file_present },
             { label: t(locale, "Python Package", "Python 包"), value: dpapi?.python_package_version ?? "—", ok: dpapi?.toolchain_ready },
-            { label: t(locale, "Human Gate Required", "需人工 Gate"), value: dpapi?.human_gate_required_for_submission ? t(locale, "Yes", "是") : t(locale, "No", "否"), ok: !dpapi?.human_gate_required_for_submission },
+            { label: t(locale, "Human Gate Required", "需人工 Gate"), value: t(locale, "Submission requires approval", "提交必须人工批准"), ok: false },
           ].map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-2">
               <span className="text-ink-muted">{row.label}</span>
@@ -139,12 +150,12 @@ export function DataKaggleScreen(props: ScreenProps) {
       <Panel title={t(locale, "Kaggle Experiment Inventory", "Kaggle 实验清单")}>
         <div className="grid grid-cols-2 gap-3 text-xs sm:grid-cols-3">
           {[
-            { label: t(locale, "Tasks w/ Experiments", "有实验的任务"), value: inv?.task_count_with_experiments ?? 0 },
-            { label: t(locale, "Scored Runs", "有分数运行"), value: inv?.total_scored_runs ?? 0 },
-            { label: t(locale, "Promoted", "晋升"), value: inv?.total_promoted_runs ?? 0 },
-            { label: t(locale, "Held", "保留"), value: inv?.total_held_runs ?? 0 },
-            { label: t(locale, "Timeout/Failed", "超时/失败"), value: inv?.total_timeout_or_failed_runs ?? 0 },
-            { label: t(locale, "Top-30 Count", "Top-30 数"), value: inv?.official_top30_count ?? 0 },
+            { label: t(locale, "Tasks w/ Experiments", "有实验的任务"), value: inv?.task_count_with_experiments ?? "—" },
+            { label: t(locale, "Scored Runs", "有分数运行"), value: inv?.total_scored_runs ?? "—" },
+            { label: t(locale, "Promoted", "晋升"), value: inv?.total_promoted_runs ?? "—" },
+            { label: t(locale, "Held", "保留"), value: inv?.total_held_runs ?? "—" },
+            { label: t(locale, "Timeout/Failed", "超时/失败"), value: inv?.total_timeout_or_failed_runs ?? "—" },
+            { label: t(locale, "Top-30 Count", "Top-30 数"), value: inv?.official_top30_count ?? "—" },
           ].map((row) => (
             <div key={row.label} className="rounded-md border border-edge px-2.5 py-2">
               <div className="text-ink-muted">{row.label}</div>

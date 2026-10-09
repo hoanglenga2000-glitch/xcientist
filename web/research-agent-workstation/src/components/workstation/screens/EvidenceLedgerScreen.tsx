@@ -102,6 +102,7 @@ export function EvidenceLedgerScreen(props: ScreenProps) {
   const [showColumnConfig, setShowColumnConfig] = useState(false);
   const [showTypeColumn, setShowTypeColumn] = useState(true);
   const [showLineageColumn, setShowLineageColumn] = useState(true);
+  const [showLineageGraph, setShowLineageGraph] = useState(false);
 
   const recordEvidenceAction = (action: string, metadata: Record<string, unknown> = {}) => {
     void props.runWorkstationAction?.(action, {
@@ -205,6 +206,8 @@ export function EvidenceLedgerScreen(props: ScreenProps) {
             <button
               type="button"
               data-ui-action="open_evidence_lineage_graph"
+              data-ui-skip-action="true"
+              onClick={() => setShowLineageGraph(true)}
               className="flex items-center gap-1 rounded border border-edge px-2 py-1 text-2xs font-medium text-ink-secondary hover:bg-surface-sunken"
             >
               <Network className="h-3 w-3" /> {t(locale, "Lineage Graph", "血缘图")}
@@ -345,7 +348,9 @@ export function EvidenceLedgerScreen(props: ScreenProps) {
                         <button
                           type="button"
                           data-ui-action={`open_evidence_lineage_${lineageId}`}
+                          data-ui-skip-action="true"
                           title={t(locale, "Open lineage", "打开血缘")}
+                          onClick={() => setShowLineageGraph(true)}
                           className="text-ink-muted hover:text-accent"
                         >
                           <GitBranch className="h-3 w-3" />
@@ -365,6 +370,52 @@ export function EvidenceLedgerScreen(props: ScreenProps) {
           )}
         </div>
       </Panel>
+
+      {showLineageGraph && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-ink/45 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="evidence-lineage-title"
+          onClick={(event) => { if (event.target === event.currentTarget) setShowLineageGraph(false); }}
+        >
+          <section className="flex max-h-[min(720px,90vh)] w-full max-w-5xl flex-col overflow-hidden rounded-md border border-edge bg-surface-raised shadow-overlay">
+            <header className="flex items-center justify-between border-b border-edge px-4 py-3">
+              <div>
+                <h2 id="evidence-lineage-title" className="text-sm font-bold text-ink">{t(locale, "Evidence Lineage Graph", "证据血缘图")}</h2>
+                <p className="mt-1 text-xs text-ink-muted">{t(locale, "Task to artifact relationships for the selected evidence set", "当前证据集的任务到产物关系")}</p>
+              </div>
+              <button type="button" aria-label={t(locale, "Close lineage graph", "关闭血缘图")} onClick={() => setShowLineageGraph(false)} className="rounded-sm p-2 text-ink-muted hover:bg-surface-sunken hover:text-ink">
+                <Ban className="h-4 w-4" />
+              </button>
+            </header>
+            <div className="min-h-0 overflow-auto p-4">
+              {filtered.length === 0 ? (
+                <div className="rounded-md border border-dashed border-edge px-4 py-10 text-center text-sm text-ink-muted">{t(locale, "No evidence matches the current filters.", "当前筛选条件没有匹配证据。")}</div>
+              ) : (
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {filtered.slice(0, 60).map((item, index) => {
+                    const record = item as Record<string, unknown>;
+                    const artifact = evidenceName(record, index);
+                    const task = String(record.task_id ?? props.selectedTask ?? "—");
+                    const run = String(record.run_id ?? record.experiment_id ?? "—");
+                    return (
+                      <article key={`${artifact}-${index}`} className="rounded-md border border-edge bg-surface-sunken p-3">
+                        <div className="break-words text-xs font-semibold text-ink">{artifact}</div>
+                        <div className="mt-2 space-y-1 text-2xs text-ink-secondary">
+                          <div><span className="text-ink-muted">Task:</span> {task}</div>
+                          <div><span className="text-ink-muted">Run:</span> {run}</div>
+                          <div><span className="text-ink-muted">Status:</span> {evidenceStatus(record, locale)}</div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
+      )}
 
       <Panel
         title={t(locale, "Final Evidence Approval (Human Gate)", "最终证据批准(人工闸门)")}

@@ -1519,6 +1519,17 @@ export type ScientistExecutionContractSummary = {
 };
 
 export type WorkstationSummary = {
+  hpc_job_lineage?: Array<{
+    run_id?: string;
+    task_id?: string;
+    job_id?: string;
+    cluster?: string;
+    created_time?: string;
+    owner?: string;
+    status?: string;
+    dispatch_contract_path?: string | null;
+    remote_receipt_path?: string | null;
+  }>;
   tasks?: WorkstationTask[];
   runs?: WorkstationRun[];
   actions?: WorkstationAction[];
@@ -2644,7 +2655,7 @@ export type EvolutionRunner = "gpu" | "local_gpu" | "local";
 
 export type EvolutionCycleRequest = {
   task_id: string;
-  engine?: EvolutionEngine; // UI selects research_os; server code default stays legacy
+  engine?: EvolutionEngine; // default: research_os; pass "legacy" to use fallback engine
   runner?: EvolutionRunner;
   iterations?: number;
   mcgs?: boolean;

@@ -59,6 +59,11 @@ export function RunContextBar({
   compact?: boolean;
 }) {
   const normalizedTask = normalizeTaskId(selectedTask);
+  if (!normalizedTask) {
+    return <div className="rounded-md border border-edge bg-surface-raised px-3 py-2 text-xs text-ink-muted" role="status">
+      {t(locale, "No task selected. Select a task to view its evidence and gates.", "未选择任务。请选择任务后查看对应证据与门禁。")}
+    </div>;
+  }
   const currentRun = summary?.runtime?.current_run;
   const currentRunMatchesTask = recordMatchesTask(currentRun, normalizedTask);
   const latestRun = summary?.runs?.find((run) => recordMatchesTask(run, normalizedTask));
@@ -68,8 +73,8 @@ export function RunContextBar({
   const tone = normalizeStatus(runStatus);
   const evidenceCount = summary?.evidence?.filter((item) => recordMatchesTask(item, normalizedTask)).length ?? 0;
   const gateCount = summary?.gates?.filter((g) => recordMatchesTask(g, normalizedTask)).filter((g) => {
-    const decision = String(g.decision ?? "").toLowerCase();
-    return decision === "pending" || decision === "blocked";
+    const decision = String(g.decision ?? "").trim().toLowerCase();
+    return ["pending", "blocked", "waiting"].includes(decision);
   }).length ?? 0;
   const nextActionSummary = summary?.scientist_next_action;
   const nextActionMatchesTask = !nextActionSummary?.selected_task || normalizeTaskId(nextActionSummary.selected_task) === normalizedTask;
@@ -203,7 +208,7 @@ export function EvidenceRail({
         "flex flex-col bg-surface-raised",
         embedded
           ? "max-h-[70vh] w-full"
-          : "fixed inset-y-0 right-0 z-evidence-rail w-[360px] max-w-[90vw] animate-slide-in-right border-l border-edge shadow-overlay"
+          : "fixed right-0 top-[var(--topbar-height)] bottom-0 z-evidence-rail w-[360px] max-w-[90vw] animate-slide-in-right border-l border-edge shadow-overlay"
       )}
     >
       {/* Header */}

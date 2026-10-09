@@ -229,7 +229,7 @@ function FullReport({ open, onClose, props }: { open: boolean; onClose: () => vo
       <article className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-edge bg-surface-paper shadow-2xl">
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-edge bg-surface-raised px-5 py-4 sm:px-8">
           <div>
-            <div className="text-xs font-bold uppercase tracking-normal text-success-text">EvoMind Research Report</div>
+            <div className="text-xs font-bold uppercase tracking-normal text-success-text">DeepEvo Research Report</div>
             <h2 id="user-report-title" className="mt-1 text-xl font-black text-ink sm:text-2xl">信用卡交易欺诈检测：完整研究报告</h2>
             <p className="mt-1 text-xs text-ink-muted">独立离线时间验证 · 本机计算 · 未提交公开榜单</p>
           </div>
@@ -402,7 +402,7 @@ function SiimEvolutionTrail({ comparison, metrics, compact = false }: { comparis
   return (
     <section className={compact ? "border-t border-edge px-5 py-6 sm:px-7 lg:px-9" : "border-t border-edge pt-7"} data-ui-siim-evolution>
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div><div className="text-xs font-bold text-accent">EvoMind 多轮进化轨迹</div><h3 className="mt-1 text-lg font-black text-ink">每轮读取上一轮证据，只保留通过门禁的变化</h3></div>
+        <div><div className="text-xs font-bold text-accent">DeepEvo 多轮进化轨迹</div><h3 className="mt-1 text-lg font-black text-ink">每轮读取上一轮证据，只保留通过门禁的变化</h3></div>
         <StatusBadge tone="blue">同一 Run · 4 轮</StatusBadge>
       </div>
       <p className="mt-2 max-w-4xl text-xs leading-5 text-ink-muted">这不是重复重跑。系统用相同分组验证比较候选；没有稳定增益的改动会被拒绝，融合与多种子聚合也必须保留完整证据。</p>
@@ -475,7 +475,7 @@ function SiimFullReport({ open, onClose, props }: { open: boolean; onClose: () =
       <article className="flex h-[94vh] w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-edge bg-surface-raised shadow-2xl" data-ui-siim-report>
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-edge bg-surface-raised px-5 py-4 sm:px-8">
           <div>
-            <div className="text-xs font-bold text-success-text">EvoMind 医学影像研究报告</div>
+            <div className="text-xs font-bold text-success-text">DeepEvo 医学影像研究报告</div>
             <h2 id="siim-report-title" className="mt-1 text-xl font-black text-ink sm:text-2xl">SIIM-ISIC 黑色素瘤研究基准</h2>
             <p className="mt-1 text-xs text-ink-muted">患者与重复内容分组验证 · 离线评测 · 未提交公开榜单</p>
           </div>
@@ -625,7 +625,7 @@ function SiimResearchJourney(props: UserResearchJourneyProps) {
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2"><StatusBadge tone={statusTone}>{statusLabel}</StatusBadge><span className="text-xs font-semibold text-ink-muted">医学影像研究基准 · 普通用户视图</span></div>
           <h2 className="mt-4 max-w-3xl text-2xl font-black leading-tight text-ink sm:text-3xl">一句话交代研究问题，系统负责数据、训练、复核与交付</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-secondary">你不需要进入终端或选择模型。EvoMind 会在同一个 Run 中检查患者泄漏、比较预处理方案、调用 A800 完成训练，并把报告、结果、代码和证据整理成可下载文件。</p>
+          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-secondary">你不需要进入终端或选择模型。DeepEvo 会在同一个 Run 中检查患者泄漏、比较预处理方案、调用 A800 完成训练，并把报告、结果、代码和证据整理成可下载文件。</p>
           <div className="mt-5 border-l-4 border-accent bg-accent-light/30 px-4 py-3">
             <div className="text-[11px] font-bold text-ink-muted">本次一句话需求</div>
             <p className="mt-2 text-sm font-medium leading-7 text-ink">{props.requestObjective || SIIM_USER_REQUEST}</p>
@@ -868,5 +868,12 @@ export function UserResearchJourney(props: UserResearchJourneyProps) {
   if (props.taskId === "siim-isic-melanoma-classification" || props.runId?.startsWith("evomind_siim_isic_")) {
     return <SiimResearchJourney {...props} />;
   }
-  return <CreditCardResearchJourney {...props} />;
+  if (props.taskId === "credit-card-fraud-detection" || props.runId?.includes("2c1820")) {
+    return <CreditCardResearchJourney {...props} />;
+  }
+  return <section className="rounded-lg border border-edge bg-surface-raised p-5 text-ink-secondary" aria-label="工作站任务入口">
+    <h2 className="text-base font-semibold text-ink">使用受管助手开始科研任务</h2>
+    <p className="mt-2 text-sm leading-6">此旧版流程视图仅适配指定历史任务，当前没有可展示的匹配流程。这不表示任务已完成或服务故障。请从助手创建任务，或在项目与实验中打开已有 Run。</p>
+    <div className="mt-4 flex flex-wrap gap-3"><a className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-fg" href="/?page=assistant&demo=user">打开助手</a><a className="rounded-md border border-edge px-4 py-2 text-sm" href="/?page=projects&demo=user">查看项目与实验</a></div>
+  </section>;
 }

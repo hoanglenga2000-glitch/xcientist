@@ -39,6 +39,7 @@ import { normalizeTaskId, runtimeForTask } from "@/lib/task-context";
 import { cn } from "@/lib/utils";
 import { PageHeader } from "../primitives/Layout";
 import { t } from "../localization";
+import { AssistantReportPanel, VerifiedReportDocument } from "./AssistantReportPanel";
 
 type Locale = "zh-CN" | "en-US";
 type ReportTab = "report" | "figures" | "methods" | "audit" | "files";
@@ -189,7 +190,13 @@ export function ReportStudioScreen(props: ScreenProps) {
     ? `Selected task ${props.selectedTask} does not match current run task ${currentRun.task_id}.`
     : !currentRun ? "No current run is available for the selected task." : "";
   const [publicPresentation, setPublicPresentation] = useState<boolean | null>(null);
+  const [reportSource, setReportSource] = useState<"assistant" | "scientific" | null>(null);
   const [activeTab, setActiveTab] = useState<ReportTab>("report");
+  useEffect(() => {
+    const openAudit = () => setActiveTab("audit");
+    window.addEventListener("evomind:open-report-evidence", openAudit);
+    return () => window.removeEventListener("evomind:open-report-evidence", openAudit);
+  }, []);
   const [report, setReport] = useState<ScientificReportPackage | null>(null);
   const [reportState, setReportState] = useState<"loading" | "generating" | "ready" | "failed">("loading");
   const [generation, setGeneration] = useState<ScientificReportGenerationStatus | null>(null);
@@ -205,6 +212,7 @@ export function ReportStudioScreen(props: ScreenProps) {
 
   const loadReport = useCallback(async (generateReport = false, requestedRunId = runId, signal?: AbortSignal) => {
     if (signal?.aborted) return;
+    if (reportSource !== "scientific") return;
     if (!requestedRunId || publicPresentation === null) {
       setReport(null);
       setReportError(bindingError || "A task-bound run is required before loading a report.");
@@ -275,10 +283,10 @@ export function ReportStudioScreen(props: ScreenProps) {
     } finally {
       if (generationTimer !== null) window.clearInterval(generationTimer);
     }
-  }, [bindingError, currentRun?.status, publicPresentation, runId, taskId]);
+  }, [bindingError, currentRun?.status, publicPresentation, reportSource, runId, taskId]);
 
   const loadRefinement = useCallback(async () => {
-    if (!runId || publicPresentation !== false) {
+    if (reportSource !== "scientific" || !runId || publicPresentation !== false) {
       setRefinement(null);
       return;
     }
@@ -288,22 +296,25 @@ export function ReportStudioScreen(props: ScreenProps) {
     } catch {
       // No prior refinement is a valid initial state.
     }
-  }, [publicPresentation, runId, taskId]);
+  }, [publicPresentation, reportSource, runId, taskId]);
 
   useEffect(() => {
     const params = new URL(window.location.href).searchParams;
-    setPublicPresentation(params.get("presentation") === "public");
+    const isPublic = params.get("presentation") === "public";
+    setPublicPresentation(isPublic);
+    setReportSource(isPublic || params.get("report_source") === "scientific" ? "scientific" : "assistant");
   }, []);
 
   useEffect(() => {
-    if (publicPresentation === null) return;
+    if (publicPresentation === null || reportSource !== "scientific") return;
     const controller = new AbortController();
     void loadReport(false, runId, controller.signal);
     void loadRefinement();
     return () => controller.abort();
-  }, [loadReport, loadRefinement, publicPresentation, runId]);
+  }, [loadReport, loadRefinement, publicPresentation, reportSource, runId]);
 
   useEffect(() => {
+    if (reportSource !== "scientific") return;
     if (refinement?.status !== "running" && refinement?.status !== "approved") return;
     const timer = window.setInterval(async () => {
       try {
@@ -323,7 +334,7 @@ export function ReportStudioScreen(props: ScreenProps) {
       }
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [loadReport, refinement?.status, refreshSummary, runId, taskId]);
+  }, [loadReport, refinement?.status, refreshSummary, reportSource, runId, taskId]);
 
   const activeRefinementPending = Boolean(
     runId
@@ -458,6 +469,20 @@ export function ReportStudioScreen(props: ScreenProps) {
     reportRunId && publicPresentation !== null ? artifactUrl(artifactPath, taskId, reportRunId, publicPresentation, download) : ""
   ), [publicPresentation, reportRunId, taskId]);
 
+  const openAssistantReports = useCallback(() => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("report_source", "assistant");
+    window.history.replaceState(null, "", url);
+    setReportSource("assistant");
+  }, []);
+
+  if (publicPresentation === null || reportSource === null) {
+    return <div className="flex min-h-[620px] items-center justify-center gap-2 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" /> {t(locale, "Loading report workspace", "正在加载报告工作区")}</div>;
+  }
+  if (!publicPresentation && reportSource === "assistant") {
+    return <AssistantReportPanel locale={locale} onOpenScientific={() => setReportSource("scientific")} />;
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -465,6 +490,7 @@ export function ReportStudioScreen(props: ScreenProps) {
         subtitle={t(locale, "Reviewed evidence, Nature Skills rendering and versioned delivery", "经审核证据、Nature Skills 渲染与版本化交付")}
         breadcrumb={`${t(locale, "Workbench", "工坊")} > ${t(locale, "Scientific Report", "科研报告")}`}
         secondaryActions={[
+          ...(!publicPresentation ? [<button key="assistant" type="button" onClick={openAssistantReports} className="h-8 rounded-md border border-edge px-3 text-xs font-semibold text-ink-secondary hover:border-accent hover:text-accent">{t(locale, "Assistant task reports", "助手任务报告")}</button>] : []),
           <button key="refresh" type="button" title="Refresh scientific report" data-ui-action="report_refresh_scientific" data-ui-skip-action="true" onClick={() => void loadReport(false)} className="flex h-8 w-8 items-center justify-center rounded-md border border-edge text-ink-secondary hover:bg-surface-sunken">
             <RefreshCw className={cn("h-3.5 w-3.5", reportState === "loading" && "animate-spin")} />
           </button>,
@@ -555,7 +581,7 @@ export function ReportStudioScreen(props: ScreenProps) {
             </div>
           </div>
         ) : activeTab === "report" ? (
-          reportArtifact?.path ? <div className="bg-frame/55 p-2 sm:p-5"><iframe title="Interactive scientific report" src={artifactHref(reportArtifact.path)} sandbox="" referrerPolicy="no-referrer" className="mx-auto h-[760px] w-full border border-edge bg-surface-paper shadow-overlay" /></div> : <div className="flex min-h-[620px] items-center justify-center text-sm text-ink-muted">Scientific report is not ready. Generate it explicitly after the run passes review.</div>
+          reportArtifact?.path ? <div className="bg-frame/55 p-2 sm:p-5">{reportArtifact.type.toLowerCase() === "markdown" ? <VerifiedReportDocument name={reportArtifact.name} url={artifactHref(reportArtifact.path)} mediaType="text/markdown" previewKind="markdown" expectedBytes={reportArtifact.bytes} expectedSha256={reportArtifact.sha256} /> : <iframe title="Interactive scientific report" src={artifactHref(reportArtifact.path)} sandbox="" referrerPolicy="no-referrer" className="mx-auto h-[760px] w-full border border-edge bg-surface-paper shadow-overlay" />}</div> : <div className="flex min-h-[620px] items-center justify-center text-sm text-ink-muted">Scientific report is not ready. Generate it explicitly after the run passes review.</div>
         ) : activeTab === "figures" ? (
           <div className="grid gap-4 p-1 lg:grid-cols-2">
             {readyFigures.map((figure) => (
@@ -612,7 +638,7 @@ export function ReportStudioScreen(props: ScreenProps) {
 
       {publicPresentation === false && <section className="border-t border-edge pt-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="max-w-2xl"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><History className="h-4 w-4 text-accent" /> Continue with natural language</div><p className="mt-1 text-xs leading-5 text-ink-muted">Keep the model, dataset and reviewed evidence. EvoMind resolves only explicit changes and reruns affected steps after Human Gate approval.</p></div>
+          <div className="max-w-2xl"><div className="flex items-center gap-2 text-sm font-semibold text-ink"><History className="h-4 w-4 text-accent" /> Continue with natural language</div><p className="mt-1 text-xs leading-5 text-ink-muted">Keep the model, dataset and reviewed evidence. DeepEvo resolves only explicit changes and reruns affected steps after Human Gate approval.</p></div>
           {refinement && <div className="flex items-center gap-2"><StatusPill value={refinement.status} /><span className="text-xs font-semibold text-ink-secondary">{refinement.parent_version} preserved <ArrowRight className="inline h-3.5 w-3.5" /> {refinement.proposed_version}</span></div>}
         </div>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row"><textarea value={refinementPrompt} onChange={(event) => setRefinementPrompt(event.target.value)} rows={3} disabled={activeRefinementPending} className="min-h-20 flex-1 resize-none rounded-md border border-edge bg-surface-raised px-3 py-2 text-sm leading-6 text-ink outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-55" aria-label="Natural-language refinement request" /><button type="button" data-ui-action="report_analyze_refinement" data-ui-skip-action="true" onClick={() => void parseRequest()} disabled={refinementBusy || activeRefinementPending || !refinementPrompt.trim()} className="flex min-h-10 items-center justify-center gap-1.5 rounded-md bg-accent px-4 text-xs font-semibold text-accent-fg disabled:opacity-50 sm:self-end">{refinementBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />} {activeRefinementPending ? `${refinement?.proposed_version ?? "Refinement"} in progress` : "Analyze changes"}</button></div>

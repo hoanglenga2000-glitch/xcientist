@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 const CSRF_STORAGE_KEY = "evomind.local.csrf.v1";
 
@@ -41,8 +42,14 @@ function installAuthenticatedFetch(csrfToken: string) {
 
 export function LocalSessionBootstrap({ children }: { children: React.ReactNode }) {
   const [state, setState] = useState<"checking" | "ready" | "failed">("checking");
+  const pathname = usePathname();
+  const isLoginPage = pathname === "/login";
 
   useEffect(() => {
+    if (isLoginPage) {
+      setState("ready");
+      return;
+    }
     let active = true;
     async function establish() {
       let csrf = window.sessionStorage.getItem(CSRF_STORAGE_KEY) ?? "";
@@ -52,7 +59,15 @@ export function LocalSessionBootstrap({ children }: { children: React.ReactNode 
         csrf = payload.csrf_token ?? csrf;
       } else {
         const token = bootstrapTokenFromFragment();
-        if (!token) throw new Error("缺少一次性本地启动令牌，请通过 evomind open 重新打开工作站。");
+        if (!token) {
+          const isLoopback = /^(localhost|127(?:\.\d{1,3}){3}|::1)$/i.test(window.location.hostname);
+          if (!isLoopback) {
+            const next = `${window.location.pathname}${window.location.search}`;
+            window.location.replace(`/login?next=${encodeURIComponent(next)}`);
+            return;
+          }
+          throw new Error("缺少一次性本地启动令牌，请通过 evomind open 重新打开工作站。");
+        }
         const response = await fetch("/api/session/bootstrap", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -69,7 +84,9 @@ export function LocalSessionBootstrap({ children }: { children: React.ReactNode 
     }
     void establish().catch(() => active && setState("failed"));
     return () => { active = false; };
-  }, []);
+  }, [isLoginPage]);
+
+  if (isLoginPage) return children;
 
   if (state === "checking") {
     return <main className="flex min-h-screen items-center justify-center bg-surface text-sm text-ink-secondary">正在建立本地安全会话…</main>;

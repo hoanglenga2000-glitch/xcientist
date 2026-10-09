@@ -4,6 +4,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
 import ts from "typescript";
+// @ts-expect-error Native Node tests require explicit TypeScript extensions.
+import * as taskContext from "../../../lib/task-context.ts";
 
 type GateDecisionView = {
   canonical: "approved" | "rejected" | "pending" | "unknown";
@@ -46,6 +48,7 @@ function loadGatesScreenModule(): GatesScreenModule {
     get: (_target, property) => String(property),
   });
   const stubs: Record<string, unknown> = {
+    "@/lib/task-context": taskContext,
     "react/jsx-runtime": { jsx, jsxs: jsx, Fragment: "Fragment" },
     "@/lib/utils": { cn: (...values: unknown[]) => values.filter(Boolean).join(" ") },
     "../primitives/Layout": { PageHeader: "PageHeader", Panel: "Panel", MetricTile: "MetricTile" },

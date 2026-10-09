@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { WorkstationSummary } from "@/lib/api/types";
+import { recordMatchesTask } from "@/lib/task-context";
 import { PageHeader, Panel, MetricTile } from "../primitives/Layout";
 import { StatusBadgeV2, StatusDot, type StatusTone } from "../primitives/StatusBadge";
 import { t } from "../localization";
@@ -102,9 +103,10 @@ export function gateBelongsToSelectedTask(gate: unknown, selectedTask: string): 
   const taskId = selectedTask.trim();
   if (!taskId) return false;
   const record = gate as Record<string, unknown>;
-  const snakeCaseId = typeof record.task_id === "string" ? record.task_id.trim() : "";
-  const camelCaseId = typeof record.taskId === "string" ? record.taskId.trim() : "";
-  return (snakeCaseId || camelCaseId) === taskId;
+  const gateTaskId = typeof record.task_id === "string" && record.task_id.trim()
+    ? record.task_id : record.taskId;
+  return typeof gateTaskId === "string" && Boolean(gateTaskId.trim())
+    && recordMatchesTask({ task_id: gateTaskId }, taskId);
 }
 
 export function GatesScreen(props: ScreenProps) {
@@ -125,8 +127,23 @@ export function GatesScreen(props: ScreenProps) {
     <div className="space-y-4">
       <PageHeader
         title={t(locale, "Integrity Gates", "完整性闸门")}
-        subtitle={t(locale, "Gate pipeline and approval status", "闸门流水线与审批状态")}
+        subtitle={`${t(locale, "Gate pipeline and approval status · Current task", "闸门流水线与审批状态 · 当前任务")}：${props.selectedTask || t(locale, "Not selected", "未选择")}`}
         breadcrumb={`${t(locale, "Governance", "治理")} > ${t(locale, "Integrity Gates", "完整性闸门")}`}
+        primaryAction={
+          <label className="flex min-w-0 items-center gap-2 text-xs text-ink-secondary">
+            {t(locale, "Task", "任务")}
+            <select
+              aria-label={t(locale, "Select task", "选择任务")}
+              data-ui-skip-action="true"
+              value={props.selectedTask}
+              onChange={(event) => props.setSelectedTask(event.target.value)}
+              className="h-9 min-w-0 max-w-[260px] rounded-md border border-edge bg-surface-raised px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <option value="" disabled>{t(locale, "Select a task", "请选择任务")}</option>
+              {(summary?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.name || task.id}</option>)}
+            </select>
+          </label>
+        }
       />
 
       {/* KPIs */}
@@ -161,7 +178,7 @@ export function GatesScreen(props: ScreenProps) {
       {/* Gate table */}
       <Panel title={t(locale, "Gate Decisions", "闸门决议")}>
         {gates.length === 0 ? (
-          <div className="py-4 text-center text-sm text-ink-muted">{t(locale, "No gates recorded", "无闸门记录")}</div>
+          <div className="py-4 text-center text-sm text-ink-muted">{props.selectedTask ? t(locale, "No gates recorded for this task", "当前任务无闸门记录") : t(locale, "Select a task to view its gates", "请选择任务后查看门禁记录")}</div>
         ) : (
           <div className="space-y-1.5">
             {gates.map((gate, idx) => {

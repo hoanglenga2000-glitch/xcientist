@@ -8,6 +8,8 @@ import { readScientificReport } from "@/lib/server/scientific-report";
 export const dynamic = "force-dynamic";
 
 const allowedArtifactPath = /^(?:workspace[\\/]tasks[\\/]+[A-Za-z0-9_-]+[\\/]reports[\\/]+(?:figures|scientific)[\\/]+[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)*\.(?:svg|png|jpe?g|webp|html|pdf|json|md|zip)|workspace[\\/]evomind_runs[\\/]+[A-Za-z0-9_-]+[\\/]+(?:(?:delivery[\\/](?:research_report\.html|evomind-siim-isic-(?:report\.pdf|results\.csv|code\.zip|evidence\.zip)|qa[\\/]report-page-\d{2}\.png))|(?:run\.json|task_graph\.json|events\.jsonl|messages\.jsonl|handoffs\.jsonl|qlora_config\.json|model_card\.md|review\.json|claim_audit\.json|candidate_freeze\.json|private_grader\.json|artifact_manifest\.json|deliverables\.json|human_gate\.json|version_comparison\.json|data[\\/]dataset_manifest\.json|llm_output[\\/](?:metrics\.json|telemetry\.jsonl|environment\.json|adapter[\\/](?:adapter_model\.safetensors|adapter_config\.json)))))$/i;
+const allowedAssistantArtifactPath = /^(?:workspace[\\/]assistant_runs[\\/]+[A-Za-z0-9_-]+[\\/]+(?:run|report)\.(?:json|html)|workspace[\\/]hpc[\\/]mlebench_remote_ops[\\/]collected[\\/]+[A-Za-z0-9_-]+[\\/]+[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)*\.(?:json|csv|cbm|md|html|zip))$/i;
+const allowedReportBoundArtifactPath = /^workspace[\\/]evomind_runs[\\/]+[A-Za-z0-9_-]+[\\/]+[A-Za-z0-9_.-]+(?:[\\/][A-Za-z0-9_.-]+)*\.(?:svg|png|jpe?g|webp|html|pdf|csv|json|jsonl|md|zip)$/i;
 
 const contentTypes: Record<string, string> = {
   ".svg": "image/svg+xml; charset=utf-8",
@@ -29,8 +31,9 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const relativePath = url.searchParams.get("path") ?? "";
   const normalizedPath = relativePath.replaceAll("/", path.sep).replaceAll("\\", path.sep);
+  const isReportBoundArtifact = allowedReportBoundArtifactPath.test(normalizedPath);
 
-  if (!allowedArtifactPath.test(normalizedPath)) {
+  if (!allowedArtifactPath.test(normalizedPath) && !allowedAssistantArtifactPath.test(normalizedPath) && !isReportBoundArtifact) {
     return NextResponse.json({ ok: false, error: "artifact path is not allowed" }, { status: 403 });
   }
 
@@ -56,6 +59,9 @@ export async function GET(request: Request) {
 
   const taskId = url.searchParams.get("task_id") ?? "";
   const runId = url.searchParams.get("run_id") ?? "";
+  if (isReportBoundArtifact && (!taskId || !runId)) {
+    return NextResponse.json({ ok: false, error: "report-bound artifacts require task and run binding" }, { status: 400 });
+  }
   const hasReportBinding = Boolean(taskId || runId);
   let expectedHash: string | null = null;
   let expectedBytes: number | null = null;

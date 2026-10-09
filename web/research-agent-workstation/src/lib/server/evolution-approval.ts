@@ -147,12 +147,20 @@ export async function consumeEvolutionApprovalPlan(
     throw new Error("approve=true requires a valid plan_id, plan_sha256, and request_fingerprint.");
   }
   const file = receiptPath(taskId, planId, options.storageRoot);
+  const claimLock = `${file}.consume.lock`;
   const claim = `${file}.${process.pid}.${randomUUID()}.consuming`;
+  try {
+    const lockHandle = await fs.open(claimLock, "wx");
+    await lockHandle.close();
+  } catch {
+    throw new Error("Evolution approval plan does not exist or is already being consumed.");
+  }
   try {
     // Moving the only pending receipt to a unique claim path is the atomic
     // single-use boundary. Exactly one concurrent consumer can acquire it.
     await fs.rename(file, claim);
   } catch {
+    await fs.rm(claimLock, { force: true }).catch(() => undefined);
     throw new Error("Evolution approval plan does not exist or is already being consumed.");
   }
 
@@ -195,6 +203,7 @@ export async function consumeEvolutionApprovalPlan(
     // uniquely named claim is best-effort and must never restore an awaiting
     // receipt over the committed approved receipt.
     await fs.rm(claim, { force: true }).catch(() => undefined);
+    await fs.rm(claimLock, { force: true }).catch(() => undefined);
     return approved;
   } catch (error) {
     if (temporary) await fs.rm(temporary, { force: true }).catch(() => undefined);
@@ -202,6 +211,7 @@ export async function consumeEvolutionApprovalPlan(
     await fs.link(claim, file)
       .then(() => fs.rm(claim, { force: true }))
       .catch(() => undefined);
+    await fs.rm(claimLock, { force: true }).catch(() => undefined);
     throw error;
   }
 }

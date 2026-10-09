@@ -1,5 +1,7 @@
 "use client";
 
+import { connectorStatus, connectorLabel, preferredModelConnector, connectorHealthReady } from "@/lib/connector-presentation";
+
 import {
   Activity,
   ArrowRight,
@@ -64,37 +66,6 @@ function normalizeTone(status: string | undefined): StatusTone {
   return "unknown";
 }
 
-function connectorEntry(summary: WorkstationSummary | null | undefined, key: string) {
-  return (summary?.connector_status as Record<string, Record<string, unknown>> | undefined)?.[key];
-}
-
-function isConfigured(entry: Record<string, unknown> | undefined) {
-  return Boolean(entry?.configured);
-}
-
-function connectorTone(entry: Record<string, unknown> | undefined): StatusTone {
-  if (!entry) return "unknown";
-  const configured = isConfigured(entry);
-  const state = String(entry.state ?? entry.status ?? "").toLowerCase();
-  if (configured && (state.includes("verified") || state.includes("ready") || state.includes("passed"))) return "verified";
-  if (configured) return "ready";
-  if (state.includes("not_configured")) return "unknown";
-  if (state.includes("blocked") || state.includes("failed")) return "blocked";
-  return "pending";
-}
-
-function connectorLabel(locale: Locale | undefined, entry: Record<string, unknown> | undefined): string {
-  if (!entry) return t(locale, "Unknown", "未知");
-  const configured = isConfigured(entry);
-  const state = String(entry.state ?? "").toLowerCase();
-  if (configured && state.includes("verified")) return t(locale, "Verified", "已验证");
-  if (configured && (state.includes("ready") || state.includes("passed"))) return t(locale, "Ready", "就绪");
-  if (configured) return t(locale, "Configured", "已配置");
-  if (state.includes("not_configured")) return t(locale, "Not configured", "未配置");
-  if (state.includes("blocked")) return t(locale, "Blocked", "阻断");
-  return t(locale, "Unknown", "未知");
-}
-
 function formatScore(value: unknown): string {
   if (typeof value === "number" && Number.isFinite(value)) return value.toFixed(5);
   return "—";
@@ -124,10 +95,8 @@ function currentLoopStage(summary: WorkstationSummary | null | undefined): numbe
   if (status.includes("submit") || status.includes("official")) return 5;
   if (status.includes("report")) return 6;
   if (status.includes("evolv") || status.includes("memory") || status.includes("innovation")) return 7;
-  // Default: check runs
-  const runCount = summary?.runs?.length ?? 0;
-  if (runCount > 0) return 2;
-  return 0;
+  // Historical runs alone cannot establish the current stage.
+  return -1;
 }
 
 /* ── Component ── */
@@ -149,11 +118,12 @@ export function OverviewScreen(props: ScreenProps) {
   const bestScore = latestRun?.best_metrics ? Object.values(latestRun.best_metrics)[0] : null;
   const loopStage = currentLoopStage(summary);
 
-  /* Connector data */
+  /* Shared connector projection, identical to Settings and Sidebar. */
+  const modelConnector = preferredModelConnector(summary);
   const connectors = [
-    { key: "local_hpc", label: t(locale, "Local + HPC", "本地 + HPC") },
-    { key: "kaggle_api", label: "Kaggle API" },
-    { key: "deepseek_api", label: "DeepSeek API" },
+    { key: "gpu", label: t(locale, "Remote GPU", "远程 GPU") },
+    { key: "kaggle", label: "Kaggle API" },
+    ...(modelConnector ? [{key: modelConnector.key, label: `AI · ${modelConnector.model}`}] : []),
   ];
 
   if (isLoading) {
@@ -252,10 +222,10 @@ export function OverviewScreen(props: ScreenProps) {
           tone={bestScore != null ? "green" : "neutral"}
         />
         <MetricTile
-          label={t(locale, "System Health", "系统健康")}
-          value={connectors.every((c) => connectorTone(connectorEntry(summary, c.key)) === "verified") ? t(locale, "OK", "正常") : t(locale, "Check", "需检查")}
+          label={t(locale, "Connector Health", "连接健康")}
+          value={connectorHealthReady(summary) ? t(locale, "OK", "正常") : t(locale, "Check", "需检查")}
           icon={Server}
-          tone={connectors.every((c) => connectorTone(connectorEntry(summary, c.key)) === "verified") ? "green" : "amber"}
+          tone={connectorHealthReady(summary) ? "green" : "amber"}
         />
       </div>
 
@@ -362,7 +332,7 @@ export function OverviewScreen(props: ScreenProps) {
                     <div className="mt-1 text-xs text-ink-secondary">{nextAction.selected_action.why}</div>
                   )}
                   {nextAction.selected_action.gate && (
-                    <div className="mt-2"><GateBadge status={nextAction.selected_action.gate.toLowerCase().includes("human") ? "pending" : "approved"} /></div>
+                    <div className="mt-2"><GateBadge status={["approved", "passed"].includes(nextAction.selected_action.gate.toLowerCase()) ? "approved" : "pending"} /></div>
                   )}
                   {nextAction.selected_action.risk && (
                     <div className="mt-1 text-2xs text-warning-text">⚠ {nextAction.selected_action.risk}</div>
@@ -380,14 +350,14 @@ export function OverviewScreen(props: ScreenProps) {
 
           {/* Connector Health */}
           <Panel title={t(locale, "Connector Health", "连接器状态")} action={
-            <button data-ui-action="mission_test_all_connectors" data-ui-skip-action="true" onClick={() => void runWorkstationAction?.("test_all_connectors")} className="text-xs font-semibold text-accent hover:underline">
-              {t(locale, "Test All", "测试全部")}
+            <button data-ui-action="mission_refresh_connectors" data-ui-skip-action="true" onClick={() => void refreshSummary?.().catch(() => undefined)} className="text-xs font-semibold text-accent hover:underline">
+              {t(locale, "Refresh status", "刷新状态")}
             </button>
           }>
             <div className="space-y-2">
               {connectors.map((conn) => {
-                const entry = connectorEntry(summary, conn.key);
-                const tone = connectorTone(entry);
+                const entry = connectorStatus(summary, conn.key);
+                const tone = entry.tone;
                 return (
                   <div key={conn.key} className="flex items-center justify-between gap-2 text-xs">
                     <span className="text-ink-secondary">{conn.label}</span>
@@ -417,17 +387,17 @@ export function OverviewScreen(props: ScreenProps) {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-ink-muted">{t(locale, "Terminal Agent", "终端 Agent")}</span>
-                <StatusBadgeV2 tone={summary?.terminal_agent?.status === "live_events" ? "running" : summary?.terminal_agent ? "ready" : "unknown"} size="xs">
-                  {summary?.terminal_agent?.status === "live_events" ? t(locale, "Live", "活跃") : summary?.terminal_agent ? t(locale, "Ready", "就绪") : t(locale, "Unknown", "未知")}
+                <StatusBadgeV2 tone={summary?.terminal_agent?.status === "live_events" ? "running" : "unknown"} size="xs">
+                  {summary?.terminal_agent?.status === "live_events" ? t(locale, "Live", "活跃") : t(locale, "Unverified", "未核验")}
                 </StatusBadgeV2>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-ink-muted">{t(locale, "Memory Records", "记忆记录")}</span>
-                <span className="font-mono tabular-nums text-ink-secondary">{summary?.terminal_agent?.memory_count ?? 0}</span>
+                <span className="font-mono tabular-nums text-ink-secondary">{summary?.terminal_agent?.memory_count ?? "—"}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-ink-muted">{t(locale, "Evolution Iterations", "进化迭代")}</span>
-                <span className="font-mono tabular-nums text-ink-secondary">{summary?.terminal_agent?.n_iterations ?? 0}</span>
+                <span className="font-mono tabular-nums text-ink-secondary">{summary?.terminal_agent?.n_iterations ?? "—"}</span>
               </div>
             </div>
           </Panel>

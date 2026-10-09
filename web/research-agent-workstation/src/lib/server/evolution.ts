@@ -1068,8 +1068,8 @@ export async function runEvolutionCycle(input: Record<string, unknown>) {
   });
 
   // Engine switch: "research_os" drives the corrected engine A (EvolutionLoop);
-  // "legacy" (default) keeps the original mlevolve_search path as a fallback.
-  const engine = effectiveInput.engine === "research_os" ? "research_os" : "legacy";
+  // "legacy" is kept as an explicit opt-in fallback.
+  const engine = effectiveInput.engine === "legacy" ? "legacy" : "research_os";
   const runner: "gpu" | "local_gpu" | "local" = effectiveInput.runner === "local_gpu"
     ? "local_gpu"
     : effectiveInput.runner === "local"

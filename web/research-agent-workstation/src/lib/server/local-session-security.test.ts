@@ -5,13 +5,24 @@ import test from "node:test";
 
 const root = process.cwd();
 
-test("all authenticated mutations are length-bounded and JSON-only", async () => {
+test("all authenticated mutations are length-bounded and assistant chunks are the only binary exception", async () => {
   const source = await readFile(path.join(root, "src", "proxy.ts"), "utf-8");
   assert.match(source, /if \(rawLength === null\)[\s\S]*content_length_required/);
   assert.match(source, /Number\(rawLength\) > MAX_BODY_BYTES/);
   assert.match(source, /contentType !== "application\/json"/);
   assert.match(source, /allowsMultipart && contentType === "multipart\/form-data"/);
+  assert.match(source, /allowsBinaryChunk && contentType === "application\/octet-stream"/);
+  assert.match(source, /\/api\\\/assistant\\\/uploads/);
   assert.doesNotMatch(source, /rawLength === null && transferEncoding/);
+  assert.match(source, /forwardedHeaders\.delete\(LOCAL_AUTOMATION_VERIFIED_HEADER\)/);
+  assert.match(source, /if \(localAutomation\) forwardedHeaders\.set\(LOCAL_AUTOMATION_VERIFIED_HEADER, "1"\)/);
+});
+
+test("Next Proxy preserves a full upload chunk while the application boundary remains stricter", async () => {
+  const config = await readFile(path.join(root, "next.config.mjs"), "utf-8");
+  const proxy = await readFile(path.join(root, "src", "proxy.ts"), "utf-8");
+  assert.match(config, /proxyClientMaxBodySize: 17 \* 1024 \* 1024/);
+  assert.match(proxy, /MAX_BODY_BYTES = 16 \* 1024 \* 1024/);
 });
 
 test("the browser session wrapper supplies an empty JSON envelope and fixed fetch controls", async () => {
@@ -35,7 +46,7 @@ test("assistant explains stale local sessions instead of reporting a generic str
   assert.match(source, /response\.status === 403 \|\| code === "csrf_rejected"/);
   assert.match(source, /本地会话已失效/);
   assert.match(source, /sessionStorage\.removeItem\(LOCAL_CSRF_STORAGE_KEY\)/);
-  assert.match(source, /throw new Error\(await assistantStreamErrorMessage\(response, locale\)\)/);
+  assert.match(source, /const friendly = await assistantStreamErrorMessage\(response, locale\)/);
 });
 
 test("runtime API requests cannot spawn an untracked replacement process", async () => {
@@ -51,15 +62,16 @@ test("runtime API requests cannot spawn an untracked replacement process", async
   assert.match(route, /code: "runtime_not_ready"[\s\S]*status: 503/);
 });
 
-test("assistant subprocess receives only the authenticated request session for loopback tools", async () => {
+test("assistant compatibility stream delegates to the durable runtime without pinning a model or spawning a subprocess", async () => {
   const route = await readFile(
     path.join(root, "src", "app", "api", "assistant", "stream", "route.ts"),
     "utf-8",
   );
-  assert.match(route, /SESSION_COOKIE/);
-  assert.match(route, /CSRF_HEADER/);
-  assert.match(route, /EVOMIND_INTERNAL_SESSION_COOKIE/);
-  assert.match(route, /EVOMIND_INTERNAL_CSRF/);
-  assert.match(route, /EVOMIND_INTERNAL_ORIGIN/);
-  assert.doesNotMatch(route, /WORKSTATION_SESSION_SECRET/);
+  assert.match(route, /runtimeJson<RunSnapshot>\("\/v1\/runs"/);
+  assert.match(route, /\/v1\/runs\/\$\{encodeURIComponent\(run\.id\)\}\/events/);
+  assert.match(route, /model_observed/);
+  assert.match(route, /artifact_published/);
+  assert.match(route, /approval_required/);
+  assert.doesNotMatch(route, /child_process|spawn\s*\(|assistantProcessEnv/);
+  assert.doesNotMatch(route, /OPENAI_MODEL|gpt-5\.6-sol|DEEPSEEK_MODEL/);
 });

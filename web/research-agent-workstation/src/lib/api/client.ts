@@ -208,6 +208,24 @@ export async function getScientistSelfUpgradeLoop() {
   );
 }
 
+export type ScientistUpgradeCampaignStatus = {
+  ok?: boolean;
+  status?: string;
+  action?: string;
+  promotion_approved?: boolean;
+  parity_claim_allowed?: boolean;
+  score_cap?: number;
+  blockers?: string[];
+};
+
+export async function getScientistUpgradeCampaign() {
+  const response = await fetch("/api/scientist/upgrade-campaign");
+  return readJson<{
+    ok: boolean;
+    scientist_upgrade_campaign: ScientistUpgradeCampaignStatus;
+  }>(response);
+}
+
 export async function runScientistSelfUpgradeLoop() {
   return readJson<{ ok: boolean; action: string; scientist_self_upgrade_loop: ScientistSelfUpgradeLoopSummary; scientist_upgrade_plan?: ScientistUpgradePlanSummary | null; scientist_self_audit?: ScientistSelfAuditSummary | null; no_training_started?: boolean; official_submit?: string }>(
     await fetch("/api/scientist/self-upgrade", { method: "POST" })

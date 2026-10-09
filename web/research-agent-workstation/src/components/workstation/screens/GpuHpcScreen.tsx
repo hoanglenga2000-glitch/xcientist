@@ -11,8 +11,9 @@ import {
 } from "lucide-react";
 import type { WorkstationSummary } from "@/lib/api/types";
 import { PageHeader, Panel, MetricTile } from "../primitives/Layout";
-import { StatusBadgeV2, type StatusTone } from "../primitives/StatusBadge";
+import { StatusBadgeV2 } from "../primitives/StatusBadge";
 import { t } from "../localization";
+import { hpcConnectionVerified } from "@/lib/connector-presentation";
 
 type Locale = "zh-CN" | "en-US";
 
@@ -50,33 +51,12 @@ function connectorEntry(summary: WorkstationSummary | null | undefined, key: str
   return (summary?.connector_status as Record<string, Record<string, unknown>> | undefined)?.[key];
 }
 
-function connectorTone(entry: Record<string, unknown> | undefined): StatusTone {
-  if (!entry) return "unknown";
-  const configured = Boolean(entry.configured);
-  const state = String(entry.state ?? entry.status ?? "").toLowerCase();
-  if (configured && (state.includes("verified") || state.includes("ready") || state.includes("passed"))) return "verified";
-  if (configured) return "ready";
-  if (state.includes("not_configured")) return "unknown";
-  if (state.includes("blocked") || state.includes("failed")) return "blocked";
-  return "pending";
-}
-
-function connectorLabel(locale: Locale | undefined, entry: Record<string, unknown> | undefined): string {
-  if (!entry) return t(locale, "Unknown/Blocked", "未知/阻断");
-  const configured = Boolean(entry.configured);
-  const state = String(entry.state ?? "").toLowerCase();
-  if (configured && state.includes("verified")) return t(locale, "Verified", "已验证");
-  if (configured && (state.includes("ready") || state.includes("passed"))) return t(locale, "Ready", "就绪");
-  if (configured) return t(locale, "Configured", "已配置");
-  if (state.includes("not_configured")) return t(locale, "Not configured", "未配置");
-  if (state.includes("blocked")) return t(locale, "Blocked", "阻断");
-  return t(locale, "Unknown/Blocked", "未知/阻断");
-}
-
 export function GpuHpcScreen(props: ScreenProps) {
   const { summary, locale = "zh-CN" } = props;
   const hpcEntry = connectorEntry(summary, "local_hpc");
+  const connectionVerified = hpcConnectionVerified(hpcEntry);
   const runs = summary?.runs ?? [];
+  const lineage = summary?.hpc_job_lineage ?? [];
   const runningJobs = runs.filter((r) => String(r.status ?? "").toLowerCase().includes("running"));
 
   return (
@@ -116,9 +96,9 @@ export function GpuHpcScreen(props: ScreenProps) {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <MetricTile
           label={t(locale, "HPC Connector", "HPC 连接器")}
-          value={connectorLabel(locale, hpcEntry)}
+          value={connectionVerified ? t(locale, "Verified", "已验证") : hpcEntry?.configured === true ? t(locale, "Requires recheck", "待重新核验") : t(locale, "Unknown/Blocked", "未知/阻断")}
           icon={Server}
-          tone={connectorTone(hpcEntry)}
+          tone={connectionVerified ? "verified" : "unknown"}
         />
         <MetricTile
           label={t(locale, "Total Runs", "总运行")}
@@ -134,9 +114,9 @@ export function GpuHpcScreen(props: ScreenProps) {
         />
         <MetricTile
           label={t(locale, "Signal", "信号")}
-          value={hpcEntry ? t(locale, "Connected", "已连接") : t(locale, "Unknown/Blocked", "未知/阻断")}
+          value={connectionVerified ? t(locale, "Verified connection", "连接已核验") : t(locale, "Requires identity check", "待身份核验")}
           icon={Signal}
-          tone={hpcEntry ? "verified" : "unknown"}
+          tone={connectionVerified ? "verified" : "unknown"}
         />
       </div>
 
@@ -147,7 +127,7 @@ export function GpuHpcScreen(props: ScreenProps) {
             {Object.entries(hpcEntry).map(([key, val]) => (
               <div key={key} className="flex items-center justify-between gap-2">
                 <span className="text-ink-muted">{key}</span>
-                <span className="font-mono text-ink-secondary">
+                <span className="min-w-0 break-all text-right font-mono text-ink-secondary">
                   {typeof val === "boolean" ? (val ? t(locale, "Yes", "是") : t(locale, "No", "否")) : String(val ?? "—")}
                 </span>
               </div>
@@ -156,6 +136,35 @@ export function GpuHpcScreen(props: ScreenProps) {
         ) : (
           <div className="py-4 text-center text-sm text-ink-muted">
             {t(locale, "No HPC connector data. Resource may be unverified or blocked.", "无 HPC 连接器数据。资源可能未验证或被阻断。")}
+          </div>
+        )}
+      </Panel>
+
+      <Panel title={t(locale, "HPC Job Lineage", "HPC 作业血缘")}>
+        {lineage.length === 0 ? (
+          <div className="py-4 text-center text-sm text-ink-muted">
+            {t(locale, "No governed HPC job identity is recorded.", "尚无受治理的 HPC 作业身份记录。")}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr className="border-b border-edge text-left text-ink-muted">
+                <th className="pb-2 pr-3 font-medium">Job</th>
+                <th className="pb-2 pr-3 font-medium">Run</th>
+                <th className="pb-2 pr-3 font-medium">Cluster</th>
+                <th className="pb-2 pr-3 font-medium">Owner</th>
+                <th className="pb-2 font-medium">Status</th>
+              </tr></thead>
+              <tbody>{lineage.map((job) => (
+                <tr key={`${job.cluster}:${job.job_id}`} className="border-b border-edge/50">
+                  <td className="py-2 pr-3 font-mono font-semibold text-ink">{job.job_id ?? "—"}</td>
+                  <td className="max-w-[280px] truncate py-2 pr-3 font-mono text-ink-secondary" title={job.run_id}>{job.run_id ?? "—"}</td>
+                  <td className="py-2 pr-3 text-ink-secondary">{job.cluster ?? "—"}</td>
+                  <td className="py-2 pr-3 text-ink-secondary">{job.owner ?? "—"}</td>
+                  <td className="py-2"><StatusBadgeV2 tone={job.status === "COMPLETED" ? "verified" : job.status === "FAILED" ? "failed" : "pending"} size="xs">{job.status ?? "unknown"}</StatusBadgeV2></td>
+                </tr>
+              ))}</tbody>
+            </table>
           </div>
         )}
       </Panel>

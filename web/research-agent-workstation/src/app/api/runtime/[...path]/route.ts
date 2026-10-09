@@ -30,3 +30,4 @@ async function proxy(request: Request, context: { params: Promise<{ path: string
 
 export const GET = proxy;
 export const POST = proxy;
+import { scopedRuntimeReadFetch as fetch } from "@/lib/server/scoped-runtime-fetch";

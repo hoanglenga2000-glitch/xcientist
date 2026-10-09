@@ -1,34 +1,27 @@
-import path from "node:path";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { workspaceRoot } from "@/lib/server/paths";
-import { CSRF_HEADER, SESSION_COOKIE, localOrigin } from "@/lib/server/local-session";
+import { runtimeJson } from "@/lib/server/assistant-runtime";
+import { currentAssistantManagedHpcIdentity } from "@/lib/server/assistant-managed-hpc";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-type AssistantMessage = {
-  role?: unknown;
-  content?: unknown;
-};
-
 type AssistantRequest = {
   prompt?: unknown;
   session_id?: unknown;
   selected_task?: unknown;
-  history?: unknown;
 };
 
-function cleanHistory(value: unknown) {
-  if (!Array.isArray(value)) return [];
-  return value.slice(-20).flatMap((item) => {
-    const message = item as AssistantMessage;
-    const role = String(message?.role ?? "");
-    const content = String(message?.content ?? "").trim();
-    if (!content || (role !== "user" && role !== "assistant")) return [];
-    return [{ role, content: content.slice(0, 8000) }];
-  });
-}
+type RunSnapshot = {
+  id: string;
+  status: string;
+  prompt: string;
+};
+
+type RuntimeEvent = {
+  seq: number;
+  event_type: string;
+  payload: Record<string, unknown>;
+};
 
 function cleanIdentifier(value: unknown, fallback: string) {
   const candidate = String(value ?? "").trim();
@@ -39,20 +32,12 @@ function sse(event: string, payload: Record<string, unknown>) {
   return `event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`;
 }
 
-function assistantToolSessionEnv(request: Request) {
-  const cookieHeader = request.headers.get("cookie") ?? "";
-  const prefix = `${SESSION_COOKIE}=`;
-  const sessionCookie = cookieHeader
-    .split(";")
-    .map((item) => item.trim())
-    .find((item) => item.startsWith(prefix));
-  const csrf = request.headers.get(CSRF_HEADER) ?? "";
-  if (!sessionCookie || !csrf) return {};
-  return {
-    EVOMIND_INTERNAL_SESSION_COOKIE: sessionCookie,
-    EVOMIND_INTERNAL_CSRF: csrf,
-    EVOMIND_INTERNAL_ORIGIN: localOrigin(),
-  };
+function sleep(ms: number, signal: AbortSignal) {
+  return new Promise<void>((resolve) => {
+    if (signal.aborted) return resolve();
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener("abort", () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
 }
 
 export async function POST(request: Request) {
@@ -62,108 +47,112 @@ export async function POST(request: Request) {
   } catch {
     return Response.json({ ok: false, error: "invalid_json" }, { status: 400 });
   }
-
   const prompt = String(body.prompt ?? "").trim();
-  if (!prompt || prompt.length > 20000) {
+  if (!prompt || prompt.length > 20_000) {
     return Response.json({ ok: false, error: "invalid_prompt" }, { status: 400 });
   }
-
   const sessionId = cleanIdentifier(body.session_id, `chat_${crypto.randomUUID().replaceAll("-", "").slice(0, 12)}`);
   const selectedTask = cleanIdentifier(body.selected_task, "");
-  const payload = {
-    prompt,
-    session_id: sessionId,
-    selected_task: selectedTask,
-    history: cleanHistory(body.history),
-  };
-  const encoder = new TextEncoder();
-  const toolSessionEnv = assistantToolSessionEnv(request);
-  let child: ChildProcessWithoutNullStreams | null = null;
-  let closed = false;
+  let run: RunSnapshot;
+  try {
+    run = await runtimeJson<RunSnapshot>("/v1/runs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: selectedTask ? `[Selected task: ${selectedTask}]\n${prompt}` : prompt,
+        conversation_id: sessionId,
+        selected_task: selectedTask,
+        attachment_ids: [],
+        managed_hpc_identity: await currentAssistantManagedHpcIdentity(),
+      }),
+    });
+  } catch (error) {
+    return Response.json(
+      { ok: false, error: "runtime_not_ready", message: error instanceof Error ? error.message : "runtime_not_ready" },
+      { status: 503 },
+    );
+  }
 
+  const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      const python = process.env.EVOMIND_PYTHON ?? process.env.PYTHON ?? "python";
-      const sourceRoot = path.join(workspaceRoot, "src");
-      child = spawn(python, ["-X", "utf8", "-m", "xsci.assistant_stream"], {
-        cwd: workspaceRoot,
-        windowsHide: true,
-        shell: false,
-        env: {
-          ...process.env,
-          ...toolSessionEnv,
-          PYTHONIOENCODING: "utf-8",
-          PYTHONUTF8: "1",
-          PYTHONPATH: [sourceRoot, process.env.PYTHONPATH].filter(Boolean).join(path.delimiter),
-        },
-      });
-
-      let stdoutBuffer = "";
-      let stderrSize = 0;
-      let completed = false;
-
-      const push = (event: string, data: Record<string, unknown>) => {
-        if (closed) return;
-        controller.enqueue(encoder.encode(sse(event, data)));
-      };
-      const close = () => {
-        if (closed) return;
-        closed = true;
-        controller.close();
-      };
-
-      child.stdout.setEncoding("utf8");
-      child.stdout.on("data", (chunk: string) => {
-        stdoutBuffer += chunk;
-        const lines = stdoutBuffer.split(/\r?\n/);
-        stdoutBuffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          try {
-            const data = JSON.parse(line) as Record<string, unknown>;
-            const event = String(data.type ?? "message");
-            if (event === "answer_completed") completed = true;
-            push(event, data);
-          } catch {
-            // Python stdout is an NDJSON contract. Non-contract diagnostics stay hidden.
+      void (async () => {
+        let after = 0;
+        let observedProvider = "";
+        let observedModel = "";
+        let inputTokens = 0;
+        let outputTokens = 0;
+        let nativeToolCalls = 0;
+        const toolNames = new Set<string>();
+        const emit = (event: string, payload: Record<string, unknown>) => controller.enqueue(encoder.encode(sse(event, { session_id: sessionId, ...payload })));
+        emit("session", { ready: true, run_id: run.id, workspace: "assistant_task" });
+        emit("context", { current_task: Boolean(selectedTask), task_label: selectedTask, run_status: "queued", memory_available: true, tools_available: true });
+        emit("route", { route: "agent", label: "持久任务 Agent", detail: "受管运行时将持续执行并发布真实产物" });
+        try {
+          while (!request.signal.aborted) {
+            const response = await runtimeJson<{ events: RuntimeEvent[] }>(`/v1/runs/${encodeURIComponent(run.id)}/events?after=${after}`);
+            for (const item of response.events ?? []) {
+              after = Math.max(after, Number(item.seq) || after);
+              const payload = item.payload ?? {};
+              if (item.event_type === "tool_started") {
+                nativeToolCalls += 1;
+                const tool = String(payload.tool ?? payload.tool_name ?? "");
+                if (tool) toolNames.add(tool);
+                emit("tool_started", payload);
+              }
+              else if (item.event_type === "tool_completed") emit("tool_completed", payload);
+              else if (item.event_type === "model_observed") {
+                observedProvider = String(payload.provider ?? observedProvider);
+                observedModel = String(payload.model ?? observedModel);
+                const observedInput = Number(payload.input_tokens ?? 0);
+                const observedOutput = Number(payload.output_tokens ?? 0);
+                if (Number.isFinite(observedInput) && observedInput > 0) inputTokens += observedInput;
+                if (Number.isFinite(observedOutput) && observedOutput > 0) outputTokens += observedOutput;
+                for (const name of Array.isArray(payload.tool_names) ? payload.tool_names : []) {
+                  const tool = String(name ?? "");
+                  if (tool) toolNames.add(tool);
+                }
+                emit("model", payload);
+              }
+              else if (["plan_updated", "step_started", "verification_completed", "retry_scheduled", "artifact_published"].includes(item.event_type)) {
+                emit("thinking_status", { ...payload, status: "running", label: String(payload.label ?? item.event_type) });
+              } else if (item.event_type === "approval_required") {
+                emit("thinking_status", { ...payload, status: "blocked", label: "等待精确审批" });
+              } else if (item.event_type === "run_completed") {
+                const answer = String(payload.answer ?? "");
+                if (answer) emit("answer_delta", { delta: answer });
+                emit("answer_completed", {
+                  answer,
+                  run_id: run.id,
+                  artifacts: payload.artifacts ?? [],
+                  provider: observedProvider,
+                  model: observedModel,
+                  native_tool_calls: nativeToolCalls,
+                  tool_calls_total: nativeToolCalls,
+                  tool_names: [...toolNames],
+                  input_tokens: inputTokens,
+                  output_tokens: outputTokens,
+                });
+                controller.close();
+                return;
+              } else if (["run_blocked", "run_failed"].includes(item.event_type)) {
+                emit("error", { ...payload, code: item.event_type, message: String(payload.message ?? "任务已保留，可直接继续。") });
+                controller.close();
+                return;
+              }
+            }
+            await sleep(500, request.signal);
           }
+          controller.close();
+        } catch (error) {
+          if (!request.signal.aborted) emit("error", { code: "assistant_runtime_stream_failed", message: error instanceof Error ? error.message : "任务事件流中断，可以继续同一 Run。", run_id: run.id });
+          controller.close();
         }
-      });
-      child.stderr.on("data", (chunk: Buffer) => {
-        stderrSize = Math.min(65536, stderrSize + chunk.length);
-      });
-      child.on("error", () => {
-        push("error", { type: "error", code: "assistant_process_start_failed", message: "助手服务启动失败，请重试。", session_id: sessionId });
-        close();
-      });
-      child.on("close", (code) => {
-        if (!completed && !request.signal.aborted) {
-          push("error", {
-            type: "error",
-            code: code === 0 ? "assistant_stream_incomplete" : "assistant_process_failed",
-            message: "本轮回复中断，状态已保留，可以直接重试。",
-            session_id: sessionId,
-            diagnostics_available: stderrSize > 0,
-          });
-        }
-        close();
-      });
-
-      request.signal.addEventListener("abort", () => {
-        if (child && !child.killed) child.kill();
-        close();
-      }, { once: true });
-
-      child.stdin.end(JSON.stringify(payload));
-    },
-    cancel() {
-      closed = true;
-      if (child && !child.killed) child.kill();
+      })();
     },
   });
 
   return new Response(stream, {
-    status: 200,
     headers: {
       "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { createHash, randomBytes } from "node:crypto";
 import { createServer } from "node:http";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -11,6 +12,9 @@ const tempRoot = await mkdtemp(path.join(tmpdir(), "evomind-upgrade-campaign-"))
 const fixtureRoot = path.join(tempRoot, "source-fixture");
 const profileRoot = path.join(tempRoot, "profile");
 const modePath = path.join(fixtureRoot, "fixture-mode.txt");
+const automationToken = randomBytes(32).toString("base64url");
+const automationTokenHash = createHash("sha256").update(automationToken, "utf8").digest("hex");
+const automationHeaders = { "x-evomind-local-automation": automationToken };
 const portProbe = createServer();
 
 await new Promise((resolve, reject) => {
@@ -124,6 +128,7 @@ const env = {
   NODE_ENV: "production",
   WORKSTATION_ROOT: fixtureRoot,
   WORKSTATION_PYTHON: process.env.CONTRACT_TEST_PYTHON ?? "python",
+  WORKSTATION_LOCAL_AUTOMATION_TOKEN_HASH: automationTokenHash,
   XSCI_HOME: path.join(profileRoot, ".xsci"),
 };
 const nextBin = path.join(workstationRoot, "node_modules", "next", "dist", "bin", "next");
@@ -142,7 +147,7 @@ async function waitForResponse(url, timeoutMs = 30_000) {
   while (Date.now() < deadline) {
     if (child.exitCode !== null) throw new Error(`Next.js exited before readiness:\n${output}`);
     try {
-      return await fetch(url);
+      return await fetch(url, { headers: automationHeaders });
     } catch {
       await new Promise((resolve) => setTimeout(resolve, 250));
     }
@@ -174,7 +179,7 @@ try {
   await writeFile(modePath, "valid_blocked_error", "utf8");
   const postStatusResponse = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+    headers: { ...automationHeaders, "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify({ action: "status" }),
   });
   assert.equal(postStatusResponse.status, 200);
@@ -184,7 +189,7 @@ try {
 
   for (const mode of ["contradictory", "malformed"]) {
     await writeFile(modePath, mode, "utf8");
-    const response = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`);
+    const response = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, { headers: automationHeaders });
     assert.equal(response.status, 500);
     const payload = await response.json();
     assert.equal(payload.ok, false);
@@ -195,7 +200,7 @@ try {
   await writeFile(modePath, "command_blocked", "utf8");
   const postResponse = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+    headers: { ...automationHeaders, "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify({ action: "run" }),
   });
   assert.equal(postResponse.status, 409);
@@ -209,7 +214,7 @@ try {
   await writeFile(modePath, "command_wrong_action", "utf8");
   const wrongActionResponse = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+    headers: { ...automationHeaders, "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify({ action: "run" }),
   });
   assert.equal(wrongActionResponse.status, 409);
@@ -221,7 +226,7 @@ try {
   await writeFile(modePath, "valid_run_success", "utf8");
   const validRunResponse = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+    headers: { ...automationHeaders, "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify({ action: "run" }),
   });
   assert.equal(validRunResponse.status, 200);
@@ -234,7 +239,7 @@ try {
   await writeFile(modePath, "forged_run_success", "utf8");
   const forgedRunResponse = await fetch(`http://127.0.0.1:${port}/api/scientist/upgrade-campaign`, {
     method: "POST",
-    headers: { "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
+    headers: { ...automationHeaders, "content-type": "application/json", origin: `http://127.0.0.1:${port}` },
     body: JSON.stringify({ action: "run" }),
   });
   assert.equal(forgedRunResponse.status, 409);

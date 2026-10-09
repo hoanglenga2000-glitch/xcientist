@@ -2,8 +2,10 @@ import { createHash } from "node:crypto";
 import { createReadStream, promises as fs } from "node:fs";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
+import { type HpcExecutionContract, taskRequiresHpcExecutionContract } from "@/lib/server/hpc-execution-contract";
 import { encodeJson } from "@/lib/server/json";
 import { normalizeTaskId, resolveWorkspacePath, stamp, writeJsonArtifact, writeTextArtifact } from "@/lib/server/paths";
+import { writeRunLedger } from "@/lib/server/run-ledger";
 
 export type WorkstationArtifactDescriptor = {
   artifact_type: string;
@@ -21,6 +23,9 @@ type CreateRunInput = {
   configPath?: string;
   competitionSlug?: string;
   objective?: string;
+  executionBackend?: string;
+  requiresHpc?: boolean;
+  hpcExecutionContract?: HpcExecutionContract | null;
 };
 
 const agentProtocol = [
@@ -57,6 +62,11 @@ const gateTypes = [
     gate_type: "submission_approval",
     stage: "human_submission_gate",
     reason: "Kaggle 官方提交必须由人工明确批准，默认阻断。"
+  },
+  {
+    gate_type: "result_approval",
+    stage: "human_result_gate",
+    reason: "执行结果必须先由人工确认，之后才能进入报告生成阶段。"
   },
   {
     gate_type: "final_report_approval",
@@ -136,6 +146,14 @@ export async function createWorkstationRun(input: CreateRunInput) {
   const runRoot = `workspace/workstation_runs/${taskId}/${runId}`;
   const configPath = input.configPath ?? (taskId === "playground_series_s6e6" ? "configs/generated/playground_series_s6e6.yaml" : `configs/${taskId}.yaml`);
   const objective = input.objective ?? "Use the AI research workstation as the orchestrator for an evidence-bound Kaggle/HPC workflow.";
+  const hpcExecutionContract = input.hpcExecutionContract ?? null;
+  const requiresHpc = input.requiresHpc === true || taskRequiresHpcExecutionContract(taskId, {
+    objective,
+    execution_backend: input.executionBackend,
+    hpc_execution_contract: hpcExecutionContract,
+  });
+  const executionBackend = hpcExecutionContract?.execution_backend
+    ?? (input.executionBackend === "hpc" || requiresHpc ? "hpc" : null);
   const createdAt = new Date();
 
   await prisma.task.upsert({
@@ -164,25 +182,46 @@ export async function createWorkstationRun(input: CreateRunInput) {
       id: runId,
       taskId,
       outputDir: runRoot,
-      status: "workstation_planned",
+      status: "WAIT_PLAN_GATE",
       bestModel: null,
       metricsJson: encodeJson({
         workstation_run: true,
         direct_training_allowed: false,
         official_submission_allowed: false,
-        objective
+        objective,
+        requires_hpc: requiresHpc,
+        execution_backend: executionBackend,
+        hpc_execution_contract: hpcExecutionContract,
+        run_state: "WAIT_PLAN_GATE",
+        state_history: ["CREATED", "PLANNING", "WAIT_PLAN_GATE"]
       }),
       validationStatus: "pending",
       startedAt: createdAt
     }
   });
 
+  for (const state of ["CREATED", "PLANNING", "WAIT_PLAN_GATE"] as const) {
+    await writeRunLedger({
+      taskId,
+      runId,
+      status: state,
+      lifecycleState: state,
+      source: "workstation_database",
+      outputDir: runRoot,
+      metadata: {
+        trigger: input.trigger ?? "frontend_or_api",
+        requires_hpc: requiresHpc,
+        execution_backend: executionBackend,
+      },
+    });
+  }
+
   const nodes = workflowNodes(runId);
   const edges = workflowEdges();
   await prisma.workflow.upsert({
     where: { id: `${runId}_workflow` },
     update: {
-      status: "draft",
+      status: "WAIT_PLAN_GATE",
       nodesJson: encodeJson(nodes) ?? "[]",
       edgesJson: encodeJson(edges) ?? "[]"
     },
@@ -190,7 +229,7 @@ export async function createWorkstationRun(input: CreateRunInput) {
       id: `${runId}_workflow`,
       taskId,
       name: `${taskId} Workstation Agent Workflow`,
-      status: "draft",
+      status: "WAIT_PLAN_GATE",
       nodesJson: encodeJson(nodes) ?? "[]",
       edgesJson: encodeJson(edges) ?? "[]"
     }
@@ -240,9 +279,12 @@ export async function createWorkstationRun(input: CreateRunInput) {
     workstation_run_id: runId,
     trigger: input.trigger ?? "frontend_or_api",
     objective,
+    requires_hpc: requiresHpc,
+    execution_backend: executionBackend,
+    hpc_execution_contract: hpcExecutionContract,
     config_path: configPath,
     competition_slug: input.competitionSlug ?? null,
-    state: "planned",
+    state: "WAIT_PLAN_GATE",
     launched_by: "workstation_orchestrator",
     direct_codex_training_allowed: false,
     official_submission_requires_human_gate: true,
@@ -305,10 +347,28 @@ export async function createWorkstationRun(input: CreateRunInput) {
     runId,
     message: `Workstation run created: ${runId}. Training and official submission remain gated.`,
     artifactPath: manifestPath,
-    metadata: { workstation_run_id: runId, artifact_manifest: artifactManifestPath, config_path: configPath }
+    metadata: {
+      workstation_run_id: runId,
+      artifact_manifest: artifactManifestPath,
+      config_path: configPath,
+      requires_hpc: requiresHpc,
+      execution_backend: executionBackend,
+      hpc_execution_contract: hpcExecutionContract,
+    }
   });
 
-  return { ok: true, ...action, run_id: runId, workflow_id: `${runId}_workflow`, manifest_path: manifestPath, artifact_manifest_path: artifactManifestPath };
+  return {
+    ok: true,
+    ...action,
+    run_id: runId,
+    status: "WAIT_PLAN_GATE",
+    workflow_id: `${runId}_workflow`,
+    manifest_path: manifestPath,
+    artifact_manifest_path: artifactManifestPath,
+    requires_hpc: requiresHpc,
+    execution_backend: executionBackend,
+    hpc_execution_contract: hpcExecutionContract,
+  };
 }
 
 export async function ensurePlaygroundSeriesTask() {

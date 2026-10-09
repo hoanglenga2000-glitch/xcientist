@@ -1,72 +1,44 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { logAction } from "@/lib/server/actions";
-import { ensureWorkstationSeeded } from "@/lib/server/bootstrap";
-import { decodeJson, encodeJson } from "@/lib/server/json";
+import { SESSION_COOKIE, sessionPrincipal } from "@/lib/server/local-session";
+import { sessionCookieFromHeaders } from "@/lib/server/runtime-principal";
+import { preferenceKey, validatePreferences, mergePreferences } from "@/lib/server/user-preferences";
 
 export const dynamic = "force-dynamic";
 
-const SENSITIVE_KEY_PATTERN = /(api[_-]?key|token|secret|password|cookie|credential|private[_-]?key|access[_-]?token|refresh[_-]?token)/i;
-
-function redactSettingsValue(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(redactSettingsValue);
-  if (!value || typeof value !== "object") return value;
-
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).map(([key, item]) => {
-      if (SENSITIVE_KEY_PATTERN.test(key)) {
-        const lowerKey = key.toLowerCase();
-        if (lowerKey.endsWith("_status") || lowerKey === "status" || lowerKey === "token_status" || lowerKey === "credential_status") {
-          return [key, typeof item === "string" ? item : item ? "configured" : "not_configured"];
-        }
-        const configured = typeof item === "string" ? item.trim().length > 0 : Boolean(item);
-        return [key, configured ? "hidden_configured" : "not_configured"];
-      }
-      return [key, redactSettingsValue(item)];
-    })
-  );
+function keyFor(request: Request) {
+  return preferenceKey(sessionPrincipal(sessionCookieFromHeaders(request.headers, SESSION_COOKIE)));
 }
-
-function redactSettingsMap(settings: Record<string, unknown>) {
-  return Object.fromEntries(
-    Object.entries(settings).map(([key, value]) => [key, redactSettingsValue(value)])
-  );
+function decode(value: string | null | undefined): unknown {
+  try { return JSON.parse(value ?? "{}"); } catch { return {}; }
 }
-
-export async function GET() {
-  await ensureWorkstationSeeded();
-  const settings = await prisma.setting.findMany({ orderBy: { key: "asc" } });
-  const rawSettings = Object.fromEntries(settings.map((item: { key: string; valueJson: string | null }) => [item.key, decodeJson(item.valueJson) ?? {}]));
-  return NextResponse.json({
-    ok: true,
-    settings: redactSettingsMap(rawSettings)
-  });
+function response(settings: unknown) {
+  return NextResponse.json({ ok: true, settings }, { headers: { "Cache-Control": "private, no-store" } });
 }
-
+export async function GET(request: Request) {
+  let key: string;
+  try { key = keyFor(request); } catch { return NextResponse.json({ ok: false, error: "session_required" }, { status: 401 }); }
+  try {
+    const row = await prisma.setting.findUnique({ where: { key } });
+    return response(mergePreferences(decode(row?.valueJson)));
+  } catch { return NextResponse.json({ ok: false, error: "preferences_unavailable" }, { status: 503 }); }
+}
 export async function PATCH(request: Request) {
-  await ensureWorkstationSeeded();
-  const body = await request.json().catch(() => ({}));
-  const settings = body.settings && typeof body.settings === "object" ? body.settings as Record<string, unknown> : {};
-
-  if (!Object.keys(settings).length) {
-    return NextResponse.json({ ok: false, error: "settings payload is required" }, { status: 400 });
-  }
-
-  for (const [key, value] of Object.entries(settings)) {
-    const valueJson = encodeJson(value) ?? "{}";
-    await prisma.setting.upsert({
-      where: { key },
-      update: { valueJson },
-      create: { key, valueJson }
+  let key: string;
+  try { key = keyFor(request); } catch { return NextResponse.json({ ok: false, error: "session_required" }, { status: 401 }); }
+  let patch;
+  try {
+    const body = await request.json();
+    patch = validatePreferences(body?.settings);
+  } catch { return NextResponse.json({ ok: false, error: "invalid_preferences" }, { status: 400 }); }
+  try {
+    const settings = await prisma.$transaction(async (tx) => {
+      const row = await tx.setting.findUnique({ where: { key } });
+      const next = mergePreferences(decode(row?.valueJson), patch);
+      const valueJson = JSON.stringify(next);
+      await tx.setting.upsert({ where: { key }, create: { key, valueJson }, update: { valueJson } });
+      return next;
     });
-  }
-
-  await logAction({
-    action: "save_settings",
-    message: "Settings saved to SQLite.",
-    artifactPath: null,
-    metadata: { keys: Object.keys(settings) }
-  });
-
-  return GET();
+    return response(settings);
+  } catch { return NextResponse.json({ ok: false, error: "preferences_save_failed" }, { status: 503 }); }
 }
