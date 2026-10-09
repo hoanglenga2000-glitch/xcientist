@@ -230,3 +230,23 @@ docs/verified_workstation_launch_audit.md
 *.wav
 *.mp3
 runtime.token
+
+# --- Source files and shipped assets whose names match the secret/workspace/
+# --- binary patterns above but are product code or public demo assets (no
+# --- secret material; verified by staged secret scan). Without these a clean
+# --- checkout cannot import evomind_runtime or render the shipped UI.
+!src/evomind_runtime/model_profile_secrets.py
+!src/evomind_runtime/run_secrets.py
+!tests/test_run_secrets.py
+!tests/test_run_secret_claim_atomicity.py
+!tests/test_run_secret_fixed_run_binding.py
+!tests/test_controlled_secret_binding_release_builder.py
+!scripts/manage_claude_secret.ps1
+!scripts/manage_openai_gateway_secret.ps1
+!scripts/verify_workstation_settings_secret_redaction.py
+!web/research-agent-workstation/src/app/workspace/
+!web/research-agent-workstation/src/app/workspace/page.tsx
+!web/research-agent-workstation/public/brand/deepevo-lockup.png
+!web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-evidence.zip
+!web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-report.html
+!web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-report.pdf
