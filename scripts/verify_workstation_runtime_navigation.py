@@ -81,7 +81,7 @@ def extract_client_static_get_paths() -> list[str]:
 def request_get(base_url: str, path: str, timeout: int) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}))
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}, method="GET"))
         with urlopen(request, timeout=timeout) as response:
             body = response.read(1024)
             content_type = response.headers.get("content-type", "")
@@ -128,14 +128,21 @@ def build_report(base_url: str, timeout: int) -> dict[str, Any]:
             item["ok"] = True
             item["expected_empty"] = True
 
-    missing_from_parser = [page for page in nav_ids if page not in page_ids_array]
-    missing_from_render = [page for page in nav_ids if page not in rendered_ids]
-    rendered_not_nav = [page for page in rendered_ids if page not in nav_ids and page != "design"]
+    page_text = read(PAGE_TSX)
+    workspace_redirect = "redirect(workspaceLocation(" in page_text
+    if workspace_redirect:
+        # `/` redirects every ?page= id (and alias) into /workspace; coverage is
+        # proven by the live page smoke above, not by legacy parser markers.
+        missing_from_parser, missing_from_render, rendered_not_nav = [], [], []
+    else:
+        missing_from_parser = [page for page in nav_ids if page not in page_ids_array]
+        missing_from_render = [page for page in nav_ids if page not in rendered_ids]
+        rendered_not_nav = [page for page in rendered_ids if page not in nav_ids and page != "design"]
     alias_checks = [
         {
             "alias": alias,
             "expected_page": expected,
-            "declared_in_parser": f'normalized === "{alias}"' in read(PAGE_TSX),
+            "declared_in_parser": workspace_redirect or f'normalized === "{alias}"' in page_text,
             "http_ok": next((item["ok"] for item in page_smoke if item["target"] == f"/?page={alias}"), False),
         }
         for alias, expected in PAGE_ALIASES.items()
@@ -158,6 +165,7 @@ def build_report(base_url: str, timeout: int) -> dict[str, Any]:
         "base_url": base_url,
         "status": status,
         "nav_page_count": len(nav_ids),
+        "routing_mode": "workspace_redirect" if workspace_redirect else "single_page_dashboard",
         "navigation_source_ok": navigation_source_ok,
         "parser_page_count": len(page_ids_array),
         "rendered_page_count": len(rendered_ids),

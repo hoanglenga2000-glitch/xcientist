@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyReleaseCheckAuth } from "./workstation_test_session.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -29,22 +30,6 @@ async function allocateCdpPort() {
       server.close((error) => error ? reject(error) : resolvePort(selected));
     });
   });
-}
-
-async function localAutomationToken() {
-  const parsed = new URL(baseUrl);
-  if (parsed.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(parsed.hostname)) return "";
-  const suffix = parsed.port === "8088" || parsed.port === "" ? "" : `.${parsed.port}`;
-  const runtimeDir = process.env.WORKSTATION_RUNTIME_DIR
-    ? resolve(process.env.WORKSTATION_RUNTIME_DIR)
-    : join(root, "web", "research-agent-workstation", ".runtime-logs");
-  const target = join(runtimeDir, `dashboard${suffix}.automation.token`);
-  try {
-    const token = (await readFile(target, "ascii")).trim();
-    return /^[A-Za-z0-9_-]{24,256}$/.test(token) ? token : "";
-  } catch {
-    return "";
-  }
 }
 
 const chromeCandidates = [
@@ -424,12 +409,8 @@ async function run() {
     await client.connect();
     await client.send("Page.enable");
     await client.send("Network.enable");
-    const automationToken = await localAutomationToken();
-    if (automationToken) {
-      await client.send("Network.setExtraHTTPHeaders", {
-        headers: { "x-evomind-local-automation": automationToken }
-      });
-    }
+    // Session first (real signed-in principal), automation header fallback.
+    process.env.WORKSTATION_RELEASE_CHECK_AUTH_MODE = await applyReleaseCheckAuth(client, root, baseUrl);
     await client.send("Runtime.enable");
     await client.send("Log.enable");
 

@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import URLError
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 from shutil import which
 
@@ -171,6 +172,9 @@ RUNTIME_BASE_URL_FLAGS = {
     "runtime_navigation_matrix": "--base-url",
     "browser_render_smoke": "--base-url",
     "task_api_matrix": "--base-url",
+    # Defaults to 8088; on any other port it must probe the server under test,
+    # never whatever else listens on the default port.
+    "deepseek_cache_probe_api": "--url",
 }
 
 
@@ -321,10 +325,14 @@ def run_dashboard_lifecycle(action: str, *, timeout: int = 120) -> dict[str, Any
     )
 
 
+# Documented fresh-install empty states (same as runtime navigation).
+EXPECTED_EMPTY_API_STATUSES = {"/api/paper-evidence-bundle": {404}}
+
+
 def http_check(base_url: str, path: str) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}{path}"
     try:
-        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}))
+        request = Request(url, headers=authenticated_headers(base_url, {"Accept": "text/html,application/json"}, method="GET"))
         with urlopen(request, timeout=12) as response:
             body = response.read(512)
             return {
@@ -333,6 +341,10 @@ def http_check(base_url: str, path: str) -> dict[str, Any]:
                 "status": response.status,
                 "ok": response.status == 200 and bool(body),
             }
+    except HTTPError as exc:
+        expected = exc.code in EXPECTED_EMPTY_API_STATUSES.get(path, set())
+        return {"target": path, "url": url, "status": exc.code, "ok": expected, "expected_empty": expected,
+                **({} if expected else {"error": str(exc)})}
     except Exception as exc:  # pragma: no cover - smoke utility
         return {
             "target": path,
@@ -534,6 +546,16 @@ def write_figma_gate(args: argparse.Namespace) -> dict[str, Any]:
     return result
 
 
+# Checks whose failure on a fresh staging install reflects an external
+# condition, not a product defect. They can only be waived explicitly
+# (--waive-external), are still executed, and stay listed in the report.
+EXTERNAL_WAIVABLE_CHECKS = {
+    "workstation_training_progress": "fresh_install_has_no_training_runs",
+    "learning_loop_readiness": "fresh_install_has_no_training_runs_or_deepseek_cache_below_80",
+    "deepseek_cache_probe_api": "fresh_install_has_no_code_agent_task_or_cache_manifest",
+}
+
+
 def build_report(args: argparse.Namespace) -> dict[str, Any]:
     checks: list[dict[str, Any]] = []
     if args.include_frontend:
@@ -550,9 +572,18 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
     api_smoke = [http_check(args.base_url, path) for path in API_PATHS]
     failed_http = [item for item in [*page_smoke, *api_smoke] if not item["ok"]]
 
+    waived = set(getattr(args, "waive_external", None) or [])
+    unknown_waivers = sorted(waived - set(EXTERNAL_WAIVABLE_CHECKS))
+    if unknown_waivers:
+        raise SystemExit(f"unsupported --waive-external ids: {', '.join(unknown_waivers)}")
+    waived_external = [
+        {"id": item["id"], "reason": EXTERNAL_WAIVABLE_CHECKS[item["id"]], "status": item.get("status")}
+        for item in checks
+        if item.get("critical") and item.get("status") != "passed" and item.get("id") in waived
+    ]
     critical_failures = [
         item for item in checks
-        if item.get("critical") and item.get("status") != "passed"
+        if item.get("critical") and item.get("status") != "passed" and item.get("id") not in waived
     ]
     soft_failures = [
         item for item in checks
@@ -597,6 +628,8 @@ def build_report(args: argparse.Namespace) -> dict[str, Any]:
         "launch_state": launch_state,
         "blockers": blockers,
         "critical_failures": [item["id"] for item in critical_failures],
+        "waived_external": waived_external,
+        "waivers_requested": sorted(waived),
         "soft_failures": [item["id"] for item in soft_failures],
         "checks": checks,
         "page_smoke": page_smoke,
@@ -927,6 +960,14 @@ def main() -> int:
     parser.add_argument("--command-timeout", type=int, default=240)
     parser.add_argument("--figma-status", default=None, help="Optional external Figma MCP auth probe result.")
     parser.add_argument("--write-report", action="store_true")
+    parser.add_argument(
+        "--waive-external",
+        action="append",
+        default=[],
+        choices=sorted(EXTERNAL_WAIVABLE_CHECKS),
+        help="Explicitly waive a critical check whose failure is an external/fresh-install condition. "
+        "The check still runs and is reported under waived_external.",
+    )
     args = parser.parse_args()
 
     report = build_report(args)
@@ -940,6 +981,7 @@ def main() -> int:
         "launch_state": report["launch_state"],
         "blockers": report["blockers"],
         "critical_failures": report["critical_failures"],
+        "waived_external": report["waived_external"],
         "soft_failures": report["soft_failures"],
         "json": str(OUT_JSON.relative_to(ROOT)).replace("\\", "/") if args.write_report else None,
         "md": str(OUT_MD.relative_to(ROOT)).replace("\\", "/") if args.write_report else None,

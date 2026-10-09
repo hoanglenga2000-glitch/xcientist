@@ -5,6 +5,7 @@ import { createRequire } from "node:module";
 import { createServer } from "node:net";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyReleaseCheckAuth } from "./workstation_test_session.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, "..");
@@ -304,6 +305,8 @@ async function run() {
     client = new CdpClient(tab.webSocketDebuggerUrl ?? version.webSocketDebuggerUrl);
     await client.connect();
     await client.send("Page.enable");
+    await client.send("Network.enable");
+    process.env.WORKSTATION_RELEASE_CHECK_AUTH_MODE = await applyReleaseCheckAuth(client, root, baseUrl);
     await client.send("Runtime.enable");
     await client.send("Log.enable");
 

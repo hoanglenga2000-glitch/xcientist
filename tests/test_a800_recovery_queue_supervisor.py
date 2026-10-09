@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from workspace.hpc import a800_recovery_queue_supervisor as queue
+# workspace/ is gitignored operator state; the A800 supervisors live there on
+# operator machines only, so a clean checkout skips (same convention as the
+# video-production tests) instead of failing collection.
+queue = pytest.importorskip(
+    "workspace.hpc.a800_recovery_queue_supervisor",
+    reason="workspace/hpc A800 supervisor is not present in this checkout (workspace/ is gitignored)",
+)
 
 
 def write_json(path: Path, payload: dict) -> None:

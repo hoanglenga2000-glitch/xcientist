@@ -25,6 +25,10 @@ def _manager_environment() -> dict[str, str]:
     """Return a clean PowerShell environment with Windows security modules first."""
 
     env = os.environ.copy()
+    # Resolve `python`/`kaggle` from the interpreter running this check (e.g. a
+    # staging venv invoked by absolute path), not whatever else is on PATH.
+    interpreter_dir = str(Path(sys.executable).resolve().parent)
+    env["PATH"] = os.pathsep.join([interpreter_dir, *[p for p in env.get("PATH", "").split(os.pathsep) if p and p != interpreter_dir]])
     windir = Path(env.get("WINDIR") or r"C:\Windows")
     windows_modules = windir / "System32" / "WindowsPowerShell" / "v1.0" / "Modules"
     existing = [item for item in env.get("PSModulePath", "").split(os.pathsep) if item]
@@ -160,7 +164,8 @@ def _detect_package_version() -> str:
 def _detect_cli_path() -> str:
     """Detect kaggle CLI path via shutil.which."""
     import shutil
-    path = shutil.which("kaggle") or shutil.which("kaggle.exe")
+    search = os.pathsep.join([str(Path(sys.executable).resolve().parent), os.environ.get("PATH", "")])
+    path = shutil.which("kaggle", path=search) or shutil.which("kaggle.exe", path=search)
     return path or "unknown"
 
 

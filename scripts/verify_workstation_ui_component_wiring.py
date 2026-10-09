@@ -51,10 +51,14 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+# Documented empty states on a fresh install (mirrors runtime navigation).
+EXPECTED_EMPTY_API_STATUSES = {"/api/paper-evidence-bundle": {404}}
+
+
 def http_ok(path: str) -> dict[str, object]:
     url = f"{BASE_URL}{path}"
     try:
-        request = urllib.request.Request(url, headers=authenticated_headers(BASE_URL))
+        request = urllib.request.Request(url, headers=authenticated_headers(BASE_URL, method="GET"))
         with HTTP.open(request, timeout=12) as response:
             body = response.read(256).decode("utf-8", errors="replace")
             return {
@@ -62,6 +66,14 @@ def http_ok(path: str) -> dict[str, object]:
                 "status": response.status,
                 "ok": response.status == 200 and bool(body),
             }
+    except urllib.error.HTTPError as exc:
+        expected = exc.code in EXPECTED_EMPTY_API_STATUSES.get(path, set())
+        result: dict[str, object] = {"target": path, "status": exc.code, "ok": expected}
+        if expected:
+            result["expected_empty_state"] = True
+        else:
+            result["error"] = str(exc)
+        return result
     except Exception as exc:  # pragma: no cover - smoke utility
         return {"target": path, "status": "error", "ok": False, "error": str(exc)}
 
@@ -75,8 +87,14 @@ def extract_nav_ids() -> list[str]:
     return re.findall(r'\{\s*id:\s*"([^"]+)"\s*,\s*label:', scope)
 
 
-def extract_rendered_page_ids() -> list[str]:
+def extract_rendered_page_ids(nav_ids: list[str] | None = None) -> list[str]:
     text = read(SRC / "app" / "page.tsx")
+    if "redirect(workspaceLocation(" in text:
+        # The root page now routes every legacy ?page= id into /workspace via
+        # workspaceLocation(); each id is then proven by the live page smoke.
+        location = read(SRC / "components" / "workstation" / "task-workspace" / "workspace-location.ts")
+        if "'/workspace'" in location:
+            return list(nav_ids or [])
     return re.findall(r'activePage\s*===\s*"([^"]+)"', text)
 
 
@@ -124,7 +142,7 @@ def audit_data_ui_actions() -> list[dict[str, object]]:
 def main() -> None:
     auth_mode = establish_local_session()
     nav_ids = extract_nav_ids()
-    rendered_ids = extract_rendered_page_ids()
+    rendered_ids = extract_rendered_page_ids(nav_ids)
     missing_render = [page for page in nav_ids if page not in rendered_ids]
 
     page_results = [http_ok(f"/?page={page}") for page in sorted(set(nav_ids + ["mission", "evidence-detail"]))]

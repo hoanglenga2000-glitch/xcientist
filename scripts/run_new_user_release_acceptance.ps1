@@ -3,7 +3,11 @@ param(
   [string]$PythonExecutable = "",
   [string]$ProfileRoot = "",
   [switch]$SkipBuild,
-  [switch]$SkipBrowserSmoke
+  [switch]$SkipBrowserSmoke,
+  # Explicit, recorded waivers for launch-readiness checks that fail only
+  # because of external / fresh-install conditions (see
+  # EXTERNAL_WAIVABLE_CHECKS in verify_workstation_launch_readiness.py).
+  [string[]]$WaiveExternal = @()
 )
 
 $ErrorActionPreference = "Stop"
@@ -16,6 +20,9 @@ $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 Set-Location -LiteralPath $Root
 $Web = Join-Path $Root "web\research-agent-workstation"
 $BaseUrl = "http://127.0.0.1:$Port"
+# Port-bound verifiers that read their own base URL (e.g. UI component wiring)
+# must target the acceptance port, not the default 8088.
+$env:WORKSTATION_TEST_BASE_URL = $BaseUrl
 $ReportJson = Join-Path $Root "workspace\new_user_release_acceptance.json"
 $ReportMd = Join-Path $Root "reports\NEW_USER_RELEASE_ACCEPTANCE.md"
 
@@ -141,8 +148,18 @@ $checks += Run-Check "start_production_workstation_frontend" {
   }
   "frontend ready at $BaseUrl (css $cssHref)"
 }
+$checks += Run-Check "establish_release_check_session" {
+  # Sign in the way a person does: exchange the server's one-time bootstrap
+  # URL for the ordinary local session (loopback-only, single use). Live and
+  # browser checks then see principal-scoped pages as the signed-in user. The
+  # session file is owner-only and removed below and by the manager on stop.
+  & $PythonExe scripts\workstation_local_auth.py establish --base-url $BaseUrl
+}
 $checks += Run-Check "new_user_release_readiness_live" { & $PythonExe scripts\verify_new_user_release_readiness.py --base-url $BaseUrl --write-report --require-live-server }
-$checks += Run-Check "workstation_launch_readiness" { & $PythonExe scripts\verify_workstation_launch_readiness.py --base-url $BaseUrl --include-frontend --write-report }
+$checks += Run-Check "workstation_launch_readiness" {
+  $waiverArgs = @($WaiveExternal | Where-Object { $_ } | ForEach-Object { "--waive-external"; $_ })
+  & $PythonExe scripts\verify_workstation_launch_readiness.py --base-url $BaseUrl --include-frontend --write-report @waiverArgs
+}
 
 if (-not $SkipBrowserSmoke) {
   Step "Browser and interaction checks"
@@ -150,6 +167,7 @@ if (-not $SkipBrowserSmoke) {
   $checks += Run-Check "click_smoke" { node scripts\verify_workstation_click_smoke.mjs --base-url $BaseUrl --write-report }
   $checks += Run-Check "interactive_controls" { node scripts\verify_workstation_interactive_controls.mjs --base-url $BaseUrl --write-report }
 }
+& $PythonExe scripts\workstation_local_auth.py remove --base-url $BaseUrl | Out-Null
 
 $checkArray = @($checks)
 $failed = @($checkArray | Where-Object { -not $_.ok })
@@ -161,6 +179,7 @@ $summary = [ordered]@{
   default_gateway = "$BaseUrl/?page=assistant"
   python = $PythonExe
   profile_root = $ProfileRoot
+  waived_external = @($WaiveExternal | Where-Object { $_ })
   failed_checks = @($failed | ForEach-Object { $_.id })
   checks = $checkArray
   claim_boundary = "This validates the local EvoMind release surface. Kaggle submission remains human-gated and HPC readiness requires current job-container identity evidence."

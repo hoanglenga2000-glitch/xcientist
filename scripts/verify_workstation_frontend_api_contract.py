@@ -142,9 +142,57 @@ def extract_quoted_ids(pattern: str, text: str) -> list[str]:
     return re.findall(pattern, text)
 
 
+WORKSPACE_PAGE_TSX = SRC / "app" / "workspace" / "page.tsx"
+WORKSPACE_LOCATION_TS = SRC / "components" / "workstation" / "task-workspace" / "workspace-location.ts"
+
+
+def workspace_redirect_mode() -> dict[str, Any]:
+    """Detect the shipped routing: `/` redirects every legacy ?page= id to /workspace.
+
+    In that layout the old single-page dashboard client (app/home-client.tsx)
+    is no longer imported by any route, so contracts that grep it describe a
+    UI that is not shipped.
+    """
+
+    page_text = read(PAGE_TSX)
+    location_text = read(WORKSPACE_LOCATION_TS) if WORKSPACE_LOCATION_TS.exists() else ""
+    legacy_importers = [
+        str(path.relative_to(SRC)).replace("\\", "/")
+        for path in SRC.rglob("*.ts*")
+        if path.name != "home-client.tsx" and re.search(r"from\s+['\"][^'\"]*home-client['\"]", read(path))
+    ]
+    active = (
+        "redirect(workspaceLocation(" in page_text
+        and WORKSPACE_PAGE_TSX.exists()
+        and "'/workspace'" in location_text
+    )
+    return {"active": active, "legacy_client_importers": legacy_importers}
+
+
 def build_navigation_contract() -> dict[str, Any]:
     navigation_text = read(NAVIGATION_TS)
     page_text = read(PAGE_TSX)
+    redirect = workspace_redirect_mode()
+    if redirect["active"]:
+        page_type_block = re.search(r"export\s+type\s+PageId\s*=([\s\S]*?);", navigation_text)
+        page_type_ids = re.findall(r'"([^"]+)"', page_type_block.group(1)) if page_type_block else []
+        nav_items_block = re.search(r"export\s+const\s+navItems\s*=\s*\[([\s\S]*?)\]\s+as\s+const", navigation_text)
+        nav_ids = re.findall(r'\{\s*id:\s*"([^"]+)"\s*,\s*label:', nav_items_block.group(1)) if nav_items_block else []
+        missing_from_type = [page for page in nav_ids if page not in page_type_ids]
+        return {
+            "mode": "workspace_redirect",
+            "nav_ids": nav_ids,
+            "page_type_ids": page_type_ids,
+            "rendered_ids": [],
+            "page_ids_array": [],
+            "aliases": {},
+            "missing_from_type": missing_from_type,
+            "missing_from_render": [],
+            "missing_from_page_parser": [],
+            "rendered_not_in_nav": [],
+            "legacy_client_importers": redirect["legacy_client_importers"],
+            "ok": bool(nav_ids) and not missing_from_type and not redirect["legacy_client_importers"],
+        }
     page_type_block = re.search(r"export\s+type\s+PageId\s*=([\s\S]*?);", navigation_text)
     page_type_ids = re.findall(r'"([^"]+)"', page_type_block.group(1)) if page_type_block else []
     nav_items_block = re.search(r"export\s+const\s+navItems\s*=\s*\[([\s\S]*?)\]\s+as\s+const", navigation_text)
@@ -218,6 +266,17 @@ def build_literature_provenance_contract() -> dict[str, Any]:
         "checks": checks,
         "ok": all(checks.values()),
     }
+
+
+LEGACY_PAGE_CHECKS = (
+    "page_consumes_latest_signal",
+    "same_signal_is_idempotent",
+    "explicit_url_task_is_preserved",
+    "task_deeplink_is_persisted",
+    "summary_and_task_are_batched",
+    "selected_task_reaches_shell",
+    "page_ready_reaches_shell",
+)
 
 
 def build_terminal_task_sync_contract() -> dict[str, Any]:
@@ -301,6 +360,21 @@ def build_terminal_task_sync_contract() -> dict[str, Any]:
             and control_text.index("Current Multi-Agent Run") < control_text.index("Scientist Tools (Historical / Auxiliary)")
         ),
     }
+    redirect = workspace_redirect_mode()
+    if redirect["active"] and not redirect["legacy_client_importers"]:
+        # The page-level markers live in the retired single-page dashboard
+        # client, which no route imports any more. They are reported as
+        # not_applicable (not as passed); every check on shipped components
+        # (task context, summary, runtime/control screens, run context) still
+        # has to pass.
+        not_applicable = {name: checks.pop(name) for name in LEGACY_PAGE_CHECKS if name in checks}
+        return {
+            "checks": checks,
+            "not_applicable": sorted(not_applicable),
+            "not_applicable_reason": "legacy_dashboard_not_routed: app/page.tsx redirects to /workspace; "
+            "app/home-client.tsx has no importers",
+            "ok": all(checks.values()),
+        }
     return {"checks": checks, "ok": all(checks.values())}
 
 

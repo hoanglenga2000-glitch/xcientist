@@ -146,6 +146,13 @@ def bootstrap_url_path(port: int = 8088) -> Path:
     return runtime_dir() / f"dashboard{suffix}.bootstrap.once"
 
 
+def test_session_path(port: int = 8088) -> Path:
+    """Release-check session obtained via the one-time bootstrap (lifecycle-bound)."""
+
+    suffix = "" if port == 8088 else f".{port}"
+    return runtime_dir() / f"dashboard{suffix}.test-session.json"
+
+
 def automation_token_path(port: int = 8088) -> Path:
     suffix = "" if port == 8088 else f".{port}"
     return runtime_dir() / f"dashboard{suffix}.automation.token"
@@ -156,6 +163,7 @@ def remove_local_auth_files(port: int = 8088) -> None:
 
     bootstrap_url_path(port).unlink(missing_ok=True)
     automation_token_path(port).unlink(missing_ok=True)
+    test_session_path(port).unlink(missing_ok=True)
 
 
 def node_command() -> str:

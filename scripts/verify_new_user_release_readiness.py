@@ -10,6 +10,8 @@ training blockers, not as blockers for the default workstation UI release.
 """
 from __future__ import annotations
 
+from urllib.parse import urlsplit
+
 import argparse
 import json
 import os
@@ -297,7 +299,8 @@ def check_frontend_runtime(*, require_live_server: bool, base_url: str = "http:/
     return normalized
 
 
-def check_existing_launch_gate() -> list[dict]:
+def check_existing_launch_gate(base_url: str = "http://127.0.0.1:8088") -> list[dict]:
+    port = str(urlsplit(base_url).port or 8088)
     lifecycle = run([
         sys.executable,
         "-X",
@@ -307,7 +310,7 @@ def check_existing_launch_gate() -> list[dict]:
         "--host",
         "127.0.0.1",
         "--port",
-        "8088",
+        port,
     ], timeout=30)
     secrets = run([
         sys.executable,
@@ -372,7 +375,7 @@ def build_report(*, require_live_server: bool = False, base_url: str = "http://1
         check_python_compile(),
         check_cli(),
         check_frontend_runtime(require_live_server=require_live_server, base_url=base_url),
-        check_existing_launch_gate(),
+        check_existing_launch_gate(base_url),
         check_assistant_quality_gate(),
     ]:
         checks.extend(group)

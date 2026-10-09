@@ -1,4 +1,12 @@
-from workspace.hpc import a800_cpu_light_resume_supervisor as supervisor
+import pytest
+
+# workspace/ is gitignored operator state; the A800 supervisors live there on
+# operator machines only, so a clean checkout skips (same convention as the
+# video-production tests) instead of failing collection.
+supervisor = pytest.importorskip(
+    "workspace.hpc.a800_cpu_light_resume_supervisor",
+    reason="workspace/hpc A800 supervisor is not present in this checkout (workspace/ is gitignored)",
+)
 
 
 def test_queue_allows_only_registered_parallel_run_after_completion():
