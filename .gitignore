@@ -250,3 +250,9 @@ runtime.token
 !web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-evidence.zip
 !web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-report.html
 !web/research-agent-workstation/public/demo/credit-card-fraud/evomind-credit-card-fraud-report.pdf
+
+# Runtime/installer state that must never be part of the source tree.
+# (Python 3.12 venvs do not self-ignore; the installer creates /.venv.)
+/.venv/
+web/research-agent-workstation/.next-rollback.json
+web/research-agent-workstation/.next-rollback-*/
