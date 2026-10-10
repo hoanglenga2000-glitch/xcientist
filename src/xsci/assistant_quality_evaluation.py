@@ -414,6 +414,20 @@ def _bind_quality_provider_env(env: dict[str, str], suite: dict[str, Any]) -> di
             bound["EVOMIND_MODEL_WIRE_PROTOCOL"] = str(route["wire_protocol"])
         if route.get("timeout_seconds"):
             bound["EVOMIND_MODEL_TIMEOUT_SECONDS"] = str(int(route["timeout_seconds"]))
+    if provider == "anthropic" and route.get("base_url"):
+        # Anthropic transport appends /v1/messages; accept either host root or /v1.
+        raw = str(route["base_url"]).rstrip("/")
+        parsed = urllib.parse.urlsplit(raw)
+        if parsed.path.rstrip("/") == "/v1":
+            bound["ANTHROPIC_BASE_URL"] = f"{parsed.scheme}://{parsed.netloc}"
+        else:
+            bound["ANTHROPIC_BASE_URL"] = raw
+        if route.get("wire_protocol"):
+            bound["EVOMIND_MODEL_WIRE_PROTOCOL"] = str(route["wire_protocol"])
+        else:
+            bound["EVOMIND_MODEL_WIRE_PROTOCOL"] = "anthropic_messages"
+        if route.get("timeout_seconds"):
+            bound["EVOMIND_MODEL_TIMEOUT_SECONDS"] = str(int(route["timeout_seconds"]))
     if provider == "openai":
         bound.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:65068/v1")
         try:

@@ -46,8 +46,8 @@ $suiteJson = Get-Content -LiteralPath $suitePath -Raw -Encoding UTF8 | ConvertFr
 $provider = [string]$suiteJson.required_provider
 $model = [string]$suiteJson.required_model
 $route = $suiteJson.required_route
-if ($provider -ne "openai" -or -not $model) {
-  throw "Quality suite must pin an openai-compatible provider and model."
+if ($provider -notin @("openai", "anthropic") -or -not $model) {
+  throw "Quality suite must pin openai or anthropic provider and a required model."
 }
 
 $restore = @{}
@@ -59,26 +59,46 @@ function Set-ScopedEnv([string]$Name, [string]$Value) {
 if ($null -ne $route -and [string]$route.base_url) {
   $baseUrl = ([string]$route.base_url).TrimEnd("/")
   $uri = [Uri]$baseUrl
-  if ($uri.Scheme -ne "https" -or $uri.AbsolutePath.TrimEnd("/") -ne "/v1") {
-    throw "Quality suite route must be an https /v1 endpoint."
+  if ($uri.Scheme -ne "https") {
+    throw "Quality suite route must be an https endpoint."
   }
   $credential = Import-RouteCredential @($route.credential_candidates)
   $secret = $credential.GetNetworkCredential().Password
-  Set-ScopedEnv "OPENAI_API_KEY" $secret
-  Set-ScopedEnv "DEEPSEEK_API_KEY" $secret
-  Set-ScopedEnv "OPENAI_BASE_URL" $baseUrl
-  Set-ScopedEnv "DEEPSEEK_BASE_URL" $baseUrl
-  Set-ScopedEnv "DEEPSEEK_MODEL" $model
-  Set-ScopedEnv "OPENAI_REASONING_EFFORT" ""
-  Set-ScopedEnv "OPENAI_SERVICE_TIER" ""
-  Set-ScopedEnv "LLM_PROVIDER" "openai"
-  Set-ScopedEnv "EVOMIND_MODEL_WIRE_PROTOCOL" ([string]$route.wire_protocol)
+  if ($provider -eq "anthropic") {
+    # Anthropic transport appends /v1/messages to ANTHROPIC_BASE_URL.
+    $anthropicRoot = $baseUrl
+    if ($uri.AbsolutePath.TrimEnd("/") -eq "/v1") {
+      $anthropicRoot = ($uri.GetLeftPart([UriPartial]::Authority)).TrimEnd("/")
+    } elseif ($uri.AbsolutePath.TrimEnd("/") -notin @("", "/")) {
+      throw "Anthropic quality suite route must be https://host or https://host/v1."
+    }
+    Set-ScopedEnv "ANTHROPIC_API_KEY" $secret
+    Set-ScopedEnv "ANTHROPIC_BASE_URL" $anthropicRoot
+    Set-ScopedEnv "CLAUDE_CODE_MODEL" $model
+    Set-ScopedEnv "LLM_PROVIDER" "anthropic"
+    Set-ScopedEnv "EVOMIND_MODEL_WIRE_PROTOCOL" $(if ([string]$route.wire_protocol) { [string]$route.wire_protocol } else { "anthropic_messages" })
+  } else {
+    if ($uri.AbsolutePath.TrimEnd("/") -ne "/v1") {
+      throw "OpenAI-compatible quality suite route must be an https /v1 endpoint."
+    }
+    Set-ScopedEnv "OPENAI_API_KEY" $secret
+    Set-ScopedEnv "DEEPSEEK_API_KEY" $secret
+    Set-ScopedEnv "OPENAI_BASE_URL" $baseUrl
+    Set-ScopedEnv "DEEPSEEK_BASE_URL" $baseUrl
+    Set-ScopedEnv "DEEPSEEK_MODEL" $model
+    Set-ScopedEnv "OPENAI_REASONING_EFFORT" ""
+    Set-ScopedEnv "OPENAI_SERVICE_TIER" ""
+    Set-ScopedEnv "LLM_PROVIDER" "openai"
+    Set-ScopedEnv "EVOMIND_MODEL_WIRE_PROTOCOL" ([string]$route.wire_protocol)
+  }
   Set-ScopedEnv "EVOMIND_MODEL_TIMEOUT_SECONDS" ([string]$route.timeout_seconds)
   $noProxy = [Environment]::GetEnvironmentVariable("NO_PROXY", "Process")
   $hosts = @($noProxy -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
   if ($hosts -notcontains "*" -and $hosts -notcontains $uri.Host) {
     Set-ScopedEnv "NO_PROXY" ((@($hosts) + $uri.Host) -join ",")
   }
+} elseif ($provider -eq "anthropic") {
+  throw "Anthropic quality suite requires required_route.base_url and credential_candidates."
 } else {
   $credentialPath = Resolve-NewestFile "openai_api_key.xml"
   $metadataPath = Resolve-NewestFile "openai_gateway_metadata.json"
@@ -95,7 +115,9 @@ if ($null -ne $route -and [string]$route.base_url) {
   Set-ScopedEnv "OPENAI_API_KEY" $credential.GetNetworkCredential().Password
   Set-ScopedEnv "OPENAI_BASE_URL" $baseUrl
 }
-Set-ScopedEnv "OPENAI_MODEL" $model
+if ($provider -eq "openai") {
+  Set-ScopedEnv "OPENAI_MODEL" $model
+}
 Set-ScopedEnv "EVOLUTION_PRIMARY_PROVIDER" $provider
 Set-ScopedEnv "EVOLUTION_PROVIDER_STRICT" "1"
 

@@ -95,3 +95,13 @@ Tests: `tests/test_kaggle_conversation_tool_loop.py`
 (`test_evidence_turns_hide_file_and_shell_tools_unless_local_work_is_requested`,
 `test_web_loop_refuses_tools_that_were_not_offered_on_the_turn`, and the updated
 selector/prefetch tests). Thresholds (0.85 per case, p95 <= 90 s) are unchanged.
+
+## Temporary Claude gate route (operator-only)
+
+When the production Pezayo `deepseek-flash` balance is exhausted, the novice
+quality gate may be run against a temporary Anthropic-compatible NewAPI channel
+(`api.lt4net.org`) using a local-only suite override and a DPAPI credential under
+`%APPDATA%\EvoMind\secrets\` (filename prefix `newapi_lt4net_claude_temp`). The
+committed suite remains pinned to production `deepseek-flash` / Pezayo. The
+temporary override must not be committed, and the temporary key must be rotated
+after the gate run. Production web continues to use Pezayo deepseek-flash.
