@@ -14,6 +14,7 @@ import math
 import os
 import re
 import subprocess
+import tempfile
 import sys
 import time
 import urllib.parse
@@ -33,6 +34,7 @@ QUALITY_IMPLEMENTATION_PATHS = (
     "src/xsci/kaggle_conversation.py",
     "src/xsci/user_request.py",
     "src/xsci/assistant_quality_evaluation.py",
+    "src/xsci/assistant_quality_fixture.py",
     "src/research_os/agent/messaging.py",
     "configs/evaluation/assistant_behavior_board_v1.json",
 )
@@ -339,10 +341,13 @@ def evaluate_recorded_session(
     return result
 
 
-def governance_snapshot(root: str | Path) -> dict[str, Any]:
+LEGACY_GOVERNED_RUN_ID = "evomind_siim_isic_a800_job90353_20260730_095826"
+
+
+def governance_snapshot(root: str | Path, *, run_id: str = LEGACY_GOVERNED_RUN_ID) -> dict[str, Any]:
     workspace = Path(root).resolve()
     run_root = workspace / "workspace" / "evomind_runs"
-    target = run_root / "evomind_siim_isic_a800_job90353_20260730_095826"
+    target = run_root / run_id
     tracked = {
         "current_run": workspace / "workspace" / "current_run.json",
         "private_grader": target / "private_grader.json",
@@ -458,8 +463,16 @@ def run_live_case(
     *,
     case_id: str,
     timeout_seconds: float = 180.0,
+    source_root: str | Path | None = None,
 ) -> dict[str, Any]:
+    """Run one case through the production assistant bridge.
+
+    ``root`` is the workstation root the assistant sees (the hermetic evidence
+    fixture for fixture-bound suites); ``source_root`` is the checkout whose
+    ``src`` is imported (defaults to ``root``).
+    """
     workspace = Path(root).resolve()
+    source = Path(source_root).resolve() if source_root is not None else workspace
     case = _case_by_id(suite, case_id)
     session_id = f"assistant_eval_{case_id}_{uuid.uuid4().hex[:12]}"
     payload = {
@@ -472,20 +485,33 @@ def run_live_case(
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     env["PYTHONPATH"] = os.pathsep.join(
-        item for item in (str(workspace / "src"), env.get("PYTHONPATH", "")) if item
+        item for item in (str(source / "src"), env.get("PYTHONPATH", "")) if item
     )
+    if workspace != source:
+        # Bind the assistant (and its file tools) to the hermetic evidence root.
+        env["EVOMIND_WORKSTATION_ROOT"] = str(workspace)
+        env["EVOMIND_WEB_AGENT_ROOT"] = str(workspace)
     started = time.monotonic()
-    completed = subprocess.run(
-        [sys.executable, "-X", "utf8", "-m", "xsci.assistant_stream"],
-        cwd=workspace,
-        input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        env=env,
-        timeout=max(5.0, float(timeout_seconds)),
-        check=False,
-        creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-    )
+    timed_out = False
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-X", "utf8", "-m", "xsci.assistant_stream"],
+            cwd=workspace,
+            input=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+            timeout=max(5.0, float(timeout_seconds)),
+            check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # A slow case is a failed case, not a crashed evaluation: keep the
+        # partial event stream and score it so the report is still written.
+        timed_out = True
+        completed = subprocess.CompletedProcess(
+            exc.cmd, returncode=-1, stdout=exc.stdout or b"", stderr=exc.stderr or b""
+        )
     duration = time.monotonic() - started
     events = _parse_ndjson(completed.stdout)
     answers = [str(item.get("answer") or "") for item in events if item.get("type") == "answer_completed"]
@@ -498,7 +524,11 @@ def run_live_case(
         case,
         answer=answers[-1] if answers else "",
         tool_names=tools,
-        llm_status=str(final.get("llm_status") or ("process_failed" if completed.returncode else "unknown")),
+        llm_status=(
+            "timeout"
+            if timed_out
+            else str(final.get("llm_status") or ("process_failed" if completed.returncode else "unknown"))
+        ),
         provider=str(final.get("provider") or usage.get("provider") or ""),
         model=str(final.get("model") or usage.get("model") or ""),
         input_tokens=int(usage.get("input_tokens") or 0),
@@ -511,6 +541,7 @@ def run_live_case(
         "prompt_matches_case": True,
         "process": {
             "returncode": completed.returncode,
+            "timed_out": timed_out,
             "stderr_present": bool(completed.stderr),
             "event_count": len(events),
         },
@@ -589,14 +620,46 @@ def build_live_report(
     timeout_seconds: float = 180.0,
 ) -> dict[str, Any]:
     selected = list(case_ids or [str(item["case_id"]) for item in suite["cases"]])
-    before = governance_snapshot(root)
-    results = [
-        run_live_case(root, suite, case_id=case_id, timeout_seconds=timeout_seconds)
-        for case_id in selected
-    ]
-    after = governance_snapshot(root)
+    fixture_spec = suite.get("evidence_fixture") if isinstance(suite.get("evidence_fixture"), dict) else None
+    fixture_summary: dict[str, Any] | None = None
+    scratch: tempfile.TemporaryDirectory[str] | None = None
+    case_root: Path = Path(root).resolve()
+    governed_run = LEGACY_GOVERNED_RUN_ID
+    if fixture_spec is not None:
+        from . import assistant_quality_fixture
+
+        if fixture_spec.get("fixture_id") != assistant_quality_fixture.FIXTURE_ID:
+            raise ValueError("assistant quality suite references an unknown evidence fixture")
+        scratch = tempfile.TemporaryDirectory(prefix="evomind-quality-")
+        case_root = Path(scratch.name) / "workstation"
+        fixture_summary = assistant_quality_fixture.materialize(case_root)
+        governed_run = assistant_quality_fixture.RUN_ID
+    try:
+        before = governance_snapshot(case_root, run_id=governed_run)
+        results = [
+            run_live_case(
+                case_root,
+                suite,
+                case_id=case_id,
+                timeout_seconds=timeout_seconds,
+                source_root=root,
+            )
+            for case_id in selected
+        ]
+        after = governance_snapshot(case_root, run_id=governed_run)
+    finally:
+        if scratch is not None:
+            try:
+                scratch.cleanup()
+            except OSError:
+                pass
     invariant_passed = before == after
     aggregate = _aggregate(results)
+    evidence_fixture = (
+        {key: value for key, value in fixture_summary.items() if key != "root"}
+        if fixture_summary is not None
+        else None
+    )
     return {
         "schema": SCHEMA,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -606,6 +669,7 @@ def build_live_report(
         "suite_sha256": suite["suite_sha256"],
         "implementation_hashes": implementation_hashes(root),
         "selected_cases": selected,
+        "evidence_fixture": evidence_fixture,
         "results": results,
         "aggregate": aggregate,
         "governance_invariants": {

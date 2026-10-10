@@ -971,9 +971,10 @@ def test_web_agent_orchestrator_prefetches_required_evidence_before_llm(monkeypa
         wire = json.dumps(payload, ensure_ascii=False)
         assert "[ORCHESTRATED VERIFIED CONTEXT" in wire
         assert "verified_run" in wire
-        assert {tool["function"]["name"] for tool in payload["tools"]} == set(
-            kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES
-        )
+        # An evidence question: once verified_context is prefetched, no
+        # file/shell tools are offered for the answer.
+        offered = {tool["function"]["name"] for tool in payload.get("tools") or []}
+        assert not offered & set(kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES)
         return {
             "model": "gpt-5.6-sol",
             "choices": [{
@@ -1082,14 +1083,18 @@ def test_web_tool_specs_keep_core_agent_tools_and_focus_research_tools():
     specs = kaggle_conversation._terminal_tool_specs()
     select = kaggle_conversation._web_tool_specs_for_user
     core = set(kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES) | {"verified_context"}
+    evidence_only = {"verified_context"}
 
-    assert {item.name for item in select("解释上次 SIIM 结果", specs)} == core
-    assert {item.name for item in select("这些结果参考了哪些论文 DOI？", specs)} == core | {"literature_search"}
-    assert {item.name for item in select("检查 GPU 和系统状态", specs)} == core | {"gpu_status", "system_status"}
-    assert {item.name for item in select("job90948 链接了吗？", specs)} == core | {"hpc_connection_status"}
-    assert {item.name for item in select("给我创新假设和下一步", specs)} == core | {
+    # Read-only questions about governed research evidence are answered from
+    # verified_context, not by browsing files or running commands.
+    assert {item.name for item in select("解释上次 SIIM 结果", specs)} == evidence_only
+    assert {item.name for item in select("这些结果参考了哪些论文 DOI？", specs)} == evidence_only | {"literature_search"}
+    assert {item.name for item in select("给我创新假设和下一步", specs)} == evidence_only | {
         "scientist_innovation_backlog", "scientist_hypothesis_review", "scientist_experiment_blueprint",
     }
+    # General/system turns keep the full core tool set.
+    assert {item.name for item in select("检查 GPU 和系统状态", specs)} == core | {"gpu_status", "system_status"}
+    assert {item.name for item in select("job90948 链接了吗？", specs)} == core | {"hpc_connection_status"}
     assert {item.name for item in select("系统当前阻塞和下一安全动作是什么？", specs)} == core | {"next_steps"}
     preferred = kaggle_conversation._preferred_verified_context_section
     assert preferred("解释上次实验结果和 ROC-AUC") == "metrics"
@@ -1162,3 +1167,91 @@ def test_failed_live_literature_search_falls_back_to_reviewed_context(monkeypatc
 
     assert answer == "已审核文献 DOI：10.1111/jdv.20479"
     assert len(payloads) == 2
+
+
+def test_evidence_turns_hide_file_and_shell_tools_unless_local_work_is_requested():
+    specs = kaggle_conversation._terminal_tool_specs()
+    select = kaggle_conversation._web_tool_specs_for_user
+    runtime = set(kaggle_conversation._RUNTIME_AGENT_TOOL_NAMES)
+    assert {"file_list", "file_read", "file_search", "shell_exec"} <= runtime
+
+    novice_prompts = (
+        "我是新手。请用中文解释上一次 SIIM-ISIC 实验结果：做了什么、现在能信什么、交付物在哪里，以及下一步怎么做。",
+        "我不太懂交叉验证。为什么这个任务要按病人分组？请结合我们已经验证过的实验和参考文献解释。",
+        "这次实验最后到底留下了哪些文件？请给我下载链接和校验值。",
+        "那就根据刚才的结果告诉我下一步怎么改吧。",
+    )
+    for prompt in novice_prompts:
+        names = {item.name for item in select(prompt, specs)}
+        assert "verified_context" in names, prompt
+        assert not names & runtime, (prompt, sorted(names & runtime))
+
+    local_prompts = (
+        "看看实验结果，然后打开文件 train.py 改一下学习率",
+        "把实验结果写入 D:\\reports\\siim.md",
+        "实验跑完了吗？帮我在终端运行命令查看日志",
+        "解释实验结果，并列出 ./workspace/runs/ 下的文件",
+    )
+    for prompt in local_prompts:
+        names = {item.name for item in select(prompt, specs)}
+        assert {"file_list", "file_read", "shell_exec"} <= names, prompt
+
+
+def test_web_loop_refuses_tools_that_were_not_offered_on_the_turn(monkeypatch, tmp_path):
+    _openai_only(monkeypatch)
+    payloads: list[dict] = []
+    executed: list[str] = []
+
+    def fake_post(url, headers, payload, timeout):
+        del url, headers, timeout
+        payloads.append(payload)
+        offered = {tool["function"]["name"] for tool in payload.get("tools") or []}
+        assert "file_list" not in offered
+        if len(payloads) == 1:
+            return {
+                "model": "gpt-5.6-sol",
+                "choices": [{
+                    "finish_reason": "tool_calls",
+                    "message": {
+                        "content": "",
+                        "tool_calls": [{
+                            "id": "call_files_1",
+                            "type": "function",
+                            "function": {"name": "file_list", "arguments": '{"path":"."}'},
+                        }],
+                    },
+                }],
+                "usage": {"prompt_tokens": 50, "completion_tokens": 5},
+            }
+        tool_result = next(message for message in payload["messages"] if message["role"] == "tool")
+        assert "not available on this turn" in tool_result["content"]
+        return {
+            "model": "gpt-5.6-sol",
+            "choices": [{"finish_reason": "stop", "message": {"content": "按病人分组验证。"}}],
+            "usage": {"prompt_tokens": 70, "completion_tokens": 12},
+        }
+
+    def fake_execute(name, tool_input, session, **_kwargs):
+        del tool_input, session
+        executed.append(name)
+        if name == "verified_context":
+            return '{"section":"literature","doi":"10.1111/jdv.20479"}', True
+        raise AssertionError(name)
+
+    monkeypatch.setattr(messaging, "_post_json", fake_post)
+    monkeypatch.setattr(kaggle_conversation, "_execute_agent_tool_call", fake_execute)
+    session = SessionState(
+        workspace_root=str(tmp_path),
+        selected_task="siim-isic-melanoma-classification",
+        llm_ready=True,
+        llm_provider="openai",
+    )
+
+    answer = ConversationAgent()._real_tool_loop(
+        session,
+        "请结合参考文献解释患者分组验证。",
+        web_safe_context=True,
+    )
+
+    assert answer == "按病人分组验证。"
+    assert "file_list" not in executed

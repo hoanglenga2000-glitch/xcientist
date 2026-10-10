@@ -1366,14 +1366,57 @@ def _terminal_tool_specs():
     ]
 
 
+_EVIDENCE_TURN_TERMS = (
+    "实验结果", "这次实验", "上次实验", "上一次实验", "验证过的实验", "结果", "证据", "交付物", "文献", "参考文献", "论文", "指标", "验证集", "训练集",
+    "交叉验证", "分组", "下载链接", "校验值", "改进", "下一步", "进化", "怎么改", "提高",
+    "siim", "roc", "auc", "brier", "experiment", "result", "evidence", "deliverable",
+    "metric", "citation", "validation",
+)
+_EXPLICIT_LOCAL_WORK_TERMS = (
+    "目录", "文件夹", "读取文件", "读文件", "打开文件", "查看文件", "文件内容", "列出文件",
+    "搜索文件", "查找文件", "写入", "创建文件", "新建文件", "修改文件", "删除文件", "补丁",
+    "代码", "源码", "脚本", "仓库", "命令行", "终端", "执行命令", "运行命令", "日志", "进程",
+    "powershell", "cmd", "shell", "bash", "grep", "read file", "write file", "open file",
+    "list files", "source code", "repository", "directory", "folder", "terminal",
+    "run command", "execute command",
+)
+_LOCAL_PATH_PATTERN = re.compile(
+    r"[a-z]:[\\/]|(?:^|\s)(?:\./|\.\./|~/|/)[\w.-]+/|\b[\w-]+\.(?:py|ts|tsx|js|mjs|ps1|sh|toml|ya?ml|ipynb|log)\b"
+)
+
+
+def _is_evidence_answer_turn(folded: str) -> bool:
+    """A read-only question about governed research evidence, not local work.
+
+    For these turns ``verified_context`` (and focused research tools) already
+    carry the authoritative evidence.  Exposing file/shell tools invites the
+    model to browse the workspace instead of citing that evidence, which the
+    novice quality gate treats as a policy violation; it is also unnecessary
+    surface for a read-only explanation.  Any explicit request for local files,
+    code, commands or paths keeps the full core tool set.
+    """
+
+    if not any(term in folded for term in _EVIDENCE_TURN_TERMS):
+        return False
+    if any(term in folded for term in _EXPLICIT_LOCAL_WORK_TERMS):
+        return False
+    if _LOCAL_PATH_PATTERN.search(folded):
+        return False
+    if any(term in folded for term in ("所有工具", "全部工具", "工具能力", "tool capability", "all tools")):
+        return False
+    return True
+
+
 def _web_tool_specs_for_user(user: str, specs: list[Any]) -> list[Any]:
     """Expose Codex-style core tools plus focused research evidence tools."""
 
     folded = str(user or "").casefold()
-    # OpenClaw/Codex-style core tools stay visible on every turn so natural
-    # language requests do not depend on a brittle keyword gate.  The model still
-    # decides whether a tool is needed; research-specific tools remain focused.
-    selected = {"verified_context", *_RUNTIME_AGENT_TOOL_NAMES}
+    evidence_turn = _is_evidence_answer_turn(folded)
+    # OpenClaw/Codex-style core tools stay visible on general turns so natural
+    # language requests do not depend on a brittle keyword gate.  Read-only
+    # questions about governed research evidence are answered from
+    # verified_context instead of by browsing files or running commands.
+    selected = {"verified_context"} if evidence_turn else {"verified_context", *_RUNTIME_AGENT_TOOL_NAMES}
     routing = (
         (("模型", "provider", "model", "网关"), {"model_status"}),
         (("系统状态", "运行状态", "健康", "故障", "坏了", "system status"), {"system_status"}),
@@ -1426,7 +1469,7 @@ def _web_tool_specs_for_user(user: str, specs: list[Any]) -> list[Any]:
         "修改文件", "补丁", "命令", "执行命令", "运行命令", "powershell", "cmd", "shell",
         "read file", "write file", "list files", "directory", "folder", "run command", "execute command",
     )
-    if (
+    if not evidence_turn and (
         any(term in folded for term in local_tool_terms)
         or re.search(r"[a-z]:[\\/]", folded)
         or any(term in folded for term in ("所有工具", "全部工具", "工具能力", "tool capability", "all tools"))
@@ -2631,6 +2674,22 @@ class ConversationAgent:
                     continue
                 if web_safe_context and call.name == "verified_context":
                     call.input = {"section": _preferred_verified_context_section(user)}
+                offered_names = {getattr(spec, "name", "") for spec in specs}
+                if (
+                    web_safe_context
+                    and call.name in _RUNTIME_AGENT_TOOL_NAMES
+                    and call.name not in offered_names
+                ):
+                    # File/shell/process tools run only when offered on this turn.
+                    results.append(ToolResult(
+                        tool_use_id=call.id,
+                        content=(
+                            f"[{call.name}] not available on this turn; answer from the "
+                            "verified evidence already provided."
+                        ),
+                        is_error=True,
+                    ).to_wire())
+                    continue
                 if on_tool_event is not None:
                     on_tool_event("started", call.name, True)
                 out, ok = _execute_agent_tool_call(

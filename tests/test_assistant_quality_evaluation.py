@@ -14,6 +14,8 @@ from xsci.assistant_quality_evaluation import (
 )
 from scripts.verify_evomind_assistant_quality import verify
 from xsci import assistant_quality_evaluation
+from xsci import assistant_quality_fixture
+from xsci.assistant_context import build_assistant_context
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -28,7 +30,7 @@ def _case(suite: dict, case_id: str) -> dict:
 
 def _good_answer() -> str:
     return (
-        "结论：Run evomind_siim_isic_a800_job90353_20260730_095826 已完成。"
+        "结论：Run evomind_siim_isic_quality_fixture_v1 已完成。"
         "ROC-AUC 0.9225，PR-AUC 0.2397，Brier 0.2952，患者分组 95% 置信区间已记录。"
         "患者与重复内容分组无交叉，OOF 覆盖一次。私有 grader 失败即关闭，没有得到分数，也没有用于调参。"
         "没有官方 Kaggle 成绩，未执行 Kaggle 提交。"
@@ -43,7 +45,8 @@ def _good_answer() -> str:
 def test_versioned_suite_is_valid_and_weights_are_complete() -> None:
     suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
     assert suite["suite_id"] == "evomind_novice_research_agent_v1"
-    assert suite["version"] == 4
+    assert suite["version"] == 5
+    assert suite["evidence_fixture"]["fixture_id"] == "siim_quality_fixture_v1"
     assert len(suite["cases"]) == 5
     assert suite["required_provider"] == "openai"
     # The gate measures the model the production web node actually serves.
@@ -291,6 +294,11 @@ def test_quality_verifier_binds_suite_source_provider_governance_and_latency(tmp
         "suite_sha256": suite["suite_sha256"],
         "implementation_hashes": implementation_hashes(ROOT),
         "selected_cases": [item["case_id"] for item in suite["cases"]],
+        "evidence_fixture": {
+            key: value
+            for key, value in assistant_quality_fixture.materialize(tmp_path / "fixture").items()
+            if key != "root"
+        },
         "results": results,
         "aggregate": {
             "case_count": 5,
@@ -313,3 +321,100 @@ def test_quality_verifier_binds_suite_source_provider_governance_and_latency(tmp
     assert accepted["failed_checks"] == []
     assert rejected["status"] == "failed"
     assert "provider_model" in rejected["failed_checks"]
+
+
+def test_quality_verifier_rejects_report_from_a_different_fixture(tmp_path) -> None:
+    suite_path = ROOT / "configs" / "evaluation" / "assistant_novice_v1.json"
+    suite = load_suite(suite_path)
+    from scripts.verify_evomind_assistant_quality import _fixture_matches
+
+    summary = assistant_quality_fixture.materialize(tmp_path / "fixture")
+    good = {"evidence_fixture": {k: v for k, v in summary.items() if k != "root"}}
+    stale = {"evidence_fixture": {**good["evidence_fixture"], "content_sha256": "0" * 64}}
+    assert _fixture_matches(suite, good) is True
+    assert _fixture_matches(suite, stale) is False
+    assert _fixture_matches(suite, {}) is False
+
+
+def test_evidence_fixture_is_deterministic_and_pinned_by_the_suite(tmp_path) -> None:
+    first = assistant_quality_fixture.materialize(tmp_path / "a")
+    second = assistant_quality_fixture.materialize(tmp_path / "b")
+    assert first["content_sha256"] == second["content_sha256"]
+
+    suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
+    deliverables = _case(suite, "deliverables_for_novice")
+    checks = {item["check_id"]: item for item in deliverables["checks"]}
+    index = {row["name"]: row for row in assistant_quality_fixture.deliverable_index()}
+    assert set(checks["all_files"]["all_of"]) == set(index)
+    assert sorted(checks["hashes"]["all_of"]) == sorted(row["sha256"][:12] for row in index.values())
+    sizes = {f"{row['bytes']:,}" for row in index.values()} | {str(row["bytes"]) for row in index.values()}
+    assert set(checks["sizes"]["any_of"]) <= sizes
+    results = _case(suite, "siim_results_for_novice")
+    identity = next(item for item in results["checks"] if item["check_id"] == "run_identity")
+    assert identity["all_of"] == [assistant_quality_fixture.RUN_ID]
+
+
+def test_evidence_fixture_exposes_verified_evidence_to_the_assistant(tmp_path) -> None:
+    root = tmp_path / "workstation"
+    assistant_quality_fixture.materialize(root)
+    packet = build_assistant_context(root, selected_task=assistant_quality_fixture.TASK_ID)
+    run = packet.current_run
+
+    assert run["available"] is True
+    assert run["run_id"] == assistant_quality_fixture.RUN_ID
+    assert round(run["metrics"]["roc_auc"], 4) == 0.9225
+    assert round(run["metrics"]["pr_auc"], 4) == 0.2397
+    assert round(run["metrics"]["brier"], 4) == 0.2952
+    assert run["review"]["checks"]["patient_group_overlap_zero"] is True
+    assert run["review"]["checks"]["content_group_overlap_zero"] is True
+    assert run["private_grader"] == {
+        "status": "failed_closed",
+        "score": None,
+        "execution_count": 1,
+        "feedback_used_for_tuning": False,
+        "official_submission_executed": False,
+    }
+    deliverables = run["artifacts"]["deliverables"]
+    assert len(deliverables) == 4 and all(item["verified"] for item in deliverables)
+    assert all(item["download_url"].startswith("/api/multi-agent/runs/") for item in deliverables)
+    dois = {paper["doi"] for paper in packet.evidence["literature"]["papers"]}
+    assert {"10.1111/jdv.20479", "10.1016/j.media.2021.102305"} <= dois
+    assert packet.evidence["citation_audits"][0]["status"] == "passed"
+
+    snapshot = governance_snapshot(root, run_id=assistant_quality_fixture.RUN_ID)
+    assert snapshot["grader_execution_count"] == 1
+    assert snapshot["grader_outcome"] == "failed_closed"
+    assert snapshot["official_submission_executed"] is False
+
+
+def test_evidence_fixture_refuses_a_non_empty_target(tmp_path) -> None:
+    (tmp_path / "keep.txt").write_text("operator data", encoding="utf-8")
+    try:
+        assistant_quality_fixture.materialize(tmp_path)
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("materialize must not write into a non-empty directory")
+    assert (tmp_path / "keep.txt").read_text(encoding="utf-8") == "operator data"
+
+
+def test_live_case_timeout_is_scored_as_failed_not_crashed(monkeypatch, tmp_path) -> None:
+    import subprocess
+
+    suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
+
+    def fake_run(cmd, **kwargs):
+        assert kwargs["env"]["EVOMIND_WORKSTATION_ROOT"] == str(tmp_path.resolve())
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"], output=b"", stderr=b"")
+
+    monkeypatch.setattr(assistant_quality_evaluation.subprocess, "run", fake_run)
+    result = assistant_quality_evaluation.run_live_case(
+        tmp_path,
+        suite,
+        case_id="grouped_validation_for_novice",
+        timeout_seconds=5,
+        source_root=ROOT,
+    )
+    assert result["passed"] is False
+    assert result["process"]["timed_out"] is True
+    assert result["execution"]["llm_status"] == "timeout"

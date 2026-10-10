@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -31,6 +32,25 @@ def _age_hours(value: str) -> float:
     if generated.tzinfo is None:
         generated = generated.replace(tzinfo=timezone.utc)
     return max(0.0, (datetime.now(timezone.utc) - generated).total_seconds() / 3600.0)
+
+
+def _fixture_matches(suite: dict[str, Any], report: dict[str, Any]) -> bool:
+    """A fixture-bound suite must have run against the current fixture bytes."""
+    spec = suite.get("evidence_fixture") if isinstance(suite.get("evidence_fixture"), dict) else None
+    recorded = report.get("evidence_fixture") if isinstance(report.get("evidence_fixture"), dict) else None
+    if spec is None:
+        return recorded is None
+    if recorded is None or recorded.get("fixture_id") != spec.get("fixture_id"):
+        return False
+    from xsci import assistant_quality_fixture
+
+    with tempfile.TemporaryDirectory(prefix="evomind-quality-verify-") as scratch:
+        current = assistant_quality_fixture.materialize(Path(scratch) / "workstation")
+    return (
+        current["fixture_id"] == spec.get("fixture_id")
+        and recorded.get("content_sha256") == current["content_sha256"]
+        and recorded.get("run_id") == current["run_id"]
+    )
 
 
 def verify(report_path: Path, suite_path: Path, *, max_age_hours: float, max_p95_seconds: float) -> dict[str, Any]:
@@ -75,6 +95,7 @@ def verify(report_path: Path, suite_path: Path, *, max_age_hours: float, max_p95
             and not (item.get("fatal_gate") or {}).get("forbidden_regex_hits")
             for item in results
         ),
+        "evidence_fixture": _fixture_matches(suite, report),
         "governance_unchanged": bool(governance.get("passed")) and governance.get("before") == governance.get("after"),
         "grader_exactly_once": (
             (governance.get("after") or {}).get("grader_execution_count") == 1
