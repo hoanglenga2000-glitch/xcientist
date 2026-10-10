@@ -82,6 +82,13 @@ WEB_PATCHES = (
     "src/app/api/assistant/runs/[runId]/actions/route.ts",
     "src/app/api/assistant/run-requests/[key]/route.ts",
     "src/proxy.ts",
+    # P0 2026-10-10: signed-in local users no longer see a false "login expired"
+    # on the resources/workspace path; keep session status honest.
+    "src/components/workstation/LocalSessionBootstrap.tsx",
+    "src/lib/server/local-session.ts",
+    "src/lib/server/local-session-security.test.ts",
+    "src/app/api/session/status/route.ts",
+    "src/lib/server/summary.ts",
 )
 RUNTIME_PATCHES = (
     "runtime.py", "store.py", "assistant_runs.py", "assistant_history.py", "http_server.py", "tools.py",
