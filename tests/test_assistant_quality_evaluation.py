@@ -43,10 +43,14 @@ def _good_answer() -> str:
 def test_versioned_suite_is_valid_and_weights_are_complete() -> None:
     suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
     assert suite["suite_id"] == "evomind_novice_research_agent_v1"
-    assert suite["version"] == 3
+    assert suite["version"] == 4
     assert len(suite["cases"]) == 5
     assert suite["required_provider"] == "openai"
-    assert suite["required_model"] == "gpt-5.6-sol"
+    # The gate measures the model the production web node actually serves.
+    assert suite["required_model"] == "deepseek-flash"
+    assert suite["required_route"]["base_url"] == "https://api.pezayo.com/v1"
+    assert suite["required_route"]["wire_protocol"] == "chat_completions"
+    assert suite["pass_threshold"] == 0.85
     assert all(sum(float(check["weight"]) for check in case["checks"]) == 100 for case in suite["cases"])
     assert len(suite["suite_sha256"]) == 64
 
@@ -63,12 +67,55 @@ def test_live_quality_evaluation_pins_suite_provider_and_model_strictly() -> Non
 
     assert bound["EVOLUTION_PRIMARY_PROVIDER"] == "openai"
     assert bound["EVOLUTION_PROVIDER_STRICT"] == "1"
-    assert bound["OPENAI_MODEL"] == "gpt-5.6-sol"
+    assert bound["OPENAI_MODEL"] == "deepseek-flash"
+    assert bound["OPENAI_BASE_URL"] == "https://api.pezayo.com/v1"
+    assert bound["EVOMIND_MODEL_WIRE_PROTOCOL"] == "chat_completions"
     assert original["EVOLUTION_PRIMARY_PROVIDER"] == "deepseek"
 
 
-def test_live_quality_evaluation_binds_loopback_gateway_credential(tmp_path) -> None:
+def test_live_quality_evaluation_overrides_ambient_base_url_with_suite_route() -> None:
     suite = load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json")
+    bound = assistant_quality_evaluation._bind_quality_provider_env(
+        {"OPENAI_BASE_URL": "https://example.invalid/v1", "OPENAI_API_KEY": "test-route-key"},
+        suite,
+    )
+    assert bound["OPENAI_BASE_URL"] == "https://api.pezayo.com/v1"
+    assert bound["OPENAI_API_KEY"] == "test-route-key"
+
+
+def test_quality_hashes_ignore_checkout_line_endings(tmp_path) -> None:
+    for relative in assistant_quality_evaluation.QUALITY_IMPLEMENTATION_PATHS:
+        source = ROOT / relative
+        lf = source.read_bytes().replace(b"\r\n", b"\n")
+        for name, payload in (("lf", lf), ("crlf", lf.replace(b"\n", b"\r\n"))):
+            target = tmp_path / name / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(payload)
+    assert implementation_hashes(tmp_path / "lf") == implementation_hashes(tmp_path / "crlf")
+    assert all(implementation_hashes(tmp_path / "lf").values())
+
+    suite_source = (ROOT / "configs" / "evaluation" / "assistant_novice_v1.json").read_bytes().replace(b"\r\n", b"\n")
+    (tmp_path / "suite_lf.json").write_bytes(suite_source)
+    (tmp_path / "suite_crlf.json").write_bytes(suite_source.replace(b"\n", b"\r\n"))
+    assert load_suite(tmp_path / "suite_lf.json")["suite_sha256"] == load_suite(tmp_path / "suite_crlf.json")["suite_sha256"]
+
+
+def test_quality_hashes_still_detect_content_changes(tmp_path) -> None:
+    for relative in assistant_quality_evaluation.QUALITY_IMPLEMENTATION_PATHS:
+        target = tmp_path / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes((ROOT / relative).read_bytes())
+    before = implementation_hashes(tmp_path)
+    changed = tmp_path / "src" / "xsci" / "assistant_stream.py"
+    changed.write_bytes(changed.read_bytes() + b"\n# changed\n")
+    after = implementation_hashes(tmp_path)
+    assert before["src/xsci/assistant_stream.py"] != after["src/xsci/assistant_stream.py"]
+
+
+def test_live_quality_evaluation_binds_loopback_gateway_credential(tmp_path) -> None:
+    # A suite without a pinned remote route keeps using the loopback gateway.
+    suite = dict(load_suite(ROOT / "configs" / "evaluation" / "assistant_novice_v1.json"))
+    suite.pop("required_route")
     config = tmp_path / "gateway.json"
     config.write_text(json.dumps({"api-keys": ["test-loopback-token"]}), encoding="utf-8")
 
@@ -143,7 +190,7 @@ def test_scorer_fails_closed_when_live_provider_or_model_is_not_required_one() -
     assert wrong["fatal_gate"]["provider_ok"] is False
     assert wrong["fatal_gate"]["model_ok"] is False
     assert wrong["fatal_gate"]["required_provider"] == "openai"
-    assert wrong["fatal_gate"]["required_model"] == "gpt-5.6-sol"
+    assert wrong["fatal_gate"]["required_model"] == "deepseek-flash"
 
 
 def test_recorded_pair_uses_runtime_ledger_and_proves_regression_fixed(tmp_path) -> None:
@@ -160,10 +207,10 @@ def test_recorded_pair_uses_runtime_ledger_and_proves_regression_fixed(tmp_path)
             runtime.store.add_turn(session_id, "assistant", answer)
             runtime.store.append_event(session_id, "web.tool_started", {"tool": "experiment_results"})
             runtime.store.append_event(session_id, "web.usage", {
-                "provider": "openai", "model": "gpt-5.6-sol", "input_tokens": 10, "output_tokens": 20,
+                "provider": "openai", "model": "deepseek-flash", "input_tokens": 10, "output_tokens": 20,
             })
             runtime.store.append_event(session_id, "web.answer_completed", {
-                "provider": "openai", "model": "gpt-5.6-sol", "llm_status": "completed",
+                "provider": "openai", "model": "deepseek-flash", "llm_status": "completed",
             })
     finally:
         runtime.close()
@@ -222,7 +269,7 @@ def test_quality_verifier_binds_suite_source_provider_governance_and_latency(tmp
             "case_id": item["case_id"],
             "passed": True,
             "prompt_matches_case": True,
-            "execution": {"provider": "openai", "model": "gpt-5.6-sol"},
+            "execution": {"provider": "openai", "model": "deepseek-flash"},
             "fatal_gate": {
                 "provider_ok": True,
                 "model_ok": True,

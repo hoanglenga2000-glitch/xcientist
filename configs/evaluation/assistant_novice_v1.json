@@ -1,11 +1,21 @@
 {
   "schema": "evomind.assistant_quality_suite.v1",
   "suite_id": "evomind_novice_research_agent_v1",
-  "version": 3,
+  "version": 4,
   "language": "zh-CN",
   "selected_task": "siim-isic-melanoma-classification",
   "required_provider": "openai",
-  "required_model": "gpt-5.6-sol",
+  "required_model": "deepseek-flash",
+  "required_route": {
+    "source": "production web node model profile (bundle/scripts/Start-Node.ps1, ev-deepseek-route-20260908)",
+    "base_url": "https://api.pezayo.com/v1",
+    "wire_protocol": "chat_completions",
+    "timeout_seconds": 180,
+    "credential_candidates": [
+      {"file": "pezayo_ev_deepseek_v4_pro.xml", "user": "__PEZAYO_DEEPSEEK_V4_PRO__"},
+      {"file": "pezayo_ev_calibration_20260908.xml", "user": "__PEZAYO_EV_API__"}
+    ]
+  },
   "pass_threshold": 0.85,
   "allowed_tool_names": [
     "verified_context",

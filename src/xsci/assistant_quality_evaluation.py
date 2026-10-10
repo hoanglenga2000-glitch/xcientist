@@ -54,10 +54,21 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sha256_source_file(path: Path) -> str:
+    """Hash a tracked text source independent of checkout line endings.
+
+    Git may materialise the same committed blob as LF, CRLF or mixed line
+    endings depending on ``core.autocrlf``.  Quality evidence must bind to the
+    committed content, so CRLF is normalised to LF before hashing.  Only use
+    this for repository text sources; data artefacts keep byte-exact hashes.
+    """
+    return _sha256_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
+
+
 def implementation_hashes(root: str | Path) -> dict[str, str | None]:
     workspace = Path(root).resolve()
     return {
-        relative: _sha256_file(workspace / relative) if (workspace / relative).is_file() else None
+        relative: _sha256_source_file(workspace / relative) if (workspace / relative).is_file() else None
         for relative in QUALITY_IMPLEMENTATION_PATHS
     }
 
@@ -93,7 +104,7 @@ def load_suite(path: str | Path = DEFAULT_SUITE) -> dict[str, Any]:
         if not math.isclose(weight, 100.0, abs_tol=1e-9):
             raise ValueError(f"assistant quality case weights must sum to 100: {case_id}={weight}")
     suite["suite_path"] = str(target)
-    suite["suite_sha256"] = _sha256_file(target)
+    suite["suite_sha256"] = _sha256_source_file(target)
     return suite
 
 
@@ -390,6 +401,14 @@ def _bind_quality_provider_env(env: dict[str, str], suite: dict[str, Any]) -> di
     bound["EVOLUTION_PRIMARY_PROVIDER"] = provider
     bound["EVOLUTION_PROVIDER_STRICT"] = "1"
     bound[model_env] = model
+    route = suite.get("required_route") if isinstance(suite.get("required_route"), dict) else {}
+    if provider == "openai" and route.get("base_url"):
+        # Pin the exact production route; never fall back to another endpoint.
+        bound["OPENAI_BASE_URL"] = str(route["base_url"]).rstrip("/")
+        if route.get("wire_protocol"):
+            bound["EVOMIND_MODEL_WIRE_PROTOCOL"] = str(route["wire_protocol"])
+        if route.get("timeout_seconds"):
+            bound["EVOMIND_MODEL_TIMEOUT_SECONDS"] = str(int(route["timeout_seconds"]))
     if provider == "openai":
         bound.setdefault("OPENAI_BASE_URL", "http://127.0.0.1:65068/v1")
         try:

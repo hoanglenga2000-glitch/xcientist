@@ -1,9 +1,16 @@
 param(
   [int]$TimeoutSeconds = 180,
   [string[]]$Case = @(),
+  [string]$Suite = "configs\evaluation\assistant_novice_v1.json",
   [string]$Output = "workspace\evaluation\assistant_novice_quality_gpt56_current.json",
   [string]$MarkdownOutput = "workspace\evaluation\assistant_novice_quality_gpt56_current.md"
 )
+
+# Runs the novice quality gate against the model route pinned by the suite.
+# The suite's required_route must match the route the production web node
+# uses (bundle\scripts\Start-Node.ps1), so the gate measures what users get.
+# Credentials are read from the current user's DPAPI store and only exported
+# to this process; nothing is printed or written to disk.
 
 $ErrorActionPreference = "Stop"
 $Root = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
@@ -15,34 +22,87 @@ function Resolve-NewestFile([string]$Name) {
     (Join-Path $managedSecrets $Name),
     (Join-Path $legacySecrets $Name)
   ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
-  if ($candidates.Count -eq 0) { return $null }
+  if (@($candidates).Count -eq 0) { return $null }
   return $candidates |
     Sort-Object @{ Expression = { (Get-Item -LiteralPath $_).LastWriteTimeUtc }; Descending = $true } |
     Select-Object -First 1
 }
 
-$credentialPath = Resolve-NewestFile "openai_api_key.xml"
-$metadataPath = Resolve-NewestFile "openai_gateway_metadata.json"
-if (-not $credentialPath -or -not $metadataPath) {
-  throw "OpenAI loopback gateway DPAPI profile is incomplete."
-}
-$credential = Import-Clixml -LiteralPath $credentialPath
-$metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
-$baseUrl = ([string]$metadata.base_url).TrimEnd("/")
-$uri = [Uri]$baseUrl
-if ($uri.Scheme -ne "http" -or $uri.Host -notin @("127.0.0.1", "localhost", "::1") -or $uri.Port -ne 65068 -or $uri.AbsolutePath.TrimEnd("/") -ne "/v1") {
-  throw "OpenAI gateway metadata is not bound to the approved loopback endpoint."
+function Import-RouteCredential([object[]]$Candidates) {
+  foreach ($candidate in $Candidates) {
+    $path = Resolve-NewestFile ([string]$candidate.file)
+    if (-not $path) { continue }
+    $credential = Import-Clixml -LiteralPath $path
+    if ($credential -isnot [System.Management.Automation.PSCredential] -or $credential.UserName -ne [string]$candidate.user) {
+      throw "Model route credential has an unexpected structure: $([string]$candidate.file)"
+    }
+    return $credential
+  }
+  throw "No DPAPI credential is available for the suite's model route."
 }
 
-$env:OPENAI_API_KEY = $credential.GetNetworkCredential().Password
-$env:OPENAI_BASE_URL = $baseUrl
-$env:OPENAI_MODEL = "gpt-5.6-sol"
-$env:EVOLUTION_PRIMARY_PROVIDER = "openai"
-$env:EVOLUTION_PROVIDER_STRICT = "1"
+$suitePath = if ([IO.Path]::IsPathRooted($Suite)) { $Suite } else { Join-Path $Root $Suite }
+$suiteJson = Get-Content -LiteralPath $suitePath -Raw -Encoding UTF8 | ConvertFrom-Json
+$provider = [string]$suiteJson.required_provider
+$model = [string]$suiteJson.required_model
+$route = $suiteJson.required_route
+if ($provider -ne "openai" -or -not $model) {
+  throw "Quality suite must pin an openai-compatible provider and model."
+}
+
+$restore = @{}
+function Set-ScopedEnv([string]$Name, [string]$Value) {
+  if (-not $restore.ContainsKey($Name)) { $restore[$Name] = [Environment]::GetEnvironmentVariable($Name, "Process") }
+  [Environment]::SetEnvironmentVariable($Name, $Value, "Process")
+}
+
+if ($null -ne $route -and [string]$route.base_url) {
+  $baseUrl = ([string]$route.base_url).TrimEnd("/")
+  $uri = [Uri]$baseUrl
+  if ($uri.Scheme -ne "https" -or $uri.AbsolutePath.TrimEnd("/") -ne "/v1") {
+    throw "Quality suite route must be an https /v1 endpoint."
+  }
+  $credential = Import-RouteCredential @($route.credential_candidates)
+  $secret = $credential.GetNetworkCredential().Password
+  Set-ScopedEnv "OPENAI_API_KEY" $secret
+  Set-ScopedEnv "DEEPSEEK_API_KEY" $secret
+  Set-ScopedEnv "OPENAI_BASE_URL" $baseUrl
+  Set-ScopedEnv "DEEPSEEK_BASE_URL" $baseUrl
+  Set-ScopedEnv "DEEPSEEK_MODEL" $model
+  Set-ScopedEnv "OPENAI_REASONING_EFFORT" ""
+  Set-ScopedEnv "OPENAI_SERVICE_TIER" ""
+  Set-ScopedEnv "LLM_PROVIDER" "openai"
+  Set-ScopedEnv "EVOMIND_MODEL_WIRE_PROTOCOL" ([string]$route.wire_protocol)
+  Set-ScopedEnv "EVOMIND_MODEL_TIMEOUT_SECONDS" ([string]$route.timeout_seconds)
+  $noProxy = [Environment]::GetEnvironmentVariable("NO_PROXY", "Process")
+  $hosts = @($noProxy -split "," | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  if ($hosts -notcontains "*" -and $hosts -notcontains $uri.Host) {
+    Set-ScopedEnv "NO_PROXY" ((@($hosts) + $uri.Host) -join ",")
+  }
+} else {
+  $credentialPath = Resolve-NewestFile "openai_api_key.xml"
+  $metadataPath = Resolve-NewestFile "openai_gateway_metadata.json"
+  if (-not $credentialPath -or -not $metadataPath) {
+    throw "OpenAI loopback gateway DPAPI profile is incomplete."
+  }
+  $credential = Import-Clixml -LiteralPath $credentialPath
+  $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+  $baseUrl = ([string]$metadata.base_url).TrimEnd("/")
+  $uri = [Uri]$baseUrl
+  if ($uri.Scheme -ne "http" -or $uri.Host -notin @("127.0.0.1", "localhost", "::1") -or $uri.Port -ne 65068 -or $uri.AbsolutePath.TrimEnd("/") -ne "/v1") {
+    throw "OpenAI gateway metadata is not bound to the approved loopback endpoint."
+  }
+  Set-ScopedEnv "OPENAI_API_KEY" $credential.GetNetworkCredential().Password
+  Set-ScopedEnv "OPENAI_BASE_URL" $baseUrl
+}
+Set-ScopedEnv "OPENAI_MODEL" $model
+Set-ScopedEnv "EVOLUTION_PRIMARY_PROVIDER" $provider
+Set-ScopedEnv "EVOLUTION_PROVIDER_STRICT" "1"
 
 $arguments = @(
   "run", "python", "scripts/evaluate_evomind_novice_agent.py",
   "--live", "--strict", "--timeout", [string]$TimeoutSeconds,
+  "--suite", $suitePath,
   "--output", $Output,
   "--markdown-output", $MarkdownOutput
 )
@@ -56,5 +116,7 @@ try {
   exit $LASTEXITCODE
 } finally {
   Pop-Location
-  Remove-Item Env:OPENAI_API_KEY -ErrorAction SilentlyContinue
+  foreach ($name in $restore.Keys) {
+    [Environment]::SetEnvironmentVariable($name, $restore[$name], "Process")
+  }
 }
