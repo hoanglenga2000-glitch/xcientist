@@ -146,4 +146,14 @@ def test_plain_answer_with_no_goal_is_delivered_and_active_work_stays_in_progres
         {"status": "running", "require_artifact": True, "artifact_count": 0},
         {"status": "failed", "require_artifact": True, "artifact_count": 0},
     ]) == "running"
+    assert delivery_status([
+        {"status": "failed", "require_artifact": False, "artifact_count": 0},
+    ]) == "undelivered"
+    assert delivery_status([
+        {"status": "cancelled", "require_artifact": False, "artifact_count": 0},
+    ]) == "undelivered"
+    assert delivery_status([
+        {"status": "planning", "require_artifact": False, "artifact_count": 0},
+        {"status": "failed", "require_artifact": False, "artifact_count": 0},
+    ]) == "planning"
     assert delivery_status([]) == "draft"

@@ -22,6 +22,7 @@ def delivery_status(runs):
     ``delivered`` only when a goal-bearing run actually published a file, or when
     the task never asked for a file and some run completed. A failed or empty
     goal stays ``undelivered`` even if a later plain question succeeded.
+    With no file goal, failed or cancelled runs are ``undelivered`` as well.
     An in-progress run keeps its own execution status.
     """
     if not runs:
@@ -36,7 +37,7 @@ def delivery_status(runs):
         return 'undelivered'
     if any(str(run.get('status') or '') == 'completed' for run in runs):
         return 'delivered'
-    return str(runs[0].get('status') or 'draft')
+    return 'undelivered'
 
 
 class UserTasks:
