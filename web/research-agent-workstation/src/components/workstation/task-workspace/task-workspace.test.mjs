@@ -23,6 +23,9 @@ test('login cannot send a native GET containing credentials before hydration', (
   const html = renderToStaticMarkup(React.createElement(LoginPage));
   assert.match(html, /<form[^>]*method="post"/);
   assert.match(html, /<button[^>]*type="submit"[^>]*disabled/);
+  assert.match(html, /data-ui-deepevo-glyph/);
+  for (const label of ['登录', '账号', '密码', '进入工作台']) assert.match(html, new RegExp(label));
+  assert.doesNotMatch(html, /SCIENTIFIC RESEARCH OS|Scientific Research OS|PRIVATE WORKSPACE|Private workspace|Production Agent Workspace|精确 CSRF|HPC|Kaggle|自进化|运行证据|Agent/);
 });
 
 test('my tasks explains how to begin and links to the exact saved task', () => {
@@ -45,13 +48,15 @@ test('task tabs show real conversation, empty progress and exact run artifacts s
   assert.match(empty, /尚未开始/);
   assert.doesNotMatch(empty, /Planner|Stage|Gate|运行中/);
   const run = { id: 'run_owned_fixture', status: 'completed', prompt: '我的问题', answer: '这是当前运行的回复',
-    artifacts: [{ id: 'artifact_owned_fixture', run_id: 'run_owned_fixture', name: '本次结果.md', bytes: 12, sha256: 'a'.repeat(64), verified_at: '', preview_kind: 'text' }] };
+    artifacts: [{ id: 'artifact_owned_fixture', run_id: 'run_owned_fixture', name: '本次结果.md', bytes: 12, sha256: 'a'.repeat(64), verified_at: '', preview_kind: 'text', source_tool_call: 'model_publish' }] };
   const conversation = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'conversation', run }));
   assert.match(conversation, /这是当前运行的回复/);
   const result = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'results', run }));
   assert.match(result, /本次结果.md/);
   assert.match(result, /\/api\/assistant\/artifacts\/artifact_owned_fixture/);
-  assert.match(result, /不代表科研结论/);
+  assert.match(result, /预览/);
+  assert.match(result, /发布文件/);
+  assert.doesNotMatch(result, /model_publish|不代表科研结论|也可能包含诊断记录/);
   assert.doesNotMatch(result, /质量已通过|官方结果已确认/);
 });
 
@@ -143,7 +148,9 @@ test('served model and generated files are visible in the current conversation',
     artifacts: [{ id: 'artifact_report', run_id: 'run_served', name: '报告.md', bytes: 4, sha256: 'b'.repeat(64), preview_kind: 'markdown' }],
     artifact_evidence: [{ id: 'artifact_note', run_id: 'run_served', name: 'notes.txt', bytes: 2, sha256: 'c'.repeat(64), preview_kind: 'text' }],
   } }));
-  assert.match(html, /data-served-model="anthropic \/ claude-opus-4-8"/);
+  assert.match(html, /data-served-model="anthropic\/claude-opus-4-8"/);
+  assert.match(html, /<p class="tw-served-model"[^>]*>Claude Opus<\/p>/);
+  assert.doesNotMatch(html.replace(/data-served-model="[^"]*"/g, ''), /anthropic\s*\/\s*claude|claude-opus-4-8/);
   assert.match(html, /报告\.md/);
   assert.match(html, /notes\.txt/);
   assert.match(html, /测试正文/);
@@ -170,13 +177,19 @@ test('work item label is delivered or not, without an explanation paragraph', ()
 });
 
 test('platform label and task restore follow the served model and the owning task', () => {
-  const { platformOptionLabel, owningTaskHref, sessionDraft } = require('./task-presentation.ts');
-  assert.equal(platformOptionLabel({ provider: 'anthropic', model: 'claude-sonnet-5' }, null), '平台模型 · anthropic / claude-sonnet-5');
+  const { platformOptionLabel, productModelLabel, owningTaskHref, sessionDraft, actionName, visibleMessageText } = require('./task-presentation.ts');
+  assert.equal(platformOptionLabel({ provider: 'anthropic', model: 'claude-sonnet-5' }, null), '平台模型 · Claude Sonnet');
   assert.equal(
     platformOptionLabel({ provider: 'anthropic', model: 'claude-sonnet-5' }, { provider: 'anthropic', model: 'claude-opus-4-8' }),
-    '平台模型 · anthropic / claude-opus-4-8',
+    '平台模型 · Claude Opus',
   );
-  assert.equal(platformOptionLabel(null, null), '平台模型（沿用现有权限与配置）');
+  assert.equal(platformOptionLabel(null, null), '平台模型');
+  assert.equal(productModelLabel('claude-opus-5-5'), 'Claude Opus');
+  assert.equal(productModelLabel('claude-sonnet-5'), 'Claude Sonnet');
+  assert.equal(actionName('model_publish'), '发布文件');
+  assert.equal(actionName('not_a_known_op'), '已生成');
+  assert.equal(actionName('artifact_import:run_1'), '导入文件');
+  assert.equal(visibleMessageText('**本轮实际模型**：`anthropic / claude-opus-5-5`（来自受管 model_observed 事件）\n\n回复正文'), '回复正文');
   assert.equal(owningTaskHref('utask_old', { id: 'run_new', user_task_id: 'utask_new' }, 'conversation'), '/workspace?task=utask_new&assistant_run=run_new&view=conversation');
   assert.equal(owningTaskHref('utask_same', { id: 'run_same', user_task_id: 'utask_same' }), '');
   assert.equal(sessionDraft('已保存的正文', '另一任务的草稿', 'utask_other', 'utask_current'), '已保存的正文');
@@ -222,12 +235,14 @@ test('tool completion is a short step label and hides the raw tool id', () => {
     id: 'run_tool', status: 'completed', plan: { steps: [
       { id: 's1', label: 'tool_completed', status: 'completed', detail: 'hpc_execute_solution' },
       { id: 's2', label: '理解目标与输入', status: 'completed', detail: '已读取资料' },
+      { id: 's3', label: '验证结果与文件', status: 'completed', detail: 'verified 1 artifact(s)' },
     ] },
   } }));
   assert.match(html, /已完成一步/);
   assert.match(html, /理解目标与输入/);
   assert.match(html, /已读取资料/);
-  assert.doesNotMatch(html, /tool_completed|hpc_execute_solution/);
+  assert.match(html, /已核对/);
+  assert.doesNotMatch(html, /tool_completed|hpc_execute_solution|verified 1 artifact/);
 });
 
 test('allocation status is one string from the check', () => {

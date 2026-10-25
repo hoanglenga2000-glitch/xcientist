@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { restoreRunMessages } from '../screens/assistant-history';
-import { servedModelLabel, toolStepDetail, toolStepLabel } from './task-presentation';
+import { actionName, servedModelLabel, toolStepDetail, toolStepLabel, visibleMessageText } from './task-presentation';
 import { taskStatus, type TaskArtifact, type TaskRun } from './types';
 import { DownloadFile } from './DownloadFile';
 
@@ -27,7 +27,7 @@ function ResultFile({ file }: { file: TaskArtifact }) {
     <button onClick={() => void open()} aria-expanded={opened}>{opened ? '关闭预览' : '预览'}</button><DownloadFile url={`${url}?download=1`} file={file} /></div>
     {opened && <div>{busy && <p role="status">正在读取文件…</p>}{error && <p role="alert" className="tw-error">{error}</p>}
       {['image', 'svg'].includes(file.preview_kind) ? <img className="tw-image" src={url} alt={file.name} /> : ['html', 'pdf'].includes(file.preview_kind) ? <iframe className="tw-document" title={file.name} src={url} sandbox="" /> : preview !== null ? <pre className="tw-file-preview">{preview}</pre> : !busy && !error ? <p className="tw-muted">此文件较大或为二进制格式，请下载后查看。</p> : null}</div>}
-    <details className="tw-details"><summary>来源与校验</summary><p>文件属于本次运行。文件校验不代表科研结论或模型质量通过。</p><dl><dt>运行</dt><dd>{file.run_id}</dd><dt>SHA-256</dt><dd>{file.sha256}</dd><dt>最近文件校验</dt><dd>{file.verified_at || '未提供验证时间'}</dd><dt>生成操作</dt><dd>{file.source_tool_call || '未提供'}</dd></dl></details>
+    <details className="tw-details"><summary>来源与校验</summary><dl><dt>生成操作</dt><dd>{actionName(file.source_tool_call)}</dd></dl></details>
   </article>;
 }
 
@@ -35,9 +35,9 @@ export function TaskRunView({ view, run }: { view: string; run: TaskRun | null }
   if (!run) return <div className="tw-empty"><h2>尚未开始</h2><p>保存需求不会开始执行。发送需求后，这里显示实际对话、进度和文件。</p></div>;
   const unavailable = run.status === 'blocked' && (run.error_class === 'model_unavailable' || Boolean(run.answer?.includes('Model execution is unavailable:')));
   const modelHelp = <div className="tw-error" role="alert"><h2>模型暂时不可用</h2><p>这次请求没有获得可用的模型回复。任务记录已保留；请检查服务地址、密钥和模型名称，再明确重试，不会自动改用其他模型。</p><a href={`/workspace?settings=models${run.user_task_id ? `&return_task=${encodeURIComponent(run.user_task_id)}` : ''}`}>检查模型配置</a><details className="tw-details"><summary>技术详情</summary><p>{run.error_class}</p><p>{run.error_message || run.answer}</p></details></div>;
-  if (view === 'results') return <section><p className="tw-muted">以下文件来自所选运行，也可能包含诊断记录。文件存在不代表任务目标完成或科研结论已确认。</p>
+  if (view === 'results') return <section>
     {(run.artifacts ?? []).map(file => <ResultFile key={file.id} file={file} />)}
-    {!run.artifacts?.length && <div className="tw-empty"><h2>还没有结果文件</h2><p>可以回到对话查看回复或说明希望输出的文件。系统不会用示例文件填充这里。</p></div>}
+    {!run.artifacts?.length && <div className="tw-empty"><h2>还没有结果文件</h2></div>}
     {Boolean(run.artifact_evidence?.length) && <details className="tw-details"><summary>中间文件与执行记录（{run.artifact_evidence!.length}）</summary>{run.artifact_evidence!.map(file => <ResultFile key={file.id} file={file} />)}</details>}
   </section>;
   if (view === 'progress') return <section><h2>{taskStatus(run.status)}</h2>
@@ -48,13 +48,17 @@ export function TaskRunView({ view, run }: { view: string; run: TaskRun | null }
       return <li key={step.id}><div><h3>{toolStepLabel(step.label, step.status)}</h3>{detail && <p>{detail}</p>}</div><span>{statusLabel}</span></li>;
     })}</ol>
     {!run.plan?.steps?.length && <p className="tw-muted">当前运行尚未提供步骤记录，不推测正在执行的阶段。</p>}
-    <details className="tw-details"><summary>运行信息</summary><dl><dt>运行编号</dt><dd>{run.id}</dd><dt>实际模型</dt><dd>{run.model ? `${run.model_provider ?? ''} / ${run.model}` : '尚无实际模型执行记录'}</dd></dl></details>
+    <details className="tw-details"><summary>运行信息</summary><dl><dt>实际模型</dt><dd>{run.model ? (servedModelLabel(run.model_provider, run.model) || '平台模型') : '尚无记录'}</dd></dl></details>
   </section>;
   const served = servedModelLabel(run.model_provider, run.model);
+  const servedId = [run.model_provider, run.model].filter(Boolean).join('/');
   const generated = [...(run.artifacts ?? []), ...(run.artifact_evidence ?? [])];
-  return <section aria-label="任务对话">{served && <p className="tw-served-model" data-served-model={served}>{served}</p>}
+  return <section aria-label="任务对话">{served && <p className="tw-served-model" data-served-model={servedId}>{served}</p>}
     {generated.map(file => <ResultFile key={file.id} file={file} />)}
-    {restoreRunMessages(run, '继续执行此任务').filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:'))).map(message => <article className={`tw-message tw-${message.role}`} key={message.id}><small>{message.role === 'user' ? '你' : 'DeepEvo'}</small><p>{message.content}</p></article>)}{unavailable && modelHelp}
+    {restoreRunMessages(run, '继续执行此任务').filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:'))).map(message => {
+      const content = visibleMessageText(message.content);
+      return content ? <article className={`tw-message tw-${message.role}`} key={message.id}><small>{message.role === 'user' ? '你' : 'DeepEvo'}</small><p>{content}</p></article> : null;
+    })}{unavailable && modelHelp}
     {!run.answer && !run.streaming_text && <p role="status" className="tw-muted">{taskStatus(run.status)}。进度页可查看当前步骤与原因。</p>}
   </section>;
 }

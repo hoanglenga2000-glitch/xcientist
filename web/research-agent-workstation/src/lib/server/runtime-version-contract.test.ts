@@ -114,4 +114,5 @@ test("source provenance surfaces a recorded revision and never calls a dirty tre
   const overlay = parse({ ...manifest, source_commit: "1".repeat(40), source_commit_dirty: false });
   assert.equal(sourceProvenance(overlay), "clean_commit_overlay");
   assert.equal(recordedSourceRevision(overlay), "1".repeat(40));
+  assert.notEqual(recordedSourceRevision(overlay), overlay.commit_hash);
 });

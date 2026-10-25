@@ -16,6 +16,7 @@ from evomind_runtime.runtime import AgentRuntime
 from evomind_runtime.tenant_access import AccessError, AccessStore, Principal, current_principal
 from evomind_runtime.user_files import generated_catalog
 from evomind_runtime.user_tasks import UserTasks, delivery_status
+from research_os.agent import messaging
 from research_os.agent.messaging import _resolve_transports
 
 
@@ -59,6 +60,51 @@ def test_route_follows_strict_primary_when_it_is_not_anthropic(monkeypatch):
     decision = ModelRouter().route("execution", "balanced")
     assert [(item.name, item.config.model) for item in transports] == [("deepseek", "deepseek-chat")]
     assert (decision.provider, decision.model) == ("deepseek", "deepseek-chat")
+
+
+def test_platform_pick_on_a_new_run_is_the_observed_model(tmp_path, monkeypatch):
+    """Platform selection is the strict transport. A stubbed reply echoes that model.
+
+    Personal-profile selection still needs a Windows credential store and is not
+    proven here. ``_resolve_transports`` is called, not replaced.
+    """
+    _clear_model_env(monkeypatch)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "http://127.0.0.1:9/anthropic")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+    monkeypatch.setenv("CLAUDE_CODE_MODEL", "claude-opus-5-5")
+    monkeypatch.setenv("EVOLUTION_PRIMARY_PROVIDER", "anthropic")
+    monkeypatch.setenv("EVOLUTION_PROVIDER_STRICT", "1")
+    selected = _resolve_transports()
+    assert [(item.name, item.config.model) for item in selected] == [("anthropic", "claude-opus-5-5")]
+    requested = {}
+
+    def post(url, headers, payload, timeout):
+        requested["model"] = payload["model"]
+        return {
+            "model": payload["model"],
+            "stop_reason": "end_turn",
+            "content": [{"type": "text", "text": "你好"}],
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+        }
+
+    monkeypatch.setattr(messaging, "_post_json", post)
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="你好", start=False)
+        assert run["model"] == ""
+        assert not (run.get("model_profile"))
+        runtime.assistant._execute(run["id"], resume=False)
+        snapshot = runtime.assistant.snapshot(run["id"])
+        assert requested["model"] == "claude-opus-5-5"
+        assert snapshot["model_provider"] == "anthropic"
+        assert snapshot["model"] == "claude-opus-5-5"
+        observed = [item for item in runtime.assistant.events(run["id"]) if item["event_type"] == "model_observed"]
+        assert observed[-1]["payload"]["provider"] == "anthropic"
+        assert observed[-1]["payload"]["model"] == "claude-opus-5-5"
+        assert (snapshot["model_provider"], snapshot["model"]) == (selected[0].name, selected[0].config.model)
+    finally:
+        runtime.close()
 
 
 def test_model_response_is_what_snapshots_and_public_events_show(tmp_path, monkeypatch):

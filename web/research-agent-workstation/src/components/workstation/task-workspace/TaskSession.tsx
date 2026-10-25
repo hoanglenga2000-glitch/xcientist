@@ -5,7 +5,7 @@ import { TaskRunView } from './TaskRunView';
 import { TaskFiles } from './TaskFiles';
 import { TaskControls } from './TaskControls';
 import type { ModelList } from './ModelSettings';
-import { owningTaskHref, platformOptionLabel } from './task-presentation';
+import { owningTaskHref, platformOptionLabel, productModelLabel } from './task-presentation';
 import { jsonPost, taskRequest, taskStatus, type TaskDetail, type TaskRun, type UserTask } from './types';
 
 const active = (status: string) => ['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval'].includes(status);
@@ -208,7 +208,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
       {history.length > 0 ? <div className="tw-link-form"><label htmlFor="link-history">选择要关联的记录</label><select id="link-history" value={linkId} onChange={event => setLinkId(event.target.value)}><option value="">请选择</option>{history.map(item => <option key={item.id} value={item.id}>{item.title} · {taskStatus(item.status)}</option>)}</select><button disabled={!linkId || busy} onClick={() => void link()}>关联到“{task.title}”</button></div> : <p className="tw-muted">未列出可关联记录。无明确所有权的旧记录需要管理员核实，不能自动认领。</p>}
     </section>}
     {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="描述希望完成的工作与输出结果…" />
-      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {item.model} · v{item.version}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
+      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {productModelLabel(item.model) || '平台模型'}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
       <div className="tw-composer-bottom"><span>{draft === task.draft ? '草稿已保存' : '草稿尚未保存'} · 发送才会开始执行<br />真实模型调用可能产生费用，执行仍受权限与预算控制。</span><button type="submit" className="tw-primary" disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送需求' : '开始任务'}</button></div>
       <button type="button" disabled={busy} onClick={() => { setError(''); void saveDraft().then(() => { setNotice('草稿已保存'); setAutosavePaused(false); }).catch(cause => { setAutosavePaused(true); setError(cause.message); }); }}>保存草稿</button>
       {autosavePaused && <button type="button" disabled={busy} onClick={() => void reloadDraftVersion()}>重新读取版本（保留本页输入）</button>}

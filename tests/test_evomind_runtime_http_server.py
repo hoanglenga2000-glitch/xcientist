@@ -190,6 +190,7 @@ def test_runtime_http_contract_is_authenticated_and_body_bounded(
     tmp_path: Path, monkeypatch
 ) -> None:
     monkeypatch.setenv("EVOMIND_BUILD_COMMIT_HASH", "b" * 40)
+    monkeypatch.setenv("EVOMIND_SOURCE_COMMIT", "d" * 40)
     monkeypatch.setenv("EVOMIND_SOURCE_TREE_SHA256", "a" * 64)
     runtime = AgentRuntime(tmp_path)
     token = ensure_token(runtime.runtime_root)
@@ -204,6 +205,9 @@ def test_runtime_http_contract_is_authenticated_and_body_bounded(
         assert status == 200 and payload["status"] == "ready"
         assert payload["backend_version"] == "0.3.0"
         assert payload["commit_hash"] == "b" * 40
+        assert payload["source_commit"] == "d" * 40
+        assert payload["source_revision"] == "d" * 40
+        assert payload["source_revision"] != payload["commit_hash"]
         assert payload["source_tree_sha256"] == "a" * 64
 
         status, payload = request(port, "GET", "/v1/super-agent/status", token)
