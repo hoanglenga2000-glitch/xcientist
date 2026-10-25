@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { restoreRunMessages } from '../screens/assistant-history';
-import { servedModelLabel } from './task-presentation';
+import { servedModelLabel, toolStepDetail, toolStepLabel } from './task-presentation';
 import { taskStatus, type TaskArtifact, type TaskRun } from './types';
 import { DownloadFile } from './DownloadFile';
 
@@ -42,7 +42,11 @@ export function TaskRunView({ view, run }: { view: string; run: TaskRun | null }
   </section>;
   if (view === 'progress') return <section><h2>{taskStatus(run.status)}</h2>
     {unavailable ? modelHelp : run.error_class && <div role="alert" className="tw-error"><p>{run.error_message || '本次执行遇到问题。请查看详情，处理后再明确选择继续。'}</p><details><summary>技术错误</summary>{run.error_class}</details></div>}
-    <ol className="tw-timeline">{(run.plan?.steps ?? []).map(step => <li key={step.id}><div><h3>{step.label}</h3>{step.detail && <p>{step.detail}</p>}</div><span>{({ pending: '尚未执行', running: '正在处理', completed: '已完成', failed: '失败', skipped: '已跳过' } as Record<string, string>)[step.status] ?? step.status}</span></li>)}</ol>
+    <ol className="tw-timeline">{(run.plan?.steps ?? []).map(step => {
+      const detail = toolStepDetail(step.detail);
+      const statusLabel = ({ pending: '尚未执行', running: '正在处理', completed: '已完成', failed: '失败', skipped: '已跳过' } as Record<string, string>)[step.status] ?? toolStepLabel(step.status);
+      return <li key={step.id}><div><h3>{toolStepLabel(step.label, step.status)}</h3>{detail && <p>{detail}</p>}</div><span>{statusLabel}</span></li>;
+    })}</ol>
     {!run.plan?.steps?.length && <p className="tw-muted">当前运行尚未提供步骤记录，不推测正在执行的阶段。</p>}
     <details className="tw-details"><summary>运行信息</summary><dl><dt>运行编号</dt><dd>{run.id}</dd><dt>实际模型</dt><dd>{run.model ? `${run.model_provider ?? ''} / ${run.model}` : '尚无实际模型执行记录'}</dd></dl></details>
   </section>;

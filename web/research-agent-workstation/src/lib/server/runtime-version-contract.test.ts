@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   evaluateRuntimeIdentity,
   parseRuntimeBuildManifest,
+  recordedSourceRevision,
   sourceProvenance,
   type RuntimeIdentityObservation,
 // @ts-expect-error Node's native TypeScript test runner requires the explicit extension.
@@ -90,21 +91,27 @@ test("runtime build manifest carries optional source commit provenance", () => {
   assert.equal("source_commit" in (parseRuntimeBuildManifest(manifest) ?? {}), false);
 });
 
-test("source provenance never reports a dirty or unrecorded build as clean", () => {
+test("source provenance surfaces a recorded revision and never calls a dirty tree clean", () => {
   const parse = (value: unknown) => {
     const parsed = parseRuntimeBuildManifest(value);
     assert.ok(parsed);
     return parsed;
   };
-  assert.equal(sourceProvenance(parse(manifest)), "unrecorded");
-  assert.equal(sourceProvenance(parse({ ...manifest, source_dirty: false })), "clean_commit");
-  assert.equal(sourceProvenance(parse({ ...manifest, source_commit: "1".repeat(40) })), "dirty_worktree");
-  assert.equal(
-    sourceProvenance(parse({ ...manifest, source_commit: "1".repeat(40), source_commit_dirty: true })),
-    "dirty_worktree",
-  );
-  assert.equal(
-    sourceProvenance(parse({ ...manifest, source_commit: "1".repeat(40), source_commit_dirty: false })),
-    "clean_commit_overlay",
-  );
+  const unrecorded = parse(manifest);
+  assert.equal(sourceProvenance(unrecorded), "unrecorded");
+  assert.equal(recordedSourceRevision(unrecorded), null);
+  const clean = parse({ ...manifest, source_dirty: false });
+  assert.equal(sourceProvenance(clean), "clean_commit");
+  assert.equal(recordedSourceRevision(clean), "b".repeat(40));
+  const recorded = parse({ ...manifest, source_commit: "1".repeat(40) });
+  assert.equal(sourceProvenance(recorded), "recorded_revision");
+  assert.equal(recordedSourceRevision(recorded), "1".repeat(40));
+  assert.notEqual(sourceProvenance(recorded), "clean_commit");
+  const dirtyCommit = parse({ ...manifest, source_commit: "1".repeat(40), source_commit_dirty: true });
+  assert.equal(sourceProvenance(dirtyCommit), "recorded_revision");
+  assert.equal(recordedSourceRevision(dirtyCommit), "1".repeat(40));
+  assert.notEqual(sourceProvenance(dirtyCommit), "clean_commit");
+  const overlay = parse({ ...manifest, source_commit: "1".repeat(40), source_commit_dirty: false });
+  assert.equal(sourceProvenance(overlay), "clean_commit_overlay");
+  assert.equal(recordedSourceRevision(overlay), "1".repeat(40));
 });

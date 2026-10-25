@@ -1,6 +1,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { EvolutionUnavailable, evolutionCliCandidates, resolveEvolutionCli } from "@/lib/evolution-cli-path";
 import { prisma } from "@/lib/db";
 import { logAction } from "@/lib/server/actions";
 import { runManagedCommand } from "@/lib/server/job-registry";
@@ -303,10 +305,13 @@ export async function runEvolutionCli(mode: EvolutionMode, payloadInput: Record<
   const runId = `evolution_${mode}_${stamp()}`;
 
   try {
+    const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+    const cli = await resolveEvolutionCli(evolutionCliCandidates(workspaceRoot, moduleDir));
+    if (!cli) throw new EvolutionUnavailable();
     const { stdout } = await runManagedCommand({
       command: pythonExecutable(),
-      args: ["scripts/evolution_engine_cli.py", "--mode", mode, "--input", inputFile],
-      cwd: workspaceRoot,
+      args: [cli, "--mode", mode, "--input", inputFile],
+      cwd: path.resolve(path.dirname(cli), ".."),
       timeout: 120000,
       taskId,
       runId

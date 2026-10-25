@@ -183,6 +183,64 @@ test('platform label and task restore follow the served model and the owning tas
   assert.equal(sessionDraft('已保存的正文', '正在输入', 'utask_current', 'utask_current'), '正在输入');
 });
 
+test('pending filter uses the same status the chip renders, newest updated_at first', () => {
+  const { TaskList } = require('./TaskList.tsx');
+  const { taskStatus } = require('./types.ts');
+  const tasks = [
+    { id: 'utask_old', title: '较早的未交付', status: 'undelivered', updated_at: '2026-10-01T00:00:00Z' },
+    { id: 'utask_new', title: '较新的未交付', status: 'undelivered', updated_at: '2026-10-20T00:00:00Z' },
+    { id: 'utask_done', title: '已经交付', status: 'delivered', updated_at: '2026-10-22T00:00:00Z' },
+  ];
+  const pending = renderToStaticMarkup(React.createElement(TaskList, { query: '', pendingOnly: true, tasks }));
+  assert.match(pending, /还要处理/);
+  assert.match(pending, /较新的未交付/);
+  assert.match(pending, /较早的未交付/);
+  assert.equal(taskStatus('undelivered'), '未交付');
+  assert.match(pending, /未交付/);
+  assert.doesNotMatch(pending, /已经交付|已交付/);
+  assert.ok(pending.indexOf('较新的未交付') < pending.indexOf('较早的未交付'));
+  const all = renderToStaticMarkup(React.createElement(TaskList, { query: '', pendingOnly: false, tasks }));
+  assert.match(all, /已经交付/);
+  assert.ok(all.indexOf('已经交付') < all.indexOf('较新的未交付'));
+});
+
+test('quota used label excludes reserved holds', () => {
+  const { BudgetUsage } = require('./BudgetUsage.tsx');
+  const html = renderToStaticMarkup(React.createElement(BudgetUsage, { budget: {
+    used_seconds: 3600, charged_wall_seconds: 3600, pending_reserved_seconds: 7200, committed_seconds: 10800,
+  } }));
+  assert.match(html, /已用/);
+  assert.match(html, /data-budget-used="3600"/);
+  assert.match(html, /data-budget-reserved="7200"/);
+  assert.doesNotMatch(html, /data-budget-used="10800"/);
+  assert.doesNotMatch(html, /剩余额度|保存预算/);
+});
+
+test('tool completion is a short step label and hides the raw tool id', () => {
+  const { TaskRunView } = require('./TaskRunView.tsx');
+  const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'progress', run: {
+    id: 'run_tool', status: 'completed', plan: { steps: [
+      { id: 's1', label: 'tool_completed', status: 'completed', detail: 'hpc_execute_solution' },
+      { id: 's2', label: '理解目标与输入', status: 'completed', detail: '已读取资料' },
+    ] },
+  } }));
+  assert.match(html, /已完成一步/);
+  assert.match(html, /理解目标与输入/);
+  assert.match(html, /已读取资料/);
+  assert.doesNotMatch(html, /tool_completed|hpc_execute_solution/);
+});
+
+test('allocation status is one string from the check', () => {
+  const { allocationStatusText } = require('../../../lib/allocation-status.ts');
+  assert.equal(allocationStatusText({ personal_resources: 'unavailable_in_local_mode', binding: null }), '未接入计算资源');
+  assert.equal(allocationStatusText({ binding: null }), '未设置计算资源');
+  assert.equal(allocationStatusText({ binding: { state: 'active' }, activation: { state: 'pending_activation', receipt_exists: false } }), '计算资源未通过核对');
+  assert.equal(allocationStatusText({ binding: { state: 'active' }, activation: { state: 'completed', receipt_exists: true } }), '计算资源已核对');
+  assert.equal(allocationStatusText({ binding: { state: 'frozen' } }), '计算资源暂不可用');
+  const labels = ['未接入计算资源', '未设置计算资源', '计算资源未通过核对', '计算资源已核对', '计算资源暂不可用'];
+  for (const label of labels) assert.doesNotMatch(label, /GPU|HPC|Tenant/);
+});
+
 test('an accepted resume remains in progress and does not offer another resume button', () => {
   const { TaskControls } = require('./TaskControls.tsx');
   const { taskStatus } = require('./types.ts');

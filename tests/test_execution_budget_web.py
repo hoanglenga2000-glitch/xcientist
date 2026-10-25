@@ -11,7 +11,7 @@ import pytest
 
 from evomind_runtime import budget_web
 from evomind_runtime.http_server import make_handler
-from evomind_runtime.research_budget import GpuExecutionBudget, ResearchBudget
+from evomind_runtime.research_budget import GpuExecutionBudget, ResearchBudget, execution_budget_summary
 from evomind_runtime.runtime import AgentRuntime
 from evomind_runtime.tenant_access import AccessError, Principal
 
@@ -29,6 +29,20 @@ def configured(tmp_path, monkeypatch):
 
 def payload(**overrides):
     return {'gpu_limit_seconds': 50000, 'engineering_limit_seconds': 40000, 'expected_revision': 0, 'request_id': 'budget-request-001', 'reason': 'Bounded engineering acceptance', 'confirmed': True, **overrides}
+
+
+def test_displayed_used_seconds_exclude_reserved_holds():
+    summary = execution_budget_summary([
+        ("engineering", 120.0, 0.0, "reserved", "boot"),
+        ("engineering", 30.0, 30.0, "passed", "boot"),
+        ("trial", 10.0, 4.0, "failed", "boot"),
+    ], "study")
+    assert summary["used_seconds"] == 34
+    assert summary["engineering_used_seconds"] == 30
+    assert summary["charged_wall_seconds"] == 34
+    assert summary["pending_reserved_seconds"] == 120
+    assert summary["committed_seconds"] == 154
+    assert summary["engineering_committed_seconds"] == 150
 
 
 def test_status_is_read_only_and_nonowners_cannot_read_or_amend(configured):

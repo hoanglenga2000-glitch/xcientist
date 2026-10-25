@@ -702,6 +702,8 @@ def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
         "schema": "evomind.runtime_build.v1",
         "commit_hash": "b" * 40,
         "source_dirty": True,
+        "source_commit": "b" * 40,
+        "source_commit_dirty": True,
         "source_tree_sha256": "a" * 64,
         "build_id": "build-123",
         "build_time": manifest["build_time"],

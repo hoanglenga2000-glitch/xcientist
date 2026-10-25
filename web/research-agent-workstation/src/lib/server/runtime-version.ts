@@ -7,6 +7,7 @@ import { runtimeHealth } from "@/lib/server/evomind-runtime";
 import {
   evaluateRuntimeIdentity,
   parseRuntimeBuildManifest,
+  recordedSourceRevision,
   sourceProvenance,
   type RuntimeBuildManifest,
   type SourceProvenance,
@@ -33,6 +34,7 @@ export type RuntimeVersionResponse = {
   source_dirty: boolean | null;
   source_commit: string | null;
   source_commit_dirty: boolean | null;
+  source_revision: string | null;
   source_provenance: SourceProvenance | null;
   failures: string[];
 };
@@ -96,6 +98,7 @@ export async function runtimeVersionIdentity(): Promise<RuntimeVersionResponse> 
       source_dirty: null,
       source_commit: null,
       source_commit_dirty: null,
+      source_revision: null,
       source_provenance: null,
       failures: ["runtime_build_manifest_invalid"],
     };
@@ -133,6 +136,7 @@ export async function runtimeVersionIdentity(): Promise<RuntimeVersionResponse> 
     source_dirty: manifest.source_dirty,
     source_commit: manifest.source_commit ?? null,
     source_commit_dirty: manifest.source_commit_dirty ?? null,
+    source_revision: recordedSourceRevision(manifest),
     source_provenance: sourceProvenance(manifest),
     failures,
   };

@@ -25,6 +25,7 @@ export type RuntimeBuildManifest = {
 export type SourceProvenance =
   | "clean_commit"
   | "clean_commit_overlay"
+  | "recorded_revision"
   | "dirty_worktree"
   | "unrecorded";
 
@@ -102,14 +103,27 @@ export function parseRuntimeBuildManifest(value: unknown): RuntimeBuildManifest 
 }
 
 /**
- * Honest one-word summary of where the running code came from. A build is
- * only "clean" when its tree is a committed tree; a dirty overlay without a
- * recorded, clean source commit is reported as such, never as clean.
+ * The commit recorded on this build. A dirty worktree still has a commit
+ * object; that revision is what health reports. Missing both a source commit
+ * and a clean tree stays unrecorded. Never invent a commit.
+ */
+export function recordedSourceRevision(manifest: RuntimeBuildManifest): string | null {
+  if (manifest.source_commit) return manifest.source_commit;
+  if (!manifest.source_dirty) return manifest.commit_hash;
+  return null;
+}
+
+/**
+ * Honest summary of where the running code came from. A build is "clean" only
+ * when its tree matches a commit. A recorded commit on a dirty tree is
+ * `recorded_revision`, never `clean_commit`. A dirty tree with no commit stays
+ * `unrecorded`.
  */
 export function sourceProvenance(manifest: RuntimeBuildManifest): SourceProvenance {
-  if (!manifest.source_dirty) return "clean_commit";
+  if (!manifest.source_dirty && manifest.source_commit_dirty !== true) return "clean_commit";
   if (!manifest.source_commit) return "unrecorded";
-  return manifest.source_commit_dirty === false ? "clean_commit_overlay" : "dirty_worktree";
+  if (manifest.source_commit_dirty === false) return "clean_commit_overlay";
+  return "recorded_revision";
 }
 
 export function evaluateRuntimeIdentity(

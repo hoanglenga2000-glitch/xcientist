@@ -303,6 +303,8 @@ def runtime_build_manifest(build_id: str) -> dict[str, object]:
         "schema": "evomind.runtime_build.v1",
         "commit_hash": commit_hash,
         "source_dirty": source_dirty,
+        "source_commit": commit_hash,
+        "source_commit_dirty": source_dirty,
         "source_tree_sha256": source_tree_digest(SOURCE_APP_DIR),
         "build_id": build_id,
         "build_time": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),

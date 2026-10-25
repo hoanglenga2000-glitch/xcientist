@@ -22,6 +22,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
   const [returnTask, setReturnTask] = useState('');
   const [draft, setDraft] = useState('');
   const [query, setQuery] = useState('');
+  const [pendingOnly, setPendingOnly] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [loading, setLoading] = useState(true);
@@ -63,6 +64,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     setSection(params.get('section') || ''); setLegacyRun(params.get('legacy_run') || ''); setLegacyTask(params.get('legacy_task') || '');
     setView(['progress', 'results', 'more'].includes(params.get('view') || '') ? params.get('view')! : 'conversation');
     setReturnTask(params.get('return_task') ?? '');
+    setPendingOnly(params.get('pending') === '1');
     setSelection(id); setCreating(params.get('new') === '1'); setTask(null); setDetail(null); setDraftTask(''); setLoading(true); setError('');
     (async () => {
       const list = await taskRequest<{ tasks: UserTask[] }>('/api/assistant/tasks', { signal: controller.signal });
@@ -128,7 +130,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
         </section> : <section><p className="tw-eyebrow">你的工作</p><h1>我的任务</h1><p className="tw-muted">打开一项工作，继续对话、查看进度或找到结果。</p>
           <label className="tw-search"><Search size={18} /><span className="tw-sr-only">搜索任务</span><input aria-label="搜索任务" placeholder="搜索任务名称" value={query} onChange={event => setQuery(event.target.value)} /></label>
           {error && <p role="alert" className="tw-error">{error}<button onClick={() => setRefresh(value => value + 1)}>重新加载</button></p>}
-          <TaskList tasks={tasks} query={query} />
+          <TaskList tasks={tasks} query={query} pendingOnly={pendingOnly} />
         </section>}
       </main>
     </div>
