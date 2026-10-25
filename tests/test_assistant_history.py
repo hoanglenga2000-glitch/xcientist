@@ -25,6 +25,13 @@ def test_history_preserves_old_replies_and_hides_previous_answer_during_resume()
     assert completed["active_message_id"].endswith("a2")
 
 
+def test_visible_history_drops_a_stale_selected_task_prefix():
+    run = {"id": "run_a", "prompt": "[Selected task: risk_control]\n测试正文", "status": "completed"}
+    history = project_message_history(run, [{"id": "a1", "role": "assistant", "content": "回复"}])
+    assert history["messages"][0]["content"] == "测试正文"
+    assert "risk_control" not in history["messages"][0]["content"]
+
+
 def test_unknown_framework_context_and_foreign_or_tool_turns_are_not_exposed():
     run = {"id": "run_a", "prompt": "request", "status": "waiting_approval"}
     turns = [{"id": "a1", "role": "assistant", "content": "Old reply"},

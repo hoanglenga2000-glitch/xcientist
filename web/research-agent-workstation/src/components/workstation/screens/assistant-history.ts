@@ -47,7 +47,7 @@ export function restoreRunMessages(run: Snapshot, continuedLabel: string): Messa
     return run.message_history.messages.map((row) => ({
       id: row.id, role: row.role, runId: run.id,
       content: row.id === run.message_history!.active_message_id && messageStatus(run.status) === "streaming"
-        ? run.streaming_text ?? row.content : row.kind === "continued_execution" ? continuedLabel : row.content,
+        ? run.streaming_text ?? row.content : row.kind === "continued_execution" ? continuedLabel : row.content.replace(/^\[Selected task: [^\]]+\]\s*/i, ""),
       status: row.id === run.message_history!.active_message_id ? messageStatus(run.status) : "complete",
       ...(row.kind === "original_request" ? { attachmentNames: run.attachments?.map((item) => item.name) } : {}),
     }));

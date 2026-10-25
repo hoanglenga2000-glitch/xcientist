@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { restoreRunMessages } from '../screens/assistant-history';
+import { servedModelLabel } from './task-presentation';
 import { taskStatus, type TaskArtifact, type TaskRun } from './types';
 import { DownloadFile } from './DownloadFile';
 
@@ -45,7 +46,11 @@ export function TaskRunView({ view, run }: { view: string; run: TaskRun | null }
     {!run.plan?.steps?.length && <p className="tw-muted">当前运行尚未提供步骤记录，不推测正在执行的阶段。</p>}
     <details className="tw-details"><summary>运行信息</summary><dl><dt>运行编号</dt><dd>{run.id}</dd><dt>实际模型</dt><dd>{run.model ? `${run.model_provider ?? ''} / ${run.model}` : '尚无实际模型执行记录'}</dd></dl></details>
   </section>;
-  return <section aria-label="任务对话">{restoreRunMessages(run, '继续执行此任务').filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:'))).map(message => <article className={`tw-message tw-${message.role}`} key={message.id}><small>{message.role === 'user' ? '你' : 'DeepEvo'}</small><p>{message.content}</p></article>)}{unavailable && modelHelp}
+  const served = servedModelLabel(run.model_provider, run.model);
+  const generated = [...(run.artifacts ?? []), ...(run.artifact_evidence ?? [])];
+  return <section aria-label="任务对话">{served && <p className="tw-served-model" data-served-model={served}>{served}</p>}
+    {generated.map(file => <ResultFile key={file.id} file={file} />)}
+    {restoreRunMessages(run, '继续执行此任务').filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:'))).map(message => <article className={`tw-message tw-${message.role}`} key={message.id}><small>{message.role === 'user' ? '你' : 'DeepEvo'}</small><p>{message.content}</p></article>)}{unavailable && modelHelp}
     {!run.answer && !run.streaming_text && <p role="status" className="tw-muted">{taskStatus(run.status)}。进度页可查看当前步骤与原因。</p>}
   </section>;
 }

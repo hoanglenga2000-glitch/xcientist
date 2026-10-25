@@ -28,8 +28,9 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
   const [busy, setBusy] = useState(false);
   const [menu, setMenu] = useState(false);
   const [refresh, setRefresh] = useState(0);
+  const [locationKey, setLocationKey] = useState('');
+  const [draftTask, setDraftTask] = useState('');
   const creationKey = useRef('');
-  const latestDraft = useRef(draft); latestDraft.current = draft;
   const creatingNow = useRef(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
@@ -41,6 +42,20 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     return () => window.removeEventListener('keydown', escape);
   }, [menu]);
   useEffect(() => {
+    const onPop = () => setLocationKey(window.location.search);
+    let opened = false;
+    const onShow = () => {
+      if (!opened) { opened = true; return; }
+      setLocationKey(window.location.search);
+    };
+    window.addEventListener('popstate', onPop);
+    window.addEventListener('pageshow', onShow);
+    return () => {
+      window.removeEventListener('popstate', onPop);
+      window.removeEventListener('pageshow', onShow);
+    };
+  }, []);
+  useEffect(() => {
     const controller = new AbortController();
     const params = new URLSearchParams(window.location.search);
     const id = params.get('task') ?? '';
@@ -48,19 +63,19 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     setSection(params.get('section') || ''); setLegacyRun(params.get('legacy_run') || ''); setLegacyTask(params.get('legacy_task') || '');
     setView(['progress', 'results', 'more'].includes(params.get('view') || '') ? params.get('view')! : 'conversation');
     setReturnTask(params.get('return_task') ?? '');
-    setSelection(id); setCreating(params.get('new') === '1'); setTask(null); setDetail(null); setLoading(true); setError('');
+    setSelection(id); setCreating(params.get('new') === '1'); setTask(null); setDetail(null); setDraftTask(''); setLoading(true); setError('');
     (async () => {
       const list = await taskRequest<{ tasks: UserTask[] }>('/api/assistant/tasks', { signal: controller.signal });
       if (controller.signal.aborted) return;
       setTasks(list.tasks);
       if (id) {
         const detail = await taskRequest<TaskDetail>(`/api/assistant/tasks/${encodeURIComponent(id)}`, { signal: controller.signal });
-        if (!controller.signal.aborted) { setTask(detail.task); setDetail(detail); setDraft(detail.task.draft); }
+        if (!controller.signal.aborted) { setTask(detail.task); setDetail(detail); setDraft(detail.task.draft); setDraftTask(detail.task.id); }
       }
     })().catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : '读取失败，请重试。'); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [refresh]);
+  }, [refresh, locationKey]);
 
   async function save() {
     if (creatingNow.current || busy || (creating && !draft.trim())) return;
@@ -75,7 +90,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
         const created = await taskRequest<{ task: UserTask }>('/api/assistant/tasks', jsonPost({ title: draft.trim().split('\n')[0].slice(0, 80), draft, idempotency_key: creationKey.current }));
         window.history.replaceState(null, '', `/workspace?task=${encodeURIComponent(created.task.id)}`);
         setSelection(created.task.id); setTask(created.task); setTasks(current => [created.task, ...current.filter(item => item.id !== created.task.id)]);
-        setDetail({ task: created.task, runs: [], files: [] }); setCreating(false);
+        setDetail({ task: created.task, runs: [], files: [] }); setDraftTask(created.task.id); setCreating(false);
       } else if (task) {
         const updated = await taskRequest<{ task: UserTask }>(`/api/assistant/tasks/${task.id}/draft`, jsonPost({ title: task.title, draft, version: task.version }));
         setTask(updated.task); setNotice('草稿已保存，尚未执行。');
@@ -103,7 +118,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     <div className="tw-work-area"><header className="tw-topbar"><button ref={menuButton} className="tw-menu" aria-controls="workspace-navigation" aria-label={menu ? '收起导航' : '展开导航'} aria-expanded={menu} onClick={() => setMenu(!menu)}>{menu ? <X size={20} /> : <Menu size={20} />}</button>
       <span>{isolated ? '隔离验收环境 · 不连接真实模型或算力' : '你的研究工作空间'}</span><a href={`/workspace?settings=account${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`}>账户与设置</a></header>
       <main id="task-main" tabIndex={-1}>
-        {settings ? <WorkspaceSettings group={settings} returnTask={returnTask} isolated={isolated} /> : loading ? <p role="status">正在读取你的任务…</p> : legacyRun ? <LegacyRecord id={legacyRun} tasks={tasks} view={view} /> : legacyTask ? <section><h1>请先核实旧记录</h1><p>此链接使用旧工具编号，尚没有可靠的个人任务关联。原数据保留，不会按名称或默认任务认领。</p><p>请让管理员核实归属后再关联；其他个人任务仍可正常使用。</p><a className="tw-button" href="/workspace">我的任务</a></section> : section === 'data' ? <TaskFiles /> : ['results', 'projects'].includes(section) ? <WorkspaceRecords projects={section === 'projects'} /> : section === 'literature' ? <section><h1>文献检索</h1><p>个人文献功能仍在迁移，暂未开放检索和导入。旧文献保留，需先核实个人任务关联，不能借用其他任务。</p><a className="tw-button" href="/workspace">返回我的任务</a><p className="tw-muted">这是本地候选的明确缺项，不表示正式站功能已经迁移完成。</p></section> : selection && !task ? <section className="tw-empty" role="alert"><h1>暂时无法打开任务</h1><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>重试</button><a href="/workspace">返回我的任务</a></section> : detail ? <TaskSession key={detail.task.id} initial={detail} initialDraft={latestDraft.current} /> : creating ? <section>
+        {settings ? <WorkspaceSettings group={settings} returnTask={returnTask} isolated={isolated} /> : loading ? <p role="status">正在读取你的任务…</p> : legacyRun ? <LegacyRecord id={legacyRun} tasks={tasks} view={view} /> : legacyTask ? <section><h1>请先核实旧记录</h1><p>此链接使用旧工具编号，尚没有可靠的个人任务关联。原数据保留，不会按名称或默认任务认领。</p><p>请让管理员核实归属后再关联；其他个人任务仍可正常使用。</p><a className="tw-button" href="/workspace">我的任务</a></section> : section === 'data' ? <TaskFiles /> : ['results', 'projects'].includes(section) ? <WorkspaceRecords projects={section === 'projects'} /> : section === 'literature' ? <section><h1>文献检索</h1><p>个人文献功能仍在迁移，暂未开放检索和导入。旧文献保留，需先核实个人任务关联，不能借用其他任务。</p><a className="tw-button" href="/workspace">返回我的任务</a><p className="tw-muted">这是本地候选的明确缺项，不表示正式站功能已经迁移完成。</p></section> : selection && !task ? <section className="tw-empty" role="alert"><h1>暂时无法打开任务</h1><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>重试</button><a href="/workspace">返回我的任务</a></section> : detail ? <TaskSession key={detail.task.id} initial={detail} initialDraft={draftTask === detail.task.id ? draft : undefined} /> : creating ? <section>
           <a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{creating ? '新任务' : taskStatus(task!.status)}</p>
           <h1>{creating ? '你想完成什么？' : task!.title}</h1><p className="tw-muted">先描述问题与期望结果，不需要填写任务编号，也不用先建项目。</p>
           <form className="tw-composer" onSubmit={event => { event.preventDefault(); void save(); }}><label htmlFor="task-draft">任务需求</label>

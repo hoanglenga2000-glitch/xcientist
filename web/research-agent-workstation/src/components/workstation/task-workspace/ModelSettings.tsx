@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { jsonPost, taskRequest } from './types';
 
 export type ModelProfile = { id: string; version: number; name: string; provider: string; base_url: string; model: string; enabled: boolean; verified_at: string; used_at: string };
-export type ModelList = { profiles: ModelProfile[]; default_profile_id: string };
+export type ModelList = { profiles: ModelProfile[]; default_profile_id: string; platform_model?: { provider: string; model: string } | null };
 const blank = { name: '', provider: 'openai', base_url: '', model: '', api_key: '' };
 
 export function ModelSettings({ returnTask, isolated, embedded = false }: { returnTask: string; isolated: boolean; embedded?: boolean }) {

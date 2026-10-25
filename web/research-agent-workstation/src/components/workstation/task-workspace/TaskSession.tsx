@@ -5,6 +5,7 @@ import { TaskRunView } from './TaskRunView';
 import { TaskFiles } from './TaskFiles';
 import { TaskControls } from './TaskControls';
 import type { ModelList } from './ModelSettings';
+import { owningTaskHref, platformOptionLabel } from './task-presentation';
 import { jsonPost, taskRequest, taskStatus, type TaskDetail, type TaskRun, type UserTask } from './types';
 
 const active = (status: string) => ['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval'].includes(status);
@@ -17,7 +18,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const [run, setRun] = useState<TaskRun | null>(null);
   const [runId, setRunId] = useState('');
   const [view, setView] = useState('conversation');
-  const [draft, setDraft] = useState(initialDraft ?? task.draft);
+  const [draft, setDraft] = useState(initialDraft === undefined ? task.draft : initialDraft);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -34,6 +35,9 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const alive = useRef(true);
   const currentRuns = useRef(runs);
   currentRuns.current = runs;
+  const servedModel = useRef<{ id: string; provider: string; model: string } | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   useEffect(() => {
     const controller = new AbortController();
@@ -105,6 +109,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     let reading = false;
     let queued = false;
     let settled = false;
+    let leaving = false;
     let sequence = 0;
     async function read() {
       if (controller.signal.aborted) return;
@@ -113,16 +118,36 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
       try {
         const snapshot = await taskRequest<TaskRun>(`/api/assistant/runs/${encodeURIComponent(runId)}`, { signal: controller.signal });
         if (!controller.signal.aborted) {
-          setRun(snapshot); setRuns(current => current.map(item => item.id === snapshot.id ? { ...item, status: snapshot.status } : item));
-          setStreamError(''); settled = !active(snapshot.status); sequence = snapshot.last_event_seq ?? 0; if (settled) stream?.close();
+          const owner = owningTaskHref(task.id, snapshot, viewRef.current);
+          if (owner) { leaving = true; window.location.replace(owner); return; }
+          const observed = !snapshot.model && servedModel.current?.id === snapshot.id ? servedModel.current : null;
+          const next = observed ? { ...snapshot, model_provider: observed.provider, model: observed.model } : snapshot;
+          setRun(next); setRuns(current => current.map(item => item.id === next.id ? { ...item, status: next.status, model: next.model, model_provider: next.model_provider } : item));
+          setStreamError(''); settled = !active(next.status); sequence = next.last_event_seq ?? 0; if (settled) stream?.close();
+          if (settled) {
+            try {
+              const detail = await taskRequest<TaskDetail>(`/api/assistant/tasks/${encodeURIComponent(task.id)}`, { signal: controller.signal });
+              if (!controller.signal.aborted) setTask(current => ({ ...current, status: detail.task.status }));
+            } catch { /* The run snapshot is already on screen. The work-item label refreshes with the next read. */ }
+          }
         }
       } catch (cause) { if (!controller.signal.aborted) setStreamError(cause instanceof Error ? cause.message : '连接中断，运行状态待确认。'); }
       finally { reading = false; if (queued) { queued = false; void read(); } }
     }
     void read().then(() => {
-      if (controller.signal.aborted || settled) return;
+      if (controller.signal.aborted || settled || leaving) return;
       stream = new EventSource(`/api/assistant/runs/${encodeURIComponent(runId)}/events?after=${sequence}`);
       for (const event of ['run_created', 'plan_updated', 'run_progress', 'run_completed', 'run_failed', 'run_blocked', 'approval_required', 'approval.requested', 'run_pause_requested', 'run_paused', 'artifact_published', 'tool_completed']) stream.addEventListener(event, () => void read());
+      stream.addEventListener('model_observed', event => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as { provider?: string; model?: string };
+          const provider = String(payload.provider ?? '');
+          const observed = String(payload.model ?? '');
+          if (!observed && !provider) return;
+          servedModel.current = { id: runId, provider, model: observed };
+          if (!controller.signal.aborted) setRun(current => current?.id === runId ? { ...current, model_provider: provider, model: observed } : current);
+        } catch { /* The next authenticated snapshot remains authoritative. */ }
+      });
       stream.addEventListener('assistant_text', event => {
         try { const payload = JSON.parse((event as MessageEvent).data) as { text?: string }; if (!controller.signal.aborted) setRun(current => current?.id === runId ? { ...current, streaming_text: payload.text ?? '' } : current); } catch { /* The next authenticated snapshot remains authoritative. */ }
       });
@@ -171,7 +196,10 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     finally { setBusy(false); }
   }
 
-  return <section><a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{taskStatus(run?.status ?? task.status)}</p><h1>{task.title}</h1>
+  const workStatus = run && active(run.status) ? run.status : task.status;
+  const generatedCount = (run?.artifacts?.length ?? 0) + (run?.artifact_evidence?.length ?? 0);
+  const platformLabel = platformOptionLabel(models.platform_model, model === 'platform' && run?.model ? { provider: run.model_provider, model: run.model } : null);
+  return <section><a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{taskStatus(workStatus)}</p><h1>{task.title}</h1>
     <nav className="tw-tabs" aria-label="任务内容">{views.map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>{label}</button>)}</nav>
     {runs.length > 1 && <label className="tw-run-select">查看哪次运行 <select aria-label="选择运行" value={runId} onChange={event => navigate(view, event.target.value)}>{runs.map(item => <option key={item.id} value={item.id}>{new Date(item.created_at ?? '').toLocaleString('zh-CN')} · {taskStatus(item.status)}</option>)}</select></label>}
     {streamError && <p role="alert" className="tw-error">{streamError}<button onClick={() => setReconnect(value => value + 1)}>重新连接</button></p>}
@@ -180,12 +208,12 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
       {history.length > 0 ? <div className="tw-link-form"><label htmlFor="link-history">选择要关联的记录</label><select id="link-history" value={linkId} onChange={event => setLinkId(event.target.value)}><option value="">请选择</option>{history.map(item => <option key={item.id} value={item.id}>{item.title} · {taskStatus(item.status)}</option>)}</select><button disabled={!linkId || busy} onClick={() => void link()}>关联到“{task.title}”</button></div> : <p className="tw-muted">未列出可关联记录。无明确所有权的旧记录需要管理员核实，不能自动认领。</p>}
     </section>}
     {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="描述希望完成的工作与输出结果…" />
-      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">平台模型（沿用现有权限与配置）</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {item.model} · v{item.version}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
+      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {item.model} · v{item.version}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
       <div className="tw-composer-bottom"><span>{draft === task.draft ? '草稿已保存' : '草稿尚未保存'} · 发送才会开始执行<br />真实模型调用可能产生费用，执行仍受权限与预算控制。</span><button type="submit" className="tw-primary" disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送需求' : '开始任务'}</button></div>
       <button type="button" disabled={busy} onClick={() => { setError(''); void saveDraft().then(() => { setNotice('草稿已保存'); setAutosavePaused(false); }).catch(cause => { setAutosavePaused(true); setError(cause.message); }); }}>保存草稿</button>
       {autosavePaused && <button type="button" disabled={busy} onClick={() => void reloadDraftVersion()}>重新读取版本（保留本页输入）</button>}
     </form>}
-    {view === 'conversation' && <details className="tw-details"><summary>添加或选择资料（{files.length}）</summary><TaskFiles selected={files} onSelect={async ids => {
+    {view === 'conversation' && <details className="tw-details"><summary>添加或选择资料（{files.length}）{generatedCount ? ` · 生成文件（${generatedCount}）` : ''}</summary><TaskFiles selected={files} onSelect={async ids => {
       await saveDraft();
       const updated = await taskRequest<TaskDetail>(`/api/assistant/tasks/${task.id}/files`, jsonPost({ attachment_ids: ids, version: saved.current.version }));
       if (!alive.current) return;

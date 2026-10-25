@@ -397,9 +397,10 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, requests.lookup(runtime, access, self.principal, parts[2]))
                 access.guard(runtime, self.principal, "GET", parts)
                 if parts[:2] == ['v1', 'user-files'] and len(parts) in {2, 3}:
-                    from .user_files import catalog, open_verified
+                    from .user_files import catalog, generated_catalog, open_verified
                     if len(parts) == 2:
-                        return self._json(200, {'files': catalog(runtime, access, self.principal)})
+                        return self._json(200, {'files': catalog(runtime, access, self.principal),
+                                                 'generated': generated_catalog(runtime, access, self.principal)})
                     item, handle = open_verified(runtime, access, self.principal, parts[2])
                     with handle:
                         self.send_response(200)

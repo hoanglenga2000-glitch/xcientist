@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from typing import Any
+
+_SELECTED_TASK_PREFIX = re.compile(r"^\[Selected task: [^\]]+\]\s*")
 
 
 ACTIVE_STATUSES = {"queued", "planning", "running", "verifying", "recovering"}
@@ -14,7 +17,8 @@ def project_message_history(run: dict[str, Any], turns: list[dict[str, Any]]) ->
     run_id = str(run["id"])
     session_id = str(run.get("session_id") or run_id)
     prompt = str(run.get("prompt") or "")
-    messages = [{"id": f"user_{run_id}", "role": "user", "content": prompt,
+    visible_prompt = _SELECTED_TASK_PREFIX.sub("", prompt, count=1)
+    messages = [{"id": f"user_{run_id}", "role": "user", "content": visible_prompt,
                  "created_at": str(run.get("created_at") or ""), "kind": "original_request"}]
     known_instructions = set((run.get("plan") or {}).get("continuation_instructions") or [])
     last_user = -1

@@ -13,6 +13,30 @@ from .tenant_access import AccessError, Principal
 
 TASK_ID = re.compile(r'utask_[a-f0-9]{32}')
 KEY = re.compile(r'[A-Za-z0-9_-]{8,128}')
+ACTIVE_WORK = {'queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval'}
+
+
+def delivery_status(runs):
+    """Work-item label. Newest-run success must not hide an undelivered goal.
+
+    ``delivered`` only when a goal-bearing run actually published a file, or when
+    the task never asked for a file and some run completed. A failed or empty
+    goal stays ``undelivered`` even if a later plain question succeeded.
+    An in-progress run keeps its own execution status.
+    """
+    if not runs:
+        return 'draft'
+    active = [run for run in runs if str(run.get('status') or '') in ACTIVE_WORK]
+    if active:
+        return str(active[0].get('status') or 'running')
+    goals = [run for run in runs if bool(run.get('require_artifact'))]
+    if goals:
+        if any(str(run.get('status') or '') == 'completed' and int(run.get('artifact_count') or 0) > 0 for run in goals):
+            return 'delivered'
+        return 'undelivered'
+    if any(str(run.get('status') or '') == 'completed' for run in runs):
+        return 'delivered'
+    return str(runs[0].get('status') or 'draft')
 
 
 class UserTasks:
@@ -85,7 +109,7 @@ class UserTasks:
             for task in tasks:
                 runs = self.runs(principal, task['id'], runtime, access)
                 if runs:
-                    task['status'] = runs[0]['status']
+                    task['status'] = delivery_status(runs)
         return tasks
 
     def create(self, principal, body):
@@ -120,15 +144,20 @@ class UserTasks:
         for run_id in ids:
             if access.owns_run(runtime, run_id, principal):
                 run = runtime.store.get_assistant_run(run_id)
-                rows.append({key: run.get(key) for key in ('id', 'conversation_id', 'status', 'created_at', 'updated_at', 'model', 'model_provider', 'error_class')})
+                plan = run.get('plan') if isinstance(run.get('plan'), dict) else {}
+                rows.append({key: run.get(key) for key in ('id', 'conversation_id', 'status', 'created_at', 'updated_at', 'model', 'model_provider', 'error_class')} | {
+                    'require_artifact': bool(plan.get('require_artifact')),
+                    'artifact_count': len(runtime.store.list_deliverables(run_id)),
+                })
         return sorted(rows, key=lambda row: (row['created_at'], row['id']), reverse=True)
 
     def detail(self, principal, task_id, runtime, access):
         task = self.get(principal, task_id)
         runs = self.runs(principal, task_id, runtime, access)
         if runs:
-            task['status'] = runs[0]['status']
-        return {'task': task, 'runs': runs, 'files': self.files(principal, task_id, runtime, access)}
+            task['status'] = delivery_status(runs)
+        return {'task': task, 'runs': runs, 'files': self.files(principal, task_id, runtime, access),
+                'generated_files': self.generated_files(principal, task_id, runtime, access)}
 
     def files(self, principal, task_id, runtime, access):
         from .user_files import metadata
@@ -141,6 +170,17 @@ class UserTasks:
             if item['sha256'] != row['sha256']:
                 raise AccessError(409, 'task_file_version_changed')
             files.append(item)
+        return files
+
+    def generated_files(self, principal, task_id, runtime, access):
+        from .user_files import public_generated
+        self.get(principal, task_id)
+        files = []
+        for run in self.runs(principal, task_id, runtime, access):
+            for row in runtime.store.list_deliverables(run['id']):
+                files.append(public_generated(row))
+                if len(files) >= 500:
+                    return files
         return files
 
     def select_files(self, principal, task_id, body, runtime, access):

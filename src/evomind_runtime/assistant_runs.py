@@ -1232,8 +1232,18 @@ class AssistantRunService:
                 if not current_run or current_run["status"] == "cancelled":
                     return
                 model = result.get("model_execution") if isinstance(result.get("model_execution"), dict) else {}
-                provider = str(model.get("provider") or result.get("model", {}).get("provider") or "")
-                model_name = str(model.get("model") or result.get("model", {}).get("model") or "")
+                provider = str(model.get("provider") or "")
+                model_name = str(model.get("model") or "")
+                if not provider and not model_name:
+                    # A model.response recorded during the call is the served identity.
+                    # The router decision is only a stand-in when no call returned.
+                    served = self.store.get_assistant_run(run_id) or {}
+                    provider = str(served.get("model_provider") or "")
+                    model_name = str(served.get("model") or "")
+                if not provider and not model_name:
+                    routed = result.get("model") if isinstance(result.get("model"), dict) else {}
+                    provider = str(routed.get("provider") or "")
+                    model_name = str(routed.get("model") or "")
                 self.store.update_assistant_run(run_id, model_provider=provider, model=model_name)
                 self.store.append_event(
                     run_id,

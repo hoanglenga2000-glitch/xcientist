@@ -924,6 +924,8 @@ class AgentRuntime:
                         "tool_names": [requested.name for requested in turn.tool_calls],
                     },
                 )
+                from .model_router import remember_served_model
+                remember_served_model(self.store, session_id, turn.provider, turn.model)
                 if not turn.text and not turn.tool_calls:
                     published_artifacts = self.store.list_deliverables(session_id)
                     if model_execution["native_tool_calls"] and published_artifacts:

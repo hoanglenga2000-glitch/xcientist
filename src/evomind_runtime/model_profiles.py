@@ -80,8 +80,11 @@ class ModelProfiles:
             profiles = [self.public(row) for row in connection.execute('''SELECT r.*,p.enabled FROM profiles p JOIN revisions r
                 ON r.id=p.id AND r.version=p.version WHERE p.tenant=? AND p.owner=? ORDER BY p.created_at DESC''', scope)]
             default = connection.execute('SELECT profile_id FROM defaults WHERE tenant=? AND owner=?', scope).fetchone()
+        from .model_router import ModelRouter
+        decision = ModelRouter().route('execution', 'balanced')
+        platform_model = None if decision.provider == 'none' else {'provider': decision.provider, 'model': decision.model}
         return {'profiles': profiles, 'default_profile_id': default[0] if default else '',
-                'platform_option': 'existing_permissions_only'}
+                'platform_option': 'existing_permissions_only', 'platform_model': platform_model}
 
     def save(self, principal, body, profile_id=''):
         scope = UserTasks.scope(principal)

@@ -131,6 +131,58 @@ test('a saved task with no run has a clear start action, not a continuation labe
   assert.match(html, /开始任务/);
 });
 
+test('served model and generated files are visible in the current conversation', () => {
+  const { TaskRunView } = require('./TaskRunView.tsx');
+  const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'conversation', run: {
+    id: 'run_served', status: 'completed', prompt: '[Selected task: risk_control]\n测试正文', answer: '回复',
+    model_provider: 'anthropic', model: 'claude-opus-4-8',
+    message_history: { schema: 'evomind.assistant_message_history.v1', active_message_id: 'a', messages: [
+      { id: 'u', role: 'user', content: '[Selected task: risk_control]\n测试正文' },
+      { id: 'a', role: 'assistant', content: '回复' },
+    ] },
+    artifacts: [{ id: 'artifact_report', run_id: 'run_served', name: '报告.md', bytes: 4, sha256: 'b'.repeat(64), preview_kind: 'markdown' }],
+    artifact_evidence: [{ id: 'artifact_note', run_id: 'run_served', name: 'notes.txt', bytes: 2, sha256: 'c'.repeat(64), preview_kind: 'text' }],
+  } }));
+  assert.match(html, /data-served-model="anthropic \/ claude-opus-4-8"/);
+  assert.match(html, /报告\.md/);
+  assert.match(html, /notes\.txt/);
+  assert.match(html, /测试正文/);
+  assert.doesNotMatch(html, /risk_control|本轮实际模型/);
+});
+
+test('work item label is delivered or not, without an explanation paragraph', () => {
+  const { TaskList } = require('./TaskList.tsx');
+  const { TaskSession } = require('./TaskSession.tsx');
+  const { taskStatus } = require('./types.ts');
+  assert.equal(taskStatus('delivered'), '已交付');
+  assert.equal(taskStatus('undelivered'), '未交付');
+  const list = renderToStaticMarkup(React.createElement(TaskList, { query: '', tasks: [{
+    id: 'utask_0123456789abcdef0123456789abcdef', title: '报告任务', status: 'undelivered', updated_at: '2026-10-23T00:00:00Z',
+  }] }));
+  assert.match(list, /未交付/);
+  assert.doesNotMatch(list, /执行已完成|因为|后续/);
+  const session = renderToStaticMarkup(React.createElement(TaskSession, { initial: {
+    task: { id: 'utask_0123456789abcdef0123456789abcdef', title: '报告任务', draft: '请生成报告', version: 1, conversation_id: 'conversation_a', status: 'undelivered', created_at: '', updated_at: '' },
+    runs: [{ id: 'run_qa', status: 'completed', created_at: '2026-10-23T00:00:00Z' }], files: [],
+  } }));
+  assert.match(session, /未交付/);
+  assert.doesNotMatch(session, /<p>[^<]*因为/);
+});
+
+test('platform label and task restore follow the served model and the owning task', () => {
+  const { platformOptionLabel, owningTaskHref, sessionDraft } = require('./task-presentation.ts');
+  assert.equal(platformOptionLabel({ provider: 'anthropic', model: 'claude-sonnet-5' }, null), '平台模型 · anthropic / claude-sonnet-5');
+  assert.equal(
+    platformOptionLabel({ provider: 'anthropic', model: 'claude-sonnet-5' }, { provider: 'anthropic', model: 'claude-opus-4-8' }),
+    '平台模型 · anthropic / claude-opus-4-8',
+  );
+  assert.equal(platformOptionLabel(null, null), '平台模型（沿用现有权限与配置）');
+  assert.equal(owningTaskHref('utask_old', { id: 'run_new', user_task_id: 'utask_new' }, 'conversation'), '/workspace?task=utask_new&assistant_run=run_new&view=conversation');
+  assert.equal(owningTaskHref('utask_same', { id: 'run_same', user_task_id: 'utask_same' }), '');
+  assert.equal(sessionDraft('已保存的正文', '另一任务的草稿', 'utask_other', 'utask_current'), '已保存的正文');
+  assert.equal(sessionDraft('已保存的正文', '正在输入', 'utask_current', 'utask_current'), '正在输入');
+});
+
 test('an accepted resume remains in progress and does not offer another resume button', () => {
   const { TaskControls } = require('./TaskControls.tsx');
   const { taskStatus } = require('./types.ts');

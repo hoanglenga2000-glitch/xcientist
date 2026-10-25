@@ -1,11 +1,12 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { jsonPost, taskRequest, type UserFile } from './types';
+import { jsonPost, taskRequest, type GeneratedFile, type UserFile } from './types';
 import { DownloadFile } from './DownloadFile';
 
 const EMPTY_FILES: UserFile[] = [];
 export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: UserFile[]; onSelect?: (ids: string[]) => Promise<void> }) {
   const [files, setFiles] = useState<UserFile[]>([]);
+  const [generated, setGenerated] = useState<GeneratedFile[]>([]);
   const [chosen, setChosen] = useState<string[]>(selected.map(item => item.id));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -15,7 +16,7 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort;
-    void taskRequest<{ files: UserFile[] }>('/api/assistant/files', { signal: abort.signal }).then(data => { if (!abort.signal.aborted) setFiles(data.files); }).catch(cause => { if (!abort.signal.aborted) setError(cause.message); });
+    void taskRequest<{ files: UserFile[]; generated?: GeneratedFile[] }>('/api/assistant/files', { signal: abort.signal }).then(data => { if (!abort.signal.aborted) { setFiles(data.files); setGenerated(data.generated ?? []); } }).catch(cause => { if (!abort.signal.aborted) setError(cause.message); });
     return () => abort.abort();
   }, []);
   useEffect(() => { setChosen(selected.map(item => item.id)); }, [selected]);
@@ -37,9 +38,9 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
         await taskRequest(`/api/assistant/uploads/${job.id}/chunks/${index}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Chunk-SHA256': digest }, body: chunk, signal });
       }
       const result = await taskRequest<{ attachment: UserFile }>(`/api/assistant/uploads/${job.id}/complete`, { ...jsonPost({}), signal });
-      const list = await taskRequest<{ files: UserFile[] }>('/api/assistant/files', { signal });
+      const list = await taskRequest<{ files: UserFile[]; generated?: GeneratedFile[] }>('/api/assistant/files', { signal });
       if (signal.aborted) return;
-      setFiles(list.files);
+      setFiles(list.files); setGenerated(list.generated ?? []);
       if (onSelect) {
         const ids = [...new Set([...chosen, result.attachment.id])];
         await onSelect(ids); setChosen(ids);
@@ -66,6 +67,8 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
       <details className="tw-details"><summary>上传校验</summary><p>SHA-256：{file.sha256}</p><p>校验只证明文件内容一致，不代表科研结论成立。</p></details>
     </article>)}
     {onSelect && files.length > 0 && <button disabled={busy} onClick={() => void saveSelection()}>保存资料选择</button>}
+    {!onSelect && generated.length > 0 && <h2>生成文件</h2>}
+    {!onSelect && generated.map(file => <article className="tw-file" key={file.id}><div className="tw-file-heading"><div><h3>{file.name}</h3><small>{file.bytes.toLocaleString()} 字节</small></div><DownloadFile url={file.download_url || `/api/assistant/artifacts/${encodeURIComponent(file.id)}?download=1`} file={file} label="下载生成文件" /></div></article>)}
     {error && <p role="alert" className="tw-error">{error}{retry && <button disabled={busy} onClick={() => void upload(retry)}>重试上传</button>}</p>}
     <p role="status">{notice}</p>
   </section>;

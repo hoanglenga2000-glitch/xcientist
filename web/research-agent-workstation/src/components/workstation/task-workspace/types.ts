@@ -14,11 +14,12 @@ export type TaskRun = {
   approvals?: Array<{ id: string; status: string; tool_name: string; risk_level: string; reversible: boolean; normalized_arguments?: Record<string, unknown>; impact_scope?: Record<string, unknown> }>;
 };
 export type UserFile = { id: string; name: string; bytes: number; sha256: string; media_type: string; created_at: string };
-export type TaskDetail = { task: UserTask; runs: TaskRun[]; files?: UserFile[] };
+export type GeneratedFile = TaskArtifact & { media_type?: string; download_url?: string; preview_url?: string };
+export type TaskDetail = { task: UserTask; runs: TaskRun[]; files?: UserFile[]; generated_files?: GeneratedFile[] };
 
 export const taskStatus = (status: string) => ({
   draft: '尚未开始', queued: '等待开始', planning: '正在整理方案', running: '正在处理', verifying: '正在检查结果',
-  completed: '执行已完成', failed: '执行失败', blocked: '暂时无法继续', waiting_approval: '等待你确认',
+  completed: '执行已完成', delivered: '已交付', undelivered: '未交付', failed: '执行失败', blocked: '暂时无法继续', waiting_approval: '等待你确认',
   paused: '已暂停', pausing: '正在暂停', cancelled: '已取消', recovering: '正在恢复',
 }[status] ?? '状态待确认');
 
