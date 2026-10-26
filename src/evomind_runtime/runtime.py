@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,8 @@ from .assistant_runs import AssistantRunService
 from .super_agent_runtime import SuperAgentMode, SuperAgentRuntime
 from .tenant_access import register_scoped_session, scoped_session_metadata
 from .execution_progress import ExecutionHeartbeat, ProgressStore, safe_text
+
+logger = logging.getLogger(__name__)
 
 
 def _message_max_output_tokens(session: dict[str, Any], client: Any) -> int:
@@ -639,7 +642,10 @@ class AgentRuntime:
         """
 
         now = datetime.now(timezone.utc)
-        self.assistant.close_idle_planning(idle_seconds=idle_seconds)
+        try:
+            self.assistant.close_idle_planning(idle_seconds=idle_seconds)
+        except Exception:
+            logger.exception("close_idle_planning failed during settle_orphan_sessions")
         reconciled: list[dict[str, Any]] = []
         skipped: dict[str, int] = {}
 

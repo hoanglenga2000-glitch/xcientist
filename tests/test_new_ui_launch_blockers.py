@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+import logging
+import threading
 from datetime import datetime, timedelta, timezone
 
 from evomind_runtime.model_router import ModelRouter, remember_served_model
@@ -220,6 +222,14 @@ def _backdate_planning(runtime, run_id, stamp="2026-10-14T00:00:00+00:00"):
             "UPDATE sessions SET created_at=?, updated_at=? WHERE id=?",
             (stamp, stamp, run_id),
         )
+        runtime.store._connection.execute(
+            "UPDATE events SET created_at=? WHERE session_id=?",
+            (stamp, run_id),
+        )
+        runtime.store._connection.execute(
+            "UPDATE tool_calls SET created_at=?, started_at=?, completed_at=? WHERE session_id=?",
+            (stamp, stamp, stamp, run_id),
+        )
 
 
 def _planning_events(runtime, run_id):
@@ -239,9 +249,9 @@ def test_idle_planning_since_mid_october_closes_without_cancel(tmp_path):
         runtime.store.update_assistant_run(fresh["id"], status="planning")
         runtime.store.update_session(fresh["id"], status="planning")
 
-        snapshot = runtime.assistant.snapshot(old["id"])
+        receipt = runtime.assistant.close_idle_planning()
         stored = runtime.store.get_assistant_run(old["id"])
-        assert snapshot["status"] == stored["status"] == "blocked"
+        assert stored["status"] == "blocked"
         assert stored["error_class"] == "planning_idle"
         assert stored["error_message"] == ""
         assert stored["status"] != "cancelled"
@@ -250,6 +260,10 @@ def test_idle_planning_since_mid_october_closes_without_cancel(tmp_path):
         assert event["event_type"] == "run_blocked"
         assert event["payload"]["reason"] == "planning_idle"
         assert event["payload"]["previous_status"] == "planning"
+        assert fresh["id"] not in {item["run_id"] for item in receipt["closed"]}
+        fresh_view = runtime.assistant.snapshot(fresh["id"])
+        assert fresh_view["status"] == "planning"
+        assert fresh_view["status"] != "cancelled"
         assert runtime.store.get_assistant_run(fresh["id"])["status"] == "planning"
         assert runtime.store.get_session(fresh["id"])["status"] == "planning"
     finally:
@@ -342,20 +356,242 @@ def test_idle_planning_with_a_fresh_confirmation_is_not_cancelled(tmp_path):
         runtime.close()
 
 
-def test_idle_planning_with_an_unconfirmed_tool_is_blocked_not_cancelled(tmp_path):
+def test_idle_planning_with_a_running_tool_is_not_closed(tmp_path):
     runtime = AgentRuntime(tmp_path)
     try:
-        run = runtime.assistant.create_run(prompt="有一步还没核对", start=False)
+        run = runtime.assistant.create_run(prompt="有一步还在跑", start=False)
         runtime.store.put_tool_call(ToolCall(
             new_id("call"), run["id"], "file_write", {"path": "note.txt"}, status="running", started_at=utc_now(),
         ))
         _backdate_planning(runtime, run["id"])
-        runtime.assistant.close_idle_planning()
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "planning"
+        assert stored["status"] != "cancelled"
+        assert receipt["skipped"].get("tool_call_active") == 1
+        assert _planning_events(runtime, run["id"]) == []
+    finally:
+        runtime.close()
+
+
+def _hold_thread():
+    release = threading.Event()
+
+    def _run():
+        release.wait(timeout=5)
+
+    thread = threading.Thread(target=_run, daemon=True)
+    thread.start()
+    return thread, release
+
+
+def test_idle_planning_skips_a_live_worker(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    thread, release = _hold_thread()
+    try:
+        run = runtime.assistant.create_run(prompt="工人还在", start=False)
+        _backdate_planning(runtime, run["id"])
+        runtime.assistant._threads[run["id"]] = thread
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "planning"
+        assert stored["status"] != "cancelled"
+        assert receipt["skipped"].get("worker_alive") == 1
+        assert _planning_events(runtime, run["id"]) == []
+    finally:
+        release.set()
+        thread.join(timeout=2)
+        runtime.close()
+
+
+def test_recent_event_or_tool_activity_keeps_planning_open(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        by_event = runtime.assistant.create_run(prompt="事件还新", start=False)
+        by_tool = runtime.assistant.create_run(prompt="工具还新", start=False)
+        by_session = runtime.assistant.create_run(prompt="会话还新", start=False)
+        for run in (by_event, by_tool, by_session):
+            _backdate_planning(runtime, run["id"])
+        now = utc_now()
+        with runtime.store._lock, runtime.store._connection:
+            runtime.store._connection.execute(
+                "UPDATE events SET created_at=? WHERE session_id=? AND seq=("
+                "SELECT MAX(seq) FROM events WHERE session_id=?)",
+                (now, by_event["id"], by_event["id"]),
+            )
+            runtime.store._connection.execute(
+                "UPDATE sessions SET updated_at=? WHERE id=?",
+                (now, by_session["id"]),
+            )
+        runtime.store.put_tool_call(ToolCall(
+            new_id("call"), by_tool["id"], "file_read", {"path": "note.txt"},
+            status="completed", started_at=now, completed_at=now,
+        ))
+        receipt = runtime.assistant.close_idle_planning()
+        assert receipt["closed_count"] == 0
+        for run in (by_event, by_tool, by_session):
+            stored = runtime.store.get_assistant_run(run["id"])
+            assert stored["status"] == "planning"
+            assert stored["status"] != "cancelled"
+            assert _planning_events(runtime, run["id"]) == []
+        assert receipt["skipped"].get("recent_activity") == 3
+    finally:
+        runtime.close()
+
+
+def test_user_pause_keeps_idle_planning_open(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="用户暂停了", start=False)
+        runtime.store.set_user_pause_requested(run["id"], True)
+        _backdate_planning(runtime, run["id"])
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "planning"
+        assert stored["status"] != "cancelled"
+        assert receipt["skipped"].get("user_pause") == 1
+        assert _planning_events(runtime, run["id"]) == []
+    finally:
+        runtime.close()
+
+
+def test_planning_close_misses_when_the_row_moves_before_the_write(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="窗口里工人动了", start=False)
+        _backdate_planning(runtime, run["id"])
+        original = runtime.store.settle_planning_if_unchanged
+
+        def moved(run_id, observed_updated_at, **fields):
+            with runtime.store._lock, runtime.store._connection:
+                runtime.store._connection.execute(
+                    "UPDATE assistant_runs SET updated_at=? WHERE id=?",
+                    (utc_now(), run_id),
+                )
+            return original(run_id, observed_updated_at, **fields)
+
+        runtime.store.settle_planning_if_unchanged = moved
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "planning"
+        assert stored["status"] != "cancelled"
+        assert receipt["closed_count"] == 0
+        assert receipt["skipped"].get("already_settled") == 1
+        assert _planning_events(runtime, run["id"]) == []
+    finally:
+        runtime.close()
+
+
+def test_missing_or_unreadable_updated_at_is_not_closed(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        blank = runtime.assistant.create_run(prompt="没有时间", start=False)
+        broken = runtime.assistant.create_run(prompt="时间坏了", start=False)
+        _backdate_planning(runtime, blank["id"])
+        _backdate_planning(runtime, broken["id"])
+        with runtime.store._lock, runtime.store._connection:
+            runtime.store._connection.execute(
+                "UPDATE assistant_runs SET updated_at=? WHERE id=?",
+                ("", blank["id"]),
+            )
+            runtime.store._connection.execute(
+                "UPDATE assistant_runs SET updated_at=? WHERE id=?",
+                ("not-a-timestamp", broken["id"]),
+            )
+        receipt = runtime.assistant.close_idle_planning()
+        for run_id in (blank["id"], broken["id"]):
+            stored = runtime.store.get_assistant_run(run_id)
+            assert stored["status"] == "planning"
+            assert stored["status"] != "cancelled"
+            assert _planning_events(runtime, run_id) == []
+        assert receipt["skipped"].get("missing_timestamp") == 2
+        assert receipt["closed_count"] == 0
+    finally:
+        runtime.close()
+
+
+def test_malformed_plan_does_not_raise_and_is_not_cancelled(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="方案坏了", start=False)
+        _backdate_planning(runtime, run["id"])
+        with runtime.store._lock, runtime.store._connection:
+            runtime.store._connection.execute(
+                "UPDATE assistant_runs SET plan_json=? WHERE id=?",
+                ('{"steps":["bad",null,{"status":"completed"}]}', run["id"]),
+            )
+        receipt = runtime.assistant.close_idle_planning()
         stored = runtime.store.get_assistant_run(run["id"])
         assert stored["status"] == "blocked"
-        assert stored["error_class"] == "execution_reconciliation_required"
+        assert stored["error_class"] == "planning_idle"
         assert stored["status"] != "cancelled"
-        event = _planning_events(runtime, run["id"])[-1]
-        assert event["payload"]["reason"] == "planning_tool_unconfirmed"
+        assert receipt["closed"][0]["reason"] == "planning_idle"
+        assert _planning_events(runtime, run["id"])[-1]["event_type"] == "run_blocked"
+    finally:
+        runtime.close()
+
+
+def test_finished_plan_without_required_artifacts_is_blocked_not_cancelled(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="请生成一份报告", start=False)
+        plan = dict(run["plan"])
+        plan["require_artifact"] = True
+        plan["expected_artifacts"] = ["report.md"]
+        plan["steps"] = [{**step, "status": "completed"} for step in plan["steps"]]
+        runtime.store.update_assistant_run(run["id"], plan=plan)
+        _backdate_planning(runtime, run["id"])
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "blocked"
+        assert stored["error_class"] == "incomplete_deliverables"
+        assert stored["status"] != "cancelled"
+        assert receipt["closed"][0]["reason"] == "planning_artifacts_missing"
+    finally:
+        runtime.close()
+
+
+def test_open_child_run_is_not_closed(tmp_path):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="还有子任务", start=False)
+        _backdate_planning(runtime, run["id"])
+        child_id = new_id("run")
+        stamp = "2026-10-14T00:00:00+00:00"
+        with runtime.store._lock, runtime.store._connection:
+            runtime.store._connection.execute(
+                "INSERT INTO sessions VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                (child_id, "", "workspace_write", "running", "child", "child", stamp, stamp, run["id"], "", "{}"),
+            )
+        receipt = runtime.assistant.close_idle_planning()
+        stored = runtime.store.get_assistant_run(run["id"])
+        assert stored["status"] == "planning"
+        assert stored["status"] != "cancelled"
+        assert receipt["skipped"].get("child_run") == 1
+        assert _planning_events(runtime, run["id"]) == []
+    finally:
+        runtime.close()
+
+
+def test_close_failure_is_logged_and_does_not_abort_callers(tmp_path, caplog):
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="收尾抛错", start=False)
+        runtime.store.update_assistant_run(run["id"], status="planning")
+
+        def explode(*_args, **_kwargs):
+            raise RuntimeError("close failed")
+
+        runtime.assistant.close_idle_planning = explode
+        runtime.assistant.start = lambda *_args, **_kwargs: False
+        with caplog.at_level(logging.ERROR):
+            view = runtime.assistant.snapshot(run["id"])
+            recovered = runtime.assistant.recover_incomplete()
+            settled = runtime.settle_orphan_sessions()
+        assert view["status"] == "planning"
+        assert view["status"] != "cancelled"
+        assert recovered == []
+        assert "reconciled_count" in settled
+        assert "close_idle_planning failed" in caplog.text
     finally:
         runtime.close()
