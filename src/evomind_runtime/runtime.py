@@ -824,8 +824,19 @@ class AgentRuntime:
                     {"error_class": type(exc).__name__, "mode": self.super_agent.mode.value},
                 )
         personal_binding = (session.get('metadata') or {}).get('model_profile')
+        session_meta = session.get('metadata') or {}
+        chosen_platform = str(session_meta.get('platform_model_id') or '')
+        reasoning_effort = str(session_meta.get('reasoning_effort') or '')
         if not personal_binding:
-            decision = self.router.route("execution", session["selected_model_policy"])
+            if chosen_platform:
+                from .model_router import platform_transport_for
+                from .models import ModelDecision
+                selected = platform_transport_for(chosen_platform)
+                if selected is None:
+                    raise RuntimeError('platform_model_unavailable')
+                decision = ModelDecision('execution', selected.name, selected.config.model, 'Explicit platform model from the resolved transport list; no fallback.', [], False)
+            else:
+                decision = self.router.route("execution", session["selected_model_policy"])
             self.store.append_event(session_id, "model.routed", decision.to_dict())
         else:
             from .models import ModelDecision
@@ -857,10 +868,23 @@ class AgentRuntime:
             if personal_binding:
                 from .personal_model_client import client_for_run
                 client = client_for_run(self, session, before_attempt=guard_model_dispatch,
-                                         text_observer=text_stream, during_request=guard_model_stream)
+                                         text_observer=text_stream, during_request=guard_model_stream,
+                                         reasoning_effort=reasoning_effort)
                 self.store.append_event(session_id, 'model.personal_profile_bound', personal_binding)
             else:
-                client = governed_client(AgentMessageClient(), lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
+                from .model_router import apply_reasoning_effort, platform_transport_for
+                if chosen_platform:
+                    selected = platform_transport_for(chosen_platform)
+                    if selected is None:
+                        raise RuntimeError('platform_model_unavailable')
+                    message_client = AgentMessageClient(transports=[apply_reasoning_effort(selected, reasoning_effort)])
+                elif reasoning_effort:
+                    from research_os.agent.messaging import _resolve_transports
+                    resolved = [apply_reasoning_effort(item, reasoning_effort) for item in _resolve_transports()]
+                    message_client = AgentMessageClient(transports=resolved) if resolved else AgentMessageClient()
+                else:
+                    message_client = AgentMessageClient()
+                client = governed_client(message_client, lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
                                          before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
                 bind_run_client(self.store, session_id, client)
             if not client.is_available():

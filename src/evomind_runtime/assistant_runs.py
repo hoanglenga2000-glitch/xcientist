@@ -885,8 +885,18 @@ class AssistantRunService:
         user_task_id: str = "",
         model_profile_id: str = "",
         model_profile_version: int = 0,
+        platform_model_id: str = "",
+        reasoning_effort: str = "",
     ) -> dict[str, Any]:
         objective = str(prompt or "").strip()
+        if platform_model_id and model_profile_id:
+            raise ValueError('invalid_platform_model')
+        if platform_model_id:
+            from .model_router import platform_transport_for
+            if platform_transport_for(platform_model_id) is None:
+                raise ValueError('invalid_platform_model')
+        if reasoning_effort and reasoning_effort not in {'low', 'medium', 'high'}:
+            raise ValueError('invalid_reasoning_effort')
         profile_binding = None
         if model_profile_id:
             from .model_profiles import ModelProfiles
@@ -961,6 +971,8 @@ class AssistantRunService:
                 "user_task_id": user_task_id,
                 "model_profile": profile_binding,
                 "attachment_context": attachment_context,
+                **({"platform_model_id": platform_model_id} if platform_model_id else {}),
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
             },
         )
         row = self.store.create_assistant_run(

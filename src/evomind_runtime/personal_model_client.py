@@ -18,7 +18,7 @@ from .model_transport import _response_error
 from .models import utc_now
 
 
-def client_for_run(runtime, session, before_attempt=None, text_observer=None, during_request=None):
+def client_for_run(runtime, session, before_attempt=None, text_observer=None, during_request=None, reasoning_effort=None):
     from .model_profiles import ModelProfiles
     from .tenant_access import AccessStore
     profile_store = ModelProfiles(runtime.runtime_root)
@@ -28,7 +28,7 @@ def client_for_run(runtime, session, before_attempt=None, text_observer=None, du
     if any(frozen[key] != declared.get(key) for key in ('id', 'version')):
         raise ValueError('model_run_binding_mismatch')
     return PersonalModelClient(profile_store, owner, frozen, before_attempt=before_attempt, record_use=True,
-                               text_observer=text_observer, during_request=during_request)
+                               text_observer=text_observer, during_request=during_request, reasoning_effort=reasoning_effort)
 
 
 def redact(value, key):
@@ -338,7 +338,7 @@ def post_public_stream(url, headers, payload, on_text, *, provider, expected_mod
 
 
 class PersonalModelClient:
-    def __init__(self, store, principal, binding, before_attempt=None, record_use=False, text_observer=None, during_request=None):
+    def __init__(self, store, principal, binding, before_attempt=None, record_use=False, text_observer=None, during_request=None, reasoning_effort=None):
         self.store, self.principal, self.binding = store, principal, binding
         self.before_attempt, self.record_use = before_attempt, record_use
         self.text_observer, self.during_request = text_observer, during_request
@@ -349,6 +349,9 @@ class PersonalModelClient:
         config = ProviderConfig(profile['provider'], profile['base_url'], profile['model'], key)
         transport = {'anthropic': AnthropicTransport, 'deepseek': DeepSeekTransport, 'openai': OpenAITransport}[profile['provider']]
         self.transport = transport(config)
+        if reasoning_effort:
+            from .model_router import apply_reasoning_effort
+            apply_reasoning_effort(self.transport, reasoning_effort)
         self.timeout, self.max_retries = 30, 0
 
     @property

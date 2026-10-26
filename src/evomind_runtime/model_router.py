@@ -1,6 +1,53 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from .models import ModelDecision
+
+_EFFORTS = frozenset({'low', 'medium', 'high'})
+
+
+def available_platform_models() -> list[dict[str, str]]:
+    """Models the existing transport resolver can call on this node.
+
+    A provider is listed only when its key is configured. ``route`` is not
+    changed; the first entry is still the default ``platform_model``.
+    """
+    from research_os.agent.messaging import _resolve_transports
+
+    rows: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for transport in _resolve_transports():
+        provider = str(transport.name or '')
+        model = str(getattr(transport.config, 'model', '') or '')
+        if not provider or provider == 'none' or not model:
+            continue
+        item_id = f'{provider}:{model}'
+        if item_id in seen:
+            continue
+        seen.add(item_id)
+        rows.append({'id': item_id, 'provider': provider, 'model': model, 'label': model})
+    return rows
+
+
+def platform_transport_for(model_id: str):
+    """Return the resolved transport for one catalog id, or None when it is not available."""
+    if not isinstance(model_id, str) or not model_id:
+        return None
+    from research_os.agent.messaging import _resolve_transports
+
+    for transport in _resolve_transports():
+        if f'{transport.name}:{transport.config.model}' == model_id:
+            return transport
+    return None
+
+
+def apply_reasoning_effort(transport, effort: str):
+    """OpenAI already sends reasoning_effort from ProviderConfig. Other wires are unchanged."""
+    if effort not in _EFFORTS or getattr(transport, 'name', '') != 'openai':
+        return transport
+    transport.config = replace(transport.config, reasoning_effort=effort)
+    return transport
 
 
 class ModelRouter:
