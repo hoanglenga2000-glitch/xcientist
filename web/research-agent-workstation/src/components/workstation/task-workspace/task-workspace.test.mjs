@@ -242,6 +242,23 @@ test('quota used label excludes reserved holds', () => {
   assert.doesNotMatch(html, /剩余额度|保存预算/);
 });
 
+test('blocked progress is one Chinese status and a next action', () => {
+  const { TaskRunView } = require('./TaskRunView.tsx');
+  const { blockedProgressCopy } = require('./task-presentation.ts');
+  const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'progress', run: {
+    id: 'run_blocked', status: 'blocked', error_class: 'recoverable',
+    error_message: 'required result artifacts unavailable; missing final artifacts: r5-anchor-report.md',
+    plan: { steps: [
+      { id: 's1', label: '验证结果与文件', status: 'failed', detail: 'missing final artifacts: r5-anchor-report.md' },
+    ] },
+  } }));
+  assert.match(html, /结果还没齐/);
+  assert.match(html, /检查并继续/);
+  assert.doesNotMatch(html, /r5-anchor-report|required result|recoverable|技术错误|missing final/);
+  assert.equal(blockedProgressCopy({ status: 'blocked', error_class: 'planning_idle' }).status, '方案停住了');
+  assert.equal(blockedProgressCopy({ status: 'blocked', error_class: 'execution_reconciliation_required' }).action, '先核对这一步');
+});
+
 test('tool completion is a short step label and hides the raw tool id', () => {
   const { TaskRunView } = require('./TaskRunView.tsx');
   const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'progress', run: {

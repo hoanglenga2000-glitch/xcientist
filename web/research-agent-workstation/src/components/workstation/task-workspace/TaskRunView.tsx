@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { restoreRunMessages } from '../screens/assistant-history';
-import { actionName, servedModelLabel, toolStepDetail, toolStepLabel, visibleMessageText } from './task-presentation';
+import { actionName, blockedProgressCopy, servedModelLabel, toolStepDetail, toolStepLabel, visibleMessageText } from './task-presentation';
 import { taskStatus, type TaskArtifact, type TaskRun } from './types';
 import { DownloadFile } from './DownloadFile';
 
@@ -40,8 +40,9 @@ export function TaskRunView({ view, run }: { view: string; run: TaskRun | null }
     {!run.artifacts?.length && <div className="tw-empty"><h2>还没有结果文件</h2></div>}
     {Boolean(run.artifact_evidence?.length) && <details className="tw-details"><summary>中间文件与执行记录（{run.artifact_evidence!.length}）</summary>{run.artifact_evidence!.map(file => <ResultFile key={file.id} file={file} />)}</details>}
   </section>;
-  if (view === 'progress') return <section><h2>{taskStatus(run.status)}</h2>
-    {unavailable ? modelHelp : run.error_class && <div role="alert" className="tw-error"><p>{run.error_message || '本次执行遇到问题。请查看详情，处理后再明确选择继续。'}</p><details><summary>技术错误</summary>{run.error_class}</details></div>}
+  const progressCopy = unavailable ? null : blockedProgressCopy(run);
+  if (view === 'progress') return <section><h2>{progressCopy?.status || taskStatus(run.status)}</h2>
+    {unavailable ? modelHelp : progressCopy && <p role="alert" className="tw-error">{progressCopy.action}</p>}
     <ol className="tw-timeline">{(run.plan?.steps ?? []).map(step => {
       const detail = toolStepDetail(step.detail);
       const statusLabel = ({ pending: '尚未执行', running: '正在处理', completed: '已完成', failed: '失败', skipped: '已跳过' } as Record<string, string>)[step.status] ?? toolStepLabel(step.status);

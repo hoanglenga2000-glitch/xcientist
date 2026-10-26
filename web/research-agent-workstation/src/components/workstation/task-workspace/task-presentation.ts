@@ -79,10 +79,32 @@ export function toolStepLabel(label: string, status = '') {
   return label;
 }
 
+const INTERNAL_PROGRESS = /required result artifacts|missing final artifacts|\brecoverable\b|技术错误|[A-Za-z0-9_.-]+\.(?:md|json|csv|txt|pdf|png|html|py)\b/i;
+
 export function toolStepDetail(detail?: string) {
   if (!detail || detail === 'tool_completed' || RAW_TOOL_ID.test(detail)) return '';
   if (/^verified \d+ artifact(?:\(s\)|s)?$/i.test(detail.trim())) return '已核对';
+  if (INTERNAL_PROGRESS.test(detail)) return '';
   return detail;
+}
+
+/** One short status for a blocked or undelivered progress card. No filenames or internal codes. */
+export function blockedProgressCopy(run: { status?: string; error_class?: string; error_message?: string; answer?: string }) {
+  const status = String(run.status || '');
+  const blob = `${run.error_class || ''}\n${run.error_message || ''}\n${run.answer || ''}`;
+  if (run.error_class === 'model_unavailable' || blob.includes('Model execution is unavailable:')) return null;
+  const relevant = status === 'blocked' || status === 'failed' || status === 'undelivered'
+    || /required result artifacts unavailable|missing final artifacts|\brecoverable\b/i.test(blob);
+  if (!relevant || status === 'waiting_approval') return null;
+  if (run.error_class === 'execution_reconciliation_required' || run.error_class === 'approval_execution_unconfirmed') {
+    return { status: '有一步还没核对完', action: '先核对这一步' };
+  }
+  let label = '这一步停住了';
+  if (/required result artifacts unavailable|missing final artifacts/i.test(blob)) label = '结果还没齐';
+  else if (run.error_class === 'planning_idle') label = '方案停住了';
+  else if (status === 'failed') label = '这次没有完成';
+  else if (status === 'undelivered') label = '尚未交付';
+  return { status: label, action: '检查并继续' };
 }
 
 const ACTION_NAMES: Record<string, string> = {
