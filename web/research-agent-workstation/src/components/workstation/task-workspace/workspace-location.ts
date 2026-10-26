@@ -2,7 +2,7 @@
 export function workspaceLocation(params: URLSearchParams) {
   const target = new URLSearchParams();
   const page = params.get('page') || 'tasks';
-  const sections: Record<string, string> = { data: 'data', literature: 'literature', report: 'results', projects: 'projects', experiments: 'results' };
+  const sections: Record<string, string> = { data: 'data', report: 'results', projects: 'projects', experiments: 'results' };
   if (['settings', 'design', 'gpu'].includes(page)) target.set('settings', page === 'gpu' ? 'resources' : 'models');
   if (sections[page]) target.set('section', sections[page]);
   const task = params.get('task') || '';

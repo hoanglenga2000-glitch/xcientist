@@ -33,7 +33,7 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const next = new URLSearchParams(window.location.search).get("next") ?? "/?page=assistant";
+      const next = new URLSearchParams(window.location.search).get("next") ?? "/workspace";
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,7 +44,7 @@ export default function LoginPage() {
       const payload = await response.json().catch(() => ({})) as LoginResponse;
       if (!response.ok || !payload.ok || !payload.csrf_token) throw new Error(payload.message || "登录失败，请检查账号和密码");
       window.sessionStorage.setItem(CSRF_STORAGE_KEY, payload.csrf_token);
-      window.location.assign(payload.redirect_to || "/?page=assistant");
+      window.location.assign(payload.redirect_to || "/workspace");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "登录失败，请稍后重试");
       passwordRef.current?.focus();

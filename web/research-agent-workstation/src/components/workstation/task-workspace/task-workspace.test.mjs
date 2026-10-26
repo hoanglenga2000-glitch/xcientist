@@ -81,9 +81,21 @@ test('model settings clearly separates save, connection test and actual use', ()
 
 test('product navigation uses one workspace and personal settings never send users to legacy global pages', () => {
   const { TaskWorkspace } = require('./TaskWorkspace.tsx');
+  const { navSections, retiredPrimaryPageIds, navItems } = require('../navigation.ts');
   const html = renderToStaticMarkup(React.createElement(TaskWorkspace));
-  for (const label of ['新任务', '我的任务', '资料与数据', '文献检索', '成果', '设置']) assert.ok(html.includes(label));
-  assert.doesNotMatch(html, /href="\/\?page=/);
+  for (const label of ['新任务', '我的任务', '资料与数据', '成果', '设置']) assert.ok(html.includes(label));
+  assert.doesNotMatch(html, /文献检索|高级工具|href="\/\?page=/);
+  const primary = navSections.flatMap(section => section.ids);
+  assert.equal(retiredPrimaryPageIds.length, 12);
+  for (const id of retiredPrimaryPageIds) {
+    assert.equal(primary.includes(id), false);
+    assert.ok(navItems.some(item => item.id === id));
+  }
+  const page = readFileSync(new URL('../../../app/page.tsx', import.meta.url), 'utf8');
+  const home = readFileSync(new URL('../../../app/home-client.tsx', import.meta.url), 'utf8');
+  assert.match(page, /redirect\(workspaceLocation/);
+  assert.doesNotMatch(page, /HomeClient|AppShell/);
+  assert.doesNotMatch(home, /AppShell/);
   const { ModelSettings } = require('./ModelSettings.tsx');
   assert.doesNotMatch(renderToStaticMarkup(React.createElement(ModelSettings, { returnTask: '', isolated: true })), /打开原设置|href="\/\?page=/);
 });
@@ -100,6 +112,7 @@ test('settings offers three simple groups and resources never invent a personal 
 test('legacy links retain identities without guessing a task and map settings to one shell', () => {
   const { workspaceLocation } = require('./workspace-location.ts');
   assert.equal(workspaceLocation(new URLSearchParams('page=gpu')), '/workspace?settings=resources');
+  assert.equal(workspaceLocation(new URLSearchParams('page=literature')), '/workspace');
   const url = workspaceLocation(new URLSearchParams('page=workflow&task=old-task&run=run_original'));
   assert.match(url, /legacy_task=old-task/); assert.match(url, /legacy_run=run_original/);
   assert.doesNotMatch(url, /[?&]task=/);

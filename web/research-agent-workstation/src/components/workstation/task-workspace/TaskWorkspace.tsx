@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { BookOpen, FolderOpen, ListTodo, Menu, Plus, Search, Settings2, X } from 'lucide-react';
+import { FolderOpen, ListTodo, Menu, Plus, Search, Settings2, X } from 'lucide-react';
 import { TaskList } from './TaskList';
 import { TaskSession } from './TaskSession';
 import { WorkspaceSettings } from './WorkspaceSettings';
@@ -113,7 +113,7 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
       <a className="tw-brand" href="/workspace">DeepEvo<small>深度进化</small></a>
       <a className="tw-new" href="/workspace?new=1"><Plus size={18} />新任务</a>
       <nav><a aria-current={!settings && !section && !creating ? 'page' : undefined} href="/workspace"><ListTodo size={18} />我的任务</a>
-        <a aria-current={section === 'data' ? 'page' : undefined} href="/workspace?section=data"><FolderOpen size={18} />资料与数据</a><a aria-current={section === 'literature' ? 'page' : undefined} href="/workspace?section=literature"><BookOpen size={18} />文献检索</a>
+        <a aria-current={section === 'data' ? 'page' : undefined} href="/workspace?section=data"><FolderOpen size={18} />资料与数据</a>
         <a aria-current={section === 'results' ? 'page' : undefined} href="/workspace?section=results"><FolderOpen size={18} />成果</a><a aria-current={settings ? 'page' : undefined} href={`/workspace?settings=models${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`}><Settings2 size={18} />设置</a></nav>
       <p className="tw-sidebar-note">需求、进度和结果，都在同一个任务里。<br /><a href="/workspace?section=projects">管理项目</a></p>
     </aside>
