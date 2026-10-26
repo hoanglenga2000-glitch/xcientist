@@ -88,6 +88,96 @@ export function toolStepDetail(detail?: string) {
   return detail;
 }
 
+export const CHAT_TITLE = '今天想推进哪一项？';
+
+export const CHAT_SUGGESTIONS = [
+  '复现一篇论文的基线',
+  '整理比赛数据，给出切分方案',
+  '估算一次训练要花多少',
+] as const;
+
+export const STREAM_PHASES = ['理解目标', '执行', '核对', '交付'] as const;
+
+const LIVE_TASK = new Set(['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval']);
+
+export function isLiveTask(status: string) {
+  return LIVE_TASK.has(status);
+}
+
+/** Sidebar groups. Unfinished steps use the same gray, distinguished by a hollow dot. */
+export function conversationGroup(updatedAt?: string, now = Date.now()): '今天' | '昨天' | '更早' {
+  const time = new Date(updatedAt || '').getTime();
+  if (!Number.isFinite(time)) return '更早';
+  const start = new Date(now);
+  start.setHours(0, 0, 0, 0);
+  if (time >= start.getTime()) return '今天';
+  if (time >= start.getTime() - 86_400_000) return '昨天';
+  return '更早';
+}
+
+export function formatFileSize(bytes: number) {
+  if (!Number.isFinite(bytes) || bytes < 0) return '';
+  if (bytes < 1024) return `${Math.round(bytes)} B`;
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+  const mb = bytes / (1024 * 1024);
+  return `${mb >= 10 ? Math.round(mb) : mb.toFixed(1)} MB`;
+}
+
+export type PhaseState = { current: number; stuck: boolean; done: boolean; copy: { status: string; action: string } | null };
+
+/** Four visible phases. A stuck phase is the red step; earlier phases are done. */
+export function streamPhaseState(run: { status?: string; error_class?: string; error_message?: string; answer?: string }): PhaseState {
+  const status = String(run.status || '');
+  const copy = blockedProgressCopy(run);
+  if (status === 'completed' || status === 'delivered') return { current: -1, stuck: false, done: true, copy: null };
+  if (copy) {
+    const current = copy.status === '方案停住了' ? 0
+      : copy.status === '有一步还没核对完' ? 2
+      : copy.status === '结果还没齐' || copy.status === '尚未交付' ? 3
+      : 1;
+    return { current, stuck: true, done: false, copy };
+  }
+  const current = status === 'verifying' ? 2 : ['running', 'recovering', 'pausing'].includes(status) ? 1 : 0;
+  return { current, stuck: false, done: false, copy: null };
+}
+
+/** One sentence before a stuck card. No round counts, filenames, or internal codes. */
+export function blockedAssistantLine(status: string) {
+  if (status === '结果还没齐') return '结果还没齐，我先检查再接着跑。';
+  if (status === '方案停住了') return '方案停住了，我先检查这一步再继续。';
+  if (status === '这次没有完成') return '这次没有完成，我先检查再接着跑。';
+  if (status === '尚未交付') return '还没有交付，我先检查缺了什么。';
+  if (status === '有一步还没核对完') return '有一步还没核对完，我先核对再继续。';
+  return '这一步停住了，我先检查再接着跑。';
+}
+
+const DANGER_CONFIRM = /delete|submit|kaggle|external|shell|hpc|publish/i;
+
+/** In-budget cost stays in the chat. Over budget, danger, and external submit stay dialogs. */
+export function usesSeparateConfirm(approval: { tool_name?: string; risk_level?: string; normalized_arguments?: Record<string, unknown>; impact_scope?: Record<string, unknown> }) {
+  const risk = String(approval.risk_level || '').toLowerCase();
+  if (risk === 'high' || risk === 'critical') return true;
+  if (DANGER_CONFIRM.test(String(approval.tool_name || ''))) return true;
+  const blob = `${JSON.stringify(approval.normalized_arguments || {})}${JSON.stringify(approval.impact_scope || {})}`;
+  return /over_budget|exceeds|external_submit|kaggle/i.test(blob);
+}
+
+export function confirmActionLabel(tool?: string) {
+  const name = String(tool || '');
+  if (name === 'file_write' || name === 'write_file') return '写入这次任务的文件';
+  if (!name || RAW_TOOL_ID.test(name)) return '继续推进当前方案';
+  return name;
+}
+
+export function confirmSpendLabel(approval: { normalized_arguments?: Record<string, unknown> }) {
+  const args = approval.normalized_arguments || {};
+  const amount = args.estimated_cost ?? args.cost ?? args.amount;
+  const cap = args.budget ?? args.limit ?? args.cap;
+  if (typeof amount === 'number' && typeof cap === 'number') return `约 ¥${amount}，上限 ¥${cap}`;
+  if (typeof amount === 'number') return `约 ¥${amount}`;
+  return '在当前额度内';
+}
+
 /** One short status for a blocked or undelivered progress card. No filenames or internal codes. */
 export function blockedProgressCopy(run: { status?: string; error_class?: string; error_message?: string; answer?: string }) {
   const status = String(run.status || '');

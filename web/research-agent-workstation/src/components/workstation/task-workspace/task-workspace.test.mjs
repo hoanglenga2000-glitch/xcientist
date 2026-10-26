@@ -32,7 +32,7 @@ test('my tasks explains how to begin and links to the exact saved task', () => {
   const { TaskList } = require('./TaskList.tsx');
   const empty = renderToStaticMarkup(React.createElement(TaskList, { tasks: [], query: '' }));
   assert.match(empty, /还没有任务/);
-  assert.match(empty, /新任务/);
+  assert.match(empty, /新对话/);
   const populated = renderToStaticMarkup(React.createElement(TaskList, { query: '', tasks: [{
     id: 'utask_123', title: '我的阅读任务', status: 'draft', updated_at: '2026-10-08T00:00:00Z',
   }] }));
@@ -83,8 +83,8 @@ test('product navigation uses one workspace and personal settings never send use
   const { TaskWorkspace } = require('./TaskWorkspace.tsx');
   const { navSections, retiredPrimaryPageIds, navItems } = require('../navigation.ts');
   const html = renderToStaticMarkup(React.createElement(TaskWorkspace));
-  for (const label of ['新任务', '我的任务', '资料与数据', '成果', '设置']) assert.ok(html.includes(label));
-  assert.doesNotMatch(html, /文献检索|高级工具|href="\/\?page=/);
+  for (const label of ['新对话', '对话', '工作', '资料', '我的']) assert.ok(html.includes(label), label);
+  assert.doesNotMatch(html, /我的任务|资料与数据|文献检索|高级工具|href="\/\?page=/);
   const primary = navSections.flatMap(section => section.ids);
   assert.equal(retiredPrimaryPageIds.length, 12);
   for (const id of retiredPrimaryPageIds) {
@@ -111,8 +111,10 @@ test('settings offers three simple groups and resources never invent a personal 
 
 test('legacy links retain identities without guessing a task and map settings to one shell', () => {
   const { workspaceLocation } = require('./workspace-location.ts');
-  assert.equal(workspaceLocation(new URLSearchParams('page=gpu')), '/workspace?settings=resources');
+  assert.equal(workspaceLocation(new URLSearchParams('page=gpu')), '/workspace?section=work&tab=resources');
+  assert.equal(workspaceLocation(new URLSearchParams('page=evolution')), '/workspace?section=work&tab=evolution');
   assert.equal(workspaceLocation(new URLSearchParams('page=literature')), '/workspace');
+  assert.equal(workspaceLocation(new URLSearchParams('page=experiments')), '/workspace');
   const url = workspaceLocation(new URLSearchParams('page=workflow&task=old-task&run=run_original'));
   assert.match(url, /legacy_task=old-task/); assert.match(url, /legacy_run=run_original/);
   assert.doesNotMatch(url, /[?&]task=/);
@@ -257,6 +259,48 @@ test('blocked progress is one Chinese status and a next action', () => {
   assert.doesNotMatch(html, /r5-anchor-report|required result|recoverable|技术错误|missing final/);
   assert.equal(blockedProgressCopy({ status: 'blocked', error_class: 'planning_idle' }).status, '方案停住了');
   assert.equal(blockedProgressCopy({ status: 'blocked', error_class: 'execution_reconciliation_required' }).action, '先核对这一步');
+});
+
+test('a stuck conversation names the step in Chinese and keeps the file list folded', () => {
+  const { TaskRunView } = require('./TaskRunView.tsx');
+  const { blockedAssistantLine, streamPhaseState } = require('./task-presentation.ts');
+  const stuck = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'conversation', run: {
+    id: 'run_stuck', status: 'blocked', error_class: 'planning_idle', prompt: '继续', answer: '先停一下',
+  } }));
+  assert.match(stuck, /方案停住了，我先检查这一步再继续。/);
+  assert.match(stuck, /方案停住了/);
+  assert.match(stuck, /检查并继续/);
+  assert.match(stuck, /class="is-stuck"/);
+  assert.match(stuck, /理解目标/);
+  assert.doesNotMatch(stuck, /r5-anchor-report|recoverable|技术错误|missing final/);
+  assert.equal(blockedAssistantLine('结果还没齐'), '结果还没齐，我先检查再接着跑。');
+  assert.equal(streamPhaseState({ status: 'blocked', error_class: 'planning_idle' }).stuck, true);
+  const files = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'conversation', run: {
+    id: 'run_files', status: 'completed', prompt: '整理', answer: '好了',
+    artifacts: [1, 2, 3].map(index => ({ id: `artifact_${index}`, run_id: 'run_files', name: `结果${index}.md`, bytes: index * 1024, sha256: 'd'.repeat(64), preview_kind: 'text', source_tool_call: 'model_publish' })),
+  } }));
+  assert.match(files, /结果1\.md/);
+  assert.match(files, /结果2\.md/);
+  assert.match(files, /还有 1 个文件/);
+  assert.ok(files.indexOf('还有 1 个文件') < files.indexOf('结果3.md'));
+});
+
+test('in-budget confirmation stays in the chat and danger stays a separate dialog', () => {
+  const { TaskControls } = require('./TaskControls.tsx');
+  const { usesSeparateConfirm } = require('./task-presentation.ts');
+  const inline = renderToStaticMarkup(React.createElement(TaskControls, { onChanged() {}, run: {
+    id: 'run_budget', status: 'waiting_approval', approvals: [{ id: 'approval_budget', status: 'pending', tool_name: 'cost_estimate', reversible: true, risk_level: 'low', normalized_arguments: { estimated_cost: 120, budget: 200 }, impact_scope: {} }],
+  } }));
+  assert.match(inline, /等你确认/);
+  assert.match(inline, /要做什么/);
+  assert.match(inline, /花多少/);
+  assert.match(inline, /约 ¥120，上限 ¥200/);
+  assert.match(inline, /不外发/);
+  assert.match(inline, /同意并继续/);
+  assert.match(inline, /调整方案/);
+  assert.doesNotMatch(inline, /确认执行/);
+  assert.equal(usesSeparateConfirm({ tool_name: 'file_delete', risk_level: 'low' }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { over_budget: true } }), true);
 });
 
 test('tool completion is a short step label and hides the raw tool id', () => {

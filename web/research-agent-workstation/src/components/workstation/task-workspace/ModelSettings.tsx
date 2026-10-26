@@ -45,7 +45,7 @@ export function ModelSettings({ returnTask, isolated, embedded = false }: { retu
   }
   function edit(profile: ModelProfile) { setEditing(profile); setForm({ name: profile.name, provider: profile.provider, base_url: profile.base_url, model: profile.model, api_key: '' }); setError(''); }
 
-  return <section>{!embedded && <><a className="tw-back" href={returnTask ? `/workspace?task=${encodeURIComponent(returnTask)}` : '/workspace'}>{returnTask ? '← 返回原任务' : '← 我的任务'}</a><p className="tw-eyebrow">设置</p><h1>我的模型</h1></>}<p className="tw-muted">配置自己的模型服务。保存不会发出请求；测试和任务执行可能按服务商规则计费。</p>
+  return <section>{!embedded && <><a className="tw-back" href={returnTask ? `/workspace?task=${encodeURIComponent(returnTask)}` : '/workspace'}>{returnTask ? '← 返回原任务' : '← 对话'}</a><p className="tw-eyebrow">设置</p><h1>我的模型</h1></>}<p className="tw-muted">配置自己的模型服务。保存不会发出请求；测试和任务执行可能按服务商规则计费。</p>
     <div className="tw-settings-grid"><section><h2>已保存的模型</h2>{!list.profiles.length && <p className="tw-muted">尚未添加个人模型。填写右侧配置后保存。</p>}
       {list.profiles.map(profile => <article className="tw-model-card" key={profile.id}><h3>{profile.name} {list.default_profile_id === profile.id ? '· 默认' : ''}</h3>
         <p>{profile.model} · v{profile.version} · {profile.enabled ? '可选择' : '已停用'}</p><dl><dt>密钥</dt><dd>已加密保存，不回传浏览器</dd><dt>连接测试</dt><dd>{profile.verified_at ? `通过 · ${new Date(profile.verified_at).toLocaleString('zh-CN')}` : '尚未测试'}</dd><dt>{isolated ? '隔离脚本调用（非真实模型）' : '任务模型调用'}</dt><dd>{profile.used_at ? `成功 · ${new Date(profile.used_at).toLocaleString('zh-CN')}` : '尚无成功记录'}</dd></dl>

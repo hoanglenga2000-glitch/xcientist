@@ -1,12 +1,44 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { FolderOpen, ListTodo, Menu, Plus, Search, Settings2, X } from 'lucide-react';
+import { FolderOpen, ListTodo, Menu, MessageSquare, Plus, Search, UserRound, X } from 'lucide-react';
 import { TaskList } from './TaskList';
 import { TaskSession } from './TaskSession';
 import { WorkspaceSettings } from './WorkspaceSettings';
 import { TaskFiles } from './TaskFiles';
 import { LegacyRecord, WorkspaceRecords } from './WorkspaceRecords';
-import { jsonPost, taskRequest, taskStatus, type UserTask, type TaskDetail } from './types';
+import type { ModelList } from './ModelSettings';
+import { CHAT_SUGGESTIONS, CHAT_TITLE, conversationGroup, isLiveTask, platformOptionLabel, productModelLabel, sortTasksByUpdatedAt } from './task-presentation';
+import { jsonPost, taskRequest, type UserTask, type TaskDetail } from './types';
+
+const WORK_FILTERS = [['active', '进行中'], ['confirm', '待确认'], ['stuck', '停住了'], ['done', '已交付']] as const;
+
+function matchesWorkFilter(status: string, filter: string) {
+  if (filter === 'active') return ['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing'].includes(status);
+  if (filter === 'confirm') return status === 'waiting_approval';
+  if (filter === 'stuck') return ['blocked', 'failed', 'paused', 'undelivered'].includes(status);
+  if (filter === 'done') return ['delivered', 'completed'].includes(status);
+  return true;
+}
+
+function WorkBoard({ tasks, tab, isolated, initialFilter }: { tasks: UserTask[]; tab: string; isolated: boolean; initialFilter: string }) {
+  const [filter, setFilter] = useState(initialFilter);
+  const [query, setQuery] = useState('');
+  const visible = tasks.filter(task => matchesWorkFilter(task.status, filter));
+  return <section>
+    <h1>工作</h1>
+    <nav className="tw-tabs" aria-label="工作分页">
+      <a aria-current={!tab || tab === 'tasks' ? 'page' : undefined} href="/workspace?section=work">任务</a>
+      <a aria-current={tab === 'resources' ? 'page' : undefined} href="/workspace?section=work&tab=resources">计算资源</a>
+      <a aria-current={tab === 'evolution' ? 'page' : undefined} href="/workspace?section=work&tab=evolution">进化</a>
+    </nav>
+    {tab === 'resources' ? <WorkspaceSettings group="resources" returnTask="" isolated={isolated} embedded /> : tab === 'evolution' ? <section><h2>进化</h2><p className="tw-muted">在对话里说出想改进的目标，进化会跟着那次对话推进。</p></section> : <>
+      <div className="tw-filters" role="group" aria-label="任务状态">{WORK_FILTERS.map(([id, label]) => <button key={id} type="button" aria-pressed={filter === id} onClick={() => setFilter(current => current === id ? '' : id)}>{label}</button>)}</div>
+      <label className="tw-search"><Search size={18} /><span className="tw-sr-only">搜索任务</span><input aria-label="搜索任务" placeholder="搜索任务名称" value={query} onChange={event => setQuery(event.target.value)} /></label>
+      <TaskList tasks={visible} query={query} showPending={false} constrained={Boolean(filter)} />
+      <p className="tw-muted"><a href="/workspace?section=projects">管理项目</a> · <a href="/workspace?section=results">查看成果记录</a></p>
+    </>}
+  </section>;
+}
 
 export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
   const [tasks, setTasks] = useState<UserTask[]>([]);
@@ -16,12 +48,16 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
   const [creating, setCreating] = useState(false);
   const [settings, setSettings] = useState('');
   const [section, setSection] = useState('');
+  const [workTab, setWorkTab] = useState('');
   const [legacyRun, setLegacyRun] = useState('');
   const [legacyTask, setLegacyTask] = useState('');
   const [view, setView] = useState('conversation');
   const [returnTask, setReturnTask] = useState('');
   const [draft, setDraft] = useState('');
-  const [query, setQuery] = useState('');
+  const [historyQuery, setHistoryQuery] = useState('');
+  const [homeModel, setHomeModel] = useState('');
+  const [homeIntensity, setHomeIntensity] = useState('中');
+  const [modelList, setModelList] = useState<ModelList>({ profiles: [], default_profile_id: '' });
   const [pendingOnly, setPendingOnly] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -58,10 +94,20 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
   }, []);
   useEffect(() => {
     const controller = new AbortController();
+    void taskRequest<ModelList>('/api/assistant/model-profiles', { signal: controller.signal }).then(value => {
+      if (!controller.signal.aborted) setModelList(value);
+    }).catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
     const params = new URLSearchParams(window.location.search);
     const id = params.get('task') ?? '';
     setSettings(params.get('settings') || '');
-    setSection(params.get('section') || ''); setLegacyRun(params.get('legacy_run') || ''); setLegacyTask(params.get('legacy_task') || '');
+    setSection(params.get('section') || '');
+    setWorkTab(params.get('tab') || '');
+    setLegacyRun(params.get('legacy_run') || '');
+    setLegacyTask(params.get('legacy_task') || '');
     setView(['progress', 'results', 'more'].includes(params.get('view') || '') ? params.get('view')! : 'conversation');
     setReturnTask(params.get('return_task') ?? '');
     setPendingOnly(params.get('pending') === '1');
@@ -86,11 +132,12 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     try {
       if (creating) {
         const location = new URL(window.location.href);
+        const start = location.searchParams.get('start') === '1';
         creationKey.current ||= location.searchParams.get('draft_request') || crypto.randomUUID();
         location.searchParams.set('draft_request', creationKey.current);
         window.history.replaceState(null, '', location);
         const created = await taskRequest<{ task: UserTask }>('/api/assistant/tasks', jsonPost({ title: draft.trim().split('\n')[0].slice(0, 80), draft, idempotency_key: creationKey.current }));
-        window.history.replaceState(null, '', `/workspace?task=${encodeURIComponent(created.task.id)}`);
+        window.history.replaceState(null, '', `/workspace?task=${encodeURIComponent(created.task.id)}${start ? '&start=1' : ''}`);
         setSelection(created.task.id); setTask(created.task); setTasks(current => [created.task, ...current.filter(item => item.id !== created.task.id)]);
         setDetail({ task: created.task, runs: [], files: [] }); setDraftTask(created.task.id); setCreating(false);
       } else if (task) {
@@ -107,30 +154,63 @@ export function TaskWorkspace({ isolated = false }: { isolated?: boolean }) {
     return () => window.clearTimeout(timer);
   }, [creating, draft, busy, error]);
 
+  function openDraft(text: string, start: boolean) {
+    if (start && homeModel) window.sessionStorage.setItem('deepevo.next-model', homeModel);
+    setDraft(text);
+    const url = new URL(window.location.href);
+    url.searchParams.set('new', '1');
+    url.searchParams.delete('task');
+    url.searchParams.delete('section');
+    url.searchParams.delete('settings');
+    if (start) url.searchParams.set('start', '1'); else url.searchParams.delete('start');
+    window.history.pushState(null, '', url);
+    setLocationKey(url.search);
+  }
+
+  const library = section === 'data' || section === 'library';
+  const workOpen = section === 'work' || (pendingOnly && !selection && !settings && !creating && !legacyRun && !legacyTask && !section);
+  const chatCurrent = !settings && !creating && !section && !legacyRun && !legacyTask && !workOpen;
+  const needle = historyQuery.trim().toLocaleLowerCase();
+  const history = sortTasksByUpdatedAt(tasks).filter(item => item.title.toLocaleLowerCase().includes(needle));
+  const groups = (['今天', '昨天', '更早'] as const).map(label => ({ label, items: history.filter(item => conversationGroup(item.updated_at) === label) })).filter(group => group.items.length);
+  const live = sortTasksByUpdatedAt(tasks.filter(item => isLiveTask(item.status)));
+  const settingsHref = `/workspace?settings=models${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`;
+
   return <div className="task-workspace">
     <a className="tw-skip" href="#task-main">跳到主要内容</a>
     <aside id="workspace-navigation" ref={sidebar} className={`tw-sidebar ${menu ? 'tw-open' : ''}`} aria-label="主导航">
       <a className="tw-brand" href="/workspace">DeepEvo<small>深度进化</small></a>
-      <a className="tw-new" href="/workspace?new=1"><Plus size={18} />新任务</a>
-      <nav><a aria-current={!settings && !section && !creating ? 'page' : undefined} href="/workspace"><ListTodo size={18} />我的任务</a>
-        <a aria-current={section === 'data' ? 'page' : undefined} href="/workspace?section=data"><FolderOpen size={18} />资料与数据</a>
-        <a aria-current={section === 'results' ? 'page' : undefined} href="/workspace?section=results"><FolderOpen size={18} />成果</a><a aria-current={settings ? 'page' : undefined} href={`/workspace?settings=models${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`}><Settings2 size={18} />设置</a></nav>
-      <p className="tw-sidebar-note">需求、进度和结果，都在同一个任务里。<br /><a href="/workspace?section=projects">管理项目</a></p>
+      <a className="tw-new" href="/workspace?new=1"><Plus size={18} />新对话</a>
+      <label className="tw-side-search"><Search size={16} /><span className="tw-sr-only">搜索对话</span><input aria-label="搜索对话" placeholder="搜索" value={historyQuery} onChange={event => setHistoryQuery(event.target.value)} /></label>
+      <nav>
+        <a aria-current={chatCurrent ? 'page' : undefined} href="/workspace"><MessageSquare size={18} />对话</a>
+        <a aria-current={workOpen ? 'page' : undefined} href="/workspace?section=work"><ListTodo size={18} />工作</a>
+        <a aria-current={library ? 'page' : undefined} href="/workspace?section=data"><FolderOpen size={18} />资料</a>
+        <a aria-current={settings ? 'page' : undefined} href={settingsHref}><UserRound size={18} />我的</a>
+      </nav>
+      <div className="tw-history">{groups.map(group => <div className="tw-history-group" key={group.label}><p className="tw-history-label">{group.label}</p>{group.items.map(item => <a key={item.id} aria-current={item.id === selection ? 'page' : undefined} href={`/workspace?task=${encodeURIComponent(item.id)}`}>{item.title}</a>)}</div>)}</div>
+      {live.length > 0 && <a className="tw-live" href={`/workspace?task=${encodeURIComponent(live[0].id)}`}><span className="tw-dot is-current" /><strong>{live.length} 项进行中</strong><span>{live[0].title}</span></a>}
     </aside>
     <div className="tw-work-area"><header className="tw-topbar"><button ref={menuButton} className="tw-menu" aria-controls="workspace-navigation" aria-label={menu ? '收起导航' : '展开导航'} aria-expanded={menu} onClick={() => setMenu(!menu)}>{menu ? <X size={20} /> : <Menu size={20} />}</button>
-      <span>{isolated ? '隔离验收环境 · 不连接真实模型或算力' : '你的研究工作空间'}</span><a href={`/workspace?settings=account${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`}>账户与设置</a></header>
+      <span>{isolated ? '隔离验收环境 · 不连接真实模型或算力' : '深度进化'}</span><a href={`/workspace?settings=account${selection ? `&return_task=${encodeURIComponent(selection)}` : ''}`}>账户</a></header>
       <main id="task-main" tabIndex={-1}>
-        {settings ? <WorkspaceSettings group={settings} returnTask={returnTask} isolated={isolated} /> : loading ? <p role="status">正在读取你的任务…</p> : legacyRun ? <LegacyRecord id={legacyRun} tasks={tasks} view={view} /> : legacyTask ? <section><h1>请先核实旧记录</h1><p>此链接使用旧工具编号，尚没有可靠的个人任务关联。原数据保留，不会按名称或默认任务认领。</p><p>请让管理员核实归属后再关联；其他个人任务仍可正常使用。</p><a className="tw-button" href="/workspace">我的任务</a></section> : section === 'data' ? <TaskFiles /> : ['results', 'projects'].includes(section) ? <WorkspaceRecords projects={section === 'projects'} /> : section === 'literature' ? <section><h1>文献检索</h1><p>个人文献功能仍在迁移，暂未开放检索和导入。旧文献保留，需先核实个人任务关联，不能借用其他任务。</p><a className="tw-button" href="/workspace">返回我的任务</a><p className="tw-muted">这是本地候选的明确缺项，不表示正式站功能已经迁移完成。</p></section> : selection && !task ? <section className="tw-empty" role="alert"><h1>暂时无法打开任务</h1><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>重试</button><a href="/workspace">返回我的任务</a></section> : detail ? <TaskSession key={detail.task.id} initial={detail} initialDraft={draftTask === detail.task.id ? draft : undefined} /> : creating ? <section>
-          <a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{creating ? '新任务' : taskStatus(task!.status)}</p>
-          <h1>{creating ? '你想完成什么？' : task!.title}</h1><p className="tw-muted">先描述问题与期望结果，不需要填写任务编号，也不用先建项目。</p>
-          <form className="tw-composer" onSubmit={event => { event.preventDefault(); void save(); }}><label htmlFor="task-draft">任务需求</label>
-            <textarea id="task-draft" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="例如：整理工业缺陷检测的方法，输出一份阅读提纲。" />
-            <div className="tw-composer-bottom"><span>输入后自动保存，不调用模型。保存后可选资料和模型，再明确开始。<br />请勿在对话中输入密钥。</span><button className="tw-primary" disabled={busy || (creating && !draft.trim())}>{busy ? '正在保存…' : '保存草稿'}</button></div>
-          </form><p role="status">{notice}</p>{error && <p role="alert" className="tw-error">{error}</p>}
-        </section> : <section><p className="tw-eyebrow">你的工作</p><h1>我的任务</h1><p className="tw-muted">打开一项工作，继续对话、查看进度或找到结果。</p>
-          <label className="tw-search"><Search size={18} /><span className="tw-sr-only">搜索任务</span><input aria-label="搜索任务" placeholder="搜索任务名称" value={query} onChange={event => setQuery(event.target.value)} /></label>
+        {settings ? <WorkspaceSettings group={settings} returnTask={returnTask} isolated={isolated} /> : loading ? <p role="status">正在读取你的任务…</p> : legacyRun ? <LegacyRecord id={legacyRun} tasks={tasks} view={view} /> : legacyTask ? <section><h1>请先核实旧记录</h1><p>此链接使用旧工具编号，尚没有可靠的个人任务关联。原数据保留，不会按名称或默认任务认领。</p><p>请让管理员核实归属后再关联；其他个人任务仍可正常使用。</p><a className="tw-button" href="/workspace">返回对话</a></section> : workOpen ? <WorkBoard tasks={tasks} tab={workTab} isolated={isolated} initialFilter={pendingOnly ? 'confirm' : ''} /> : library ? <section><h1>资料</h1><TaskFiles /><h2>文献</h2><p className="tw-muted">文献按对话整理。检索页仍可打开，不会出现在侧栏。</p><a href="/workspace?section=literature">打开文献</a></section> : ['results', 'projects'].includes(section) ? <WorkspaceRecords projects={section === 'projects'} /> : section === 'literature' ? <section><h1>文献检索</h1><p>个人文献功能仍在迁移，暂未开放检索和导入。旧文献保留，需先核实个人任务关联，不能借用其他任务。</p><a className="tw-button" href="/workspace">返回对话</a><p className="tw-muted">这是本地候选的明确缺项，不表示正式站功能已经迁移完成。</p></section> : selection && !task ? <section className="tw-empty" role="alert"><h1>暂时无法打开任务</h1><p>{error}</p><button onClick={() => setRefresh(value => value + 1)}>重试</button><a href="/workspace">返回对话</a></section> : detail ? <TaskSession key={detail.task.id} initial={detail} initialDraft={draftTask === detail.task.id ? draft : undefined} /> : creating ? <section className="tw-chat">
+          <a className="tw-back" href="/workspace">← 对话</a>
+          <h1 className="tw-hero">{CHAT_TITLE}</h1>
+          <form className="tw-composer" onSubmit={event => { event.preventDefault(); void save(); }}><label className="tw-sr-only" htmlFor="task-draft">任务需求</label>
+            <textarea id="task-draft" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="说说你要推进的事" />
+            <div className="tw-composer-bottom"><span className="tw-intensity" role="group" aria-label="强度">强度<button type="button" aria-pressed="false">低</button><button type="button" aria-pressed="true">中</button><button type="button" aria-pressed="false">高</button></span><button className="tw-primary" disabled={busy || !draft.trim()}>{busy ? '正在保存…' : '保存草稿'}</button></div>
+          </form>{error && <p role="alert" className="tw-error">{error}</p>}{notice && <p role="status">{notice}</p>}
+        </section> : <section className="tw-chat tw-chat-empty">
+          <div className="tw-hero-block"><span className="tw-mark" aria-hidden="true"><MessageSquare size={16} /></span><h1 className="tw-hero">{CHAT_TITLE}</h1>
+            <div className="tw-suggest">{CHAT_SUGGESTIONS.map(text => <button type="button" key={text} onClick={() => setDraft(text)}>{text}</button>)}</div>
+          </div>
+          <div className="tw-composer-float"><form className="tw-composer" onSubmit={event => { event.preventDefault(); if (draft.trim()) openDraft(draft.trim(), true); }}>
+            <label className="tw-sr-only" htmlFor="home-draft">说说你要推进的事</label>
+            <textarea id="home-draft" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="说说你要推进的事" />
+            <div className="tw-composer-bottom"><label className="tw-sr-only" htmlFor="home-model">本次使用的模型</label><select id="home-model" value={homeModel} onChange={event => setHomeModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformOptionLabel(modelList.platform_model, null)}</option>{modelList.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{productModelLabel(item.model) || item.name || '平台模型'}</option>)}</select><span className="tw-intensity" role="group" aria-label="强度">强度{(['低', '中', '高'] as const).map(level => <button type="button" key={level} aria-pressed={homeIntensity === level} onClick={() => setHomeIntensity(level)}>{level}</button>)}</span><button className="tw-primary tw-send" aria-label="发送" disabled={!draft.trim() || !homeModel}>发送</button></div>
+          </form></div>
           {error && <p role="alert" className="tw-error">{error}<button onClick={() => setRefresh(value => value + 1)}>重新加载</button></p>}
-          <TaskList tasks={tasks} query={query} pendingOnly={pendingOnly} />
         </section>}
       </main>
     </div>

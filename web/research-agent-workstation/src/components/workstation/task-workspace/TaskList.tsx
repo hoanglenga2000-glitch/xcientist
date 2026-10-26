@@ -2,16 +2,16 @@ import { ArrowUpRight, ListTodo } from 'lucide-react';
 import { visibleTasks } from './task-presentation';
 import { taskStatus, type UserTask } from './types';
 
-export function TaskList({ tasks, query, pendingOnly = false }: { tasks: UserTask[]; query: string; pendingOnly?: boolean }) {
+export function TaskList({ tasks, query, pendingOnly = false, showPending = true, constrained = false }: { tasks: UserTask[]; query: string; pendingOnly?: boolean; showPending?: boolean; constrained?: boolean }) {
   const visible = visibleTasks(tasks, query, pendingOnly);
   return <div className="tw-task-list">
-    <p className="tw-filters"><a aria-current={pendingOnly ? 'page' : undefined} href={pendingOnly ? '/workspace' : '/workspace?pending=1'}>还要处理</a></p>
+    {showPending && <p className="tw-filters"><a aria-current={pendingOnly ? 'page' : undefined} href={pendingOnly ? '/workspace?section=work' : '/workspace?section=work&pending=1'}>还要处理</a></p>}
     {visible.map(task => <a className="tw-task-row" key={task.id} href={`/workspace?task=${encodeURIComponent(task.id)}`}>
       <ListTodo size={22} aria-hidden="true" /><div className="tw-task-summary"><h2>{task.title}</h2>
         <p>{task.status === 'draft' ? '需求已保存，打开后继续' : '打开对话、进度和文件与结果'}</p></div>
       <div className="tw-task-meta"><span>{taskStatus(task.status)}</span><time dateTime={task.updated_at}>{new Date(task.updated_at).toLocaleDateString('zh-CN')}</time></div>
       <ArrowUpRight size={18} aria-hidden="true" /></a>)}
-    {!visible.length && <div className="tw-empty"><h2>{query || pendingOnly ? '没有匹配的任务' : '还没有任务'}</h2>
-      <p>{query || pendingOnly ? '换一个关键词试试。' : '先描述你想完成什么，不需要填写任务编号。'}</p><a className="tw-primary" href="/workspace?new=1">新任务</a></div>}
+    {!visible.length && <div className="tw-empty"><h2>{query || pendingOnly || constrained ? '没有匹配的任务' : '还没有任务'}</h2>
+      <p>{query || pendingOnly || constrained ? '换一个条件试试。' : '先描述你想完成什么，不需要填写任务编号。'}</p><a className="tw-primary" href="/workspace?new=1">新对话</a></div>}
   </div>;
 }

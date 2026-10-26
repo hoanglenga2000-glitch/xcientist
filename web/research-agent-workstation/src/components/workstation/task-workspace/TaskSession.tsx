@@ -29,6 +29,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const [linkId, setLinkId] = useState('');
   const [models, setModels] = useState<ModelList>({ profiles: [], default_profile_id: '' });
   const [model, setModel] = useState('');
+  const [intensity, setIntensity] = useState('中');
   const sending = useRef(false);
   const saving = useRef<Promise<UserTask> | null>(null);
   const saved = useRef(task);
@@ -42,7 +43,10 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   useEffect(() => {
     const controller = new AbortController();
     void taskRequest<ModelList>('/api/assistant/model-profiles', { signal: controller.signal }).then(value => {
-      if (!controller.signal.aborted) { setModels(value); setModel(value.default_profile_id); }
+      if (controller.signal.aborted) return;
+      const preset = window.sessionStorage.getItem('deepevo.next-model') || '';
+      if (preset) window.sessionStorage.removeItem('deepevo.next-model');
+      setModels(value); setModel(preset || value.default_profile_id);
     }).catch(cause => { if (!controller.signal.aborted) setError(cause.message); });
     return () => controller.abort();
   }, []);
@@ -181,6 +185,18 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     finally { sending.current = false; if (alive.current) setBusy(false); }
   }
 
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('start') !== '1') return;
+    if (!model || !draft.trim() || (run && active(run.status)) || busy) return;
+    started.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('start');
+    window.history.replaceState(null, '', url);
+    void send();
+  }, [model, draft, run, busy]);
+
   async function showHistory() {
     setError('');
     try { const result = await taskRequest<{ runs: Array<TaskRun & { title: string }> }>('/api/assistant/projects'); setHistory(result.runs.filter(item => !runs.some(linked => linked.id === item.id))); }
@@ -199,19 +215,21 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const workStatus = run && active(run.status) ? run.status : task.status;
   const generatedCount = (run?.artifacts?.length ?? 0) + (run?.artifact_evidence?.length ?? 0);
   const platformLabel = platformOptionLabel(models.platform_model, model === 'platform' && run?.model ? { provider: run.model_provider, model: run.model } : null);
-  return <section><a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{taskStatus(workStatus)}</p><h1>{task.title}</h1>
+  return <section className="tw-chat"><p className="tw-eyebrow">{taskStatus(workStatus)}</p><h1>{task.title}</h1>
     <nav className="tw-tabs" aria-label="任务内容">{views.map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>{label}</button>)}</nav>
     {runs.length > 1 && <label className="tw-run-select">查看哪次运行 <select aria-label="选择运行" value={runId} onChange={event => navigate(view, event.target.value)}>{runs.map(item => <option key={item.id} value={item.id}>{new Date(item.created_at ?? '').toLocaleString('zh-CN')} · {taskStatus(item.status)}</option>)}</select></label>}
     {streamError && <p role="alert" className="tw-error">{streamError}<button onClick={() => setReconnect(value => value + 1)}>重新连接</button></p>}
     {run && ['conversation', 'progress'].includes(view) && <TaskControls key={run.id} run={run} onChanged={() => setReconnect(value => value + 1)} />}
-    {view !== 'more' ? (runId && !run ? <p role="status">正在读取所选运行；尚不能判断其状态。</p> : <TaskRunView run={run} view={view} />) : <section><h2>关联已有记录</h2><p className="tw-muted">只列出当前账户有权访问的运行。关联不会改写历史、合并对话或重新执行。</p><button onClick={() => void showHistory()}>查看可关联的历史运行</button>
+    {view !== 'more' ? (runId && !run ? <p role="status">正在读取所选运行；尚不能判断其状态。</p> : <TaskRunView run={run} view={view} title={task.title} />) : <section><h2>关联已有记录</h2><p className="tw-muted">只列出当前账户有权访问的运行。关联不会改写历史、合并对话或重新执行。</p><button onClick={() => void showHistory()}>查看可关联的历史运行</button>
       {history.length > 0 ? <div className="tw-link-form"><label htmlFor="link-history">选择要关联的记录</label><select id="link-history" value={linkId} onChange={event => setLinkId(event.target.value)}><option value="">请选择</option>{history.map(item => <option key={item.id} value={item.id}>{item.title} · {taskStatus(item.status)}</option>)}</select><button disabled={!linkId || busy} onClick={() => void link()}>关联到“{task.title}”</button></div> : <p className="tw-muted">未列出可关联记录。无明确所有权的旧记录需要管理员核实，不能自动认领。</p>}
     </section>}
-    {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="描述希望完成的工作与输出结果…" />
-      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {productModelLabel(item.model) || '平台模型'}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
-      <div className="tw-composer-bottom"><span>{draft === task.draft ? '草稿已保存' : '草稿尚未保存'} · 发送才会开始执行<br />真实模型调用可能产生费用，执行仍受权限与预算控制。</span><button type="submit" className="tw-primary" disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送需求' : '开始任务'}</button></div>
+    {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label className="tw-sr-only" htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="说说你要推进的事" />
+      <div className="tw-composer-bottom"><label className="tw-sr-only" htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {productModelLabel(item.model) || '平台模型'}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select>
+        <span className="tw-intensity" role="group" aria-label="强度">强度{(['低', '中', '高'] as const).map(level => <button type="button" key={level} aria-pressed={intensity === level} onClick={() => setIntensity(level)}>{level}</button>)}</span>
+        <button type="submit" className="tw-primary" aria-label={runs.length ? '发送' : '开始任务'} disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送' : '开始任务'}</button></div>
       <button type="button" disabled={busy} onClick={() => { setError(''); void saveDraft().then(() => { setNotice('草稿已保存'); setAutosavePaused(false); }).catch(cause => { setAutosavePaused(true); setError(cause.message); }); }}>保存草稿</button>
       {autosavePaused && <button type="button" disabled={busy} onClick={() => void reloadDraftVersion()}>重新读取版本（保留本页输入）</button>}
+      <a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
     </form>}
     {view === 'conversation' && <details className="tw-details"><summary>添加或选择资料（{files.length}）{generatedCount ? ` · 生成文件（${generatedCount}）` : ''}</summary><TaskFiles selected={files} onSelect={async ids => {
       await saveDraft();

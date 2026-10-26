@@ -70,9 +70,9 @@ function AccountSettings() {
     {error && <p role="alert" className="tw-error">{error}</p>}<p role="status">{notice}</p>
   </section>;
 }
-export function WorkspaceSettings({ group, returnTask, isolated }: { group: string; returnTask: string; isolated: boolean }) {
-  return <section><a className="tw-back" href={returnTask ? `/workspace?task=${encodeURIComponent(returnTask)}` : '/workspace'}>{returnTask ? '← 返回原任务' : '← 我的任务'}</a>
-    <h1>设置</h1><nav className="tw-tabs" aria-label="设置分组">{groups.map(([id, label]) => <a key={id} aria-current={group === id ? 'page' : undefined} href={`/workspace?settings=${id}${returnTask ? `&return_task=${encodeURIComponent(returnTask)}` : ''}`}>{label}</a>)}</nav>
+export function WorkspaceSettings({ group, returnTask, isolated, embedded = false }: { group: string; returnTask: string; isolated: boolean; embedded?: boolean }) {
+  return <section>{!embedded && <a className="tw-back" href={returnTask ? `/workspace?task=${encodeURIComponent(returnTask)}` : '/workspace'}>{returnTask ? '← 返回原任务' : '← 对话'}</a>}
+    {!embedded && <h1>设置</h1>}{!embedded && <nav className="tw-tabs" aria-label="设置分组">{groups.map(([id, label]) => <a key={id} aria-current={group === id ? 'page' : undefined} href={`/workspace?settings=${id}${returnTask ? `&return_task=${encodeURIComponent(returnTask)}` : ''}`}>{label}</a>)}</nav>}
     {group === 'resources' ? <ResourceSettings /> : group === 'account' ? <AccountSettings /> : <ModelSettings returnTask={returnTask} isolated={isolated} embedded />}
   </section>;
 }
