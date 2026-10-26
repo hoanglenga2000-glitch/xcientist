@@ -394,7 +394,7 @@ test('composer sends a real effort, defaults to a usable model, and folds Englis
 test('platform models are selectable by id, never displace the default, and only non-default ids are sent', () => {
   const { defaultModelChoice, isSelectableModel, platformModelId } = require('./composer-options.ts');
   const { ModelOptions } = require('./ModelOptions.tsx');
-  const platform_models = [{ id: 'm0', provider: 'anthropic', model: 'claude-sonnet-5', label: '' }, { id: 'm1', provider: 'openai', model: 'gpt-5', label: '平台 GPT' }];
+  const platform_models = [{ id: 'm0', provider: 'anthropic', model: 'claude-sonnet-5', label: '' }, { id: 'm1', provider: 'openai', model: 'gpt-4o', label: 'gpt-4o' }];
   const list = { platform_model: { provider: 'anthropic', model: 'claude-sonnet-5' }, platform_models, default_profile_id: 'p1', profiles: [{ id: 'p1', enabled: true }] };
   assert.equal(isSelectableModel(list, 'platform:m1'), true);
   assert.equal(isSelectableModel(list, 'platform:m0'), false);
@@ -408,6 +408,11 @@ test('platform models are selectable by id, never displace the default, and only
   assert.equal(platformModelId(list, 'platform:m1'), 'm1');
   const html = renderToStaticMarkup(React.createElement('select', null, React.createElement(ModelOptions, { list, value: 'platform', platformLabel: '平台模型 · Claude Sonnet' })));
   assert.equal((html.match(/<option value="platform/g) || []).length, 2);
-  assert.match(html, /value="platform:m1">平台 GPT</);
+  assert.match(html, /value="platform:m1">GPT</);
+  const visible = (html.match(/>[^<]*</g) || []).join('');
+  for (const raw of ['gpt-4o', 'claude-sonnet-5', 'platform:']) assert.doesNotMatch(visible, new RegExp(raw));
+  const deepseek = renderToStaticMarkup(React.createElement('select', null, React.createElement(ModelOptions, { list: { ...list, platform_models: [...platform_models, { id: 'm2', provider: 'deepseek', model: 'deepseek-chat', label: 'deepseek-chat' }] }, value: 'platform', platformLabel: '平台模型 · Claude Sonnet' })));
+  assert.match(deepseek, /value="platform:m2">DeepSeek</);
+  assert.doesNotMatch((deepseek.match(/>[^<]*</g) || []).join(''), /deepseek-chat/);
   assert.doesNotMatch(renderToStaticMarkup(React.createElement('select', null, React.createElement(ModelOptions, { list: { profiles: [], default_profile_id: '' }, value: '', platformLabel: '' }))), /平台模型/);
 });
