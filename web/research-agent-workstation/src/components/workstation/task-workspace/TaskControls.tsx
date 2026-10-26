@@ -1,6 +1,6 @@
 'use client';
 import { useRef, useState } from 'react';
-import { confirmActionLabel, confirmSpendLabel, usesSeparateConfirm } from './task-presentation';
+import { confirmActionLabel, confirmNoOutboundCopy, confirmSpendLabel, usesSeparateConfirm } from './task-presentation';
 import { jsonPost, taskRequest, type TaskRun } from './types';
 
 function targetLabel(approval: NonNullable<TaskRun['approvals']>[number]) {
@@ -36,12 +36,15 @@ export function TaskControls({ run, onChanged }: { run: TaskRun; onChanged: () =
   const canResume = ['paused', 'blocked', 'failed'].includes(run.status)
     && !['execution_reconciliation_required', 'approval_execution_unconfirmed'].includes(run.error_class || '') && !pending.length;
   return <section aria-label="运行操作">
-    {inline.map(approval => <section className="tw-confirm tw-inline-confirm" aria-label="等你确认" key={approval.id}><h2>等你确认</h2>
+    {inline.map(approval => {
+      const outbound = confirmNoOutboundCopy(approval);
+      return <section className="tw-confirm tw-inline-confirm" aria-label="等你确认" key={approval.id}><h2>等你确认</h2>
       <p>要做什么</p><p>{confirmActionLabel(approval.tool_name)}</p>
       <p>花多少</p><p>{confirmSpendLabel(approval)}</p>
-      <p>外发</p><p>不外发。提交到比赛平台前会再问你。</p>
+      {outbound ? <><p>外发</p><p>{outbound}</p></> : null}
       <div className="tw-actions"><button className="tw-primary" disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户同意按当前额度继续' })}>同意并继续</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户要求调整方案' })}>调整方案</button></div>
-    </section>)}
+    </section>;
+    })}
     {separate.map(approval => <section className="tw-confirm" aria-label="待你确认" key={approval.id}><h2>待你确认：{approval.tool_name === 'file_delete' ? '删除文件' : '执行一项受控操作'}</h2>
       <p className="tw-operation-target">目标：{targetLabel(approval)}</p>
       <p>{approval.reversible ? '操作标记为可恢复，恢复仍需核对实际结果。' : '这项操作不保证可撤销，请先确认目标。'}拒绝后不会执行这项操作，任务会保留并等待调整。</p>

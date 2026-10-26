@@ -303,6 +303,32 @@ test('in-budget confirmation stays in the chat and danger stays a separate dialo
   assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { over_budget: true } }), true);
 });
 
+test('a spend above the cap or an unknown tool stays on the separate confirmation', () => {
+  const { TaskControls } = require('./TaskControls.tsx');
+  const { usesSeparateConfirm } = require('./task-presentation.ts');
+  const card = approval => renderToStaticMarkup(React.createElement(TaskControls, { onChanged() {}, run: {
+    id: 'run_budget', status: 'waiting_approval', approvals: [{ id: 'approval_budget', status: 'pending', reversible: true, impact_scope: {}, ...approval }],
+  } }));
+  const over = card({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { estimated_cost: 300, budget: 200 } });
+  assert.match(over, /待你确认/);
+  assert.match(over, /确认执行/);
+  assert.doesNotMatch(over, /同意并继续|不外发/);
+  const unknown = card({ tool_name: 'upload', risk_level: 'low', normalized_arguments: { estimated_cost: 10, budget: 100 } });
+  assert.match(unknown, /确认执行/);
+  assert.doesNotMatch(unknown, /同意并继续|不外发/);
+  for (const tool of ['http', 'train', 'gpu_job', 'git_push']) {
+    assert.equal(usesSeparateConfirm({ tool_name: tool, risk_level: 'low', normalized_arguments: { estimated_cost: 10, budget: 100 } }), true, tool);
+  }
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', normalized_arguments: { estimated_cost: 200, cap: 200 } }), false);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { estimated_cost: 120, budget: 200 } }), false);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { cost: '120', budget: 200 } }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { estimated_cost: 120 } }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'medium', normalized_arguments: { estimated_cost: 120, budget: 200 } }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { estimated_cost: 10, budget: 100, external_submit: true } }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'file_delete', risk_level: 'low' }), true);
+  assert.equal(usesSeparateConfirm({ tool_name: 'cost_estimate', risk_level: 'low', normalized_arguments: { over_budget: true, estimated_cost: 10, budget: 100 } }), true);
+});
+
 test('tool completion is a short step label and hides the raw tool id', () => {
   const { TaskRunView } = require('./TaskRunView.tsx');
   const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'progress', run: {

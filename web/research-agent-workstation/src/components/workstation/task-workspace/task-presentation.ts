@@ -152,14 +152,56 @@ export function blockedAssistantLine(status: string) {
 }
 
 const DANGER_CONFIRM = /delete|submit|kaggle|external|shell|hpc|publish/i;
+const OUTBOUND_OR_OVER_FLAG = /over_budget|exceeds|external_submit|kaggle/i;
 
-/** In-budget cost stays in the chat. Over budget, danger, and external submit stay dialogs. */
-export function usesSeparateConfirm(approval: { tool_name?: string; risk_level?: string; normalized_arguments?: Record<string, unknown>; impact_scope?: Record<string, unknown> }) {
-  const risk = String(approval.risk_level || '').toLowerCase();
-  if (risk === 'high' || risk === 'critical') return true;
-  if (DANGER_CONFIRM.test(String(approval.tool_name || ''))) return true;
+/** Spend checks that do not send work out. Every other tool keeps the separate confirmation. */
+const BUDGET_INLINE_TOOLS = new Set(['cost_estimate']);
+
+type ConfirmApproval = {
+  tool_name?: string;
+  risk_level?: string;
+  normalized_arguments?: Record<string, unknown>;
+  impact_scope?: Record<string, unknown>;
+};
+
+function finiteNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function spendPair(approval: ConfirmApproval) {
+  const args = approval.normalized_arguments || {};
+  const amount = finiteNumber(args.estimated_cost ?? args.cost ?? args.amount);
+  const cap = finiteNumber(args.budget ?? args.limit ?? args.cap);
+  return amount === null || cap === null ? null : { amount, cap };
+}
+
+function riskIsLow(approval: ConfirmApproval) {
+  const risk = String(approval.risk_level ?? 'low').trim().toLowerCase();
+  return risk === '' || risk === 'low';
+}
+
+function knownBudgetTool(approval: ConfirmApproval) {
+  const name = String(approval.tool_name || '');
+  return BUDGET_INLINE_TOOLS.has(name) && !DANGER_CONFIRM.test(name);
+}
+
+function outboundOrOverFlag(approval: ConfirmApproval) {
+  const name = String(approval.tool_name || '');
   const blob = `${JSON.stringify(approval.normalized_arguments || {})}${JSON.stringify(approval.impact_scope || {})}`;
-  return /over_budget|exceeds|external_submit|kaggle/i.test(blob);
+  return DANGER_CONFIRM.test(name) || OUTBOUND_OR_OVER_FLAG.test(blob);
+}
+
+/** In-chat card only when risk is low, the tool is a known budget check, and the numeric spend is within the cap. */
+export function usesSeparateConfirm(approval: ConfirmApproval) {
+  if (!riskIsLow(approval) || !knownBudgetTool(approval) || outboundOrOverFlag(approval)) return true;
+  const spend = spendPair(approval);
+  return !spend || spend.amount > spend.cap;
+}
+
+/** The no-outbound sentence is shown only for a budget tool that is not an external send. */
+export function confirmNoOutboundCopy(approval: ConfirmApproval) {
+  if (!knownBudgetTool(approval) || outboundOrOverFlag(approval)) return '';
+  return '不外发。提交到比赛平台前会再问你。';
 }
 
 export function confirmActionLabel(tool?: string) {
