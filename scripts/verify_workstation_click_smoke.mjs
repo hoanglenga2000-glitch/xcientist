@@ -171,13 +171,14 @@ const pageTargets = [...WORKSPACE_VIEWS.map((view) => view.id), "legacy_redirect
 // on the expected view (re-derived from the DOM) with the expected sidebar item
 // marked aria-current. None of them starts a model run, training or submission.
 const safeClicks = [
-  { page: "tasks", selector: "#workspace-navigation nav a[href='/workspace?section=data']", expectedPage: "data", expectedNav: "/workspace?section=data" },
-  { page: "data", selector: "#workspace-navigation nav a[href='/workspace?section=literature']", expectedPage: "literature", expectedNav: "/workspace?section=literature" },
-  { page: "literature", selector: "#workspace-navigation nav a[href='/workspace?section=results']", expectedPage: "results", expectedNav: "/workspace?section=results" },
-  { page: "results", selector: "#workspace-navigation nav a[href^='/workspace?settings=models']", expectedPage: "settings_models", expectedNav: "/workspace?settings=models" },
+  { page: "tasks", selector: "#workspace-navigation nav a[href='/workspace?section=work']", expectedPage: "work", expectedNav: "/workspace?section=work" },
+  { page: "work", selector: "#workspace-navigation nav a[href='/workspace?section=data']", expectedPage: "data", expectedNav: "/workspace?section=data" },
+  { page: "data", selector: "main#task-main a[href='/workspace?section=literature']", expectedPage: "literature", expectedNav: null },
+  { page: "literature", selector: "#workspace-navigation nav a[href^='/workspace?settings=models']", expectedPage: "settings_models", expectedNav: "/workspace?settings=models" },
   { page: "settings_models", selector: "main#task-main nav[aria-label='设置分组'] a[href^='/workspace?settings=resources']", expectedPage: "settings_resources", expectedNav: "/workspace?settings=models" },
   { page: "settings_resources", selector: "header.tw-topbar a[href^='/workspace?settings=account']", expectedPage: "settings_account", expectedNav: "/workspace?settings=models" },
-  { page: "settings_account", selector: "#workspace-navigation .tw-sidebar-note a[href='/workspace?section=projects']", expectedPage: "projects", expectedNav: null },
+  { page: "settings_account", selector: "#workspace-navigation nav a[href='/workspace?section=work']", expectedPage: "work", expectedNav: "/workspace?section=work" },
+  { page: "work", selector: "main#task-main a[href='/workspace?section=projects']", expectedPage: "projects", expectedNav: null },
   { page: "projects", selector: "#workspace-navigation a.tw-new", expectedPage: "new_task", expectedNav: null },
   { page: "new_task", selector: "main#task-main a.tw-back[href='/workspace']", expectedPage: "tasks", expectedNav: "/workspace" },
   { page: "data", selector: "#workspace-navigation a.tw-brand", expectedPage: "tasks", expectedNav: "/workspace" }

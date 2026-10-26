@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { SESSION_COOKIE, sessionPrincipal } from "@/lib/server/local-session";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { allocationStatusText } from "@/lib/allocation-status";
 import { activateTenantBinding, freezeOrRetireBinding, readTenantBinding, tenantByoaRoot, tenantPrincipal } from "@/lib/server/tenant-byoa";
 import { transitionTenantHpcProfile } from "@/lib/server/tenant-hpc-profile-lifecycle";
 export const dynamic = "force-dynamic";
@@ -109,9 +110,10 @@ export async function GET() {
   // instead of a 401, which the workspace would show as "login expired".
   // Mutations (POST) still require a tenant (public_password) session.
   if (principal?.authentication === "local_bootstrap") {
-    return NextResponse.json({ ok: true, tenant_id: null, binding: null, activation: null, personal_resources: "unavailable_in_local_mode" }, { headers: { "Cache-Control": "no-store" } });
+    const local = { ok: true, tenant_id: null, binding: null, activation: null, personal_resources: "unavailable_in_local_mode" };
+    return NextResponse.json({ ...local, status_label: allocationStatusText(local) }, { headers: { "Cache-Control": "no-store" } });
   }
-  try { const identity = tenantPrincipal(principal); const binding = await readTenantBinding(identity); const activation = binding ? await publicActivationStatus(identity, binding) : null; return NextResponse.json({ ok: true, tenant_id: identity.tenantId, binding: publicBinding(binding), activation }, { headers: { "Cache-Control": "no-store" } }); }
+  try { const identity = tenantPrincipal(principal); const binding = await readTenantBinding(identity); const activation = binding ? await publicActivationStatus(identity, binding) : null; const payload = { ok: true, tenant_id: identity.tenantId, binding: publicBinding(binding), activation }; return NextResponse.json({ ...payload, status_label: allocationStatusText(payload) }, { headers: { "Cache-Control": "no-store" } }); }
   catch { return NextResponse.json({ ok: false, code: "tenant_session_required" }, { status: 401 }); }
 }
 export async function POST(request: Request) {

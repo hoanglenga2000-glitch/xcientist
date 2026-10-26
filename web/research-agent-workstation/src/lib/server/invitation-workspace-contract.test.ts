@@ -11,7 +11,9 @@ test("invitation mode retains navigation and five always-visible core entries", 
   assert.match(nav, /ids: \["assistant", "projects", "data", "report", "settings"\]/);
   assert.match(sidebar, /navSectionCollapsed\(sectionId, activeSectionId, collapsed, collapsedSections\[sectionId\]\)/);
   assert.match(sidebar, /if \(section\.id !== "core"\)/);
-  assert.match(nav, /labelZh: "高级工具"/);
+  assert.match(nav, /retiredPrimaryPageIds/);
+  assert.doesNotMatch(nav, /labelZh: "高级工具"/);
+  assert.doesNotMatch(nav, /id: "advanced"/);
 });
 
 test("assistant restores context without repeating execution and shows stale evidence", async () => {

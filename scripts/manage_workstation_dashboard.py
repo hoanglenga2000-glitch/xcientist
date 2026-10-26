@@ -303,6 +303,8 @@ def runtime_build_manifest(build_id: str) -> dict[str, object]:
         "schema": "evomind.runtime_build.v1",
         "commit_hash": commit_hash,
         "source_dirty": source_dirty,
+        "source_commit": commit_hash,
+        "source_commit_dirty": source_dirty,
         "source_tree_sha256": source_tree_digest(SOURCE_APP_DIR),
         "build_id": build_id,
         "build_time": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z"),
@@ -371,6 +373,11 @@ def bind_runtime_build_identity(env: dict[str, str]) -> dict:
         "EVOMIND_DATABASE_SCHEMA_VERSION": str(manifest.get("database_schema_version") or "unknown"),
         "EVOMIND_DATABASE_SCHEMA_SHA256": str(manifest["database_schema_sha256"]),
     })
+    source_commit = str(manifest.get("source_commit") or "").strip().lower()
+    if re.fullmatch(r"[0-9a-f]{40}", source_commit):
+        env["EVOMIND_SOURCE_COMMIT"] = source_commit
+        if isinstance(manifest.get("source_commit_dirty"), bool):
+            env["EVOMIND_SOURCE_COMMIT_DIRTY"] = "true" if manifest["source_commit_dirty"] else "false"
     return manifest
 
 

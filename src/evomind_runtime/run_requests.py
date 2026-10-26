@@ -15,6 +15,9 @@ from .tenant_access import AccessError, AccessStore, Principal
 from .user_projects import PROJECT_ID, ProjectStore
 from .user_tasks import TASK_ID, UserTasks
 from .model_profiles import PROFILE_ID, ModelProfiles
+from .model_router import platform_transport_for
+
+_EFFORTS = frozenset({'low', 'medium', 'high'})
 
 
 KEY_PATTERN = re.compile(r"[A-Za-z0-9_-]{8,128}")
@@ -38,6 +41,18 @@ def normalized_request(body: dict) -> dict:
         if not isinstance(profile_id, str) or not PROFILE_ID.fullmatch(profile_id) or type(version) is not int or version < 1:
             raise AccessError(400, 'invalid_model_profile_selection')
         result.update(model_profile_id=profile_id, model_profile_version=version)
+    if 'platform_model_id' in body:
+        platform_model_id = body.get('platform_model_id')
+        if not isinstance(platform_model_id, str) or not platform_model_id or len(platform_model_id) > 200:
+            raise AccessError(400, 'invalid_platform_model')
+        if result.get('model_profile_id') or platform_transport_for(platform_model_id) is None:
+            raise AccessError(400, 'invalid_platform_model')
+        result['platform_model_id'] = platform_model_id
+    if 'reasoning_effort' in body:
+        effort = body.get('reasoning_effort')
+        if effort not in _EFFORTS:
+            raise AccessError(400, 'invalid_reasoning_effort')
+        result['reasoning_effort'] = effort
     user_task_id = body.get('user_task_id', '')
     if not isinstance(user_task_id, str) or (user_task_id and not TASK_ID.fullmatch(user_task_id)):
         raise AccessError(400, 'invalid_user_task_id')

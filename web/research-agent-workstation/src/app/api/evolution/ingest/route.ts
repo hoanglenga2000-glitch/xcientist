@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { evolutionErrorBody } from "@/lib/evolution-cli-path";
 import { ingestEvolutionResult, ingestEvolutionSummary } from "@/lib/server/evolution";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function POST(request: Request) {
       : await ingestEvolutionResult({ ...body, official_submit_allowed: false });
     return NextResponse.json({ ok: true, ...payload });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "evolution ingest failed";
-    return NextResponse.json({ ok: false, task_id: taskId, error: message }, { status: 400 });
+    const failure = evolutionErrorBody(error, { task_id: taskId }, "evolution ingest failed");
+    return NextResponse.json(failure.body, { status: failure.status });
   }
 }

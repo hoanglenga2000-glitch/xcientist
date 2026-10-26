@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { evolutionErrorBody } from "@/lib/evolution-cli-path";
 import { listEvolutionConfigs } from "@/lib/server/evolution";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function GET() {
       config_dir: "configs/evolution"
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "evolution configs listing failed";
-    return NextResponse.json({ ok: false, count: 0, configs: [], config_dir: "configs/evolution", error: message }, { status: 400 });
+    const failure = evolutionErrorBody(error, { count: 0, configs: [], config_dir: "configs/evolution" }, "evolution configs listing failed");
+    return NextResponse.json(failure.body, { status: failure.status });
   }
 }

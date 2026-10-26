@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import contextvars
 import json
+import logging
 import mimetypes
 import os
 import re
@@ -20,6 +21,8 @@ from .policy import argument_fingerprint
 
 if TYPE_CHECKING:
     from .runtime import AgentRuntime
+
+logger = logging.getLogger(__name__)
 
 
 CHUNK_SIZE = 16 * 1024 * 1024
@@ -266,6 +269,35 @@ def _explicit_continuation_tool_scope(
         ]
         return list(dict.fromkeys(requested))
     return None
+
+
+def _parse_utc(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def _newest_utc(values: list[Any]) -> datetime | None:
+    parsed = [item for item in (_parse_utc(value) for value in values) if item is not None]
+    return max(parsed) if parsed else None
+
+
+def _planning_steps_finished(plan: Any) -> bool:
+    """True only when every step is a completed object. Malformed plans are unfinished."""
+    if not isinstance(plan, dict):
+        return False
+    steps = plan.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return False
+    for step in steps:
+        if not isinstance(step, dict) or str(step.get("status") or "") != "completed":
+            return False
+    return True
 
 
 def _automatic_retry_enabled() -> bool:
@@ -853,8 +885,18 @@ class AssistantRunService:
         user_task_id: str = "",
         model_profile_id: str = "",
         model_profile_version: int = 0,
+        platform_model_id: str = "",
+        reasoning_effort: str = "",
     ) -> dict[str, Any]:
         objective = str(prompt or "").strip()
+        if platform_model_id and model_profile_id:
+            raise ValueError('invalid_platform_model')
+        if platform_model_id:
+            from .model_router import platform_transport_for
+            if platform_transport_for(platform_model_id) is None:
+                raise ValueError('invalid_platform_model')
+        if reasoning_effort and reasoning_effort not in {'low', 'medium', 'high'}:
+            raise ValueError('invalid_reasoning_effort')
         profile_binding = None
         if model_profile_id:
             from .model_profiles import ModelProfiles
@@ -929,6 +971,8 @@ class AssistantRunService:
                 "user_task_id": user_task_id,
                 "model_profile": profile_binding,
                 "attachment_context": attachment_context,
+                **({"platform_model_id": platform_model_id} if platform_model_id else {}),
+                **({"reasoning_effort": reasoning_effort} if reasoning_effort else {}),
             },
         )
         row = self.store.create_assistant_run(
@@ -1232,8 +1276,18 @@ class AssistantRunService:
                 if not current_run or current_run["status"] == "cancelled":
                     return
                 model = result.get("model_execution") if isinstance(result.get("model_execution"), dict) else {}
-                provider = str(model.get("provider") or result.get("model", {}).get("provider") or "")
-                model_name = str(model.get("model") or result.get("model", {}).get("model") or "")
+                provider = str(model.get("provider") or "")
+                model_name = str(model.get("model") or "")
+                if not provider and not model_name:
+                    # A model.response recorded during the call is the served identity.
+                    # The router decision is only a stand-in when no call returned.
+                    served = self.store.get_assistant_run(run_id) or {}
+                    provider = str(served.get("model_provider") or "")
+                    model_name = str(served.get("model") or "")
+                if not provider and not model_name:
+                    routed = result.get("model") if isinstance(result.get("model"), dict) else {}
+                    provider = str(routed.get("provider") or "")
+                    model_name = str(routed.get("model") or "")
                 self.store.update_assistant_run(run_id, model_provider=provider, model=model_name)
                 self.store.append_event(
                     run_id,
@@ -1807,6 +1861,15 @@ class AssistantRunService:
         run = self.store.get_assistant_run(run_id)
         if not run:
             raise KeyError(run_id)
+        if str(run.get("status") or "") == "planning":
+            try:
+                self.close_idle_planning(run_id=run_id)
+            except Exception:
+                logger.exception("close_idle_planning failed for snapshot %s", run_id)
+            else:
+                run = self.store.get_assistant_run(run_id)
+                if not run:
+                    raise KeyError(run_id)
         session = self.store.get_session(str(run["session_id"])) or {}
         session_metadata = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
         selected_task = str(session_metadata.get("selected_task") or "")
@@ -2415,7 +2478,161 @@ class AssistantRunService:
                 )
         return {"approval": approval, "tool_result": result, "run": self.snapshot(run_id) if run_id and assistant_run else None}
 
+    def close_idle_planning(self, *, idle_seconds: int = 1800, run_id: str = "") -> dict[str, Any]:
+        """Close planning rows that have no live worker, child, or recent activity.
+
+        A finished plan becomes completed only when its delivery gate is met.
+        A fresh confirmation stays a confirmation. A running tool or child run
+        is left open. Nothing is cancelled.
+        """
+        now = datetime.now(timezone.utc)
+        if run_id:
+            row = self.store.get_assistant_run(run_id)
+            rows = [row] if row and str(row.get("status") or "") == "planning" else []
+        else:
+            rows = self.store.list_assistant_runs_with_status("planning")
+        closed: list[dict[str, Any]] = []
+        skipped: dict[str, int] = {}
+
+        def skip(reason: str) -> None:
+            skipped[reason] = skipped.get(reason, 0) + 1
+
+        for run in rows:
+            if not isinstance(run, dict):
+                continue
+            try:
+                outcome = self._close_one_idle_planning(run, now=now, idle_seconds=idle_seconds)
+            except Exception:
+                logger.exception("close_idle_planning skipped run %s", run.get("id"))
+                skip("close_failed")
+                continue
+            if outcome is None:
+                continue
+            if outcome.get("skipped"):
+                skip(str(outcome["skipped"]))
+                continue
+            closed.append(outcome)
+        return {
+            "checked_at": now.isoformat(),
+            "closed_count": len(closed),
+            "closed": closed,
+            "skipped": dict(sorted(skipped.items())),
+        }
+
+    def _local_worker_alive(self, run_id: str) -> bool:
+        for bucket in (self._threads, self._resume_waiters):
+            worker = bucket.get(run_id)
+            if worker is not None and worker.is_alive():
+                return True
+        return False
+
+    def _fresh_session_approval(self, session_id: str, now: datetime) -> dict[str, Any] | None:
+        for approval in self.store.list_session_approvals(session_id, status="pending"):
+            deadline = _parse_utc(approval.get("expires_at"))
+            if deadline is None or deadline > now:
+                return approval
+        return None
+
+    def _planning_delivery_blocked(self, run: dict[str, Any]) -> bool:
+        plan = run.get("plan")
+        if not isinstance(plan, dict) or not plan.get("require_artifact"):
+            return False
+        try:
+            if self._missing_expected_artifacts(run):
+                return True
+            return not self.store.list_deliverables(str(run.get("id") or ""))
+        except Exception:
+            logger.exception("planning delivery check failed for %s", run.get("id"))
+            return True
+
+    def _close_one_idle_planning(
+        self,
+        run: dict[str, Any],
+        *,
+        now: datetime,
+        idle_seconds: int,
+    ) -> dict[str, Any] | None:
+        current_id = str(run.get("id") or "")
+        if not current_id or str(run.get("status") or "") != "planning":
+            return None
+        # A missing or unreadable stamp is not evidence of idleness.
+        if _parse_utc(run.get("updated_at")) is None:
+            return {"skipped": "missing_timestamp"}
+        observed_updated_at = str(run.get("updated_at"))
+        with self._lock:
+            if self._local_worker_alive(current_id):
+                return {"skipped": "worker_alive"}
+            current = self.store.get_assistant_run(current_id)
+            if not current or str(current.get("status") or "") != "planning":
+                return {"skipped": "already_settled"}
+            if str(current.get("updated_at") or "") != observed_updated_at:
+                return {"skipped": "already_settled"}
+            run_updated = _parse_utc(current.get("updated_at"))
+            if run_updated is None:
+                return {"skipped": "missing_timestamp"}
+            if (now - run_updated).total_seconds() < idle_seconds:
+                return {"skipped": "recent_activity"}
+            session = self.store.get_session(current_id) or {}
+            metadata = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+            if metadata.get("user_pause_requested"):
+                return {"skipped": "user_pause"}
+            calls = self.store.list_tool_calls(current_id, limit=2000)
+            if any(str(call.get("status") or "") == "running" for call in calls):
+                return {"skipped": "tool_call_active"}
+            stamps: list[Any] = [
+                current.get("updated_at"),
+                session.get("updated_at"),
+                self.store.latest_event_created_at(current_id),
+            ]
+            for call in calls:
+                stamps.extend(call.get(key) for key in ("started_at", "created_at", "completed_at"))
+            newest = _newest_utc(stamps)
+            if newest is None:
+                return {"skipped": "missing_timestamp"}
+            if (now - newest).total_seconds() < idle_seconds:
+                return {"skipped": "recent_activity"}
+            if self.store.has_open_child_run(current_id):
+                return {"skipped": "child_run"}
+            fresh_approval = self._fresh_session_approval(current_id, now)
+            finished = _planning_steps_finished(current.get("plan"))
+            if fresh_approval is not None:
+                target, error_class, reason = "waiting_approval", "", "planning_needs_confirmation"
+            elif finished and not self._planning_delivery_blocked(current):
+                target, error_class, reason = "completed", "", "planning_already_finished"
+            elif finished:
+                target, error_class, reason = "blocked", "incomplete_deliverables", "planning_artifacts_missing"
+            else:
+                target, error_class, reason = "blocked", "planning_idle", "planning_idle"
+            fields: dict[str, Any] = {"status": target, "error_class": error_class, "error_message": ""}
+            if target == "completed":
+                fields["completed_at"] = utc_now()
+            changed = self.store.settle_planning_if_unchanged(current_id, observed_updated_at, **fields)
+            if not changed:
+                return {"skipped": "already_settled"}
+            try:
+                self.runtime.store.update_session(current_id, status=target)
+            except KeyError:
+                pass
+            if target == "completed":
+                event = "run_completed"
+            elif target == "blocked":
+                event = "run_blocked"
+            else:
+                event = "planning_closed"
+            self.store.append_event(current_id, event, {
+                "run_id": current_id,
+                "previous_status": "planning",
+                "status": target,
+                "reason": reason,
+                "recoverable": target != "completed",
+            })
+            return {"run_id": current_id, "from": "planning", "to": target, "reason": reason}
+
     def recover_incomplete(self) -> list[str]:
+        try:
+            self.close_idle_planning()
+        except Exception:
+            logger.exception("close_idle_planning failed during recover_incomplete")
         recovered: list[str] = []
         for run in self.store.list_assistant_runs(limit=200):
             status = str(run["status"])

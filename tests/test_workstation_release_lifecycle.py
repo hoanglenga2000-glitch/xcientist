@@ -702,6 +702,8 @@ def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
         "schema": "evomind.runtime_build.v1",
         "commit_hash": "b" * 40,
         "source_dirty": True,
+        "source_commit": "b" * 40,
+        "source_commit_dirty": True,
         "source_tree_sha256": "a" * 64,
         "build_id": "build-123",
         "build_time": manifest["build_time"],
@@ -711,6 +713,29 @@ def test_runtime_build_manifest_binds_source_backend_frontend_and_database(
         "database_schema_sha256": "c" * 64,
     }
     assert manifest["build_time"].endswith("Z")
+
+
+def test_bind_exports_source_commit_without_replacing_the_baseline(tmp_path, monkeypatch):
+    manager = load("release_runtime_bind_source", "scripts/manage_workstation_dashboard.py")
+    monkeypatch.setattr(manager, "bundle_mode", lambda: False)
+    monkeypatch.setattr(manager, "SOURCE_APP_DIR", tmp_path)
+    monkeypatch.setattr(manager, "load_active_runtime_build_manifest", lambda: {
+        "commit_hash": "6" * 40,
+        "source_commit": "D" * 40,
+        "source_commit_dirty": False,
+        "source_tree_sha256": "a" * 64,
+        "build_id": "overlay-invitation-beta-fixture",
+        "build_time": "2026-10-25T00:00:00Z",
+        "backend_version": "0.3.0",
+        "frontend_version": "0.3.0",
+        "database_schema_version": "fixture",
+        "database_schema_sha256": "c" * 64,
+    })
+    env: dict[str, str] = {}
+    manager.bind_runtime_build_identity(env)
+    assert env["EVOMIND_BUILD_COMMIT_HASH"] == "6" * 40
+    assert env["EVOMIND_SOURCE_COMMIT"] == "d" * 40
+    assert env["EVOMIND_SOURCE_COMMIT_DIRTY"] == "false"
 
 
 def test_source_build_stale_uses_exact_manifest_digest(

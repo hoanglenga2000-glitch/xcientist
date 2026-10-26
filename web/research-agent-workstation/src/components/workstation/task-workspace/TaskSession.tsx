@@ -5,7 +5,12 @@ import { TaskRunView } from './TaskRunView';
 import { TaskFiles } from './TaskFiles';
 import { TaskControls } from './TaskControls';
 import type { ModelList } from './ModelSettings';
+import { owningTaskHref, platformOptionLabel } from './task-presentation';
 import { jsonPost, taskRequest, taskStatus, type TaskDetail, type TaskRun, type UserTask } from './types';
+import { AttachButton, AttachmentChips, useComposerUpload } from './ComposerAttach';
+import { ModelOptions } from './ModelOptions';
+import { takeCarriedAttachments } from './upload-attachment';
+import { defaultModelChoice, INTENSITY_LEVELS, isIntensity, LAST_MODEL_KEY, NEXT_INTENSITY_KEY, NEXT_MODEL_KEY, platformModelId, reasoningEffort, type Intensity } from './composer-options';
 
 const active = (status: string) => ['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval'].includes(status);
 const views = [['conversation', '对话'], ['progress', '进度'], ['results', '文件与结果'], ['more', '更多']] as const;
@@ -17,7 +22,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const [run, setRun] = useState<TaskRun | null>(null);
   const [runId, setRunId] = useState('');
   const [view, setView] = useState('conversation');
-  const [draft, setDraft] = useState(initialDraft ?? task.draft);
+  const [draft, setDraft] = useState(initialDraft === undefined ? task.draft : initialDraft);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -28,20 +33,55 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const [linkId, setLinkId] = useState('');
   const [models, setModels] = useState<ModelList>({ profiles: [], default_profile_id: '' });
   const [model, setModel] = useState('');
+  const [intensity, setIntensity] = useState<Intensity>('中');
+  const [carrying, setCarrying] = useState(true);
+  const carried = useRef<string[]>([]);
+  const carryRead = useRef(false);
+  const boundFiles = useRef(files);
+  boundFiles.current = files;
   const sending = useRef(false);
   const saving = useRef<Promise<UserTask> | null>(null);
   const saved = useRef(task);
   const alive = useRef(true);
   const currentRuns = useRef(runs);
   currentRuns.current = runs;
+  const servedModel = useRef<{ id: string; provider: string; model: string } | null>(null);
+  const viewRef = useRef(view);
+  viewRef.current = view;
 
   useEffect(() => {
     const controller = new AbortController();
     void taskRequest<ModelList>('/api/assistant/model-profiles', { signal: controller.signal }).then(value => {
-      if (!controller.signal.aborted) { setModels(value); setModel(value.default_profile_id); }
+      if (controller.signal.aborted) return;
+      const preset = window.sessionStorage.getItem(NEXT_MODEL_KEY) || '';
+      if (preset) window.sessionStorage.removeItem(NEXT_MODEL_KEY);
+      setModels(value); setModel(defaultModelChoice(value, preset, window.sessionStorage.getItem(LAST_MODEL_KEY)));
     }).catch(cause => { if (!controller.signal.aborted) setError(cause.message); });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (carryRead.current) return;
+    carryRead.current = true;
+    const level = window.sessionStorage.getItem(NEXT_INTENSITY_KEY);
+    if (level) window.sessionStorage.removeItem(NEXT_INTENSITY_KEY);
+    if (isIntensity(level)) setIntensity(level);
+    const ids = takeCarriedAttachments(task.id).filter(id => !files.some(file => file.id === id));
+    if (!ids.length) { setCarrying(false); return; }
+    carried.current = ids;
+    // Bind home-composer files before the auto-start reads the task version.
+    void bindFiles([...files.map(file => file.id), ...ids]).then(() => { carried.current = []; })
+      .catch(() => undefined).finally(() => { if (alive.current) setCarrying(false); });
+  }, []);
+
+  async function bindFiles(ids: string[]) {
+    await saveDraft();
+    const updated = await taskRequest<TaskDetail>(`/api/assistant/tasks/${task.id}/files`, jsonPost({ attachment_ids: ids, version: saved.current.version }));
+    if (!alive.current) return;
+    boundFiles.current = updated.files ?? [];
+    saved.current = updated.task; setTask(updated.task); setFiles(boundFiles.current);
+  }
+  const composerUpload = useComposerUpload(file => bindFiles([...new Set([...boundFiles.current.map(item => item.id), file.id])]));
 
   useEffect(() => {
     alive.current = true;
@@ -105,6 +145,7 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     let reading = false;
     let queued = false;
     let settled = false;
+    let leaving = false;
     let sequence = 0;
     async function read() {
       if (controller.signal.aborted) return;
@@ -113,16 +154,36 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
       try {
         const snapshot = await taskRequest<TaskRun>(`/api/assistant/runs/${encodeURIComponent(runId)}`, { signal: controller.signal });
         if (!controller.signal.aborted) {
-          setRun(snapshot); setRuns(current => current.map(item => item.id === snapshot.id ? { ...item, status: snapshot.status } : item));
-          setStreamError(''); settled = !active(snapshot.status); sequence = snapshot.last_event_seq ?? 0; if (settled) stream?.close();
+          const owner = owningTaskHref(task.id, snapshot, viewRef.current);
+          if (owner) { leaving = true; window.location.replace(owner); return; }
+          const observed = !snapshot.model && servedModel.current?.id === snapshot.id ? servedModel.current : null;
+          const next = observed ? { ...snapshot, model_provider: observed.provider, model: observed.model } : snapshot;
+          setRun(next); setRuns(current => current.map(item => item.id === next.id ? { ...item, status: next.status, model: next.model, model_provider: next.model_provider } : item));
+          setStreamError(''); settled = !active(next.status); sequence = next.last_event_seq ?? 0; if (settled) stream?.close();
+          if (settled) {
+            try {
+              const detail = await taskRequest<TaskDetail>(`/api/assistant/tasks/${encodeURIComponent(task.id)}`, { signal: controller.signal });
+              if (!controller.signal.aborted) setTask(current => ({ ...current, status: detail.task.status }));
+            } catch { /* The run snapshot is already on screen. The work-item label refreshes with the next read. */ }
+          }
         }
       } catch (cause) { if (!controller.signal.aborted) setStreamError(cause instanceof Error ? cause.message : '连接中断，运行状态待确认。'); }
       finally { reading = false; if (queued) { queued = false; void read(); } }
     }
     void read().then(() => {
-      if (controller.signal.aborted || settled) return;
+      if (controller.signal.aborted || settled || leaving) return;
       stream = new EventSource(`/api/assistant/runs/${encodeURIComponent(runId)}/events?after=${sequence}`);
       for (const event of ['run_created', 'plan_updated', 'run_progress', 'run_completed', 'run_failed', 'run_blocked', 'approval_required', 'approval.requested', 'run_pause_requested', 'run_paused', 'artifact_published', 'tool_completed']) stream.addEventListener(event, () => void read());
+      stream.addEventListener('model_observed', event => {
+        try {
+          const payload = JSON.parse((event as MessageEvent).data) as { provider?: string; model?: string };
+          const provider = String(payload.provider ?? '');
+          const observed = String(payload.model ?? '');
+          if (!observed && !provider) return;
+          servedModel.current = { id: runId, provider, model: observed };
+          if (!controller.signal.aborted) setRun(current => current?.id === runId ? { ...current, model_provider: provider, model: observed } : current);
+        } catch { /* The next authenticated snapshot remains authoritative. */ }
+      });
       stream.addEventListener('assistant_text', event => {
         try { const payload = JSON.parse((event as MessageEvent).data) as { text?: string }; if (!controller.signal.aborted) setRun(current => current?.id === runId ? { ...current, streaming_text: payload.text ?? '' } : current); } catch { /* The next authenticated snapshot remains authoritative. */ }
       });
@@ -133,28 +194,43 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   }, [runId, reconnect]);
 
   async function send() {
-    if (sending.current || !draft.trim() || !model || (run && active(run.status))) return;
+    if (sending.current || carrying || composerUpload.busy || !draft.trim() || !model || (run && active(run.status))) return;
     sending.current = true; setBusy(true); setError('');
     try {
       await saveDraft();
       const recovered = await recoverCreation<TaskRun>(task.conversation_id);
       const profile = models.profiles.find(item => item.id === model && item.enabled);
-      if (model !== 'platform' && !profile) throw new Error('该模型配置不可用，请重新选择或前往设置。');
+      const platformId = platformModelId(models, model);
+      if (model !== 'platform' && !profile && !platformId) throw new Error('该模型配置不可用，请重新选择或前往设置。');
       const result = recovered ?? await taskRequest<TaskRun>('/api/assistant/runs', jsonPost({
         prompt: draft, user_task_id: task.id, conversation_id: task.conversation_id,
-        attachment_ids: files.map(file => file.id),
+        attachment_ids: [...new Set([...files.map(file => file.id), ...carried.current])],
+        reasoning_effort: reasoningEffort(intensity),
         ...(profile ? { model_profile_id: profile.id, model_profile_version: profile.version } : {}),
+        ...(platformId ? { platform_model_id: platformId } : {}),
         idempotency_key: ensureCreationKey(task.conversation_id),
       }));
       if (!alive.current) return;
       if (result.user_task_id !== task.id) throw new Error('返回的运行未绑定当前任务，已停止切换。');
-      finishCreation(task.conversation_id);
+      finishCreation(task.conversation_id); carried.current = [];
       setRuns(current => [result, ...current.filter(item => item.id !== result.id)]); setRun(result);
       navigate('conversation', result.id);
       if (!recovered) { await saveDraft(''); setDraft(''); } else setNotice('已找回此前请求，没有重复发送。当前草稿保留。');
     } catch (cause) { if (alive.current) setError(cause instanceof Error ? cause.message : '发送失败，输入已保留。'); }
     finally { sending.current = false; if (alive.current) setBusy(false); }
   }
+
+  const started = useRef(false);
+  useEffect(() => {
+    if (started.current || typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('start') !== '1') return;
+    if (!model || carrying || !draft.trim() || (run && active(run.status)) || busy) return;
+    started.current = true;
+    const url = new URL(window.location.href);
+    url.searchParams.delete('start');
+    window.history.replaceState(null, '', url);
+    void send();
+  }, [model, draft, run, busy, carrying]);
 
   async function showHistory() {
     setError('');
@@ -171,26 +247,27 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     finally { setBusy(false); }
   }
 
-  return <section><a className="tw-back" href="/workspace">← 我的任务</a><p className="tw-eyebrow">{taskStatus(run?.status ?? task.status)}</p><h1>{task.title}</h1>
+  const workStatus = run && active(run.status) ? run.status : task.status;
+  const generatedCount = (run?.artifacts?.length ?? 0) + (run?.artifact_evidence?.length ?? 0);
+  const platformLabel = platformOptionLabel(models.platform_model, model === 'platform' && run?.model ? { provider: run.model_provider, model: run.model } : null);
+  return <section className="tw-chat"><p className="tw-eyebrow">{taskStatus(workStatus)}</p><h1>{task.title}</h1>
     <nav className="tw-tabs" aria-label="任务内容">{views.map(([id, label]) => <button key={id} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}>{label}</button>)}</nav>
     {runs.length > 1 && <label className="tw-run-select">查看哪次运行 <select aria-label="选择运行" value={runId} onChange={event => navigate(view, event.target.value)}>{runs.map(item => <option key={item.id} value={item.id}>{new Date(item.created_at ?? '').toLocaleString('zh-CN')} · {taskStatus(item.status)}</option>)}</select></label>}
     {streamError && <p role="alert" className="tw-error">{streamError}<button onClick={() => setReconnect(value => value + 1)}>重新连接</button></p>}
     {run && ['conversation', 'progress'].includes(view) && <TaskControls key={run.id} run={run} onChanged={() => setReconnect(value => value + 1)} />}
-    {view !== 'more' ? (runId && !run ? <p role="status">正在读取所选运行；尚不能判断其状态。</p> : <TaskRunView run={run} view={view} />) : <section><h2>关联已有记录</h2><p className="tw-muted">只列出当前账户有权访问的运行。关联不会改写历史、合并对话或重新执行。</p><button onClick={() => void showHistory()}>查看可关联的历史运行</button>
+    {view !== 'more' ? (runId && !run ? <p role="status">正在读取所选运行；尚不能判断其状态。</p> : <TaskRunView run={run} view={view} title={task.title} />) : <section><h2>关联已有记录</h2><p className="tw-muted">只列出当前账户有权访问的运行。关联不会改写历史、合并对话或重新执行。</p><button onClick={() => void showHistory()}>查看可关联的历史运行</button>
       {history.length > 0 ? <div className="tw-link-form"><label htmlFor="link-history">选择要关联的记录</label><select id="link-history" value={linkId} onChange={event => setLinkId(event.target.value)}><option value="">请选择</option>{history.map(item => <option key={item.id} value={item.id}>{item.title} · {taskStatus(item.status)}</option>)}</select><button disabled={!linkId || busy} onClick={() => void link()}>关联到“{task.title}”</button></div> : <p className="tw-muted">未列出可关联记录。无明确所有权的旧记录需要管理员核实，不能自动认领。</p>}
     </section>}
-    {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="描述希望完成的工作与输出结果…" />
-      <label htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">平台模型（沿用现有权限与配置）</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {item.model} · v{item.version}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select><a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
-      <div className="tw-composer-bottom"><span>{draft === task.draft ? '草稿已保存' : '草稿尚未保存'} · 发送才会开始执行<br />真实模型调用可能产生费用，执行仍受权限与预算控制。</span><button type="submit" className="tw-primary" disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送需求' : '开始任务'}</button></div>
+    {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label className="tw-sr-only" htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="说说你要推进的事" />
+      <AttachmentChips files={files} status={composerUpload.status} error={composerUpload.error} disabled={busy || composerUpload.busy} onRemove={id => { setError(''); void bindFiles(files.filter(file => file.id !== id).map(file => file.id)).catch(cause => setError(cause instanceof Error ? cause.message : '移除失败，请重试。')); }} />
+      <div className="tw-composer-bottom"><AttachButton disabled={busy || composerUpload.busy} onFiles={selected => void composerUpload.upload(selected)} /><label className="tw-sr-only" htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => { setModel(event.target.value); window.sessionStorage.setItem(LAST_MODEL_KEY, event.target.value); }}><ModelOptions list={models} value={model} platformLabel={platformLabel} /></select>
+        <span className="tw-intensity" role="group" aria-label="强度">强度{INTENSITY_LEVELS.map(level => <button type="button" key={level} aria-pressed={intensity === level} onClick={() => setIntensity(level)}>{level}</button>)}</span>
+        <button type="submit" className="tw-primary" aria-label="发送" disabled={busy || carrying || composerUpload.busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : '发送'}</button></div>
       <button type="button" disabled={busy} onClick={() => { setError(''); void saveDraft().then(() => { setNotice('草稿已保存'); setAutosavePaused(false); }).catch(cause => { setAutosavePaused(true); setError(cause.message); }); }}>保存草稿</button>
       {autosavePaused && <button type="button" disabled={busy} onClick={() => void reloadDraftVersion()}>重新读取版本（保留本页输入）</button>}
+      <a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
     </form>}
-    {view === 'conversation' && <details className="tw-details"><summary>添加或选择资料（{files.length}）</summary><TaskFiles selected={files} onSelect={async ids => {
-      await saveDraft();
-      const updated = await taskRequest<TaskDetail>(`/api/assistant/tasks/${task.id}/files`, jsonPost({ attachment_ids: ids, version: saved.current.version }));
-      if (!alive.current) return;
-      saved.current = updated.task; setTask(updated.task); setFiles(updated.files ?? []);
-    }} /></details>}
+    {view === 'conversation' && <details className="tw-details"><summary>从资料库选择（{files.length}）{generatedCount ? ` · 生成文件（${generatedCount}）` : ''}</summary><TaskFiles selected={files} onSelect={bindFiles} /></details>}
     {error && <p role="alert" className="tw-error">{error}</p>}<p role="status" className="tw-muted">{error || (notice === '草稿已保存' && draft !== task.draft) ? '' : notice}</p>
   </section>;
 }

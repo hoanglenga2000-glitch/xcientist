@@ -16,9 +16,10 @@ export const ERROR_PATTERN = "Application error|Unhandled Runtime Error|Hydratio
 export const WORKSPACE_VIEWS = [
   { id: "tasks", path: "/workspace", nav: "/workspace" },
   { id: "new_task", path: "/workspace?new=1", nav: null },
+  { id: "work", path: "/workspace?section=work", nav: "/workspace?section=work" },
   { id: "data", path: "/workspace?section=data", nav: "/workspace?section=data" },
-  { id: "literature", path: "/workspace?section=literature", nav: "/workspace?section=literature" },
-  { id: "results", path: "/workspace?section=results", nav: "/workspace?section=results" },
+  { id: "literature", path: "/workspace?section=literature", nav: null },
+  { id: "results", path: "/workspace?section=results", nav: null },
   { id: "projects", path: "/workspace?section=projects", nav: null },
   { id: "settings_models", path: "/workspace?settings=models", nav: "/workspace?settings=models" },
   { id: "settings_account", path: "/workspace?settings=account", nav: "/workspace?settings=models" },
@@ -37,10 +38,12 @@ const DETECT_VIEW = `(() => {
   }
   if (main.querySelector('form.tw-composer textarea#task-draft')) return 'new_task';
   if (main.querySelector('nav.tw-tabs[aria-label="任务内容"]')) return 'task_session';
+  if (h1 === '工作') return 'work';
   if (main.querySelector('section[aria-label="我的资料"] input[type="file"][aria-label="上传资料"]')) return 'data';
   if (h1 === '文献检索') return 'literature';
   if (h1 === '管理项目' && main.querySelector('input#new-project')) return 'projects';
   if (h1 === '成果') return 'results';
+  if (h1 === '今天想推进哪一项？') return 'tasks';
   if (h1 === '我的任务' && main.querySelector('input[aria-label="搜索任务"]') && main.querySelector('.tw-task-list')) return 'tasks';
   return null;
 })()`;
@@ -147,7 +150,7 @@ export async function inspectWorkspace(client) {
 
 export function shellOk(info) {
   const s = info?.shell ?? {};
-  return Boolean(s.workspace && s.skipLink && s.sidebar && s.brand && s.newTask && s.navLinkCount >= 5 && s.topbar && s.menuButton && s.accountLink && s.main);
+  return Boolean(s.workspace && s.skipLink && s.sidebar && s.brand && s.newTask && s.navLinkCount >= 4 && s.topbar && s.menuButton && s.accountLink && s.main);
 }
 
 /** Real mouse click at the element's centre (CDP input events, not a synthetic DOM click). */

@@ -397,9 +397,10 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, requests.lookup(runtime, access, self.principal, parts[2]))
                 access.guard(runtime, self.principal, "GET", parts)
                 if parts[:2] == ['v1', 'user-files'] and len(parts) in {2, 3}:
-                    from .user_files import catalog, open_verified
+                    from .user_files import catalog, generated_catalog, open_verified
                     if len(parts) == 2:
-                        return self._json(200, {'files': catalog(runtime, access, self.principal)})
+                        return self._json(200, {'files': catalog(runtime, access, self.principal),
+                                                 'generated': generated_catalog(runtime, access, self.principal)})
                     item, handle = open_verified(runtime, access, self.principal, parts[2])
                     with handle:
                         self.send_response(200)
@@ -430,6 +431,9 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, {"project": projects.get_owned(self.principal, parts[2]), "runs": projects.runs(runtime, access, self.principal, parts[2]), "limit": 100})
                 if parsed.path == "/v1/health":
                     backend_version = os.environ.get("EVOMIND_BACKEND_VERSION", "0.3.0").strip() or "0.3.0"
+                    source_commit = os.environ.get("EVOMIND_SOURCE_COMMIT", "").strip().lower()
+                    if not re.fullmatch(r"[0-9a-f]{40}", source_commit):
+                        source_commit = ""
                     return self._json(
                         200,
                         {
@@ -437,6 +441,8 @@ def make_handler(runtime: AgentRuntime, token: str):
                             "version": backend_version,
                             "backend_version": backend_version,
                             "commit_hash": os.environ.get("EVOMIND_BUILD_COMMIT_HASH", "").strip(),
+                            "source_commit": source_commit,
+                            "source_revision": source_commit,
                             "source_tree_sha256": os.environ.get("EVOMIND_SOURCE_TREE_SHA256", "").strip(),
                         },
                     )

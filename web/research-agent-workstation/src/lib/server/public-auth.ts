@@ -141,12 +141,12 @@ export function safePostLoginPath(value: unknown) {
   const candidate = typeof value === "string" ? value.trim() : "";
   const hasControlCharacter = [...candidate].some((character) => character.charCodeAt(0) < 32);
   if (!candidate || !candidate.startsWith("/") || candidate.startsWith("//") || candidate.includes("\\") || hasControlCharacter) {
-    return "/?page=assistant";
+    return "/workspace";
   }
   try {
     const parsed = new URL(candidate, "https://evomind.invalid");
-    return parsed.origin === "https://evomind.invalid" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : "/?page=assistant";
+    return parsed.origin === "https://evomind.invalid" ? `${parsed.pathname}${parsed.search}${parsed.hash}` : "/workspace";
   } catch {
-    return "/?page=assistant";
+    return "/workspace";
   }
 }

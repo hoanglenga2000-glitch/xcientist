@@ -17,7 +17,7 @@ test("public workstation branding is DeepEvo while runtime compatibility identif
     text("src/components/workstation/screens/AssistantScreen.tsx"),
   ]);
 
-  assert.match(layout, /DeepEvo Research Workstation/);
+  assert.match(layout, /title: "DeepEvo"/);
   assert.match(sidebar, /DeepEvoLockup/);
   assert.match(assistant, /DeepEvo Assistant/);
   assert.match(assistant, /X-EvoMind-CSRF/);

@@ -454,6 +454,29 @@ class RuntimeStore:
             raise KeyError(run_id)
         return result
 
+    def settle_planning_if_unchanged(self, run_id: str, observed_updated_at: str, **fields: Any) -> bool:
+        """Write a planning row only when status and updated_at are still the observed pair."""
+        allowed = {
+            "status", "plan_json", "attachment_ids_json", "retry_count", "error_class",
+            "error_message", "model_provider", "model", "completed_at",
+        }
+        updates: dict[str, Any] = {}
+        for key, value in fields.items():
+            mapped = "plan_json" if key == "plan" else "attachment_ids_json" if key == "attachment_ids" else key
+            if mapped not in allowed:
+                continue
+            updates[mapped] = _json(value) if mapped.endswith("_json") and not isinstance(value, str) else value
+        if not updates:
+            return False
+        updates["updated_at"] = utc_now()
+        assignments = ",".join(f"{key}=?" for key in updates)
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                f"UPDATE assistant_runs SET {assignments} WHERE id=? AND status='planning' AND updated_at=?",
+                (*updates.values(), run_id, str(observed_updated_at)),
+            )
+            return cursor.rowcount == 1
+
     def get_assistant_run(self, run_id: str) -> dict[str, Any] | None:
         with self._lock:
             item = _row(self._connection.execute("SELECT * FROM assistant_runs WHERE id=?", (run_id,)).fetchone())
@@ -472,6 +495,21 @@ class RuntimeStore:
         params.append(max(1, min(int(limit), 200)))
         with self._lock:
             rows = self._connection.execute(query, params).fetchall()
+        result: list[dict[str, Any]] = []
+        for item in map(dict, rows):
+            item["plan"] = json.loads(item.pop("plan_json"))
+            item["attachment_ids"] = json.loads(item.pop("attachment_ids_json"))
+            result.append(item)
+        return result
+
+    def list_assistant_runs_with_status(self, status: str, limit: int = 5000) -> list[dict[str, Any]]:
+        """Every run in one status, oldest first. The conversation list is capped at 200."""
+        capped = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM assistant_runs WHERE status=? ORDER BY updated_at ASC, id ASC LIMIT ?",
+                (str(status), capped),
+            ).fetchall()
         result: list[dict[str, Any]] = []
         for item in map(dict, rows):
             item["plan"] = json.loads(item.pop("plan_json"))
@@ -1315,6 +1353,44 @@ class RuntimeStore:
             item["reversible"] = bool(item["reversible"])
         return item
 
+    def list_session_approvals(self, session_id: str, status: str = "", limit: int = 200) -> list[dict[str, Any]]:
+        """Approvals for one session. Callers that already skipped a live run should not scan the table."""
+        query = "SELECT * FROM approvals WHERE session_id=?"
+        params: list[Any] = [session_id]
+        if status:
+            query += " AND status=?"
+            params.append(status)
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(max(1, min(int(limit), 2000)))
+        with self._lock:
+            rows = self._connection.execute(query, params).fetchall()
+        result = []
+        for item in map(dict, rows):
+            item["normalized_arguments"] = json.loads(item.pop("normalized_arguments_json"))
+            item["impact_scope"] = json.loads(item.pop("impact_scope_json"))
+            item["reversible"] = bool(item["reversible"])
+            result.append(item)
+        return result
+
+    def has_open_child_run(self, parent_id: str) -> bool:
+        """True when a child session or its assistant run is still outside a terminal status."""
+        terminal = ("completed", "failed", "cancelled", "blocked")
+        marks = ",".join("?" for _ in terminal)
+        with self._lock:
+            row = self._connection.execute(
+                f"""
+                SELECT 1 FROM sessions
+                WHERE parent_session_id=? AND status NOT IN ({marks})
+                UNION ALL
+                SELECT 1 FROM assistant_runs AS runs
+                JOIN sessions ON sessions.id = runs.session_id
+                WHERE sessions.parent_session_id=? AND runs.status NOT IN ({marks})
+                LIMIT 1
+                """,
+                (parent_id, *terminal, parent_id, *terminal),
+            ).fetchone()
+        return row is not None
+
     def list_approvals(self, status: str = "", limit: int = 100) -> list[dict[str, Any]]:
         query = "SELECT * FROM approvals"
         params: list[Any] = []
@@ -1402,6 +1478,16 @@ class RuntimeStore:
             item["payload"] = json.loads(item.pop("payload_json"))
             result.append(item)
         return result
+
+    def latest_event_created_at(self, session_id: str) -> str:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT MAX(created_at) AS created_at FROM events WHERE session_id=?",
+                (session_id,),
+            ).fetchone()
+        if row is None:
+            return ""
+        return str(row["created_at"] or "")
 
     def latest_event(self, session_id: str, event_type: str) -> dict[str, Any] | None:
         with self._lock:

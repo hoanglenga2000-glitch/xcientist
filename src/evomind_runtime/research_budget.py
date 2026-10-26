@@ -21,11 +21,14 @@ def execution_budget_summary(rows: list, study: str, limits: dict | None = None)
     limits = limits or {'gpu_limit_seconds': GPU_LIMIT_SECONDS, 'engineering_limit_seconds': ENGINEERING_LIMIT_SECONDS, 'revision': 0}
     committed = sum(reserved if status == 'reserved' else charged for _, reserved, charged, status, _ in rows)
     engineering = sum(reserved if status == 'reserved' else charged for kind, reserved, charged, status, _ in rows if kind == 'engineering')
+    used = sum(charged for _, _, charged, _, _ in rows)
+    engineering_used = sum(charged for kind, _, charged, _, _ in rows if kind == 'engineering')
     reconciliation = any(status in {'uncertain', 'exceeded'} or (status == 'reserved' and boot != _BOOT_ID) for _, _, _, status, boot in rows)
     return {
         'schema': 'evomind.gpu_execution_budget_status.v1', 'scope': 'general_hpc_execution',
         'study': study, 'operations': len(rows),
-        'charged_wall_seconds': sum(row[2] for row in rows),
+        'charged_wall_seconds': used,
+        'used_seconds': used, 'engineering_used_seconds': engineering_used,
         'committed_seconds': committed, 'engineering_committed_seconds': engineering,
         'pending_reserved_seconds': sum(row[1] for row in rows if row[3] == 'reserved'),
         'failed_operations': sum(row[3] in {'failed', 'uncertain', 'exceeded'} for row in rows),

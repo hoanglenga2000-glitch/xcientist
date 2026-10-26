@@ -19,6 +19,7 @@ OUT_MD = ROOT / "reports" / "WORKSTATION_BROWSER_RENDER_SMOKE_20260630.md"
 DEFAULT_PAGES = [
     "tasks",
     "new_task",
+    "work",
     "data",
     "literature",
     "results",
@@ -121,7 +122,7 @@ def build_report(base_url: str, pages: list[str], click_timeout: int) -> dict[st
             "returncode": returncode,
             "has_shell": bool(shell.get("workspace") and shell.get("topbar") and shell.get("main")),
             "has_page_marker": item.get("activePage") == page,
-            "has_sidebar": bool(shell.get("sidebar") and int(shell.get("navLinkCount") or 0) >= 5),
+            "has_sidebar": bool(shell.get("sidebar") and int(shell.get("navLinkCount") or 0) >= 4),
             "action_count": int(item.get("actionCount") or 0),
             "button_count": int(item.get("buttonCount") or 0),
             "link_count": int(shell.get("navLinkCount") or 0),

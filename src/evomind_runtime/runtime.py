@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import threading
 from datetime import datetime, timedelta, timezone
@@ -16,6 +17,8 @@ from .assistant_runs import AssistantRunService
 from .super_agent_runtime import SuperAgentMode, SuperAgentRuntime
 from .tenant_access import register_scoped_session, scoped_session_metadata
 from .execution_progress import ExecutionHeartbeat, ProgressStore, safe_text
+
+logger = logging.getLogger(__name__)
 
 
 def _message_max_output_tokens(session: dict[str, Any], client: Any) -> int:
@@ -639,6 +642,10 @@ class AgentRuntime:
         """
 
         now = datetime.now(timezone.utc)
+        try:
+            self.assistant.close_idle_planning(idle_seconds=idle_seconds)
+        except Exception:
+            logger.exception("close_idle_planning failed during settle_orphan_sessions")
         reconciled: list[dict[str, Any]] = []
         skipped: dict[str, int] = {}
 
@@ -817,8 +824,19 @@ class AgentRuntime:
                     {"error_class": type(exc).__name__, "mode": self.super_agent.mode.value},
                 )
         personal_binding = (session.get('metadata') or {}).get('model_profile')
+        session_meta = session.get('metadata') or {}
+        chosen_platform = str(session_meta.get('platform_model_id') or '')
+        reasoning_effort = str(session_meta.get('reasoning_effort') or '')
         if not personal_binding:
-            decision = self.router.route("execution", session["selected_model_policy"])
+            if chosen_platform:
+                from .model_router import platform_transport_for
+                from .models import ModelDecision
+                selected = platform_transport_for(chosen_platform)
+                if selected is None:
+                    raise RuntimeError('platform_model_unavailable')
+                decision = ModelDecision('execution', selected.name, selected.config.model, 'Explicit platform model from the resolved transport list; no fallback.', [], False)
+            else:
+                decision = self.router.route("execution", session["selected_model_policy"])
             self.store.append_event(session_id, "model.routed", decision.to_dict())
         else:
             from .models import ModelDecision
@@ -849,10 +867,24 @@ class AgentRuntime:
             text_stream = PublicTextStream(lambda value: self.store.append_event(session_id, 'assistant.stream', value), guard_model_stream)
             if personal_binding:
                 from .personal_model_client import client_for_run
-                client = client_for_run(self, session, before_attempt=guard_model_dispatch)
+                client = client_for_run(self, session, before_attempt=guard_model_dispatch,
+                                         text_observer=text_stream, during_request=guard_model_stream,
+                                         reasoning_effort=reasoning_effort)
                 self.store.append_event(session_id, 'model.personal_profile_bound', personal_binding)
             else:
-                client = governed_client(AgentMessageClient(), lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
+                from .model_router import apply_reasoning_effort, platform_transport_for
+                if chosen_platform:
+                    selected = platform_transport_for(chosen_platform)
+                    if selected is None:
+                        raise RuntimeError('platform_model_unavailable')
+                    message_client = AgentMessageClient(transports=[apply_reasoning_effort(selected, reasoning_effort)])
+                elif reasoning_effort:
+                    from research_os.agent.messaging import _resolve_transports
+                    resolved = [apply_reasoning_effort(item, reasoning_effort) for item in _resolve_transports()]
+                    message_client = AgentMessageClient(transports=resolved) if resolved else AgentMessageClient()
+                else:
+                    message_client = AgentMessageClient()
+                client = governed_client(message_client, lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
                                          before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
                 bind_run_client(self.store, session_id, client)
             if not client.is_available():
@@ -924,6 +956,8 @@ class AgentRuntime:
                         "tool_names": [requested.name for requested in turn.tool_calls],
                     },
                 )
+                from .model_router import remember_served_model
+                remember_served_model(self.store, session_id, turn.provider, turn.model)
                 if not turn.text and not turn.tool_calls:
                     published_artifacts = self.store.list_deliverables(session_id)
                     if model_execution["native_tool_calls"] and published_artifacts:

@@ -38,19 +38,33 @@ export type PageId =
   | "evolution"
   | "control";
 
-/** Nav items with new IA grouping per the V2 spec */
+/**
+ * The twelve classic advanced-tool pages. They stay addressable so old links
+ * can be mapped into the workspace, and the agent still owns the capabilities.
+ * They are not primary navigation.
+ */
+export const retiredPrimaryPageIds = [
+  "overview",
+  "control",
+  "tasks",
+  "experiments",
+  "literature",
+  "code",
+  "gpu",
+  "workflow",
+  "evolution",
+  "runtime",
+  "evidence",
+  "gates",
+] as const satisfies readonly PageId[];
+
+/** Primary shell groups. Advanced-tool pages are not listed here. */
 export const navSections = [
   {
     id: "core",
     label: "Workspace",
     labelZh: "工作台",
     ids: ["assistant", "projects", "data", "report", "settings"] as const,
-  },
-  {
-    id: "advanced",
-    label: "Advanced tools",
-    labelZh: "高级工具",
-    ids: ["overview", "control", "tasks", "experiments", "literature", "code", "gpu", "workflow", "evolution", "runtime", "evidence", "gates"] as const,
   },
 ] as const;
 

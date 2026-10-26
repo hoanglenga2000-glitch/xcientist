@@ -37,7 +37,7 @@ def _workspace_view_ids() -> list[str]:
 def test_workspace_views_cover_every_shipped_section_and_settings_group() -> None:
     ids = _workspace_view_ids()
     assert ids == [
-        "tasks", "new_task", "data", "literature", "results", "projects",
+        "tasks", "new_task", "work", "data", "literature", "results", "projects",
         "settings_models", "settings_account", "settings_resources",
     ]
     settings = _read(COMPONENTS / "WorkspaceSettings.tsx")

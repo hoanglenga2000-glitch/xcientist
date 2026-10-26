@@ -262,8 +262,8 @@ async function behaviourProbes(client) {
     return { firstTabStopIsSkipLink: first, focusMovedToMain: landed, ok: first && landed };
   }));
 
-  results.push(await probe("search_filters_task_list", "tasks", async () => {
-    await openView(client, baseUrl, pathFor("tasks"), "tasks");
+  results.push(await probe("search_filters_task_list", "work", async () => {
+    await openView(client, baseUrl, pathFor("work"), "work");
     const rows = "document.querySelectorAll('main#task-main .tw-task-list a.tw-task-row').length";
     const before = await evaluate(client, rows);
     const firstTitle = await evaluate(client, "document.querySelector('main#task-main .tw-task-row h2')?.textContent ?? ''");

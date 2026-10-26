@@ -26,7 +26,8 @@ test("public password login issues a signed tenant-bound session", async () => {
 
 test("post-login redirect stays on the configured origin", () => {
   assert.equal(safePostLoginPath("/?page=assistant"), "/?page=assistant");
-  assert.equal(safePostLoginPath("//attacker.example/path"), "/?page=assistant");
-  assert.equal(safePostLoginPath("https://attacker.example/"), "/?page=assistant");
-  assert.equal(safePostLoginPath("/safe\\escape"), "/?page=assistant");
+  assert.equal(safePostLoginPath("//attacker.example/path"), "/workspace");
+  assert.equal(safePostLoginPath("https://attacker.example/"), "/workspace");
+  assert.equal(safePostLoginPath("/safe\\escape"), "/workspace");
+  assert.equal(safePostLoginPath(""), "/workspace");
 });

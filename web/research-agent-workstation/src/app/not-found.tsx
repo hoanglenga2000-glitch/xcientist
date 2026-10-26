@@ -5,13 +5,13 @@ export default function NotFound() {
         <p className="text-sm font-semibold uppercase tracking-[0.3em] text-cyan-300">DeepEvo</p>
         <h1 className="mt-4 text-3xl font-bold">页面未找到</h1>
         <p className="mt-3 text-sm leading-6 text-slate-300">
-          请求的本地工作站页面不存在。请返回 DeepEvo 控制台或重新打开当前任务链接。
+          这个页面不存在。请返回工作台。
         </p>
         <a
           className="mt-6 inline-flex rounded-full bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-950"
-          href="/?page=assistant"
+          href="/workspace"
         >
-          返回 DeepEvo 控制台
+          返回工作台
         </a>
       </div>
     </main>
