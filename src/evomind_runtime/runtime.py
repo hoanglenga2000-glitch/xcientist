@@ -856,7 +856,8 @@ class AgentRuntime:
             text_stream = PublicTextStream(lambda value: self.store.append_event(session_id, 'assistant.stream', value), guard_model_stream)
             if personal_binding:
                 from .personal_model_client import client_for_run
-                client = client_for_run(self, session, before_attempt=guard_model_dispatch)
+                client = client_for_run(self, session, before_attempt=guard_model_dispatch,
+                                         text_observer=text_stream, during_request=guard_model_stream)
                 self.store.append_event(session_id, 'model.personal_profile_bound', personal_binding)
             else:
                 client = governed_client(AgentMessageClient(), lambda value: self.store.append_event(session_id, "model.transport_attempt", value),

@@ -44,7 +44,48 @@ def public_addresses(host):
     return addresses
 
 
-def request(request):
+RESPONSE_BYTE_CAP = 1024 * 1024
+
+
+class SseAssembler:
+    """Join one SSE event without retaining more than the personal response cap."""
+
+    def __init__(self, limit=RESPONSE_BYTE_CAP):
+        self.limit, self.total, self.pending = limit, 0, []
+
+    def feed(self, raw):
+        if not isinstance(raw, (bytes, bytearray)):
+            raise ValueError('model_response_invalid')
+        self.total += len(raw)
+        if len(raw) > self.limit or self.total > self.limit:
+            raise ValueError('model_response_too_large')
+        try:
+            line = raw.decode('utf-8').rstrip('\r\n')
+        except UnicodeDecodeError:
+            raise ValueError('model_response_invalid') from None
+        if line == '':
+            if not self.pending:
+                return None
+            data = '\n'.join(self.pending)
+            self.pending = []
+            return data
+        if line.startswith('data:'):
+            self.pending.append(line[5:].lstrip())
+            return None
+        if line.startswith(('event:', 'id:', 'retry:', ':')):
+            return None
+        raise ValueError('model_response_invalid')
+
+    def finish(self):
+        if not self.pending:
+            return None
+        data = '\n'.join(self.pending)
+        self.pending = []
+        return data
+
+
+def _exchange(request):
+    """Pinned public POST. Caller reads the body and closes both objects."""
     url = safe_url(request['url'])
     addresses = public_addresses(url.hostname)
     family, kind, proto, canon, address = addresses[0]
@@ -65,8 +106,18 @@ def request(request):
             raise ValueError('model_redirect_rejected')
         if not 200 <= response.status < 300:
             raise ValueError('model_http_' + str(response.status))
-        body = response.read(1024 * 1024 + 1)
-        if len(body) > 1024 * 1024:
+        return connection, sock, response
+    except Exception:
+        connection.close()
+        sock.close()
+        raise
+
+
+def request(request):
+    connection, sock, response = _exchange(request)
+    try:
+        body = response.read(RESPONSE_BYTE_CAP + 1)
+        if len(body) > RESPONSE_BYTE_CAP:
             raise ValueError('model_response_too_large')
         return json.loads(body)
     finally:
@@ -74,13 +125,40 @@ def request(request):
         sock.close()
 
 
+def stream_request(request):
+    """Print one JSON object per SSE data event. The parent reconstructs the turn."""
+    connection, sock, response = _exchange(request)
+    try:
+        assembler = SseAssembler()
+        while True:
+            raw = response.readline(RESPONSE_BYTE_CAP + 1)
+            if not raw:
+                break
+            data = assembler.feed(raw)
+            if data is not None:
+                print(json.dumps({'data': data}, ensure_ascii=False), flush=True)
+        tail = assembler.finish()
+        if tail is not None:
+            print(json.dumps({'data': tail}, ensure_ascii=False), flush=True)
+    finally:
+        connection.close()
+        sock.close()
+
+
+def public_error(error):
+    code = str(error)
+    return {'error': code if re.fullmatch(r'model_[a-z0-9_]{1,80}', code) else 'model_network_failed'}
+
+
 if __name__ == '__main__':
     try:
         raw = sys.stdin.buffer.read(3 * 1024 * 1024 + 1)
         if len(raw) > 3 * 1024 * 1024:
             raise ValueError('model_request_too_large')
-        result = {'body': request(json.loads(raw))}
+        incoming = json.loads(raw)
+        if incoming.get('stream') is True:
+            stream_request(incoming)
+        else:
+            print(json.dumps({'body': request(incoming)}), flush=True)
     except Exception as error:
-        code = str(error)
-        result = {'error': code if re.fullmatch(r'model_[a-z0-9_]{1,80}', code) else 'model_network_failed'}
-    print(json.dumps(result))
+        print(json.dumps(public_error(error)), flush=True)
