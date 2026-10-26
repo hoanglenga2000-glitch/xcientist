@@ -115,24 +115,95 @@ def test_run_create_uses_a_non_default_platform_model_and_rejects_unknown_ids(tm
         assert status == 400 and body['error'] == 'invalid_platform_model', body
 
 
-def test_openai_run_effort_is_sent_and_absent_effort_keeps_the_old_payload(tmp_path, monkeypatch):
+def _run_openai(tmp_path, monkeypatch, model, *, effort=None, env_effort=None):
     _clear_model_env(monkeypatch)
     monkeypatch.setenv('OPENAI_API_KEY', 'openai-fixture')
     monkeypatch.setenv('OPENAI_BASE_URL', 'http://127.0.0.1:9/openai')
-    monkeypatch.setenv('OPENAI_MODEL', 'gpt-4o')
+    monkeypatch.setenv('OPENAI_MODEL', model)
     monkeypatch.setenv('EVOLUTION_PRIMARY_PROVIDER', 'openai')
     monkeypatch.setenv('EVOLUTION_PROVIDER_STRICT', '1')
+    if env_effort:
+        monkeypatch.setenv('OPENAI_REASONING_EFFORT', env_effort)
     calls = []
     monkeypatch.setattr(messaging, '_post_json', _post(calls))
     runtime = AgentRuntime(tmp_path)
     try:
-        forced = runtime.assistant.create_run(prompt='你好', reasoning_effort='high', start=False)
-        runtime.assistant._execute(forced['id'], resume=False)
-        assert calls[-1]['model'] == 'gpt-4o'
-        assert calls[-1]['effort'] == 'high'
-        plain = runtime.assistant.create_run(prompt='你好', start=False)
-        runtime.assistant._execute(plain['id'], resume=False)
-        assert calls[-1]['effort'] is None
-        assert runtime.assistant.snapshot(plain['id'])['model'] == 'gpt-4o'
+        kwargs = {'reasoning_effort': effort} if effort else {}
+        created = runtime.assistant.create_run(prompt='你好', start=False, **kwargs)
+        runtime.assistant._execute(created['id'], resume=False)
+        return calls[-1]
     finally:
         runtime.close()
+
+
+def test_non_reasoning_openai_omits_user_effort_and_keeps_env(tmp_path, monkeypatch):
+    sent = _run_openai(tmp_path, monkeypatch, 'gpt-4o', effort='high')
+    assert sent['model'] == 'gpt-4o'
+    assert sent['effort'] is None
+    sent = _run_openai(tmp_path, monkeypatch, 'gpt-4.1', effort='high', env_effort='low')
+    assert sent['model'] == 'gpt-4.1'
+    assert sent['effort'] == 'low'
+    sent = _run_openai(tmp_path, monkeypatch, 'gpt-4o', env_effort='low')
+    assert sent['effort'] == 'low'
+
+
+def test_reasoning_openai_sends_user_effort_over_env(tmp_path, monkeypatch):
+    sent = _run_openai(tmp_path, monkeypatch, 'gpt-5', effort='high', env_effort='low')
+    assert sent['model'] == 'gpt-5'
+    assert sent['effort'] == 'high'
+    sent = _run_openai(tmp_path, monkeypatch, 'o3-mini', effort='medium')
+    assert sent['model'] == 'o3-mini'
+    assert sent['effort'] == 'medium'
+    sent = _run_openai(tmp_path, monkeypatch, 'o4-mini')
+    assert sent['effort'] is None
+
+
+def test_failover_chain_stamps_only_a_reasoning_openai_transport(monkeypatch):
+    _clear_model_env(monkeypatch)
+    monkeypatch.setenv('ANTHROPIC_API_KEY', 'anthropic-fixture')
+    monkeypatch.setenv('DEEPSEEK_API_KEY', 'deepseek-fixture')
+    monkeypatch.setenv('OPENAI_API_KEY', 'openai-fixture')
+    monkeypatch.setenv('OPENAI_MODEL', 'gpt-4o')
+    monkeypatch.setenv('OPENAI_REASONING_EFFORT', 'low')
+    monkeypatch.delenv('EVOLUTION_PROVIDER_STRICT', raising=False)
+    from evomind_runtime.model_router import apply_reasoning_effort
+
+    stamped = [apply_reasoning_effort(item, 'high') for item in messaging._resolve_transports()]
+    configs = {item.name: item.config for item in stamped}
+    assert configs['openai'].model == 'gpt-4o'
+    assert configs['openai'].reasoning_effort == 'low'
+    assert configs['anthropic'].reasoning_effort is None
+    assert configs['deepseek'].reasoning_effort is None
+
+    monkeypatch.setenv('OPENAI_MODEL', 'gpt-5.6-sol')
+    stamped = [apply_reasoning_effort(item, 'high') for item in messaging._resolve_transports()]
+    openai = next(item.config for item in stamped if item.name == 'openai')
+    assert openai.reasoning_effort == 'high'
+    assert all(item.config.reasoning_effort is None for item in stamped if item.name != 'openai')
+
+
+def test_personal_openai_effort_follows_the_same_model_gate():
+    from research_os.llm_client import ProviderConfig
+    from research_os.agent.messaging import OpenAITransport
+    from evomind_runtime.personal_model_client import PersonalModelClient
+
+    class _Secrets:
+        def load(self, *args):
+            return 'secret'
+
+    def client(model, effort):
+        class _Store:
+            secrets = _Secrets()
+
+            def get(self, principal, profile_id, version=None):
+                return {'enabled': True, 'provider': 'openai', 'base_url': 'http://127.0.0.1:9', 'model': model}
+
+        return PersonalModelClient(_Store(), _principal(), {'id': 'p', 'version': 1}, reasoning_effort=effort)
+
+    assert client('gpt-4o', 'high').transport.config.reasoning_effort is None
+    kept = OpenAITransport(ProviderConfig('openai', 'http://127.0.0.1:9', 'gpt-4o', 'secret', reasoning_effort='low'))
+    from evomind_runtime.model_router import apply_reasoning_effort
+    apply_reasoning_effort(kept, 'high')
+    assert kept.config.reasoning_effort == 'low'
+    assert client('o1', 'low').transport.config.reasoning_effort == 'low'
+    assert client('deepseek-chat', 'high').transport.config.reasoning_effort is None

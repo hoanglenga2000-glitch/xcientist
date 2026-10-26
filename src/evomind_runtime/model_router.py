@@ -1,10 +1,17 @@
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 
 from .models import ModelDecision
 
 _EFFORTS = frozenset({'low', 'medium', 'high'})
+# User intensity is a chat-completions reasoning_effort. Only models that accept
+# that field get it. gpt-4o / gpt-4.1 and other OpenAI-compatible ids do not.
+_REASONING_MODEL = re.compile(
+    r'^(?:o1|o3)(?:$|[-_.])|^o4-mini(?:$|[-_.])|^gpt-5(?:$|[-_.])|^gpt-6-astra(?:$|[-_.])',
+    re.IGNORECASE,
+)
 
 
 def available_platform_models() -> list[dict[str, str]]:
@@ -42,9 +49,21 @@ def platform_transport_for(model_id: str):
     return None
 
 
+def model_accepts_reasoning_effort(model: str) -> bool:
+    return bool(_REASONING_MODEL.match(str(model or '').strip()))
+
+
 def apply_reasoning_effort(transport, effort: str):
-    """OpenAI already sends reasoning_effort from ProviderConfig. Other wires are unchanged."""
+    """Stamp a user effort onto an OpenAI transport that can accept it.
+
+    Non-reasoning models keep the config already built from the environment
+    (including an operator ``OPENAI_REASONING_EFFORT``). Anthropic and DeepSeek
+    wires are unchanged. An absent user effort never calls this.
+    """
     if effort not in _EFFORTS or getattr(transport, 'name', '') != 'openai':
+        return transport
+    model = str(getattr(getattr(transport, 'config', None), 'model', '') or '')
+    if not model_accepts_reasoning_effort(model):
         return transport
     transport.config = replace(transport.config, reasoning_effort=effort)
     return transport
