@@ -479,6 +479,21 @@ class RuntimeStore:
             result.append(item)
         return result
 
+    def list_assistant_runs_with_status(self, status: str, limit: int = 5000) -> list[dict[str, Any]]:
+        """Every run in one status, oldest first. The conversation list is capped at 200."""
+        capped = max(1, min(int(limit), 5000))
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM assistant_runs WHERE status=? ORDER BY updated_at ASC, id ASC LIMIT ?",
+                (str(status), capped),
+            ).fetchall()
+        result: list[dict[str, Any]] = []
+        for item in map(dict, rows):
+            item["plan"] = json.loads(item.pop("plan_json"))
+            item["attachment_ids"] = json.loads(item.pop("attachment_ids_json"))
+            result.append(item)
+        return result
+
     @staticmethod
     def _decode_goal_row(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
         item = _row(row) if isinstance(row, sqlite3.Row) else dict(row) if row is not None else None

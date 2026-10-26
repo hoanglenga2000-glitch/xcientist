@@ -639,6 +639,7 @@ class AgentRuntime:
         """
 
         now = datetime.now(timezone.utc)
+        self.assistant.close_idle_planning(idle_seconds=idle_seconds)
         reconciled: list[dict[str, Any]] = []
         skipped: dict[str, int] = {}
 
