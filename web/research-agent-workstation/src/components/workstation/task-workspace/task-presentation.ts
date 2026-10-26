@@ -35,6 +35,20 @@ export function visibleMessageText(content: string) {
   return content.replace(/\*\*本轮实际模型\*\*：`[^`]*`（来自受管 model_observed 事件）\s*/g, '').trim();
 }
 
+const CJK = /[\u3400-\u9fff]/g;
+const PROCESS_OPENER = /^\s*(?:I(?:'ll| will|'m going to| am going to| need to|'ve| have)\b|Let me\b|Let's\b|Now,? (?:I|let)\b|First,? I\b|Next,? I\b|Okay\b|OK,|Alright\b|(?:Checking|Reading|Looking at|Writing|Creating|Verifying|Running)\b)/im;
+const PATH_OR_ARTIFACT = /(?:^|[\s`'"(])(?:\.{0,2}\/)?(?:inputs|outputs|work|workspace|artifacts?|runs)\/\S*|[\w.-]+\.(?:md|json|csv|txt|py|ipynb|ya?ml|log)\b|\b(?:artifacts?|tool[_ ]calls?|manifest|required result|deliverables?|verifier)\b/i;
+
+/** English process chatter or a path/artifact dump. It belongs under 查看过程, not in the chat. */
+export function isProcessLeak(text: string) {
+  const body = text.trim();
+  if (!body) return false;
+  const cjk = (body.match(CJK) ?? []).length;
+  const latin = (body.match(/[A-Za-z]/g) ?? []).length;
+  if (cjk * 4 > latin) return false;
+  return PROCESS_OPENER.test(body) || PATH_OR_ARTIFACT.test(body);
+}
+
 /** Follow the run's owning task instead of leaving another task's card in place. */
 export function owningTaskHref(taskId: string, run: { id?: string; user_task_id?: string }, view = 'conversation') {
   const owner = run.user_task_id || '';
@@ -79,7 +93,7 @@ export function toolStepLabel(label: string, status = '') {
   return label;
 }
 
-const INTERNAL_PROGRESS = /required result artifacts|missing final artifacts|\brecoverable\b|技术错误|[A-Za-z0-9_.-]+\.(?:md|json|csv|txt|pdf|png|html|py)\b/i;
+const INTERNAL_PROGRESS = /required result artifacts|missing final artifacts|\brecoverable\b|技术错误|(?:^|[\s`'"(])(?:inputs|outputs|workspace)\/\S*|[A-Za-z0-9_.-]+\.(?:md|json|csv|txt|pdf|png|html|py)\b/i;
 
 export function toolStepDetail(detail?: string) {
   if (!detail || detail === 'tool_completed' || RAW_TOOL_ID.test(detail)) return '';

@@ -143,12 +143,13 @@ test('confirmation presents a task-relative file while preserving the exact targ
   assert.match(html.split('<details')[1], /private-runtime/);
 });
 
-test('a saved task with no run has a clear start action, not a continuation label', () => {
+test('a saved task with no run has the same send action as the home composer', () => {
   const { TaskSession } = require('./TaskSession.tsx');
   const html = renderToStaticMarkup(React.createElement(TaskSession, { initial: {
     task: { id: 'utask_fixture', title: '阅读资料', draft: '请开始', version: 1, status: 'draft' }, runs: [], files: [],
   } }));
-  assert.match(html, /开始任务/);
+  assert.match(html, /发送/);
+  assert.match(html, /aria-label="添加资料"/);
 });
 
 test('served model and generated files are visible in the current conversation', () => {
@@ -363,4 +364,50 @@ test('an accepted resume remains in progress and does not offer another resume b
   assert.match(html, /暂停任务/);
   assert.doesNotMatch(html, /检查并继续/);
   assert.equal(taskStatus('recovering'), '正在恢复');
+});
+
+test('composer sends a real effort, defaults to a usable model, and folds English process chatter', () => {
+  const { reasoningEffort, defaultModelChoice } = require('./composer-options.ts');
+  const { isProcessLeak } = require('./task-presentation.ts');
+  assert.equal(reasoningEffort('低'), 'low'); assert.equal(reasoningEffort('中'), 'medium'); assert.equal(reasoningEffort('高'), 'high');
+  const list = { platform_model: { provider: 'anthropic', model: 'claude-sonnet-5' }, default_profile_id: 'p1', profiles: [{ id: 'p1', enabled: true }, { id: 'p2', enabled: false }] };
+  assert.equal(defaultModelChoice(list, '', null), 'platform');
+  assert.equal(defaultModelChoice(list, 'p2', 'p1'), 'p1');
+  assert.equal(defaultModelChoice({ ...list, platform_model: null }, 'platform'), 'p1');
+  assert.equal(defaultModelChoice({ profiles: [], default_profile_id: '', platform_model: null }), '');
+  assert.ok(isProcessLeak("I'll check inputs/data.csv first and then write report.md."));
+  assert.ok(isProcessLeak('Verifying artifacts in outputs/final'));
+  assert.equal(isProcessLeak('这是给你的结论：基线复现完成，见 report.md。'), false);
+  assert.equal(isProcessLeak('The baseline reaches 0.91 accuracy.'), false);
+  const { TaskRunView } = require('./TaskRunView.tsx');
+  const html = renderToStaticMarkup(React.createElement(TaskRunView, { view: 'conversation', run: {
+    id: 'run_leak', status: 'completed', message_history: { schema: 'evomind.assistant_message_history.v1', active_message_id: 'a2', messages: [
+      { id: 'u', role: 'user', content: '复现基线' },
+      { id: 'a1', role: 'assistant', content: "I'll read inputs/paper.md and plan the artifacts." },
+      { id: 'a2', role: 'assistant', content: '基线已复现。' },
+    ] },
+  } }));
+  assert.match(html, /基线已复现/);
+  assert.doesNotMatch(html.split('<details')[0], /inputs\/paper/);
+});
+
+test('platform models are selectable by id, never displace the default, and only non-default ids are sent', () => {
+  const { defaultModelChoice, isSelectableModel, platformModelId } = require('./composer-options.ts');
+  const { ModelOptions } = require('./ModelOptions.tsx');
+  const platform_models = [{ id: 'm0', provider: 'anthropic', model: 'claude-sonnet-5', label: '' }, { id: 'm1', provider: 'openai', model: 'gpt-5', label: '平台 GPT' }];
+  const list = { platform_model: { provider: 'anthropic', model: 'claude-sonnet-5' }, platform_models, default_profile_id: 'p1', profiles: [{ id: 'p1', enabled: true }] };
+  assert.equal(isSelectableModel(list, 'platform:m1'), true);
+  assert.equal(isSelectableModel(list, 'platform:m0'), false);
+  assert.equal(defaultModelChoice(list, 'platform:m1'), 'platform:m1');
+  assert.equal(defaultModelChoice(list, 'platform:gone'), 'platform');
+  assert.equal(defaultModelChoice(list, '', null), 'platform');
+  assert.equal(defaultModelChoice({ ...list, platform_model: null }), 'p1');
+  assert.equal(defaultModelChoice({ ...list, platform_model: null, profiles: [], default_profile_id: '' }), 'platform:m0');
+  assert.equal(defaultModelChoice({ ...list, platform_models: null, platform_model: null, profiles: [], default_profile_id: '' }), '');
+  for (const value of ['platform', 'platform:m0', 'p1', 'platform:gone', '']) assert.equal(platformModelId(list, value), undefined);
+  assert.equal(platformModelId(list, 'platform:m1'), 'm1');
+  const html = renderToStaticMarkup(React.createElement('select', null, React.createElement(ModelOptions, { list, value: 'platform', platformLabel: '平台模型 · Claude Sonnet' })));
+  assert.equal((html.match(/<option value="platform/g) || []).length, 2);
+  assert.match(html, /value="platform:m1">平台 GPT</);
+  assert.doesNotMatch(renderToStaticMarkup(React.createElement('select', null, React.createElement(ModelOptions, { list: { profiles: [], default_profile_id: '' }, value: '', platformLabel: '' }))), /平台模型/);
 });

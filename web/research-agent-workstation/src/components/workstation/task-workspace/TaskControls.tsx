@@ -54,7 +54,7 @@ export function TaskControls({ run, onChanged }: { run: TaskRun; onChanged: () =
       <div className="tw-actions"><button disabled={busy || consent !== approval.id} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户已核对任务内目标和影响' })}>确认执行</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户在任务内拒绝此操作' })}>拒绝这项操作</button></div>
     </section>)}
     <div className="tw-actions">{canPause && <button disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'pause' })}>暂停任务</button>}
-      {canResume && <button disabled={busy} onClick={() => { setResuming(!resuming); resumeKey.current ||= crypto.randomUUID(); }}>检查并继续</button>}
+      {canResume && <button className="tw-primary" disabled={busy} onClick={() => { setResuming(!resuming); resumeKey.current ||= crypto.randomUUID(); }}>检查并继续</button>}
     </div>
     {canPause && <p className="tw-muted">暂停会阻止新操作；已发出的操作需等待安全结束，不强制终止服务器作业。</p>}
     {resuming && <section className="tw-confirm"><h2>继续当前运行？</h2><p>会沿用这次运行绑定的模型版本和输入，可能继续产生服务商费用。模型设置的新版本不会替换此运行。</p><div className="tw-actions"><button disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'resume', idempotency_key: resumeKey.current })}>确认继续当前运行</button><button onClick={() => setResuming(false)}>暂不继续</button></div></section>}

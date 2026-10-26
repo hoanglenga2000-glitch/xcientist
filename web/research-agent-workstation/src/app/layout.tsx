@@ -7,7 +7,7 @@ import "./globals.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "DeepEvo Research Workstation",
+  title: "DeepEvo",
   description: "Auditable scientific research and machine-learning operations workstation"
 };
 

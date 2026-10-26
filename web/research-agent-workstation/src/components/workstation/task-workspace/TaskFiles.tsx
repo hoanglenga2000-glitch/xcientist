@@ -1,6 +1,8 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { jsonPost, taskRequest, type GeneratedFile, type UserFile } from './types';
+import { Upload } from 'lucide-react';
+import { taskRequest, type GeneratedFile, type UserFile } from './types';
+import { uploadUserFile, type UploadJob } from './upload-attachment';
 import { DownloadFile } from './DownloadFile';
 
 const EMPTY_FILES: UserFile[] = [];
@@ -12,7 +14,7 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [retry, setRetry] = useState<File | null>(null);
-  const pending = useRef<{ file: File; id: string; chunkSize: number } | null>(null);
+  const pending = useRef<UploadJob | null>(null);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
     const abort = new AbortController(); controller.current = abort;
@@ -26,23 +28,12 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
     setBusy(true); setError(''); setRetry(file);
     const signal = controller.current!.signal;
     try {
-      if (pending.current?.file !== file) {
-        const created = await taskRequest<{ id: string; chunk_size: number }>('/api/assistant/uploads', { ...jsonPost({ name: file.name, total_bytes: file.size, media_type: file.type }), signal });
-        pending.current = { file, id: created.id, chunkSize: created.chunk_size };
-      }
-      const job = pending.current!;
-      for (let offset = 0, index = 0; offset < file.size; offset += job.chunkSize, index++) {
-        const chunk = await file.slice(offset, offset + job.chunkSize).arrayBuffer();
-        const digest = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', chunk)), value => value.toString(16).padStart(2, '0')).join('');
-        setNotice(`正在上传 ${file.name} · ${Math.round(offset / file.size * 100)}%`);
-        await taskRequest(`/api/assistant/uploads/${job.id}/chunks/${index}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Chunk-SHA256': digest }, body: chunk, signal });
-      }
-      const result = await taskRequest<{ attachment: UserFile }>(`/api/assistant/uploads/${job.id}/complete`, { ...jsonPost({}), signal });
+      const attachment = await uploadUserFile(file, signal, percent => setNotice(`正在上传 ${file.name} · ${percent}%`), pending);
       const list = await taskRequest<{ files: UserFile[]; generated?: GeneratedFile[] }>('/api/assistant/files', { signal });
       if (signal.aborted) return;
       setFiles(list.files); setGenerated(list.generated ?? []);
       if (onSelect) {
-        const ids = [...new Set([...chosen, result.attachment.id])];
+        const ids = [...new Set([...chosen, attachment.id])];
         await onSelect(ids); setChosen(ids);
       }
       pending.current = null; setRetry(null);
@@ -58,9 +49,8 @@ export function TaskFiles({ selected = EMPTY_FILES, onSelect }: { selected?: Use
     finally { setBusy(false); }
   }
   return <section aria-label={onSelect ? '本任务资料' : '我的资料'}><h2>{onSelect ? '本任务资料' : '我的资料'}</h2>
-    <p className="tw-muted">{onSelect ? '选择自己的资料用于本任务。其他任务不会自动使用这些资料。' : '仅显示当前账户上传的资料。上传不会调用模型或启动任务。'}</p>
-    <label className="tw-upload">上传资料<input type="file" aria-label="上传资料" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /></label>
-    {!files.length && <p className="tw-muted">还没有资料，可以先上传文件。</p>}
+    <label className={`tw-upload${busy ? ' is-busy' : ''}`}><Upload size={16} aria-hidden="true" />上传资料<input className="tw-sr-only" type="file" aria-label="上传资料" disabled={busy} onChange={event => { const file = event.target.files?.[0]; if (file) void upload(file); event.target.value = ''; }} /></label>
+    {!files.length && <p className="tw-muted">还没有资料。</p>}
     {files.map(file => <article className="tw-file" key={file.id}><div className="tw-file-heading">
       {onSelect && <input type="checkbox" aria-label={`用于本任务：${file.name}`} checked={chosen.includes(file.id)} disabled={busy} onChange={event => setChosen(current => event.target.checked ? [...current, file.id] : current.filter(id => id !== file.id))} />}
       <div><h3>{file.name}</h3><small>{file.bytes.toLocaleString()} 字节</small></div><DownloadFile url={`/api/assistant/files/${file.id}`} file={file} label="下载资料" /></div>

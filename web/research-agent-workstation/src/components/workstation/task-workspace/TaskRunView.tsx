@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { FileText } from 'lucide-react';
 import { restoreRunMessages } from '../screens/assistant-history';
-import { actionName, blockedAssistantLine, blockedProgressCopy, formatFileSize, servedModelLabel, STREAM_PHASES, streamPhaseState, toolStepDetail, toolStepLabel, visibleMessageText } from './task-presentation';
+import { actionName, blockedAssistantLine, blockedProgressCopy, formatFileSize, servedModelLabel, STREAM_PHASES, isProcessLeak, streamPhaseState, toolStepDetail, toolStepLabel, visibleMessageText } from './task-presentation';
 import { taskStatus, type TaskArtifact, type TaskRun } from './types';
 import { DownloadFile } from './DownloadFile';
 
@@ -40,7 +40,7 @@ function uniqueFiles(run: TaskRun) {
   });
 }
 
-function ChatProgress({ run, title }: { run: TaskRun; title?: string }) {
+function ChatProgress({ run, title, process = [] }: { run: TaskRun; title?: string; process?: string[] }) {
   const served = servedModelLabel(run.model_provider, run.model);
   const phase = streamPhaseState(run);
   const live = (run.plan?.steps ?? []).find(step => step.status === 'running');
@@ -58,7 +58,8 @@ function ChatProgress({ run, title }: { run: TaskRun; title?: string }) {
       {(run.plan?.steps ?? []).length ? <ol className="tw-timeline">{run.plan!.steps!.map(step => {
         const detail = toolStepDetail(step.detail);
         return <li key={step.id}><div><h3>{toolStepLabel(step.label, step.status)}</h3>{detail && <p>{detail}</p>}</div></li>;
-      })}</ol> : <p className="tw-muted">过程还没展开。</p>}
+      })}</ol> : !process.length && <p className="tw-muted">过程还没展开。</p>}
+      {process.map((text, index) => <p className="tw-process-note" key={index}>{text}</p>)}
     </details>
   </article>;
 }
@@ -89,13 +90,18 @@ export function TaskRunView({ view, run, title }: { view: string; run: TaskRun |
   const visibleFiles = generated.slice(0, 2);
   const hiddenFiles = generated.slice(2);
   const phase = streamPhaseState(run);
+  const messages = restoreRunMessages(run, '继续执行此任务')
+    .filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:')))
+    .map(message => ({ ...message, content: visibleMessageText(message.content) }));
+  const leaked = (message: { role: string; content: string }) => message.role === 'assistant' && isProcessLeak(message.content);
+  const process = messages.filter(leaked).map(message => message.content);
   return <section aria-label="任务对话">{served && <p className="tw-served-model" data-served-model={servedId}>{served}</p>}
-    {restoreRunMessages(run, '继续执行此任务').filter(message => message.content && !(unavailable && message.role === 'assistant' && message.content.includes('Model execution is unavailable:'))).map(message => {
-      const content = visibleMessageText(message.content);
+    {messages.filter(message => !leaked(message)).map(message => {
+      const content = message.content;
       return content ? <article className={`tw-message tw-${message.role}`} key={message.id}><small>{message.role === 'user' ? '你' : 'DeepEvo'}</small><p>{content}</p></article> : null;
     })}
     {phase.copy && <article className="tw-message tw-assistant"><small>DeepEvo</small><p>{blockedAssistantLine(phase.copy.status)}</p></article>}
-    {!unavailable && <ChatProgress run={run} title={title} />}
+    {!unavailable && <ChatProgress run={run} title={title} process={process} />}
     {visibleFiles.map(file => <ResultFile key={file.id} file={file} />)}
     {hiddenFiles.length > 0 && <details className="tw-details"><summary>还有 {hiddenFiles.length} 个文件</summary>{hiddenFiles.map(file => <ResultFile key={file.id} file={file} />)}</details>}
     {unavailable && modelHelp}

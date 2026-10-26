@@ -5,8 +5,12 @@ import { TaskRunView } from './TaskRunView';
 import { TaskFiles } from './TaskFiles';
 import { TaskControls } from './TaskControls';
 import type { ModelList } from './ModelSettings';
-import { owningTaskHref, platformOptionLabel, productModelLabel } from './task-presentation';
+import { owningTaskHref, platformOptionLabel } from './task-presentation';
 import { jsonPost, taskRequest, taskStatus, type TaskDetail, type TaskRun, type UserTask } from './types';
+import { AttachButton, AttachmentChips, useComposerUpload } from './ComposerAttach';
+import { ModelOptions } from './ModelOptions';
+import { takeCarriedAttachments } from './upload-attachment';
+import { defaultModelChoice, INTENSITY_LEVELS, isIntensity, LAST_MODEL_KEY, NEXT_INTENSITY_KEY, NEXT_MODEL_KEY, platformModelId, reasoningEffort, type Intensity } from './composer-options';
 
 const active = (status: string) => ['queued', 'planning', 'running', 'verifying', 'recovering', 'pausing', 'waiting_approval'].includes(status);
 const views = [['conversation', '对话'], ['progress', '进度'], ['results', '文件与结果'], ['more', '更多']] as const;
@@ -29,7 +33,12 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   const [linkId, setLinkId] = useState('');
   const [models, setModels] = useState<ModelList>({ profiles: [], default_profile_id: '' });
   const [model, setModel] = useState('');
-  const [intensity, setIntensity] = useState('中');
+  const [intensity, setIntensity] = useState<Intensity>('中');
+  const [carrying, setCarrying] = useState(true);
+  const carried = useRef<string[]>([]);
+  const carryRead = useRef(false);
+  const boundFiles = useRef(files);
+  boundFiles.current = files;
   const sending = useRef(false);
   const saving = useRef<Promise<UserTask> | null>(null);
   const saved = useRef(task);
@@ -44,12 +53,35 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
     const controller = new AbortController();
     void taskRequest<ModelList>('/api/assistant/model-profiles', { signal: controller.signal }).then(value => {
       if (controller.signal.aborted) return;
-      const preset = window.sessionStorage.getItem('deepevo.next-model') || '';
-      if (preset) window.sessionStorage.removeItem('deepevo.next-model');
-      setModels(value); setModel(preset || value.default_profile_id);
+      const preset = window.sessionStorage.getItem(NEXT_MODEL_KEY) || '';
+      if (preset) window.sessionStorage.removeItem(NEXT_MODEL_KEY);
+      setModels(value); setModel(defaultModelChoice(value, preset, window.sessionStorage.getItem(LAST_MODEL_KEY)));
     }).catch(cause => { if (!controller.signal.aborted) setError(cause.message); });
     return () => controller.abort();
   }, []);
+
+  useEffect(() => {
+    if (carryRead.current) return;
+    carryRead.current = true;
+    const level = window.sessionStorage.getItem(NEXT_INTENSITY_KEY);
+    if (level) window.sessionStorage.removeItem(NEXT_INTENSITY_KEY);
+    if (isIntensity(level)) setIntensity(level);
+    const ids = takeCarriedAttachments(task.id).filter(id => !files.some(file => file.id === id));
+    if (!ids.length) { setCarrying(false); return; }
+    carried.current = ids;
+    // Bind home-composer files before the auto-start reads the task version.
+    void bindFiles([...files.map(file => file.id), ...ids]).then(() => { carried.current = []; })
+      .catch(() => undefined).finally(() => { if (alive.current) setCarrying(false); });
+  }, []);
+
+  async function bindFiles(ids: string[]) {
+    await saveDraft();
+    const updated = await taskRequest<TaskDetail>(`/api/assistant/tasks/${task.id}/files`, jsonPost({ attachment_ids: ids, version: saved.current.version }));
+    if (!alive.current) return;
+    boundFiles.current = updated.files ?? [];
+    saved.current = updated.task; setTask(updated.task); setFiles(boundFiles.current);
+  }
+  const composerUpload = useComposerUpload(file => bindFiles([...new Set([...boundFiles.current.map(item => item.id), file.id])]));
 
   useEffect(() => {
     alive.current = true;
@@ -162,22 +194,25 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   }, [runId, reconnect]);
 
   async function send() {
-    if (sending.current || !draft.trim() || !model || (run && active(run.status))) return;
+    if (sending.current || carrying || composerUpload.busy || !draft.trim() || !model || (run && active(run.status))) return;
     sending.current = true; setBusy(true); setError('');
     try {
       await saveDraft();
       const recovered = await recoverCreation<TaskRun>(task.conversation_id);
       const profile = models.profiles.find(item => item.id === model && item.enabled);
-      if (model !== 'platform' && !profile) throw new Error('该模型配置不可用，请重新选择或前往设置。');
+      const platformId = platformModelId(models, model);
+      if (model !== 'platform' && !profile && !platformId) throw new Error('该模型配置不可用，请重新选择或前往设置。');
       const result = recovered ?? await taskRequest<TaskRun>('/api/assistant/runs', jsonPost({
         prompt: draft, user_task_id: task.id, conversation_id: task.conversation_id,
-        attachment_ids: files.map(file => file.id),
+        attachment_ids: [...new Set([...files.map(file => file.id), ...carried.current])],
+        reasoning_effort: reasoningEffort(intensity),
         ...(profile ? { model_profile_id: profile.id, model_profile_version: profile.version } : {}),
+        ...(platformId ? { platform_model_id: platformId } : {}),
         idempotency_key: ensureCreationKey(task.conversation_id),
       }));
       if (!alive.current) return;
       if (result.user_task_id !== task.id) throw new Error('返回的运行未绑定当前任务，已停止切换。');
-      finishCreation(task.conversation_id);
+      finishCreation(task.conversation_id); carried.current = [];
       setRuns(current => [result, ...current.filter(item => item.id !== result.id)]); setRun(result);
       navigate('conversation', result.id);
       if (!recovered) { await saveDraft(''); setDraft(''); } else setNotice('已找回此前请求，没有重复发送。当前草稿保留。');
@@ -189,13 +224,13 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
   useEffect(() => {
     if (started.current || typeof window === 'undefined') return;
     if (new URLSearchParams(window.location.search).get('start') !== '1') return;
-    if (!model || !draft.trim() || (run && active(run.status)) || busy) return;
+    if (!model || carrying || !draft.trim() || (run && active(run.status)) || busy) return;
     started.current = true;
     const url = new URL(window.location.href);
     url.searchParams.delete('start');
     window.history.replaceState(null, '', url);
     void send();
-  }, [model, draft, run, busy]);
+  }, [model, draft, run, busy, carrying]);
 
   async function showHistory() {
     setError('');
@@ -224,19 +259,15 @@ export function TaskSession({ initial, initialDraft }: { initial: TaskDetail; in
       {history.length > 0 ? <div className="tw-link-form"><label htmlFor="link-history">选择要关联的记录</label><select id="link-history" value={linkId} onChange={event => setLinkId(event.target.value)}><option value="">请选择</option>{history.map(item => <option key={item.id} value={item.id}>{item.title} · {taskStatus(item.status)}</option>)}</select><button disabled={!linkId || busy} onClick={() => void link()}>关联到“{task.title}”</button></div> : <p className="tw-muted">未列出可关联记录。无明确所有权的旧记录需要管理员核实，不能自动认领。</p>}
     </section>}
     {view === 'conversation' && <form className="tw-composer" onSubmit={event => { event.preventDefault(); void send(); }}><label className="tw-sr-only" htmlFor="task-message">输入需求或追问</label><textarea id="task-message" value={draft} maxLength={20000} onChange={event => setDraft(event.target.value)} placeholder="说说你要推进的事" />
-      <div className="tw-composer-bottom"><label className="tw-sr-only" htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => setModel(event.target.value)}><option value="">请选择模型</option><option value="platform">{platformLabel}</option>{models.profiles.filter(item => item.enabled).map(item => <option key={item.id} value={item.id}>{item.name} · {productModelLabel(item.model) || '平台模型'}{item.verified_at ? '' : ' · 尚未测试'}</option>)}</select>
-        <span className="tw-intensity" role="group" aria-label="强度">强度{(['低', '中', '高'] as const).map(level => <button type="button" key={level} aria-pressed={intensity === level} onClick={() => setIntensity(level)}>{level}</button>)}</span>
-        <button type="submit" className="tw-primary" aria-label={runs.length ? '发送' : '开始任务'} disabled={busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : runs.length ? '发送' : '开始任务'}</button></div>
+      <AttachmentChips files={files} status={composerUpload.status} error={composerUpload.error} disabled={busy || composerUpload.busy} onRemove={id => { setError(''); void bindFiles(files.filter(file => file.id !== id).map(file => file.id)).catch(cause => setError(cause instanceof Error ? cause.message : '移除失败，请重试。')); }} />
+      <div className="tw-composer-bottom"><AttachButton disabled={busy || composerUpload.busy} onFiles={selected => void composerUpload.upload(selected)} /><label className="tw-sr-only" htmlFor="task-model">本次使用的模型</label><select id="task-model" value={model} disabled={busy} onChange={event => { setModel(event.target.value); window.sessionStorage.setItem(LAST_MODEL_KEY, event.target.value); }}><ModelOptions list={models} value={model} platformLabel={platformLabel} /></select>
+        <span className="tw-intensity" role="group" aria-label="强度">强度{INTENSITY_LEVELS.map(level => <button type="button" key={level} aria-pressed={intensity === level} onClick={() => setIntensity(level)}>{level}</button>)}</span>
+        <button type="submit" className="tw-primary" aria-label="发送" disabled={busy || carrying || composerUpload.busy || !draft.trim() || !model || Boolean(run && active(run.status))}>{busy ? '正在发送…' : '发送'}</button></div>
       <button type="button" disabled={busy} onClick={() => { setError(''); void saveDraft().then(() => { setNotice('草稿已保存'); setAutosavePaused(false); }).catch(cause => { setAutosavePaused(true); setError(cause.message); }); }}>保存草稿</button>
       {autosavePaused && <button type="button" disabled={busy} onClick={() => void reloadDraftVersion()}>重新读取版本（保留本页输入）</button>}
       <a href={`/workspace?settings=models&return_task=${task.id}`}>配置我的模型</a>
     </form>}
-    {view === 'conversation' && <details className="tw-details"><summary>添加或选择资料（{files.length}）{generatedCount ? ` · 生成文件（${generatedCount}）` : ''}</summary><TaskFiles selected={files} onSelect={async ids => {
-      await saveDraft();
-      const updated = await taskRequest<TaskDetail>(`/api/assistant/tasks/${task.id}/files`, jsonPost({ attachment_ids: ids, version: saved.current.version }));
-      if (!alive.current) return;
-      saved.current = updated.task; setTask(updated.task); setFiles(updated.files ?? []);
-    }} /></details>}
+    {view === 'conversation' && <details className="tw-details"><summary>从资料库选择（{files.length}）{generatedCount ? ` · 生成文件（${generatedCount}）` : ''}</summary><TaskFiles selected={files} onSelect={bindFiles} /></details>}
     {error && <p role="alert" className="tw-error">{error}</p>}<p role="status" className="tw-muted">{error || (notice === '草稿已保存' && draft !== task.draft) ? '' : notice}</p>
   </section>;
 }
