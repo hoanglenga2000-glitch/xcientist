@@ -70,6 +70,28 @@ class HpcRuntime(_ReleaseHpcRuntime):
         self.solution_environment_manifest = ""
         self.remote_solution_deps = _validate_remote(posixpath.join(self.remote_runtime_dir, "solution_deps"))
         self._solution_deps_base = self.remote_solution_deps
+        # 2026-11-03: set by prestage_environment(); execute_solution then skips the (long) dependency step inside the lease.
+        self.environment_prestaged: dict[str, Any] | None = None
+
+    def use_shared_environment(self) -> None:
+        """One verified environment per exact pin set, shared by every run (see dependency_lock.prepare_target)."""
+        self._solution_deps_base = _validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, "solution-deps-shared"))
+
+    def prestage_environment(self, script_path: str | Path) -> dict[str, Any] | None:
+        """Prepare the dependency environment BEFORE queueing for the card, so a queued job is ready when the card frees up.
+
+        Never raises: on failure the normal in-lease preparation runs (and reports the error) as before.
+        """
+        try:
+            self._stop_if_cancelled()
+            result = self.prepare_solution_environment(script_path)
+        except DispatchCancelled:
+            raise
+        except Exception:  # noqa: BLE001
+            self.environment_prestaged = None
+            return None
+        self.environment_prestaged = result
+        return result
 
     def _stop_if_cancelled(self) -> None:
         """C7c-FIX5: honour a cancel at every stage boundary before the work reaches the card.
@@ -452,7 +474,8 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 if input_count == 0:
                     raise FileNotFoundError(f"input directory contains no regular files: {local_data_dir}")
 
-            self.prepare_solution_environment(script_path)
+            if self.environment_prestaged is None:
+                self.prepare_solution_environment(script_path)
             self._stop_if_cancelled()  # a cancel during the (long) dependency step ends here: no staging, no dispatch, no charge
             if self.progress_callback and not self.trusted_progress:
                 self.progress_callback(

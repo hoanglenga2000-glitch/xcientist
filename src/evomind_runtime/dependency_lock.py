@@ -172,6 +172,34 @@ def share_wheelhouse(lock: dict[str, Any], wheelhouse: Path, store: Path | None)
 
 
 def prepare_target(root: Path, pins: dict[str, str], store: Path | None = None) -> dict[str, Any]:
+    """2026-11-03: a root under ``solution-deps-shared`` is one environment reused by every run with the same pins.
+
+    Concurrent preparations serialize on an exclusive lock next to the root; every reuse re-verifies the installed file set and
+    hashes, and a shared root that fails verification (or was left half-installed) is renamed aside — never deleted — and rebuilt.
+    """
+    if root.parent.name != SHARED_DIR_NAME:
+        return _prepare_target(root, pins, store)
+    import fcntl
+    root.parent.mkdir(parents=True, exist_ok=True)
+    if root.parent.is_symlink():
+        raise ValueError("dependency_target_symlink")
+    with open(root.parent / (root.name + ".lock"), "a+") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            return _prepare_target(root, pins, store)
+        except ValueError as error:
+            if str(error) not in RECOVERABLE_SHARED_ERRORS or root.is_symlink():
+                raise
+            root.rename(root.parent / f"{root.name}.aside-{int(time.time())}-{os.getpid()}")
+            return _prepare_target(root, pins, store)
+
+
+SHARED_DIR_NAME = "solution-deps-shared"
+RECOVERABLE_SHARED_ERRORS = {"installed_dependency_file_set_mismatch", "installed_dependency_integrity_mismatch",
+                             "incomplete_environment_preserved_requires_reconciliation"}
+
+
+def _prepare_target(root: Path, pins: dict[str, str], store: Path | None = None) -> dict[str, Any]:
     """Resolve first, lock official wheels, then install offline into a new target."""
     if not pins or any(not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+!-]*", version) for name, version in pins.items()):
         raise ValueError("exact_dependency_pins_required")

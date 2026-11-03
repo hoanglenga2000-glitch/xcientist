@@ -333,3 +333,5 @@ html:has(.task-workspace),body:has(.task-workspace){overflow:hidden;height:100%}
 
 /* t238 C7c-FIX5 H3: cards that wait on the reader stop below the sticky 停止/暂停 bar, never under it. */
 .task-workspace .tw-gpu,.task-workspace .tw-confirm{scroll-margin-top:72px}
+/* 2026-11-03: the training plan on the consent card (task, network, epochs, estimated on-card time). */
+.tw-training-plan{display:grid;gap:6px;margin:12px 0;padding:12px;border:1px solid var(--tw-edge);border-radius:10px;background:var(--tw-accent-wash)}.tw-training-plan>div{display:grid;grid-template-columns:7em 1fr;gap:8px}.tw-training-plan dt{color:var(--tw-muted);font-size:13px}.tw-training-plan dd{margin:0;color:var(--tw-ink);overflow-wrap:anywhere}

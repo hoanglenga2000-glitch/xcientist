@@ -55,7 +55,7 @@ const cancel = require('../../app/api/gpu/jobs/[jobId]/cancel/route.ts');
 const { LEGACY_GPU_TENANT_MESSAGE } = require('./legacy-gpu-access.ts');
 
 const req = (who, init = {}) => new Request('http://127.0.0.1:8088/api/gpu/jobs', {
-  ...init, headers: { ...(who ? { cookie: `evomind_local_session=${who}` } : {}), ...(init.headers ?? {}) } });
+  ...init, headers: { ...(who ? { cookie: `evomind_local_session=${who}` } : {}), ...init.headers } });
 const params = { params: Promise.resolve({ jobId: 'job_tenant_b' }) };
 
 test('t238 C7b S6: a tenant session cannot list, read, submit or cancel legacy GPU jobs (403, Chinese, no data)', async () => {

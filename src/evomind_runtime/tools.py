@@ -4180,6 +4180,17 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
                              detail=gpu_admission.waiting_detail(status))
 
     try:
+        if _prestage_eligible(context, runtime):
+            # 2026-11-03: the environment is prepared before queueing (shared, verified per pin set), so a job that waits
+            # for the card is ready the moment it frees up; preparation never holds the card and is never billed.
+            runtime.use_shared_environment()
+            runtime.cancel_check = lambda: _session_cancelled(context)
+            from .hpc_runtime_overlay import DispatchCancelled
+            try:
+                runtime.prestage_environment(execute_args["script_path"])
+            except DispatchCancelled:
+                return ToolResult("", False, {"remote_dispatched": False}, gpu_admission.message("cancelled"), error="gpu_cancelled")
+            runtime.cancel_check = None
         try:
             lease = gate.acquire(tenant_id=tenant_id, owner_id=owner_id, run_id=context.session_id,
                                  requested_seconds=requested_seconds, vram_mb=context.gpu_vram_mb, on_wait=waiting, operator=operator)
@@ -4225,6 +4236,24 @@ def _gpu_job_cancelled(lease: Any) -> bool:
     try:
         return str(lease.sched.job(lease.job_id)["status"]) == "cancelled"
     except Exception:  # noqa: BLE001 - unknown state keeps the conservative (uncertain) path
+        return False
+
+
+def _prestage_eligible(context: ToolContext, runtime: Any) -> bool:
+    """Pre-queue environment preparation applies to the registered managed trainer on the standard overlay runtime only."""
+    if not callable(getattr(runtime, "prestage_environment", None)) or not callable(getattr(runtime, "use_shared_environment", None)):
+        return False
+    if "siim_calibration" in context.metadata or "official_calibration" in context.metadata:
+        return False
+    trusted = context.trusted_script_path
+    return bool(context.managed_asset_adapter and trusted is not None and Path(trusted).name == "managed_tensor_train.py")
+
+
+def _session_cancelled(context: ToolContext) -> bool:
+    try:
+        session = context.store.get_session(context.session_id) or {}
+        return str(session.get("status") or "") == "cancelled"
+    except Exception:  # noqa: BLE001 - an unreadable state never fakes a cancel
         return False
 
 

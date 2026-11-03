@@ -660,7 +660,7 @@ test('two model ids with the same product label are listed once; the default kee
 });
 
 test('the draft model picker opens once on ?new=1; other pickers stay closed', () => {
-  const { ModelPicker, IntensityPicker } = require('./ComposerPicker.tsx');
+  const { ModelPicker } = require('./ComposerPicker.tsx');
   const list = { platform_model: { provider: 'anthropic', model: 'claude-sonnet-5-5' }, default_profile_id: '', profiles: [] };
   const opened = renderToStaticMarkup(React.createElement(ModelPicker, { id: 'draft-model', list, value: 'platform', autoOpen: true, onChange() {} }));
   assert.match(opened, /<button[^>]*aria-expanded="true"/);
@@ -737,7 +737,7 @@ test('t237 C4.2: a stored hidden model id falls back to Sonnet 5.5', () => {
   assert.equal(defaultModelChoice(list, 'platform:openai:gpt-4o'), 'platform:openai:gpt-4o');
 });
 
-const defaultRows = (rows) => rows.filter(row => / · 默认$/.test(row.label));
+const defaultRows = (rows) => rows.filter(row => row.label.endsWith(' · 默认'));
 const SONNET_TRIGGER = /<button[^>]*><span title="Claude Sonnet 5\.5" class="tw-picker-text"><span class="tw-picker-name"><span class="tw-picker-vendor">Claude <\/span>Sonnet<\/span><span class="tw-picker-version"> 5\.5<\/span><\/span>/;
 
 test('t237 C4.2b: switching back to the default after a failed 4 Pro run shows Sonnet 5.5 · 默认', () => {
@@ -1787,7 +1787,7 @@ test('t237 C5a.4 L4: five status pills + card label/value; not on sidebar rows',
   assert.match(pillBase, /font-weight:500/);
   assert.match(pillBase, /border-radius:999px/);
   assert.match(pillBase, /padding:2px 8px/);
-  for (const [kind, colors] of Object.entries(pills)) {
+  for (const [kind] of Object.entries(pills)) {
     const rule = c5aRule(`.tw-status-pill.tw-status-${kind}`);
     assert.match(rule, new RegExp(`background:var\\(--tw-pill-${kind}-bg\\)`));
     assert.match(rule, new RegExp(`color:var\\(--tw-pill-${kind}-fg\\)`));
@@ -2017,7 +2017,7 @@ test('t237 C5b.3 L6: sidebar group spacing; hide zero counts; user block; title 
   assert.match(side, /items\.length > 0 &&/);
   assert.match(side, /tw-folder-count/);
   assert.match(side, /title=\{task\.title\}|title=\{project\.name\}/);
-  const group = c5bRule('.tw-history-group');
+  c5bRule('.tw-history-group');
   // groups themselves sit in .tw-history with gap 16
   assert.match(c5bRule('.tw-history'), /gap:16px/);
   const label = c5bRule('.tw-history-label');
@@ -2104,7 +2104,7 @@ test('t237 C5b CSS-var discipline: C5b-touched rules use tokens (no hex/rgba lit
 });
 
 test('t237 C5b.3b L6 W4: live 「N 项进行中」 must not cover last project rows — history scrolls with clearance', () => {
-  const css = c5bCss();
+  c5bCss();
   const history = c5bRule('.tw-history');
   // History is the sidebar list scrollport so bottom chrome cannot paint over rows
   assert.match(history, /flex:1 1 auto/);
@@ -2179,7 +2179,7 @@ test('t237 C5c.2 L10/L11: account appearance uses ThemeSegment; user-block 外�
 });
 
 test('t237 C5c.3 L11: settings shell nav 180px + content max 640; model empty CTA', () => {
-  const css = c5aCss();
+  c5aCss();
   assert.match(c5aRule('.tw-settings-nav'), /width:180px/);
   assert.match(c5aRule('.tw-settings-content'), /max-width:640px/);
   assert.match(c5aRule('.tw-set-row'), /min-height:56px/);
@@ -2197,7 +2197,7 @@ test('t237 C5c.4 L8 (C6-answer): 6px status dots stay for the live counts; the s
   assert.match(c5aRule('.tw-dot.is-current'), /box-shadow:0 0 0 2px var\(--tw-phase-ring\)/);
   assert.match(c5aRule('.tw-dot.is-done'), /background:var\(--tw-accent\)/);
   assert.doesNotMatch(css, /\.tw-progress-model|\.tw-phases/);
-  const root = c5aRule('.task-workspace') || css;
+  assert.ok(c5aRule('.task-workspace') || css);
   assert.match(css, /--tw-phase-current:#1D4ED8/);
   assert.match(css, /--tw-phase-pending:#E5E7EB/);
   assert.match(css, /\[data-theme="dark"\][\s\S]*--tw-phase-current:#93C5FD/);

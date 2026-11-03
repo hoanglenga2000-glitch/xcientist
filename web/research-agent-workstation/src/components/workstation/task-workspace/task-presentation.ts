@@ -448,7 +448,7 @@ export function stuckSecondsLabel(ageSeconds: number | null | undefined) {
   return `${n || 45} 秒无进展`;
 }
 
-const THINKING_LEAK = /(?:^|[\s`'"(])\/?(?:inputs|outputs|workspace|home|var|tmp)\/\S*|[A-Za-z0-9_\-]{8,}=[A-Za-z0-9_\-+/=]{12,}|sk-[A-Za-z0-9_\-]{4,}|-----BEGIN |api[_ -]?key|tool_call|call_[a-z0-9]+/i;
+const THINKING_LEAK = /(?:^|[\s`'"(])\/?(?:inputs|outputs|workspace|home|var|tmp)\/\S*|[A-Za-z0-9_-]{8,}=[A-Za-z0-9_\-+/=]{12,}|sk-[A-Za-z0-9_-]{4,}|-----BEGIN |api[_ -]?key|tool_call|call_[a-z0-9]+/i;
 
 /** C6b L14 / H5-6: thinking summary never carries paths, keys, tool ids, or raw stacks. */
 export function sanitizeThinkingSummary(text?: string | null) {
@@ -461,7 +461,7 @@ export function sanitizeThinkingSummary(text?: string | null) {
 /** A label from the runtime is already Chinese; anything shaped like a tool id never reaches the screen. */
 export function activityLabel(label?: string) {
   const text = String(label || '').trim();
-  return !text || RAW_TOOL_ID.test(text) || /[\/{}]/.test(text) ? '处理一步' : text;
+  return !text || RAW_TOOL_ID.test(text) || /[/{}]/.test(text) ? '处理一步' : text;
 }
 
 /** CP1 H1-3 / S1-2: consecutive finished repeats merge (「搜索资料 ×3」); collapsed view keeps the last 3 rows. */
@@ -721,6 +721,32 @@ export function separateConfirmCopy(approval: { tool_name?: string }) {
   return { title: '继续这一步', target: undefined, reversible: undefined, refusal: '拒绝后不会执行这项操作，任务会保留并等待调整。',
     scope: '仅确认当前目标和参数；涉及资源的操作仍须符合已批准上限，不会因本次确认扩大权限。', showDetails: true,
     consent: '我已核对目标与影响', approve: '确认执行', reject: '拒绝这项操作' };
+}
+
+
+/** 2026-11-03: the plan the runtime attaches to a training approval (impact_scope.training_plan), as card rows. */
+export type TrainingPlanRow = { label: string; value: string };
+export function trainingPlanRows(approval: { impact_scope?: Record<string, unknown> }): TrainingPlanRow[] {
+  const plan = approval.impact_scope?.training_plan;
+  if (!plan || typeof plan !== 'object') return [];
+  const p = plan as Record<string, unknown>;
+  const num = (value: unknown) => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+  const rows: TrainingPlanRow[] = [];
+  const rowsCount = num(p.rows); const features = num(p.features);
+  if (typeof p.data_name === 'string') rows.push({ label: '数据', value: `${p.data_name}${rowsCount !== null && features !== null ? `（${rowsCount} 行 × ${features} 个特征）` : ''}` });
+  if (typeof p.task_label === 'string') rows.push({ label: '训练场景', value: `${p.task_label}，预测目标：${String(p.target_column ?? '最后一列')}` });
+  const hidden = Array.isArray(p.hidden_sizes) ? p.hidden_sizes.filter(item => typeof item === 'number') : [];
+  if (hidden.length) rows.push({ label: '推荐算法', value: `${String(p.network ?? '全连接神经网络')}，隐藏层 ${hidden.join(' → ')}` });
+  const epochs = num(p.epochs); const batch = num(p.batch_size); const lr = num(p.learning_rate);
+  if (epochs !== null && batch !== null) rows.push({ label: '训练参数', value: `${epochs} 轮，批大小 ${batch}${lr !== null ? `，学习率 ${lr}` : ''}` });
+  const train = num(p.train_rows); const holdout = num(p.holdout_rows);
+  if (train !== null && holdout !== null) rows.push({ label: '数据划分', value: `${train} 行训练，${holdout} 行留作评估` });
+  const eta = p.estimated_gpu_seconds as Record<string, unknown> | undefined;
+  const low = num(eta?.low); const high = num(eta?.high);
+  if (low !== null && high !== null) rows.push({ label: '预计训练时间', value: high < 120 ? `约 ${low}–${high} 秒（显卡上）` : `约 ${Math.max(1, Math.round(low / 60))}–${Math.ceil(high / 60)} 分钟（显卡上）` });
+  if (Array.isArray(p.metrics) && p.metrics.length) rows.push({ label: '评估指标', value: p.metrics.map(String).join(' / ') });
+  if (typeof p.billing_note === 'string') rows.push({ label: '计费', value: p.billing_note });
+  return rows;
 }
 
 export function confirmActionLabel(tool?: string) {

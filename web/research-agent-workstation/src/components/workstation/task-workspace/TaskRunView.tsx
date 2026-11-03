@@ -130,7 +130,6 @@ export function TaskRunView({ view, run, memoryEnabled = true, projectId, onRetr
   // SPEC §5.6 / H_a10–H_a12: deliverables are attachments under the answer, only in a file mode. An answer-less file run
   // still gets one inline line above its chips.
   // C7c-FIX5i / FIX5c C2 CLEARING: cancelled training never presents outputs as success (chat + results + 「生成文件（N）」).
-  const cancelledRun = cancelledTrainingDelivery(run, gpuJob);
   const files = resultArtifacts(run, gpuJob);
   const chips = attachmentChips(deliveryMode(run), files);
   if (!live && files.length && !shown.some(message => message.role === 'assistant' && message.content && message.id === answerId)) {

@@ -67,7 +67,8 @@ def _dependency_command(command: str):
 
     argv = shlex.split(command)
     assert argv[:2] == ["python3", "-c"]
-    assert len(argv) == 5
+    assert len(argv) == 6  # program, locked root, pins, shared wheel store
+    assert argv[5].endswith("/scripts/gpu_tra/wheel-store")
     encoded = re.search(r"base64\.b64decode\('([A-Za-z0-9+/=]+)'\)", argv[2])
     assert encoded is not None
     return argv[3], json.loads(argv[4]), base64.b64decode(encoded.group(1)).decode("utf-8")

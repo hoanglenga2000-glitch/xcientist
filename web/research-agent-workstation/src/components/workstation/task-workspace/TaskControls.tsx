@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { confirmActionLabel, confirmNoOutboundCopy, confirmSpendLabel, isModelFailure, separateConfirmCopy, STOPPABLE_RUN_STATUSES, stoppedByUser, trainingFailed, usesSeparateConfirm } from './task-presentation';
+import { confirmActionLabel, confirmNoOutboundCopy, confirmSpendLabel, isModelFailure, separateConfirmCopy, STOPPABLE_RUN_STATUSES, stoppedByUser, trainingFailed, trainingPlanRows, usesSeparateConfirm } from './task-presentation';
 import { jsonPost, taskRequest, type TaskRun } from './types';
 import { revealBelowBar } from './chat-scroll';
 
@@ -65,8 +65,9 @@ export function TaskControls({ run, onChanged }: { run: TaskRun; onChanged: () =
       <div className="tw-actions"><button className="tw-primary" disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户同意按当前额度继续' })}>同意并继续</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户要求调整方案' })}>调整方案</button></div>
     </section>;
     })}
-    {separate.map((approval, index) => { const copy = separateConfirmCopy(approval); return <section ref={index === 0 ? confirmCard : undefined} className="tw-confirm" aria-label="待你确认" key={approval.id}><h2>待你确认：{copy.title}</h2>
+    {separate.map((approval, index) => { const copy = separateConfirmCopy(approval); const plan = trainingPlanRows(approval); return <section ref={index === 0 ? confirmCard : undefined} className="tw-confirm" aria-label="待你确认" key={approval.id}><h2>待你确认：{copy.title}</h2>
       <p className="tw-operation-target">目标：{copy.target ?? targetLabel(approval)}</p>
+      {plan.length > 0 && <dl className="tw-training-plan" aria-label="训练方案">{plan.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>}
       <p>{copy.reversible ?? (approval.reversible ? '这一步可以撤销，撤销后请核对实际结果。' : '这一步不保证可以撤销，请先确认目标。')}{copy.refusal}</p>
       <p>{copy.scope}</p>
       {copy.showDetails && <details className="tw-details"><summary>参数与影响详情</summary><pre className="tw-file-preview">{JSON.stringify({ operation: approval.tool_name, arguments: approval.normalized_arguments, impact: approval.impact_scope, risk: approval.risk_level }, null, 2)}</pre></details>}

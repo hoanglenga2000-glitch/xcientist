@@ -20,7 +20,7 @@ for (const ext of ['.ts', '.tsx']) Module._extensions[ext] = (module, filename) 
     module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX, target: ts.ScriptTarget.ES2022, esModuleInterop: true,
   }, fileName: filename }).outputText, filename);
 };
-const source = file => readFileSync(new URL(file, import.meta.url), 'utf8');
+const _source = file => readFileSync(new URL(file, import.meta.url), 'utf8');
 const h = (type, props, ...children) => React.createElement(type, props, ...children);
 
 const BRAND_ARIA = /科研先知|EvoMind|Evomind|evomind/i;

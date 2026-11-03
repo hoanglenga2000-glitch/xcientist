@@ -235,7 +235,7 @@ export function ProjectPage({ projectId, tasks, setTasks, projects, setProjects,
         {uploads.map(item => <ProjectFileRow key={item.key} upload={item} onRetry={() => item.file && void upload(item.file, item.key, item.job)} />)}
       </ul>}
       <div className="tw-project-file-actions"><label className="tw-upload"><Upload size={16} aria-hidden="true" />上传文件<input className="tw-sr-only" type="file" aria-label="上传文件"
-        onChange={event => { for (const file of [...event.target.files ?? []]) void upload(file); event.target.value = ''; }} /></label>
+        onChange={event => { for (const file of event.target.files ?? []) void upload(file); event.target.value = ''; }} /></label>
         <button type="button" className="tw-button" aria-expanded={Boolean(library)} onClick={toggleLibrary}>从资料库添加</button></div>
       {library && <ul className="tw-library-pick" aria-label="从资料库添加">{library.filter(item => !bound.has(item.id)).map(item => <li key={item.id}>
         <button type="button" className="tw-pick-file" onClick={() => void bindFromLibrary(item)}><span className="tw-project-file-name">{item.name}</span><small>{fileMeta({ size: item.bytes, created_at: item.created_at })}</small></button></li>)}

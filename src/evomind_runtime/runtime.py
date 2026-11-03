@@ -268,6 +268,20 @@ class AgentRuntime:
     def tools(self) -> list[dict[str, Any]]:
         return [spec.to_dict() for spec in self.registry.specs()]
 
+    def _training_plan_scope(self, session: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+        """Display-only training plan for the consent card; absent when it cannot be computed."""
+        try:
+            from . import gpu_vram, training_plan
+            from .personal_tool_boundary import session_tenant
+            try:
+                budget = int(gpu_vram.load(self.runtime_root).ceiling_mb(session_tenant(session)))
+            except Exception:  # noqa: BLE001 - same fallback as the trainer (4 GiB)
+                budget = None
+            plan = training_plan.build(session["workspace_root"], arguments, vram_budget_mb=budget)
+        except Exception:  # noqa: BLE001
+            plan = None
+        return {"training_plan": plan} if plan else {}
+
     def invoke_tool(
         self,
         session_id: str,
@@ -444,6 +458,10 @@ class AgentRuntime:
                 call.approval_id = approval_id
             if decision.requires_approval:
                 call.status = "waiting_approval"
+                impact_scope = dict(decision.scope)
+                if tool_name == "managed_tensor_train":
+                    # 2026-11-03: the consent card shows the plan (task, network, epochs, estimated on-card time) before the GPU.
+                    impact_scope.update(self._training_plan_scope(session, decision.normalized_arguments))
                 approval = ApprovalRequest(
                     new_id("approval"),
                     session_id,
@@ -451,7 +469,7 @@ class AgentRuntime:
                     tool_name,
                     argument_fingerprint(tool_name, decision.normalized_arguments),
                     decision.normalized_arguments,
-                    decision.scope,
+                    impact_scope,
                     decision.risk_level,
                     decision.reversible,
                     expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),

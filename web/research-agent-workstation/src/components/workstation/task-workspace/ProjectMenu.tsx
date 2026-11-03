@@ -9,7 +9,7 @@ export type ProjectCommand = 'rename' | 'new' | 'delete';
 const items = (root: HTMLElement | null) => [...root?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []];
 
 /** 02 §2: 重命名 · 新对话 · 删除项目; only 删除项目 carries the danger text (01 §0). */
-export function ProjectMenuEntries({ project, onCommand }: { project: Project; onCommand: (command: ProjectCommand) => void }) {
+export function ProjectMenuEntries({ onCommand }: { project: Project; onCommand: (command: ProjectCommand) => void }) {
   return <>
     <MenuItem icon={<Pencil size={16} aria-hidden="true" />} label={PROJECT_COPY.rename} onSelect={() => onCommand('rename')} />
     <MenuItem icon={<Plus size={16} aria-hidden="true" />} label={PROJECT_COPY.newChat} onSelect={() => onCommand('new')} />
