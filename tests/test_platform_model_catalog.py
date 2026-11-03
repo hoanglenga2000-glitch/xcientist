@@ -96,7 +96,7 @@ def test_tri_vendor_profile_lists_three_groups_with_opus_default(monkeypatch):
 
     ids = [item['id'] for item in available_platform_models()]
     assert ids == [
-        'anthropic:claude-opus-5-5', 'anthropic:claude-sonnet-5-5', 'anthropic:claude-haiku-5-5',
+        'anthropic:claude-opus-5-5', 'anthropic:claude-haiku-5-5',
         'deepseek:deepseek-v4.1-flash', 'deepseek:deepseek-v4-pro', 'deepseek:qwen3.8-max', 'deepseek:qwen3.8-flash', 'deepseek:glm-5.3',
         'openai:gpt-6-astra', 'openai:gpt-6-luna', 'openai:gpt-6-sol', 'openai:gpt-6.1-sol',
     ]

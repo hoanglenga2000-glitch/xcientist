@@ -28,14 +28,14 @@ const LIST = { platform_model: { provider: 'anthropic', model: 'claude-opus-5-5'
 test('three groups in order Claude, GPT, 国模 with Opus 5.5 · 默认 first', () => {
   const [platform] = modelGroups(LIST);
   assert.deepEqual(platform.choices.map(choice => choice.label), [
-    'Claude Opus 5.5 · 默认', 'Claude Sonnet 5.5', 'Claude Haiku 5.5',
+    'Claude Opus 5.5 · 默认', 'Claude Haiku 5.5',
     'GPT-6 Astra', 'GPT-6 Luna', 'GPT-6 Sol', 'GPT-6.1 Sol',
     'DeepSeek 4.1 Flash', 'DeepSeek 4 Pro', 'Qwen3.8 Max', 'Qwen3.8 Flash', 'GLM 5.3',
   ]);
   assert.deepEqual([...new Set(platform.choices.map(choice => choice.section))], ['Claude', 'GPT', '国模']);
   const html = renderToStaticMarkup(React.createElement(ModelPicker, { id: 'home-model', list: LIST, value: 'platform', onChange() {} }));
   assert.deepEqual([...html.matchAll(/class="tw-picker-section"[^>]*>([^<]+)</g)].map(match => match[1]), ['Claude', 'GPT', '国模']);
-  assert.equal((html.match(/role="option"/g) || []).length, 12);
+  assert.equal((html.match(/role="option"/g) || []).length, 11);
   assert.doesNotMatch((html.match(/>[^<]*</g) || []).join(''), /claude-|gpt-|deepseek-|qwen|glm-|platform:/);
 });
 

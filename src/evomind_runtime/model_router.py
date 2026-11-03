@@ -36,6 +36,9 @@ PICKER_CLAUDE_MODELS: tuple[str, ...] = ('claude-opus-5-5', 'claude-sonnet-5-5',
 # only. Hidden until root cause fixed; remove an id to re-list it.
 PICKER_HIDDEN_MODEL_IDS: frozenset[str] = frozenset({
     'deepseek:deepseek-chat', 'deepseek:deepseek-reasoner', 'openai:gpt-4.1', 'openai:deepseek-flash',
+    # 2026-11-03: lt4net answers claude-sonnet-5-5 with an empty turn (0/6 non-empty, 1 output token,
+    # stop=end_turn; opus-5-5 and sonnet-5 6/6). Hidden until the gateway serves it again.
+    'anthropic:claude-sonnet-5-5',
 })
 
 _LT4NET = json.loads((Path(__file__).with_name('lt4net_models.json')).read_text(encoding='utf-8'))
