@@ -53,10 +53,10 @@ def _validate_component(value: str, label: str) -> str:
 
 
 def _validate_remote(path: str) -> str:
-    normalized = posixpath.normpath(path)
-    if normalized != ALLOWED_GPU_REMOTE_ROOT and not normalized.startswith(ALLOWED_GPU_REMOTE_ROOT + "/"):
-        raise ValueError("remote path escapes the dedicated EvoMind root")
-    return normalized
+    # t238 C7c-5: one confinement rule for every remote path (see research_os.remote_paths).
+    from .remote_paths import confine_absolute
+
+    return confine_absolute(path, ALLOWED_GPU_REMOTE_ROOT)
 
 
 def _validate_relative_path(value: str) -> str:

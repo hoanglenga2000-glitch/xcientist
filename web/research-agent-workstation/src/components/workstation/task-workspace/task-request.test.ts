@@ -8,6 +8,6 @@ test('offline and timeout failures give an actionable message without replaying 
   await assert.rejects(taskRequest('/api/assistant/tasks/owned/draft'), /网络连接中断.*输入.*保留/);
   assert.equal(request.mock.callCount(), 1);
   request.mock.mockImplementation(async () => { throw new DOMException('timed out', 'TimeoutError'); });
-  await assert.rejects(taskRequest('/api/assistant/tasks/owned/draft'), /请求超时.*核对.*重试/);
+  await assert.rejects(taskRequest('/api/assistant/tasks/owned/draft'), /网络有点慢.*核对.*重试/);
   assert.equal(request.mock.callCount(), 2);
 });

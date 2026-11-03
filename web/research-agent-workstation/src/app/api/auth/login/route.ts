@@ -1,13 +1,20 @@
 import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
+import { CAPTCHA_ERROR_MESSAGE, verifyLoginCaptcha } from "@/lib/server/login-captcha";
 import { cookieOptions, expectedCsrfToken, issuePublicSessionCookie, SESSION_COOKIE } from "@/lib/server/local-session";
 import { safePostLoginPath, verifyPublicCredentials } from "@/lib/server/public-auth";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null) as { username?: unknown; password?: unknown; next?: unknown } | null;
+  const body = await request.json().catch(() => null) as {
+    username?: unknown; password?: unknown; next?: unknown; captcha_id?: unknown; captcha_answer?: unknown;
+  } | null;
+  // Single-use challenge from GET /api/auth/captcha, checked (and consumed) before any credential work.
+  if (!verifyLoginCaptcha(body?.captcha_id, body?.captcha_answer)) {
+    return NextResponse.json({ ok: false, code: "captcha_invalid", message: CAPTCHA_ERROR_MESSAGE }, { status: 400 });
+  }
   const username = typeof body?.username === "string" ? body.username.trim() : "";
   const password = typeof body?.password === "string" ? body.password : "";
   if (!username || !password || username.length > 64 || password.length > 256) {

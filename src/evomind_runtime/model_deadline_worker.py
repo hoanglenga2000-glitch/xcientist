@@ -24,6 +24,12 @@ def main():
             spec = importlib.util.spec_from_file_location('chat_stream_transport', Path(__file__).with_name('chat_stream_transport.py'))
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
+            if request.get('raw') is True:
+                # The parent decodes the provider's own SSE records (Anthropic and Chat Completions).
+                for data in module.sse_records(request['url'], request['headers'], request['payload'], request['timeout']):
+                    print(json.dumps({'kind': 'data', 'data': data}, ensure_ascii=True), flush=True)
+                print(json.dumps({'kind': 'end'}, ensure_ascii=True), flush=True)
+                return
             def emit_text(text):
                 print(json.dumps({'kind': 'text', 'text': text}, ensure_ascii=True), flush=True)
             body = module.post_chat_stream(request['url'], request['headers'], request['payload'], request['timeout'], emit_text)

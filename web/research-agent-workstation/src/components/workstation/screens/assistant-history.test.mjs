@@ -55,10 +55,11 @@ test("durable history restores each response without running or associating old 
     messages: [{ id: "user", role: "user", content: "Fit one model", kind: "original_request" }, { id: "old", role: "assistant", content: "Previous failure" }, { id: "resume", role: "user", content: "", kind: "continued_execution" }, { id: "active", role: "assistant", content: "" }],
   } };
   const restored = restoreRunMessages(run, "Continue this Run (recovery record)");
-  assert.equal(restored.length, 4);
+  // The server continuation prompt is not a turn the person wrote: it is never shown as 「你」.
+  assert.equal(restored.length, 3);
   assert.equal(restored[1].content, "Previous failure");
-  assert.equal(restored[2].content, "Continue this Run (recovery record)");
-  assert.equal(restored[3].status, "blocked");
+  assert.ok(restored.every((row) => row.content !== "Continue this Run (recovery record)"));
+  assert.equal(restored[2].status, "blocked");
   assert.ok(restored.every((row) => row.artifacts === undefined));
 });
 

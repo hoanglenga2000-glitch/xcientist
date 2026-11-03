@@ -31,10 +31,18 @@ const { tenantIdForUsername } = await import('./tenant-identity.mjs');
 for (const name of ['alice', 'bob']) db.prepare('INSERT INTO accounts VALUES (?, ?, ?, ?, 1, 1)')
   .run(name, tenantIdForUsername(name), createPasswordHash(`${name}-fixture-password`), 'user');
 const { POST } = require('../../app/api/auth/login/route.ts');
+const { issueLoginCaptcha } = require('./login-captcha.ts');
+
+// Solves the single-use SVG challenge the same way scripts/captcha_login_probe.py does.
+function captcha() {
+  const { captcha_id, image } = issueLoginCaptcha();
+  const svg = decodeURIComponent(image.split(',', 2)[1]);
+  return { captcha_id, captcha_answer: [...svg.matchAll(/<text\b[^>]*>([^<]+)<\/text>/g)].map((m) => m[1]).join('') };
+}
 
 async function login(username, password = `${username}-fixture-password`) {
   return POST(new Request('http://127.0.0.1/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password }) }));
+    body: JSON.stringify({ username, password, ...captcha() }) }));
 }
 
 test('two independently configured users log in without borrowing the administrator identity', async () => {

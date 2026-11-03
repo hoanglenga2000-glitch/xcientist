@@ -114,6 +114,28 @@ class AccessStore:
             if row != (principal.tenant_id, principal.owner_id):
                 raise AccessError()
 
+    def forget(self, kind: str, resource_id: str) -> None:
+        self.forget_many([(kind, resource_id)])
+
+    def forget_many(self, pairs) -> int:
+        """Retire ownership rows of deleted resources (t238 C7b H2). Idempotent; missing rows are fine.
+
+        A row moves to kind `deleted:<kind>` (never listed by `resources`) so the owner can still be told
+        `already_deleted` on a repeat delete while every live list stops seeing it.
+        """
+        pairs = [(str(kind), str(resource_id)) for kind, resource_id in pairs if resource_id]
+        if not pairs:
+            return 0
+        retired = 0
+        with self._connect() as connection:
+            for kind, resource_id in pairs:
+                connection.execute(
+                    "INSERT OR IGNORE INTO resource_owners SELECT ?, resource_id, tenant_id, owner_id "
+                    "FROM resource_owners WHERE kind=? AND resource_id=?", (f"deleted:{kind}", kind, resource_id))
+                retired += connection.execute(
+                    "DELETE FROM resource_owners WHERE kind=? AND resource_id=?", (kind, resource_id)).rowcount
+        return retired
+
     def owns(self, kind: str, resource_id: str, principal: Principal) -> bool:
         with self._connect() as connection:
             return connection.execute(
@@ -125,6 +147,12 @@ class AccessStore:
         with self._connect() as connection:
             row = connection.execute("SELECT tenant_id,owner_id FROM resource_owners WHERE kind=? AND resource_id=?", (kind, resource_id)).fetchone()
             return Principal(*row) if row else None
+
+    def owners_by_kind(self, kind: str) -> dict[str, Principal]:
+        with self._connect() as connection:
+            return {row[0]: Principal(row[1], row[2]) for row in connection.execute(
+                "SELECT resource_id, tenant_id, owner_id FROM resource_owners WHERE kind=?", (kind,)
+            )}
 
     def require(self, kind: str, resource_id: str, principal: Principal) -> None:
         if not self.owns(kind, resource_id, principal):
@@ -213,24 +241,45 @@ class AccessStore:
             raise AccessError()
         if parts[:2] == ['v1', 'model-profiles'] and (
             (method == 'GET' and len(parts) in {2, 3}) or
-            (method == 'POST' and (len(parts) in {2, 3} or (len(parts) == 4 and parts[3] in {'default', 'disable', 'test'})))
+            (method == 'POST' and (len(parts) in {2, 3} or (len(parts) == 4 and parts[3] in {'default', 'disable', 'enable', 'test'}))) or
+            (method == 'DELETE' and len(parts) == 3)
         ):
             return  # ModelProfiles checks object ownership even for service callers.
         if parts[:2] == ["v1", "user-tasks"] and (
-            (method == "GET" and len(parts) in {2, 3}) or (method == "POST" and (len(parts) == 2 or (len(parts) == 4 and parts[3] in {"draft", "links", "files"})))
+            (method == "GET" and (len(parts) in {2, 3} or (len(parts) == 4 and parts[3] == "export")))
+            or (method == "POST" and (len(parts) == 2 or (len(parts) == 4 and parts[3] in {"draft", "links", "files", "restore"})))
+            or (method in {"PATCH", "DELETE"} and len(parts) == 3)
         ):
             # UserTasks checks the server-derived principal on every object.
             return
-        if method == 'GET' and parts[:2] == ['v1', 'user-files'] and len(parts) in {2, 3}:
-            return  # user_files checks each resource against the authenticated owner.
+        if method == 'GET' and parts[:2] == ['v1', 'user-files'] and (len(parts) in {2, 3} or (len(parts) == 4 and parts[3] == 'usage')):
+            return  # user_files / user_data check each resource against the authenticated owner.
+        if (method == 'DELETE' and len(parts) == 3 and parts[1] in {'uploads', 'attachments'}) or (
+                method == 'DELETE' and parts == ['v1', 'tenant', 'data']) or (method == 'GET' and parts == ['v1', 'tenant', 'export']):
+            return  # t238 C7b D6: user_data checks ownership (non-owner → 404) on every object.
+        if (method == "GET" and parts == ["v1", "gpu", "me"]) or (
+                method == "POST" and len(parts) == 5 and parts[:3] == ["v1", "gpu", "runs"] and parts[4] == "cancel"):
+            return  # t238 C7c-6: gpu_web scopes to the principal; run ids are checked with require_run (others → 404).
         if parts == ["v1", "execution-budget"] and method in {"GET", "POST"}:
             # budget_web additionally requires the server-owned policy owner.
             return
         if parts[:2] == ["v1", "projects"] and (
-            (method == "GET" and len(parts) in {2, 3}) or (method == "POST" and len(parts) == 2)
+            (method == "GET" and (len(parts) in {2, 3} or (len(parts) == 4 and parts[3] == "files")))
+            or (method == "POST" and (len(parts) == 2 or (len(parts) == 4 and parts[3] in {"restore", "files"})))
+            or (method in {"PATCH", "DELETE"} and len(parts) == 3)
+            or (method == "DELETE" and len(parts) == 5 and parts[3] == "files")
         ):
             # ProjectStore applies the tenant and owner checks to every object.
             return
+        if (parts[:2] == ["v1", "user-memory"] and (
+                (method in {"GET", "DELETE"} and len(parts) == 2) or (method in {"PATCH", "DELETE"} and len(parts) == 3)
+                or (method == "POST" and len(parts) == 4 and parts[3] == "restore"))) or (
+                parts == ["v1", "user-settings"] and method in {"GET", "PATCH"}) or (
+                len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "memory-settings" and method in {"GET", "PATCH"}):
+            # UserMemoryStore scopes every row and setting to the server-derived principal (project settings: ProjectStore.get_owned first).
+            return
+        if method == "GET" and parts == ["v1", "experience", "summary"]:
+            return  # read-only count; experience_entry.summary requires the principal
         if method == "GET" and parts in (
             ["v1", "health"], ["v1", "tools"], ["v1", "super-agent", "capabilities"],
             ["v1", "sessions"], ["v1", "runs"], ["v1", "approvals"], ["v1", "goals"],
@@ -238,7 +287,7 @@ class AccessStore:
             return
         if len(parts) >= 3 and parts[1] == "runs":
             self.require_run(runtime, parts[2], principal)
-            if method == "GET" or (method == "POST" and parts[3:] in (["actions"], ["reports"])):
+            if method == "GET" or (method == "POST" and parts[3:] in (["actions"], ["reports"], ["plan"], ["messages"])):
                 return
         if len(parts) >= 3 and parts[1] == "sessions" and method == "GET":
             self.require("session", parts[2], principal)

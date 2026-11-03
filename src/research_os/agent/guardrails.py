@@ -27,6 +27,9 @@ import hashlib
 from dataclasses import dataclass
 from typing import Any, Optional
 
+from ..debug_review_agents import review_code_before_enqueue
+from ..feature_flags import ff_code_review_agent, ff_debug_agent
+
 
 @dataclass
 class GuardrailDecision:
@@ -70,6 +73,7 @@ def _looks_truncated(code: str) -> Optional[str]:
     return None
 
 
+
 class ToolGuardrailController:
     """Per-session loop-breaker. Cheap bookkeeping keyed by tool + args."""
 
@@ -78,6 +82,11 @@ class ToolGuardrailController:
         self.repeat_failure_limit = repeat_failure_limit
         self.idempotent_repeat_limit = idempotent_repeat_limit
         self.consecutive_failure_halt = consecutive_failure_halt
+        # W5: DEBUG / CODE_REVIEW agent flags (default off). before_call honors
+        # CODE_REVIEW_AGENT; DEBUG_AGENT is consumed by evolution_loop / tools.
+        self.ff_debug_agent = ff_debug_agent()
+        self.ff_code_review_agent = ff_code_review_agent()
+        self.last_code_review: dict[str, Any] | None = None
         # (fingerprint) -> consecutive failure count for that exact call
         self._fail_counts: dict[str, int] = {}
         # (tool) -> last result fingerprint + repeat count (idempotent read spin)
@@ -107,6 +116,24 @@ class ToolGuardrailController:
                     content=(f"BLOCKED by guardrail: the submitted code looks truncated — {reason}. "
                              "Resend the COMPLETE script (do not rely on it being continued)."),
                     summary=f"run_experiment blocked (truncated code: {reason[:40]})")
+            # 3) P0-AG-02: pre-execution code review when CODE_REVIEW_AGENT on.
+            if self.ff_code_review_agent:
+                review = review_code_before_enqueue(
+                    args.get("code") or "",
+                    exp_id=str(args.get("exp_id") or ""),
+                )
+                self.last_code_review = review
+                if review.get("quality_gate") == "block":
+                    issues = ", ".join(review.get("issues") or []) or "hard_fail"
+                    return GuardrailDecision(
+                        blocked=True,
+                        content=(
+                            "BLOCKED by code_review_agent quality gate (hard fail). "
+                            f"issues=[{issues}]. Fix the script before enqueue; "
+                            "no train job will be started."
+                        ),
+                        summary=f"run_experiment blocked (code_review hard_fail: {issues[:60]})",
+                    )
         return GuardrailDecision(blocked=False)
 
     # ── after the tool ran ────────────────────────────────────────────────────

@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 from typing import Any
 
+from .feature_flags import ff_stagnation_detect
+
 
 @dataclass
 class ExperimentNode:
@@ -57,6 +59,8 @@ class SearchGraph:
     promotion_history: list[dict[str, Any]] = field(default_factory=list)
     reference_edges: list[dict[str, Any]] = field(default_factory=list)
     terminal_reason: str = ""
+    # P0-BR-01: branch membership side-map (additive; ExperimentNode schema untouched).
+    branch_ids: dict[str, str] = field(default_factory=dict)
 
 
     def _node_score(self, node: ExperimentNode, metric: str | None = None) -> float | None:
@@ -186,6 +190,10 @@ class SearchGraph:
         if edge not in self.edges:
             self.edges.append(edge)
 
+    def children_of(self, parent_exp_id: str) -> list[ExperimentNode]:
+        """Return direct children of ``parent_exp_id`` (multi-branch fan-out)."""
+        return [n for n in self.nodes.values() if n.parent_id == parent_exp_id]
+
     def add_reference_edge(
         self,
         source: str,
@@ -243,6 +251,10 @@ class SearchGraph:
         return selected
 
     def detect_stagnation(self, min_delta: float = 0.0001, window: int = 2) -> list[str]:
+        # P0-ST-01: when STAGNATION_DETECT off, return no branch stalls (prior
+        # EvolutionLoop patience / Diff switching does not use this API).
+        if not ff_stagnation_detect():
+            return []
         by_branch: dict[str, list[ExperimentNode]] = {}
         for node in self.nodes.values():
             by_branch.setdefault(node.branch_type, []).append(node)
@@ -263,6 +275,9 @@ class SearchGraph:
         return stagnant
 
     def detect_global_stagnation(self, min_delta: float = 0.0001, window: int = 4) -> bool:
+        # P0-ST-01: gated — flag off means "not stagnant" for early-exit / artifacts.
+        if not ff_stagnation_detect():
+            return False
         scored = [node for node in self.nodes.values() if self._node_score(node) is not None]
         scored.sort(key=lambda node: node.created_at or node.exp_id)
         if len(scored) <= window:
@@ -303,6 +318,7 @@ class SearchGraph:
             "best_exp_id": self.best_exp_id,
             "promotion_history": self.promotion_history,
             "terminal_reason": self.terminal_reason,
+            "branch_ids": dict(self.branch_ids),
         }
 
     def export_json(self, path: str | Path) -> Path:
@@ -345,6 +361,9 @@ class SearchGraph:
         graph.selected_next_branch = data.get("selected_next_branch")
         graph.exploration_stage = str(data.get("exploration_stage", "exploration"))
         graph.terminal_reason = str(data.get("terminal_reason", ""))
+        raw_branches = data.get("branch_ids") or {}
+        if isinstance(raw_branches, dict):
+            graph.branch_ids = {str(k): str(v) for k, v in raw_branches.items()}
         return graph
 
     @classmethod

@@ -5,7 +5,7 @@ export type MessageHistory = {
   messages: Array<{ id: string; role: "user" | "assistant"; content: string; kind?: string }>;
   active_message_id: string;
 };
-type Snapshot = { id: string; status: string; prompt?: string; answer?: string; streaming_text?: string | null; answer_is_current?: boolean; message_history?: MessageHistory; attachments?: Array<{ name: string }> };
+type Snapshot = { id: string; status: string; prompt?: string; answer?: string; partial_answer?: string | null; streaming_text?: string | null; answer_is_current?: boolean; message_history?: MessageHistory; attachments?: Array<{ name: string }> };
 
 export function messageStatus(status: string): MessageStatus {
   if (status === "completed") return "complete";
@@ -38,23 +38,27 @@ export function updateRunMessage<T extends MessageRecord>(messages: T[], run: Sn
     runId: run.id,
     status,
     content: status === "streaming" ? (run.streaming_text ?? (row.status === "streaming" ? row.content : ""))
-      : run.answer_is_current === false ? "" : run.answer || row.content,
+      : run.answer_is_current === false ? "" : run.answer || run.partial_answer || row.content,
   });
 }
 
 export function restoreRunMessages(run: Snapshot, continuedLabel: string): MessageRecord[] {
   if (run.message_history?.schema === "evomind.assistant_message_history.v1") {
-    return run.message_history.messages.map((row) => ({
-      id: row.id, role: row.role, runId: run.id,
-      content: row.id === run.message_history!.active_message_id && messageStatus(run.status) === "streaming"
-        ? run.streaming_text ?? row.content : row.kind === "continued_execution" ? continuedLabel : row.content.replace(/^\[Selected task: [^\]]+\]\s*/i, ""),
-      status: row.id === run.message_history!.active_message_id ? messageStatus(run.status) : "complete",
-      ...(row.kind === "original_request" ? { attachmentNames: run.attachments?.map((item) => item.name) } : {}),
-    }));
+    // The server-made continuation prompt is infrastructure, never something the person said: it is not shown as a turn.
+    return run.message_history.messages.filter((row) => row.kind !== "continued_execution").map((row) => {
+      let content = row.id === run.message_history!.active_message_id && messageStatus(run.status) === "streaming"
+        ? run.streaming_text ?? row.content : row.kind === "continued_execution" ? continuedLabel : row.content.replace(/^\[Selected task: [^\]]+\]\s*/i, "");
+      if (row.role === "assistant" && !content && run.status === "cancelled" && run.partial_answer) content = run.partial_answer;
+      return {
+        id: row.id, role: row.role, runId: run.id, content,
+        status: row.id === run.message_history!.active_message_id ? messageStatus(run.status) : "complete",
+        ...(row.kind === "original_request" ? { attachmentNames: run.attachments?.map((item) => item.name) } : {}),
+      };
+    });
   }
   const status = messageStatus(run.status);
   return [
     { id: `user_${run.id}`, role: "user", content: (run.prompt ?? "").replace(/^\[Selected task: [^\]]+\]\r?\n/, ""), status: "complete", runId: run.id, attachmentNames: run.attachments?.map((row) => row.name) },
-    { id: `assistant_${run.id}`, role: "assistant", content: status === "streaming" || run.status === "waiting_approval" ? "" : run.answer ?? "", status, runId: run.id },
+    { id: `assistant_${run.id}`, role: "assistant", content: status === "streaming" || run.status === "waiting_approval" ? "" : (run.answer || run.partial_answer || ""), status, runId: run.id },
   ];
 }

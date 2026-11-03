@@ -1,6 +1,10 @@
 """Lightweight Research OS primitives for auditable MLE workflows."""
 
-from .claim_audit import ClaimAudit, audit_claim, classify_drift_type, detect_claim_drift
+from .claim_audit import ClaimAudit, audit_claim, classify_drift_type, detect_benchmark_overclaim, detect_claim_drift
+from .research_harness import run_research_os_harness
+from .single_task_loop import run_single_task_closed_loop
+from .debug_review_agents import build_debug_feedback, review_code_before_enqueue
+from .feature_flags import FLAG_NAMES, flags_snapshot, is_enabled
 from .benchmark_manager import (
     BenchmarkResult,
     BenchmarkTask,
@@ -43,6 +47,8 @@ __all__ = [
     "TOP30_TARGET_PERCENTILE",
     "ValidationContract",
     "audit_claim",
+    "build_debug_feedback",
+    "detect_benchmark_overclaim",
     "build_benchmark_claim_gate",
     "build_search_controller_decision",
     "build_workstation_alignment",
@@ -59,6 +65,12 @@ __all__ = [
     "evaluate_rank_gate",
     "extract_policy",
     "export_benchmark_report",
+    "FLAG_NAMES",
+    "flags_snapshot",
+    "is_enabled",
+    "review_code_before_enqueue",
+    "run_research_os_harness",
+    "run_single_task_closed_loop",
     "load_mlevolve_config",
     "load_tasks",
     "save_result",

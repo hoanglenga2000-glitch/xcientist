@@ -4,3 +4,4 @@ export type ManagedAccount = {
 };
 export function accountRegistryEnabled(): boolean;
 export function findAccount(username: string): ManagedAccount | null;
+export function legacyAdminUsername(): string;

@@ -3,6 +3,7 @@ import { accountRegistryEnabled } from "@/lib/server/account-registry.mjs";
 
 import {
   CSRF_HEADER,
+  LOCAL_AUTOMATION_HEADER,
   LOCAL_AUTOMATION_VERIFIED_HEADER,
   SESSION_COOKIE,
   localOrigin,
@@ -25,11 +26,11 @@ const PUBLIC_API_PATHS = new Set([
   "/api/system/version",
   "/api/session/bootstrap",
   "/api/auth/login",
+  "/api/auth/captcha",
 ]);
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const MAX_BODY_BYTES = 16 * 1024 * 1024;
-const LOCAL_AUTOMATION_HEADER = "x-evomind-local-automation";
 
 function pageContentSecurityPolicy(nonce: string) {
   return [
@@ -123,17 +124,24 @@ export async function proxy(request: NextRequest) {
     ) return jsonError(415, "unsupported_content_type");
   }
 
-  if (PUBLIC_API_PATHS.has(pathname)) return NextResponse.next();
-
-  const session = request.cookies.get(SESSION_COOKIE)?.value;
   const localAutomation = isLoopbackHostHeader(host)
     && validLocalAutomationToken(request.headers.get(LOCAL_AUTOMATION_HEADER));
   const forwardedHeaders = new Headers(request.headers);
+  // Headers only the proxy may derive. A client-supplied copy is always dropped, on public paths too.
   forwardedHeaders.delete("x-evomind-access-scope");
   forwardedHeaders.delete("x-evomind-tenant-id");
   forwardedHeaders.delete("x-evomind-principal-id");
-  forwardedHeaders.delete(LOCAL_AUTOMATION_HEADER);
   forwardedHeaders.delete(LOCAL_AUTOMATION_VERIFIED_HEADER);
+
+  if (PUBLIC_API_PATHS.has(pathname)) {
+    // t238 C7b H1: public routes never receive a derived trust header. Only `/api/healthz`
+    // (operator-only `?deep=1`) keeps a valid loopback automation token, which it re-verifies.
+    if (!localAutomation || pathname !== "/api/healthz") forwardedHeaders.delete(LOCAL_AUTOMATION_HEADER);
+    return NextResponse.next({ request: { headers: forwardedHeaders } });
+  }
+
+  const session = request.cookies.get(SESSION_COOKIE)?.value;
+  forwardedHeaders.delete(LOCAL_AUTOMATION_HEADER);
   if (localAutomation) forwardedHeaders.set(LOCAL_AUTOMATION_VERIFIED_HEADER, "1");
   try {
     const principal = sessionPrincipal(session);
@@ -145,7 +153,7 @@ export async function proxy(request: NextRequest) {
     // Even a managed administrator must use scoped APIs; verified local release
     // automation is a separate boundary, never a browser role escalation.
     if (!localAutomation && accountRegistryEnabled()) {
-      const personal = /^\/api\/assistant\/(tasks|projects|runs|run-requests|uploads|files|artifacts|approvals|model-profiles|execution-budget|run-secrets)(\/|$)/.test(pathname);
+      const personal = /^\/api\/assistant\/(tasks|projects|runs|run-requests|uploads|files|artifacts|approvals|model-profiles|execution-budget|run-secrets|user-memory|user-settings|experience|tenant|gpu)(\/|$)/.test(pathname);
       const sessionRoute = ["/api/session/status", "/api/auth/logout", "/api/settings"].includes(pathname)
         || (request.method === "GET" && pathname === "/api/hpc/byoa/binding");
       if (!personal && !sessionRoute) return jsonError(403, "personal_workspace_required");
@@ -176,6 +184,6 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/api/:path*",
-    "/((?!api/|_next/static|_next/image|favicon.ico|icon.png|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!api/|_next/static|_next/image|favicon.ico|manifest.webmanifest|robots.txt|sitemap.xml|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

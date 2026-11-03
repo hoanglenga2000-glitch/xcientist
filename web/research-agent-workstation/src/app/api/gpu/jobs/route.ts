@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { submitGpuJob } from "@/lib/server/gpu-ssh-gateway";
+import { legacyGpuAccess, legacyGpuDenied } from "@/lib/server/legacy-gpu-access";
 import { sanitizeClientJson } from "@/lib/server/json";
 import { readJsonFile, resolveWorkspacePath } from "@/lib/server/paths";
 
@@ -32,7 +33,9 @@ function summarizeGpuJob(payload: unknown, relativePath: string) {
   };
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const access = legacyGpuAccess(request);
+  if (!access.ok) return legacyGpuDenied(access);
   const jobsRoot = resolveWorkspacePath(path.join("workspace", "gpu", "jobs"));
   const entries = await fs.readdir(jobsRoot, { withFileTypes: true }).catch(() => []);
   const candidates = await Promise.all(entries
@@ -51,6 +54,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const access = legacyGpuAccess(request);
+  if (!access.ok) return legacyGpuDenied(access);
   const body = await request.json().catch(() => ({}));
   const taskId = typeof body.task_id === "string" ? body.task_id : "house_prices";
   const template = typeof body.template === "string" ? body.template : undefined;

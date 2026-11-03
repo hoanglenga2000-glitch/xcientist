@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 
+// @ts-expect-error Node's native TypeScript test runner requires the explicit extension.
 import { EvolutionUnavailable, evolutionCliCandidates, evolutionErrorBody, resolveEvolutionCli } from "./evolution-cli-path.ts";
 
 test("evolution cli resolves a readable script and otherwise stays unavailable", async () => {

@@ -80,6 +80,15 @@ class ToolContext:
     execution_deadline: float | None = None
     remote_settlement_uncertain: bool = False
     reports: Any = None
+    # t238 C7c: GPU time-share hooks (None = production defaults; tests inject fakes).
+    gpu_probe: Any = None
+    gpu_gate_factory: Any = None
+    gpu_requested_seconds: int | None = None
+    gpu_vram_mb: int | None = None
+    gpu_supervisor_thread: bool = True
+    gpu_broker_factory: Any = None
+    output_scrubber: Any = None
+    hpc_local_dir: Path | None = None
 
 
 _SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
@@ -201,7 +210,7 @@ class ToolRegistry:
             "file_list", "file_search", "file_read", "file_write", "file_patch", "file_copy", "file_move", "file_delete",
             "shell_exec", "process_start", "process_list", "process_poll", "process_log", "process_stdin", "process_cancel",
             "attachment_list", "attachment_read", "artifact_publish", "artifact_list", "artifact_preview", "artifact_bundle",
-            "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route",
+            "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route", "memory_remember",
             "super_agent_status", "capability_discover", "connector_health",
             "ecosystem_refresh",
             "directory_list", "directory_stat", "directory_read", "directory_hash",
@@ -1037,6 +1046,8 @@ def _attachment_list(_args: dict[str, Any], context: ToolContext) -> ToolResult:
 def _attachment_read(args: dict[str, Any], context: ToolContext) -> ToolResult:
     attachment_id = str(args.get("attachment_id") or "")
     row = context.store.get_attachment(attachment_id)
+    if (not row or row.get("run_id") != context.session_id) and attachment_id in (context.metadata.get("project_file_ids") or {}):
+        row = context.store.get_attachment(str(context.metadata["project_file_ids"][attachment_id]))  # t237 C3.5: project file id
     if not row or row.get("run_id") != context.session_id:
         return ToolResult("", False, {}, "attachment is not bound to this run", error="attachment_not_found")
     resolved = Path(str(row["path"])).resolve(strict=True)
@@ -1062,7 +1073,64 @@ def _attachment_read(args: dict[str, Any], context: ToolContext) -> ToolResult:
     return ToolResult("", True, content, f"read attachment {row['name']}")
 
 
+def _memory_remember(args: dict[str, Any], context: ToolContext) -> ToolResult:
+    """t237 C3.4: one long-term user memory row (DB only). Refused without an owner or when 使用记忆 is off.
+
+    Stores ``source_task_title`` at write time (03 §2/§12). List still refreshes the live title via ``title_of``
+    so renamed conversations stay current and deleted ones read as 来自已删除的对话.
+    """
+    from .tenant_access import AccessError
+    from .user_memory import UserMemoryStore, principal_from_metadata
+    from .user_tasks import UserTasks
+
+    principal = principal_from_metadata(context.metadata)
+    if principal is None:
+        return ToolResult("", False, {}, "memory needs an authenticated user", error="memory_principal_required")
+    if str(context.metadata.get("memory_mode") or "on") != "on":
+        # t237 C6c L16: 本次不使用记忆 / 无痕 — this run neither reads nor writes memory.
+        return ToolResult("", False, {}, "memory is off for this conversation; nothing was stored", error="memory_off_for_run")
+    store = UserMemoryStore(context.runtime_root)
+    if not store.memory_enabled(principal):
+        return ToolResult("", False, {}, "the user turned memory off; nothing was stored", error="memory_disabled")
+    if store.paused(principal):
+        return ToolResult("", False, {}, "the user paused memory; nothing was stored", error="memory_paused")
+    task_id = str(context.metadata.get("user_task_id") or "") or None
+    title = None
+    if task_id:
+        try:
+            title = str(UserTasks(context.runtime_root).get(principal, task_id).get("title") or "") or None
+        except AccessError:
+            title = None
+    try:
+        row = store.add(principal, args.get("text"), source_task_id=task_id, source_task_title=title,
+                        project_id=str(context.metadata.get("project_id") or "") or None, source_run_id=context.session_id,
+                        kind=args.get("kind") or "other", scope=args.get("scope") or "user")
+    except AccessError as error:
+        return ToolResult("", False, {}, "memory was not stored", error=error.code)
+    saved = {"id": row["id"], "text": row["text"]}
+    context.store.append_event(context.session_id, "memory_saved", saved)
+    return ToolResult("", True, saved, "saved one long-term memory")
+
+
+def _artifact_run_cancelled(args: dict[str, Any], context: ToolContext) -> bool:
+    """C7e-R1: nothing is attached to a cancelled Run. A stopped session refuses every publish; a tenant cancel of the
+    run's GPU job (it does not stop the session) refuses what the remote worker produced (``hpc_execute_solution``)."""
+
+    try:
+        session = context.store.get_session(context.session_id) or {}
+    except Exception:  # noqa: BLE001 - unreadable session: the publish proceeds as before
+        session = {}
+    if str(session.get("status") or "") == "cancelled":
+        return True
+    if str(args.get("source_tool_call") or "") == "hpc_execute_solution":
+        from .gpu_admission import run_gpu_cancelled
+        return run_gpu_cancelled(context.runtime_root, context.session_id)
+    return False
+
+
 def _artifact_publish(args: dict[str, Any], context: ToolContext) -> ToolResult:
+    if _artifact_run_cancelled(args, context):
+        return ToolResult("", False, {}, "run was cancelled; nothing is attached to it", error="artifact_run_cancelled")
     path = _path(args, "path", context)
     outputs = (context.workspace_root / "outputs").resolve(strict=False)
     try:
@@ -1700,8 +1768,13 @@ def _verified_context(args: dict[str, Any], context: ToolContext) -> ToolResult:
     selected_task = str(args.get("selected_task") or context.metadata.get("selected_task") or "").strip()
     if selected_task and not re.fullmatch(r"[A-Za-z0-9_.-]{1,160}", selected_task):
         raise ValueError("selected_task is invalid")
+    # t237 C6-sec: project_root holds ownerless global experience (retrospective memory, current/historical
+    # runs). Personal sessions read only their own Run workspace, never the global store.
+    from .personal_tool_boundary import is_personal, session_tenant
+
+    personal = is_personal(session_tenant({"metadata": context.metadata}))
     packet = build_assistant_context(
-        context.project_root,
+        context.workspace_root if personal else context.project_root,
         live_environment=False,
         selected_task=selected_task,
     )
@@ -3902,16 +3975,18 @@ def _hpc_execute_solution_impl(args: dict[str, Any], context: ToolContext, *, se
     else:
         verified = _hpc_verify(args, context)
         if not verified.ok:
-            return verified
+            # t238 C7c-FIX4: tag the stage so a tenant caller can tell the identity gate from a later failure.
+            import dataclasses as _dc
+            return _dc.replace(verified, content={**(verified.content if isinstance(verified.content, dict) else {}), "failure_stage": "identity_gate"})
     try:
         job_id, profile = _required_managed_hpc_identity(args, context)
     except ValueError:
-        return ToolResult("", False, {}, "managed job/profile binding is invalid", error="profile_job_binding_invalid")
+        return ToolResult("", False, {"failure_stage": "identity_gate"}, "managed job/profile binding is invalid", error="profile_job_binding_invalid")
     try:
         from .hpc_runtime_overlay import HpcRuntime
         from research_agent_workstation.server.core.gpu_credentials import connect_ssh
         config = _load_bound_hpc_config(profile, job_id, context.session_id)
-        local_dir = context.workspace_root / "work" / "hpc"
+        local_dir = context.hpc_local_dir or context.workspace_root / "work" / "hpc"
         runtime_class=HpcRuntime
         if "siim_calibration" in context.metadata:
             from .siim_hpc_runtime import SiimHpcRuntime
@@ -3948,26 +4023,48 @@ def _hpc_execute_solution_impl(args: dict[str, Any], context: ToolContext, *, se
             })
         else:
             execute_args["data_dir"] = data_dir
-        from .execution_progress import queued_resource
-        resource = "gpu:" + str(getattr(config, "expected_gpu_uuid", "") or f"{job_id}:{profile}")
-        waiting_reported = False
-        def waiting() -> None:
-            nonlocal waiting_reported
-            if context.progress and not waiting_reported:
-                context.progress(source="managed_adapter", work_kind="preparing", phase="waiting_for_compute", worker_state="queued", detail="Waiting for the shared compute slot")
-                waiting_reported = True
-        with queued_resource(context.runtime_root / "resource_leases", resource, context.session_id + ":" + new_id("lease"), notify=waiting):
-            if context.progress:
-                context.progress(source="executor", work_kind="executing", phase="tool_execution", worker_state="unverified")
-            result = runtime.execute_solution(**execute_args)
-            if "remote_settlement_unconfirmed" in str(result.error):
-                context.remote_settlement_uncertain = True
-                raise RuntimeError("remote_settlement_unconfirmed")
+        from . import gpu_admission
+        gpu_pool = gpu_admission.active()
+        gpu_state: dict[str, Any] | None = None
+        if gpu_pool is None:
+            from .execution_progress import queued_resource
+            resource = "gpu:" + str(getattr(config, "expected_gpu_uuid", "") or f"{job_id}:{profile}")
+            waiting_reported = False
+            def waiting() -> None:
+                nonlocal waiting_reported
+                if context.progress and not waiting_reported:
+                    context.progress(source="managed_adapter", work_kind="preparing", phase="waiting_for_compute", worker_state="queued", detail="Waiting for the shared compute slot")
+                    waiting_reported = True
+            with queued_resource(context.runtime_root / "resource_leases", resource, context.session_id + ":" + new_id("lease"), notify=waiting):
+                if context.progress:
+                    context.progress(source="executor", work_kind="executing", phase="tool_execution", worker_state="unverified")
+                result = runtime.execute_solution(**execute_args)
+                if "remote_settlement_unconfirmed" in str(result.error):
+                    context.remote_settlement_uncertain = True
+                    raise RuntimeError("remote_settlement_unconfirmed")
+        else:
+            shared = _gpu_time_share_execute(gpu_pool, context, runtime, execute_args, config, job_id, profile)
+            if isinstance(shared, ToolResult):
+                return shared
+            result, gpu_state = shared
+        if str(result.error).startswith("RemotePathError"):
+            return _remote_path_violation(context, "runtime_path")
         payload = asdict(result)
+        if getattr(runtime, "skipped_output_names", 0):
+            payload["skipped_output_names"] = runtime.skipped_output_names
+        if gpu_state is not None:
+            payload["gpu_time_share"] = gpu_state
         if secret_files:
             payload["private_inputs"] = {"count": len(secret_files), "cleanup_confirmed": getattr(runtime, "last_solution_secret_cleanup_ok", False), "values_logged": False}
         if competition_binding:
             payload["competition_data_binding"] = competition_binding
+        if gpu_state is not None and gpu_state.get("status") == "cancelled":
+            # C7e-R1: a cancelled run keeps nothing the worker produced after (or despite) the stop: no copy, no attach.
+            payload["local_artifacts"] = []
+            payload["published_artifacts"] = []
+            payload["published_output_artifact_count"] = 0
+            payload["error"] = ""  # a stop we asked for: no worker error text reaches the tenant-facing result
+            return ToolResult("", False, payload, gpu_state["message"], error="gpu_cancelled")
         published = []
         published_output_count = 0
         output_root = context.workspace_root / "outputs" / "hpc"
@@ -3989,12 +4086,16 @@ def _hpc_execute_solution_impl(args: dict[str, Any], context: ToolContext, *, se
                 continue
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source, target)
+            if context.output_scrubber is not None:
+                context.output_scrubber(target)
             artifact = _artifact_publish({"path": str(target), "source_tool_call": "hpc_execute_solution"}, context).content.get("artifact")
             published.append(artifact)
             if artifact and relative.as_posix() != "training.log":
                 published_output_count += 1
         payload["published_artifacts"] = [item for item in published if item]
         payload["published_output_artifact_count"] = published_output_count
+        if result.exit_code != 0 and "managed dependency lock preparation failed" in str(result.error):
+            payload["failure_stage"] = "dependencies"
         if result.exit_code == 0 and published_output_count == 0:
             payload["runtime_status"] = result.status
             payload["status"] = "failed"
@@ -4008,9 +4109,121 @@ def _hpc_execute_solution_impl(args: dict[str, Any], context: ToolContext, *, se
                 error="hpc_output_artifact_missing",
             )
         ok = result.status == "completed" and result.exit_code == 0 and published_output_count > 0
+        if gpu_state is not None and gpu_state.get("status") in {"timeout", "cancelled"}:
+            return ToolResult("", False, payload, gpu_state["message"], error="gpu_" + gpu_state["status"])
         return ToolResult("", ok, payload, f"HPC solution {result.status}", error="" if ok else result.failure_type or "hpc_execution_failed")
     except Exception as exc:
-        return ToolResult("", False, {}, "HPC execution failed", error=type(exc).__name__)
+        from research_os.remote_paths import RemotePathError
+        if isinstance(exc, RemotePathError):
+            return _remote_path_violation(context, exc.reason)
+        return ToolResult("", False, {"failure_stage": "runtime_exception"}, "HPC execution failed", error=type(exc).__name__)
+
+
+def _remote_path_violation(context: ToolContext, reason: str) -> ToolResult:
+    """t238 C7c-5: fail closed; the operator audit line has the category only, the tenant a plain sentence."""
+    from .gpu_admission import message
+    record = {"at": utc_now(), "kind": "remote_path_rejected", "run_id": context.session_id,
+              "reason": reason if re.fullmatch(r"[a-z_]{1,64}", str(reason)) else "other"}
+    try:
+        audit = context.runtime_root / "audit" / "remote-path-violations.jsonl"
+        audit.parent.mkdir(parents=True, exist_ok=True)
+        with audit.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True) + "\n")
+    except OSError:
+        pass
+    text = message("path_rejected")
+    return ToolResult("", False, {"user_message": text, "remote_dispatched": False}, text, error="remote_path_rejected")
+
+
+_OPERATOR_LEASE_MARGIN_SECONDS = 120  # the overlay keeps 60 s for output collection inside the deadline
+
+
+def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime: Any, execute_args: dict[str, Any],
+                            config: Any, job_id: int, profile: str) -> "ToolResult | tuple[Any, dict[str, Any]]":
+    """t238 C7c: run one remote execution under a fair-share lease on the single A800.
+
+    Queue wait reports position/ETA as progress; a tenant cancel or the lease deadline stops
+    the remote process group (graceful first via the remote timeout, then managed_cancel).
+    """
+
+    from . import gpu_admission
+    from research_agent_workstation.server.core.gpu_credentials import connect_ssh
+
+    if int(job_id) != gpu_admission.ALLOWED_HPC_JOB_ID:
+        error = gpu_admission.GpuAdmissionError("binding_invalid")
+        return ToolResult("", False, {"gpu_queue": error.public(), "remote_dispatched": False}, error.public()["message"], error="gpu_binding_invalid")
+    scope = context.metadata.get("http_access_scope") if isinstance(context.metadata.get("http_access_scope"), dict) else {}
+    tenant_id = str(scope.get("tenant_id") or context.metadata.get("tenant_id") or "service")
+    owner_id = str(scope.get("owner_principal_id") or context.metadata.get("owner_principal_id") or tenant_id)
+    probe = context.gpu_probe or gpu_admission.ssh_free_vram_probe(lambda: connect_ssh(config, timeout=30), str(getattr(config, "expected_gpu_uuid", "") or ""))
+    gate_factory = context.gpu_gate_factory or gpu_admission.GpuGate
+    gate = gate_factory(context.runtime_root, {**pool, "credential_profile": profile}, probe=probe)
+    if getattr(gate, "sched", None) is not None:
+        gate.sched.orphan_killer = gpu_admission.ssh_orphan_killer(lambda: connect_ssh(config, timeout=30))
+    # Operator studies share the slot but keep their own timeout and stay outside the tenant budget.
+    from .personal_tool_boundary import is_personal
+    operator = not is_personal(tenant_id)
+    requested_seconds = context.gpu_requested_seconds
+    if operator and requested_seconds is None:
+        requested_seconds = int(runtime.timeout_seconds) + _OPERATOR_LEASE_MARGIN_SECONDS
+    if getattr(gate, "broker_factory", "absent") is None:
+        # t238 C7c ADDENDUM 2: the memory broker shares the job's identity-gated connector.
+        from . import gpu_broker_link
+        gate.broker_factory = context.gpu_broker_factory or (
+            lambda root, vram: gpu_broker_link.open_broker(root, vram, connect=lambda: connect_ssh(config, timeout=30)))
+
+    def waiting(status: dict[str, Any]) -> None:
+        if context.progress:
+            context.progress(source="managed_adapter", work_kind="preparing", phase="waiting_for_compute", worker_state="queued",
+                             detail=gpu_admission.waiting_detail(status))
+
+    try:
+        try:
+            lease = gate.acquire(tenant_id=tenant_id, owner_id=owner_id, run_id=context.session_id,
+                                 requested_seconds=requested_seconds, vram_mb=context.gpu_vram_mb, on_wait=waiting, operator=operator)
+        except gpu_admission.GpuAdmissionError as error:
+            public = error.public()
+            return ToolResult("", False, {"gpu_queue": public, "remote_dispatched": False, "retryable": error.code not in {"quota_exhausted", "quota_exhausted_rolling"}},
+                              public["message"], error="gpu_" + error.code)
+        solution_id = str(execute_args.get("solution_id") or "solution")
+        lease_deadline = time.monotonic() + lease.remaining_seconds()
+        runtime.process_marker = lease.job_id  # the dead-man guard and orphan cleanup match on it
+        runtime.deadline = lease_deadline if runtime.deadline is None else min(runtime.deadline, lease_deadline)
+        lease.orphan_kill = getattr(getattr(gate, "sched", None), "orphan_killer", None)  # C7e-R1: marker kill after a settled cancel
+        lease.start(lambda: runtime.cancel(solution_id=solution_id), thread=context.gpu_supervisor_thread)
+        if getattr(runtime, "reports_dispatch", False):
+            # C7c-FIX4: dependency preparation holds the lease but is neither billed nor shown as training.
+            lease.sched.mark_preparing(lease.job_id)
+            runtime.on_dispatch = lambda: lease.sched.mark_dispatched(lease.job_id)
+            runtime.cancel_check = lease.cancel_requested  # C7c-FIX5: a cancel during preparation never reaches the card
+        result = None
+        try:
+            if context.progress:
+                context.progress(source="executor", work_kind="executing", phase="tool_execution", worker_state="unverified")
+            result = runtime.execute_solution(**execute_args)
+            if "remote_settlement_unconfirmed" in str(result.error) and not _gpu_job_cancelled(lease):
+                # C7e-R1: the stop we asked for is no "uncertain settlement"; the orphan record (kill retry) covers it.
+                context.remote_settlement_uncertain = True
+                raise RuntimeError("remote_settlement_unconfirmed")
+        finally:
+            completed = bool(result is not None and result.status == "completed" and result.exit_code == 0)
+            if completed:
+                lease.sched.clear_preparing(lease.job_id)  # finished work is always billed, whatever the dispatch report said
+            row = lease.release(completed)
+        status = str(row["status"])
+        code = {"timeout": "timeout", "cancelled": "cancelled"}.get(status, "")
+        state = {"status": status, "max_run_minutes": lease.max_run_seconds // 60,
+                 "message": gpu_admission.message(code) if code else ""}
+        return result, state
+    finally:
+        gate.close()
+
+
+def _gpu_job_cancelled(lease: Any) -> bool:
+    try:
+        return str(lease.sched.job(lease.job_id)["status"]) == "cancelled"
+    except Exception:  # noqa: BLE001 - unknown state keeps the conservative (uncertain) path
+        return False
 
 
 def _model_protocols(args: dict[str, Any], context: ToolContext) -> ToolResult:
@@ -4022,9 +4235,155 @@ def _model_protocols(args: dict[str, Any], context: ToolContext) -> ToolResult:
         return ToolResult("", False, {}, "Model protocols are not available", error=str(error) if re.fullmatch(r"[A-Za-z0-9_]{1,120}", str(error)) else type(error).__name__)
 
 
+def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResult:
+    """t238 C7c-4: tenant-scoped managed training on the time-shared A800 (see tenant_training)."""
+    import dataclasses
+    from . import managed_tensor_train, tenant_training, tensor_inference
+    from .tenant_training import TenantTrainingError, scrub
+    from .training_control import digest, read_json
+
+    def refuse(code: str, message: str = "", content: dict[str, Any] | None = None) -> ToolResult:
+        text = message or TenantTrainingError(code).message
+        return ToolResult("", False, scrub({"user_message": text, "remote_dispatched": False, "reply_rule": tenant_training.REPLY_RULE, **(content or {})}), text, error="tenant_training_" + code)
+
+    if not context.approval_verified:
+        return ToolResult("", False, {"user_message": "需要你先确认这次训练。"}, "需要你先确认这次训练。", error="exact_approval_required")
+    pool = tenant_training.enabled()
+    if pool is None:
+        return refuse("tenant_training_disabled")
+    try:
+        identity = tenant_training.service_identity(pool)
+        protocol_id = str(args.get("protocol_id") or "")
+        candidate = str(args.get("solution_id") or "")
+        if not re.fullmatch(r"[a-f0-9]{64}", protocol_id) or not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", candidate):
+            raise TenantTrainingError("config_invalid")
+        config_path = Path(str(args.get("configuration_path") or ""))
+        if not config_path.is_absolute():
+            config_path = context.workspace_root / config_path
+        if config_path.is_symlink():
+            raise TenantTrainingError("data_path_rejected")
+        try:
+            config_path.resolve(strict=True).relative_to(context.workspace_root.resolve(strict=True))
+        except (OSError, ValueError):
+            raise TenantTrainingError("data_path_rejected") from None
+        if not re.fullmatch(r"[a-f0-9]{64}", str(args.get("configuration_sha256") or "")) or digest(config_path) != args["configuration_sha256"]:
+            raise TenantTrainingError("data_changed")
+        from . import gpu_vram
+        try:
+            vram = gpu_vram.load(context.runtime_root)
+            scope = context.metadata.get("http_access_scope") or {}
+            budget = int(vram.ceiling_mb(str(scope.get("tenant_id") or "")))
+        except gpu_vram.VramConfigError:
+            budget = None
+        prepared = tenant_training.prepare(context.workspace_root, read_json(config_path), protocol_id, vram_budget_mb=budget)
+        import numpy as np
+        work = context.workspace_root / "work" / ("managed-fit-" + new_id("input"))
+        work.mkdir(parents=True, exist_ok=False)
+        np.savez(work / "training.npz", x=prepared["x"], y=prepared["y"])
+        np.save(work / "evaluation-features.npy", prepared["evaluation_x"].astype(np.float32), allow_pickle=False)
+        trainer = dict(prepared["trainer_config"])
+        trainer.update(training_sha256=digest(work / "training.npz"), evaluation_features_sha256=digest(work / "evaluation-features.npy"))
+        (work / "training-config.json").write_text(json.dumps(trainer, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        expected_config = digest(work / "training-config.json")
+        trace_script = work / "managed_tensor_train.py"
+        shutil.copyfile(Path(managed_tensor_train.__file__), trace_script)
+    except TenantTrainingError as error:
+        return refuse(str(error))
+    except (OSError, ValueError, TypeError):
+        return refuse("config_invalid")
+
+    def progress(**values: Any) -> None:
+        if context.progress:
+            context.progress(**scrub(values))
+
+    sizing = prepared.get("sizing") or {}
+    scoped = dataclasses.replace(
+        context, metadata={**context.metadata, "managed_hpc_identity": identity}, progress=progress,
+        gpu_vram_mb=context.gpu_vram_mb or sizing.get("vram_request_mb"),
+        managed_asset_adapter=True, managed_work_kind="training", trusted_script_path=Path(managed_tensor_train.__file__),
+        output_scrubber=tenant_training.scrub_file, hpc_local_dir=context.runtime_root / "tenant_hpc" / context.session_id)
+    result = _hpc_execute_solution({"solution_id": candidate, "script_path": str(trace_script), "data_dir": str(work), "timeout_seconds": 1800}, scoped)
+    content = result.content if isinstance(result.content, dict) else {}
+    gpu = content.get("gpu_time_share") or {}
+    queue = content.get("gpu_queue") or {}
+    if not result.ok:
+        if result.error == "remote_path_rejected":
+            return refuse("remote_path_rejected", result.summary)
+        if queue:
+            return refuse("queue", queue.get("message") or "", {"gpu_queue": {k: queue.get(k) for k in ("queue_position", "eta_seconds", "eta_is_estimate")}})
+        if gpu.get("message"):
+            return refuse(str(gpu.get("status") or "stopped"), gpu["message"], {"gpu": {"status": gpu.get("status"), "max_run_minutes": gpu.get("max_run_minutes")}})
+        if not content.get("published_artifacts"):
+            # t238 C7c-FIX4: only an identity-gate failure is "not ready"; a dependency download or other runtime failure was
+            # mislabelled as identity_gate_not_ready (live run_39c6e0e2: 900 s pip timeout at 57 % of 3.7 GB).
+            stage = content.get("failure_stage")
+            if stage == "identity_gate":
+                return refuse("identity_gate_not_ready")
+            if stage == "dependencies":
+                return refuse("environment_not_ready")
+            return refuse("failed", "训练没有完成。请稍后再试。")
+        return refuse("failed", "训练没有完成。可以查看训练日志，调整设置后再试。", {"published_artifacts": _tenant_artifacts(content)})
+    output = context.workspace_root / "outputs/hpc" / candidate
+    try:
+        required = ("model.safetensors", "model-config.json", "predictions.npz", "training-receipt.json", "environment.lock.json", "training-log.jsonl")
+        if any(not (output / name).is_file() or (output / name).is_symlink() for name in required):
+            raise ValueError("managed_training_deliverables_missing")
+        receipt = read_json(output / "training-receipt.json")
+        if (receipt.get("schema") != "evomind.managed_tensor_training.v1" or receipt.get("protocol_id") != protocol_id
+                or receipt.get("config_sha256") != expected_config or digest(output / "model-config.json") != expected_config
+                or receipt.get("checkpoint_sha256") != digest(output / "model.safetensors")
+                or receipt.get("predictions_sha256") != digest(output / "predictions.npz")
+                or receipt.get("device") != "cuda:0" or type(receipt.get("fit_steps")) is not int or receipt["fit_steps"] < 1
+                or receipt.get("evaluation_labels_used") is not False):
+            raise ValueError("managed_training_receipt_mismatch")
+        shutil.copyfile(Path(tensor_inference.__file__), output / "predict.py")
+        from .tenant_sizing import classification_metrics, regression_metrics
+        import numpy as np
+        with np.load(output / "predictions.npz", allow_pickle=False) as loaded:
+            predictions = loaded["predictions"]
+        metrics = (classification_metrics(predictions, prepared["evaluation_y"]) if prepared["task"] == "classification"
+                   else regression_metrics(predictions, prepared["evaluation_y"]))
+        loss_curve = [round(float(json.loads(line)["loss"]), 6) for line in (output / "training-log.jsonl").read_text(encoding="utf-8").splitlines()
+                      if line.strip() and "loss" in json.loads(line)][:1000]
+        (output / "metrics.json").write_text(json.dumps({"schema": "evomind.tenant_training_metrics.v1", "split": "holdout_20pct",
+                                                         **metrics, "loss_curve": loss_curve, "official_score": False},
+                                                        sort_keys=True, indent=2) + "\n", encoding="utf-8")
+        public = {"task": prepared["task"], "data_file": prepared["data_name"], "data_sha256": protocol_id,
+                  "holdout_rows": int(len(prepared["evaluation_ids"])), "official_score": False}
+        (output / "data-protocol.json").write_text(json.dumps(public, sort_keys=True, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        for name in ("predict.py", "data-protocol.json", "metrics.json"):
+            published = _artifact_publish({"path": str(output / name)}, context).content.get("artifact")
+            if published:
+                content.setdefault("published_artifacts", []).append(published)
+        files = {name: digest(output / name) for name in (*required, "predict.py", "data-protocol.json", "metrics.json")}
+    except (OSError, ValueError, TypeError):
+        return refuse("unverified", "训练跑完了，但结果文件没有通过校验，请重新训练。", {"published_artifacts": _tenant_artifacts(content)})
+    message = "训练完成。模型和预测结果已保存到这个任务的文件里。"
+    skipped = int(content.get("skipped_output_names") or 0)
+    if skipped:
+        message += f"另有 {skipped} 个输出文件的文件名不符合要求，没有下载。"
+    summary = {"user_message": message, "remote_dispatched": True, "reply_rule": tenant_training.SUCCESS_RULE,
+               "managed_training": {"schema": "evomind.managed_training_evidence.v1", "protocol_id": protocol_id, "candidate": candidate,
+                                    "relative_root": output.relative_to(context.workspace_root).as_posix(), "files": files,
+                                    "fit_steps": receipt["fit_steps"], "epochs": receipt.get("epochs"), "final_loss": receipt.get("final_loss"),
+                                    "task": prepared["task"], "scope": "tenant", "model_acceptance": "pending_independent_reload",
+                                    "hidden_sizes": prepared["trainer_config"]["hidden_sizes"], "metrics": metrics, "loss_curve": loss_curve},
+               "gpu": {"status": gpu.get("status"), "max_run_minutes": gpu.get("max_run_minutes")},
+               "published_artifacts": _tenant_artifacts(content)}
+    return ToolResult("", True, scrub(summary), message)
+
+
+def _tenant_artifacts(content: dict[str, Any]) -> list[dict[str, Any]]:
+    keys = ("id", "name", "sha256", "bytes", "media_type")
+    return [{key: item.get(key) for key in keys} for item in content.get("published_artifacts") or [] if isinstance(item, dict)]
+
+
 def _managed_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResult:
     from . import managed_tensor_train, tensor_inference
     from .training_control import digest, load_protocol, read_json, training_config
+    from .personal_tool_boundary import is_personal, session_tenant
+    if is_personal(session_tenant({"metadata": context.metadata})):
+        return _tenant_tensor_train(args, context)
     if not context.approval_verified:
         return ToolResult("", False, {}, "Registered GPU training requires exact approval", error="exact_approval_required")
     try:
@@ -4591,7 +4950,7 @@ def build_default_registry() -> ToolRegistry:
     add("hpc_calibration_status", "Read only the already-registered SIIM MLE-bench comparison and its separate campaign budget. This is not the general hpc_execute_solution budget or current allocation health. Use hpc_execution_budget_status for general budget errors. No training, remote inspection, submission or hidden scoring is performed.", {}, [], "hpc.read", siim_web_status)
     add("hpc_calibration_run", "Start/resume the registered SIIM MLE-bench study through this visible Assistant Run. Exact approval required. Uses existing fixed baseline, independent EvoMind + DeepSeek-V4-Pro and AIDE-adapted controls, original seeds/folds/data, preserved checkpoints and unchanged total 24 GPU-hour ledger. The sealed coordinator dispatches native isolated sessions; this tool waits and reports progress until candidates freeze or a real blocker occurs. Pause/cancel prevents subsequent child calls; a current bounded fit drains before stopping. Never submits to Kaggle or reads hidden labels. Do not run separate training scripts or create replacement studies. After a verified fix and full settlement, an explicitly authorized retry of the same Run requires a fresh operation_id and fresh exact approval; old operations and their receipts are immutable. Constant interface probes cannot complete training. Returns a verifiable receipt, not an official score.", {"campaign": {"enum": ["siim_mlebench_calibration_20260908"]}, "operation_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{4,40}$"}}, ["campaign"], "hpc.execute", siim_web_run, read_only=False)
     add("model_protocols", "List administrator-frozen model-data protocols for this exact user and project. Exposes schema and source identities, never evaluation labels or permission to submit a competition.", {}, [], "runtime.read", _model_protocols)
-    add("managed_tensor_train", "Fit one registered CUDA-only dense PyTorch model using an authorized data protocol. Coder must first write and hash a JSON configuration containing only hidden_sizes, epochs, batch_size, learning_rate and seed. Approval binds configuration_sha256, not just its path. The immutable managed adapter, not generated Python, executes. Returns safetensors checkpoint, predictions, hash-locked environment and independent predict.py. Does not provide official competition scores. Requires exact approval, fresh 5/5 HPC gate, GPU queue and configured study budget.", {"protocol_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "solution_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"}, "configuration_path": {"type": "string", "minLength": 1}, "configuration_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, ["protocol_id", "solution_id", "configuration_path", "configuration_sha256"], "hpc.execute", _managed_tensor_train, read_only=False)
+    add("managed_tensor_train", "Fit one registered CUDA-only dense PyTorch model using an authorized data protocol. Coder must first write and hash a JSON configuration containing only hidden_sizes, epochs, batch_size, learning_rate and seed. Approval binds configuration_sha256, not just its path. The immutable managed adapter, not generated Python, executes. Returns safetensors checkpoint, predictions, hash-locked environment and independent predict.py. Does not provide official competition scores. Requires exact approval, fresh 5/5 HPC gate, GPU queue and configured study budget. Tenant runs: talk to the person in plain Chinese only and never narrate hashes, protocol ids, adapters or hardware to them; protocol_id is the SHA-256 of one data file under inputs/ (CSV with a header row, or NPZ with x and y); the configuration also holds data_path (inputs/...), task (classification or regression) and optionally target_column (CSV, default last column); the run is time-shared and stops at its maximum run length.", {"protocol_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "solution_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"}, "configuration_path": {"type": "string", "minLength": 1}, "configuration_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, ["protocol_id", "solution_id", "configuration_path", "configuration_sha256"], "hpc.execute", _managed_tensor_train, read_only=False)
     add(
         "hpc_asset_probe",
         "Read metadata for the fixed CURE/MindGames managed package, model and manifest candidates after the complete current 5/5 identity gate. The tool cannot accept a path, command, job or profile; it never reads file contents or labels and never writes, signals, uploads, installs, downloads or starts training.",
@@ -4664,6 +5023,7 @@ def build_default_registry() -> ToolRegistry:
     add("attachment_list", "List verified files explicitly attached to this run.", {}, [], "attachment.read", _attachment_list)
     add("attachment_read", "Read a bounded preview of one verified attachment.", {"attachment_id": {"type": "string"}, "max_bytes": {"type": "integer"}, "encoding": {"type": "string"}}, ["attachment_id"], "attachment.read", _attachment_read)
     add("artifact_publish", "Verify and publish one final user-facing file from this task workspace.", {**path, "name": {"type": "string"}, "media_type": {"type": "string"}, "source_tool_call": {"type": "string"}}, ["path"], "artifact.write", _artifact_publish, read_only=False)
+    add("memory_remember", "Save one durable fact about the user (preference, background, training or work experience) to their long-term memory. Plain text, at most 2000 characters; never secrets. kind: profile|preference|project|fact|other. scope=project keeps it to the current project only.", {"text": {"type": "string", "minLength": 1, "maxLength": 4000}, "kind": {"type": "string", "enum": ["profile", "preference", "project", "fact", "other"]}, "scope": {"type": "string", "enum": ["user", "project"]}}, ["text"], "memory.write", _memory_remember, read_only=False)
     add("artifact_list", "List verified deliverables for this run with preview/download URLs.", {}, [], "artifact.read", _artifact_list)
     add(
         "managed_model_prepare",

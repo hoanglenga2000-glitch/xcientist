@@ -168,8 +168,11 @@ class MemoryLibrary:
         with 5000 records, exact "regression" filter returns 3000 results;
         semantic search returns the 8 that are TRULY relevant to the query.
         """
+        from ..feature_flags import ff_memory_vector
         from ..memory_vector_index import MemoryVectorIndex
 
+        # P0-MEM-02: skip vector query when MEMORY_VECTOR off (index.query also gates).
+        if not ff_memory_vector():
+            return []
         index = MemoryVectorIndex(self.store)
-        index.build()
         return index.query(query, k=k, task_type=task_type)

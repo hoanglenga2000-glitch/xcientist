@@ -136,10 +136,10 @@ def stream_request(request):
                 break
             data = assembler.feed(raw)
             if data is not None:
-                print(json.dumps({'data': data}, ensure_ascii=False), flush=True)
+                print(json.dumps({'data': data}, ensure_ascii=True), flush=True)
         tail = assembler.finish()
         if tail is not None:
-            print(json.dumps({'data': tail}, ensure_ascii=False), flush=True)
+            print(json.dumps({'data': tail}, ensure_ascii=True), flush=True)
     finally:
         connection.close()
         sock.close()
@@ -150,7 +150,14 @@ def public_error(error):
     return {'error': code if re.fullmatch(r'model_[a-z0-9_]{1,80}', code) else 'model_network_failed'}
 
 
-if __name__ == '__main__':
+def main():
+    # The wire is ASCII JSON, so no host code page (Windows cp936/GBK under `python -I`, which ignores
+    # PYTHONIOENCODING) can change a byte. Pinning UTF-8 as well keeps any future non-ASCII print honest.
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(encoding='utf-8')
+        except (AttributeError, ValueError, OSError):
+            pass
     try:
         raw = sys.stdin.buffer.read(3 * 1024 * 1024 + 1)
         if len(raw) > 3 * 1024 * 1024:
@@ -162,3 +169,7 @@ if __name__ == '__main__':
             print(json.dumps({'body': request(incoming)}), flush=True)
     except Exception as error:
         print(json.dumps(public_error(error)), flush=True)
+
+
+if __name__ == '__main__':
+    main()

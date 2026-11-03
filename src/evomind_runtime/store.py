@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
@@ -108,7 +109,38 @@ CREATE INDEX IF NOT EXISTS idx_assistant_runs_conversation ON assistant_runs(con
 CREATE INDEX IF NOT EXISTS idx_goal_records_run ON goal_records(run_id, updated_at);
 CREATE INDEX IF NOT EXISTS idx_attachments_run ON attachments(run_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_deliverables_run ON deliverables(run_id, verified_at);
+CREATE TABLE IF NOT EXISTS tenant_usage (
+  tenant_id TEXT PRIMARY KEY, bytes INTEGER, files INTEGER, updated_at TEXT
+);
+CREATE TABLE IF NOT EXISTS upload_quota (
+  upload_id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, bytes INTEGER NOT NULL,
+  files INTEGER NOT NULL, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_upload_quota_tenant ON upload_quota(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_attachments_upload ON attachments(upload_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_uploads_status ON uploads(status, updated_at);
+CREATE TABLE IF NOT EXISTS upload_claims (
+  upload_id TEXT PRIMARY KEY, claim_id TEXT NOT NULL, created_at TEXT
+);
+CREATE TABLE IF NOT EXISTS deletion_log (
+  id TEXT PRIMARY KEY, tenant_id TEXT NOT NULL, upload_id TEXT NOT NULL, attachment_id TEXT NOT NULL,
+  bytes INTEGER NOT NULL, files INTEGER NOT NULL, deleted_at TEXT NOT NULL, actor TEXT NOT NULL,
+  name_sha256 TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_deletion_log_upload ON deletion_log(upload_id);
+CREATE TABLE IF NOT EXISTS health_probe (
+  id INTEGER PRIMARY KEY, probed_at TEXT NOT NULL
+);
 """
+
+# Uploads in these states hold a quota reservation; anything else is released by reconcile.
+_RESERVED_UPLOAD_STATUSES = ("uploading", "completing", "complete")
+# Named columns: a DB opened by tip b244060 may carry a legacy, ignored uploads.claim_id column.
+# The uploads schema itself stays identical to cc69213 so a rollback's positional INSERT works.
+_UPLOAD_INSERT = (
+    "INSERT INTO uploads (id, original_name, safe_name, media_type, total_bytes, chunk_size, expected_sha256, "
+    "status, chunk_count, final_path, final_sha256, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)"
+)
 
 
 def _json(value: Any) -> str:
@@ -119,13 +151,33 @@ def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
     return dict(row) if row is not None else None
 
 
+DEFAULT_BUSY_TIMEOUT_MS = 5000
+APPEND_EVENT_LOCKED_RETRIES = 5
+
+
+def _busy_timeout_ms() -> int:
+    """`EVOMIND_SQLITE_BUSY_TIMEOUT_MS` (default 5000), clamped to [0, 600000]."""
+    try:
+        value = int(os.environ.get("EVOMIND_SQLITE_BUSY_TIMEOUT_MS", DEFAULT_BUSY_TIMEOUT_MS))
+    except ValueError:
+        value = DEFAULT_BUSY_TIMEOUT_MS
+    return max(0, min(value, 600_000))
+
+
+def _is_locked(error: sqlite3.OperationalError) -> bool:
+    text = str(error).lower()
+    return "database is locked" in text or "database table is locked" in text
+
+
 class RuntimeStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
-        self._connection = sqlite3.connect(str(self.path), check_same_thread=False)
+        self._connection = sqlite3.connect(str(self.path), check_same_thread=False, timeout=_busy_timeout_ms() / 1000)
         self._connection.row_factory = sqlite3.Row
+        # t238 C7b A3: every connection waits for a competing writer instead of failing fast.
+        self._connection.execute(f"PRAGMA busy_timeout={_busy_timeout_ms()}")
         with self._connection:
             self._connection.executescript(SCHEMA)
 
@@ -330,6 +382,8 @@ class RuntimeStore:
         terminal_states = {"completed", "blocked", "failed", "cancelled"}
         now = utc_now()
         with self._lock, self._connection:
+            if not self._connection.in_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")  # t238 C7b A3: seq allocation below
             session_row = self._connection.execute(
                 "SELECT status,metadata_json FROM sessions WHERE id=?",
                 (session_id,),
@@ -629,6 +683,8 @@ class RuntimeStore:
         goal_key = str(payload["goal_key"])
         goal_id = str(payload["id"])
         with self._lock, self._connection:
+            if not self._connection.in_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")  # t238 C7e A3: checks + seq under one write lock
             schema_issues = self.goal_records_schema_issues()
             if schema_issues:
                 raise ValueError("goal_records schema invalid: " + ",".join(schema_issues))
@@ -785,6 +841,8 @@ class RuntimeStore:
         updates["updated_at"] = str(updated_at or utc_now())
         assignments = ",".join(f"{key}=?" for key in updates)
         with self._lock, self._connection:
+            if not self._connection.in_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")  # t238 C7e A3: checks + seq under one write lock
             previous = self._connection.execute(
                 "SELECT * FROM goal_records WHERE id=?",
                 (str(goal_id),),
@@ -950,6 +1008,8 @@ class RuntimeStore:
         policy_evidence_sha256 = sha256_json(policy_evidence)
         now = utc_now()
         with self._lock, self._connection:
+            if not self._connection.in_transaction:
+                self._connection.execute("BEGIN IMMEDIATE")  # t238 C7e A3: checks + seq under one write lock
             row = self._connection.execute(
                 "SELECT * FROM goal_records WHERE id=?",
                 (str(goal_id),),
@@ -1459,13 +1519,28 @@ class RuntimeStore:
         return int(row["value"])
 
     def append_event(self, session_id: str, event_type: str, payload: dict[str, Any]) -> RunEvent:
-        with self._lock, self._connection:
-            event = RunEvent(new_id("evt"), session_id, self.next_seq(session_id), event_type, payload)
-            self._connection.execute(
-                "INSERT INTO events VALUES (?,?,?,?,?,?)",
-                (event.id, event.session_id, event.seq, event.event_type, _json(event.payload), event.created_at),
-            )
-        return event
+        """Append with `seq = MAX(seq)+1` under the database write lock (t238 C7b A3).
+
+        BEGIN IMMEDIATE takes the write lock before the MAX read, so another connection (a
+        second RuntimeStore on the same file) cannot allocate the same seq. A lock that
+        outlives busy_timeout is retried a bounded number of times, then re-raised.
+        """
+        attempt = 0
+        while True:
+            try:
+                with self._lock, self._connection:
+                    if not self._connection.in_transaction:
+                        self._connection.execute("BEGIN IMMEDIATE")
+                    event = RunEvent(new_id("evt"), session_id, self.next_seq(session_id), event_type, payload)
+                    self._connection.execute(
+                        "INSERT INTO events VALUES (?,?,?,?,?,?)",
+                        (event.id, event.session_id, event.seq, event.event_type, _json(event.payload), event.created_at),
+                    )
+                return event
+            except sqlite3.OperationalError as error:
+                attempt += 1
+                if not _is_locked(error) or attempt > APPEND_EVENT_LOCKED_RETRIES:
+                    raise
 
     def list_events(self, session_id: str, after_seq: int = 0, limit: int = 1000) -> list[dict[str, Any]]:
         with self._lock:
@@ -1502,13 +1577,29 @@ class RuntimeStore:
         return item
 
     def checkpoint(self, session_id: str, state: dict[str, Any]) -> dict[str, Any]:
+        """t238 C7e A3: the checkpoint row and its `checkpoint.created` event share one seq, allocated
+        under BEGIN IMMEDIATE (same bounded locked-retry as `append_event`)."""
         checkpoint_id = new_id("cp")
-        seq = self.next_seq(session_id)
-        created_at = utc_now()
-        with self._lock, self._connection:
-            self._connection.execute("INSERT INTO checkpoints VALUES (?,?,?,?,?)", (checkpoint_id, session_id, seq, _json(state), created_at))
-        self.append_event(session_id, "checkpoint.created", {"checkpoint_id": checkpoint_id, "state": state})
-        return {"id": checkpoint_id, "session_id": session_id, "seq": seq, "state": state, "created_at": created_at}
+        attempt = 0
+        while True:
+            try:
+                with self._lock, self._connection:
+                    if not self._connection.in_transaction:
+                        self._connection.execute("BEGIN IMMEDIATE")
+                    event = RunEvent(new_id("evt"), session_id, self.next_seq(session_id), "checkpoint.created",
+                                     {"checkpoint_id": checkpoint_id, "state": state})
+                    self._connection.execute("INSERT INTO checkpoints VALUES (?,?,?,?,?)",
+                                             (checkpoint_id, session_id, event.seq, _json(state), event.created_at))
+                    self._connection.execute(
+                        "INSERT INTO events VALUES (?,?,?,?,?,?)",
+                        (event.id, event.session_id, event.seq, event.event_type, _json(event.payload), event.created_at),
+                    )
+                break
+            except sqlite3.OperationalError as error:
+                attempt += 1
+                if not _is_locked(error) or attempt > APPEND_EVENT_LOCKED_RETRIES:
+                    raise
+        return {"id": checkpoint_id, "session_id": session_id, "seq": event.seq, "state": state, "created_at": event.created_at}
 
     def latest_checkpoint(self, session_id: str) -> dict[str, Any] | None:
         with self._lock:
@@ -1559,7 +1650,7 @@ class RuntimeStore:
     def put_upload(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock, self._connection:
             self._connection.execute(
-                "INSERT INTO uploads VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                _UPLOAD_INSERT,
                 (
                     payload["id"], payload["original_name"], payload["safe_name"], payload["media_type"],
                     int(payload["total_bytes"]), int(payload["chunk_size"]), payload.get("expected_sha256", ""),
@@ -1582,8 +1673,341 @@ class RuntimeStore:
         return result
 
     def get_upload(self, upload_id: str) -> dict[str, Any] | None:
+        """The upload row plus `claim_id`, the live completion claim (from upload_claims, else None)."""
         with self._lock:
-            return _row(self._connection.execute("SELECT * FROM uploads WHERE id=?", (upload_id,)).fetchone())
+            row = _row(self._connection.execute("SELECT * FROM uploads WHERE id=?", (upload_id,)).fetchone())
+            if row is None:
+                return None
+            claim = self._connection.execute(
+                "SELECT claim_id FROM upload_claims WHERE upload_id=?", (upload_id,)
+            ).fetchone()
+        row["claim_id"] = str(claim[0]) if claim else None  # a legacy uploads.claim_id value is never trusted
+        return row
+
+    def _usage(self, tenant_id: str) -> dict[str, Any]:
+        row = self._connection.execute(
+            "SELECT bytes, files FROM tenant_usage WHERE tenant_id=?", (tenant_id,)
+        ).fetchone()
+        return {"tenant_id": tenant_id, "bytes": int(row[0] or 0) if row else 0, "files": int(row[1] or 0) if row else 0}
+
+    def get_tenant_usage(self, tenant_id: str) -> dict[str, Any]:
+        with self._lock:
+            return self._usage(tenant_id)
+
+    def reserve_upload(
+        self, payload: dict[str, Any], tenant_id: str, *, max_bytes: int, max_files: int
+    ) -> tuple[bool, dict[str, Any]]:
+        """Check the tenant quota and insert the upload + its reservation in one write transaction.
+
+        BEGIN IMMEDIATE takes the database write lock before the read, so concurrent creators
+        (threads or other connections) serialize and cannot over-commit. 0 = unlimited.
+        Returns (accepted, usage) where usage is the state before a rejected reservation.
+        """
+        size = int(payload["total_bytes"])
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                usage = self._usage(tenant_id)
+                if (max_bytes > 0 and usage["bytes"] + size > max_bytes) or (max_files > 0 and usage["files"] + 1 > max_files):
+                    self._connection.rollback()
+                    return False, usage
+                self._connection.execute(
+                    _UPLOAD_INSERT,
+                    (
+                        payload["id"], payload["original_name"], payload["safe_name"], payload["media_type"],
+                        size, int(payload["chunk_size"]), payload.get("expected_sha256", ""),
+                        payload["status"], int(payload["chunk_count"]), payload.get("final_path", ""),
+                        payload.get("final_sha256", ""), payload["created_at"], payload["updated_at"],
+                    ),
+                )
+                self._connection.execute(
+                    "INSERT INTO upload_quota VALUES (?,?,?,?,?)",
+                    (payload["id"], tenant_id, size, 1, payload["created_at"]),
+                )
+                self._connection.execute(
+                    "INSERT INTO tenant_usage VALUES (?,?,?,?) ON CONFLICT(tenant_id) DO UPDATE SET "
+                    "bytes=COALESCE(bytes,0)+excluded.bytes, files=COALESCE(files,0)+excluded.files, updated_at=excluded.updated_at",
+                    (tenant_id, size, 1, utc_now()),
+                )
+                self._connection.commit()
+            except BaseException:
+                self._connection.rollback()
+                raise
+            return True, {"tenant_id": tenant_id, "bytes": usage["bytes"] + size, "files": usage["files"] + 1}
+
+    def _release_locked(self, upload_id: str) -> bool:
+        row = self._connection.execute(
+            "SELECT tenant_id, bytes, files FROM upload_quota WHERE upload_id=?", (upload_id,)
+        ).fetchone()
+        if row is None:
+            return False
+        self._connection.execute("DELETE FROM upload_quota WHERE upload_id=?", (upload_id,))
+        self._connection.execute(
+            "UPDATE tenant_usage SET bytes=MAX(0,COALESCE(bytes,0)-?), files=MAX(0,COALESCE(files,0)-?), updated_at=? WHERE tenant_id=?",
+            (int(row[1]), int(row[2]), utc_now(), row[0]),
+        )
+        return True
+
+    def release_upload_reservation(self, upload_id: str) -> bool:
+        with self._lock, self._connection:
+            return self._release_locked(upload_id)
+
+    def add_upload_reservation(self, upload_id: str, tenant_id: str, total_bytes: int) -> bool:
+        """Backfill a ledger row for a legacy upload (no quota check). False if one already exists."""
+        with self._lock, self._connection:
+            inserted = self._connection.execute(
+                "INSERT OR IGNORE INTO upload_quota VALUES (?,?,?,?,?)",
+                (upload_id, tenant_id, int(total_bytes), 1, utc_now()),
+            ).rowcount
+        return bool(inserted)
+
+    def uploads_without_reservation(self) -> list[dict[str, Any]]:
+        marks = ",".join("?" for _ in _RESERVED_UPLOAD_STATUSES)
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT * FROM uploads WHERE status IN ({marks}) AND id NOT IN (SELECT upload_id FROM upload_quota)",
+                _RESERVED_UPLOAD_STATUSES,
+            ).fetchall()
+        return [dict(item) for item in rows]
+
+    def reconcile_tenant_usage(self) -> dict[str, dict[str, int]]:
+        """Recompute tenant_usage from the reservation ledger of live uploads; drop orphan rows."""
+        marks = ",".join("?" for _ in _RESERVED_UPLOAD_STATUSES)
+        with self._lock, self._connection:
+            self._connection.execute(
+                f"DELETE FROM upload_quota WHERE upload_id NOT IN (SELECT id FROM uploads WHERE status IN ({marks}))",
+                _RESERVED_UPLOAD_STATUSES,
+            )
+            self._connection.execute("DELETE FROM tenant_usage")
+            now = utc_now()
+            self._connection.execute(
+                "INSERT INTO tenant_usage SELECT tenant_id, SUM(bytes), SUM(files), ? FROM upload_quota GROUP BY tenant_id",
+                (now,),
+            )
+            rows = self._connection.execute("SELECT tenant_id, bytes, files FROM tenant_usage").fetchall()
+        return {str(row[0]): {"bytes": int(row[1] or 0), "files": int(row[2] or 0)} for row in rows}
+
+    def transition_upload(self, upload_id: str, from_status: str, to_status: str) -> bool:
+        """Compare-and-set on uploads.status; True only for the caller that made the transition."""
+        with self._lock, self._connection:
+            changed = self._connection.execute(
+                "UPDATE uploads SET status=?, updated_at=? WHERE id=? AND status=?",
+                (to_status, utc_now(), upload_id, from_status),
+            ).rowcount
+        return bool(changed)
+
+    # Owner check used by every claim CAS: the row is completing AND upload_claims names this claim.
+    _OWNED = "status='completing' AND EXISTS (SELECT 1 FROM upload_claims c WHERE c.upload_id=uploads.id AND c.claim_id=?)"
+
+    def claim_upload(self, upload_id: str, claim_id: str) -> bool:
+        """uploading → completing, owned by `claim_id` (the per-complete owner token)."""
+        with self._lock, self._connection:
+            changed = self._connection.execute(
+                "UPDATE uploads SET status='completing', updated_at=? WHERE id=? AND status='uploading'",
+                (utc_now(), upload_id),
+            ).rowcount
+            if changed:
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO upload_claims VALUES (?,?,?)", (upload_id, claim_id, utc_now())
+                )
+        return bool(changed)
+
+    def takeover_upload_claim(self, upload_id: str, old_claim: str | None, observed_updated_at: str, claim_id: str) -> bool:
+        """Replace a stale claim only if it is exactly the one observed (owner and heartbeat unchanged)."""
+        owner = (
+            "NOT EXISTS (SELECT 1 FROM upload_claims c WHERE c.upload_id=uploads.id)" if old_claim is None
+            else "EXISTS (SELECT 1 FROM upload_claims c WHERE c.upload_id=uploads.id AND c.claim_id=?)"
+        )
+        params: tuple[Any, ...] = (utc_now(), upload_id, observed_updated_at) + (() if old_claim is None else (old_claim,))
+        with self._lock, self._connection:
+            changed = self._connection.execute(
+                f"UPDATE uploads SET updated_at=? WHERE id=? AND status='completing' AND updated_at=? AND {owner}", params
+            ).rowcount
+            if changed:
+                self._connection.execute(
+                    "INSERT OR REPLACE INTO upload_claims VALUES (?,?,?)", (upload_id, claim_id, utc_now())
+                )
+        return bool(changed)
+
+    def heartbeat_upload_claim(self, upload_id: str, claim_id: str) -> bool:
+        """Refresh a live claim; False means the claim was taken over or reset."""
+        with self._lock, self._connection:
+            return bool(self._connection.execute(
+                f"UPDATE uploads SET updated_at=? WHERE id=? AND {self._OWNED}", (utc_now(), upload_id, claim_id)
+            ).rowcount)
+
+    def release_upload_claim(self, upload_id: str, claim_id: str) -> bool:
+        """completing → uploading, only by the claim's owner."""
+        with self._lock, self._connection:
+            changed = self._connection.execute(
+                f"UPDATE uploads SET status='uploading', updated_at=? WHERE id=? AND {self._OWNED}",
+                (utc_now(), upload_id, claim_id),
+            ).rowcount
+            if changed:
+                self._connection.execute("DELETE FROM upload_claims WHERE upload_id=?", (upload_id,))
+        return bool(changed)
+
+    def upload_claim_is(self, upload_id: str, claim_id: str) -> bool:
+        with self._lock:
+            return self._connection.execute(
+                f"SELECT 1 FROM uploads WHERE id=? AND {self._OWNED}", (upload_id, claim_id)
+            ).fetchone() is not None
+
+    def commit_completed_upload(
+        self, upload_id: str, claim_id: str, *, final_path: str, final_sha256: str, media_type: str, attachment: dict[str, Any]
+    ) -> dict[str, Any] | None:
+        """completing(claim_id) → complete and insert the library attachment in one transaction.
+
+        None if this claim no longer owns the upload (taken over or reset); nothing is written then.
+        """
+        with self._lock, self._connection:
+            changed = self._connection.execute(
+                "UPDATE uploads SET status='complete', final_path=?, final_sha256=?, media_type=?, updated_at=? "
+                f"WHERE id=? AND {self._OWNED}",
+                (final_path, final_sha256, media_type, utc_now(), upload_id, claim_id),
+            ).rowcount
+            if not changed:
+                return None
+            self._connection.execute("DELETE FROM upload_claims WHERE upload_id=?", (upload_id,))
+            self._connection.execute(
+                "INSERT INTO attachments VALUES (?,?,?,?,?,?,?,?,?)",
+                (
+                    attachment["id"], upload_id, attachment.get("run_id", ""), attachment["name"],
+                    attachment["path"], attachment["media_type"], int(attachment["bytes"]), attachment["sha256"],
+                    attachment["created_at"],
+                ),
+            )
+        return self.get_upload(upload_id)
+
+    def reset_completing_uploads(self) -> list[str]:
+        with self._lock, self._connection:
+            ids = [str(row[0]) for row in self._connection.execute("SELECT id FROM uploads WHERE status='completing'")]
+            self._connection.execute(
+                "UPDATE uploads SET status='uploading', updated_at=? WHERE status='completing'", (utc_now(),)
+            )
+            # No upload is completing any more: every claim row (incl. orphans from a rollback) is dead.
+            self._connection.execute("DELETE FROM upload_claims")
+        return ids
+
+    def list_stale_uploads(self, cutoff: str, statuses: tuple[str, ...] = ("uploading", "completing")) -> list[dict[str, Any]]:
+        """Incomplete uploads with no upload or chunk activity since `cutoff` (ISO-8601 UTC)."""
+        marks = ",".join("?" for _ in statuses)
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT * FROM uploads u WHERE u.status IN ({marks}) AND u.updated_at < ? "
+                "AND NOT EXISTS (SELECT 1 FROM upload_chunks c WHERE c.upload_id=u.id AND c.created_at >= ?)",
+                (*statuses, cutoff, cutoff),
+            ).fetchall()
+        return [dict(item) for item in rows]
+
+    def delete_abandoned_upload(
+        self, upload_id: str, cutoff: str, statuses: tuple[str, ...] = ("uploading", "completing")
+    ) -> bool:
+        """Delete an incomplete upload's chunk rows, reservation and row in one transaction.
+
+        Staleness is re-checked inside the transaction, so activity after the listing wins.
+        """
+        marks = ",".join("?" for _ in statuses)
+        with self._lock, self._connection:
+            row = self._connection.execute(
+                f"SELECT 1 FROM uploads u WHERE u.id=? AND u.status IN ({marks}) AND u.updated_at < ? "
+                "AND NOT EXISTS (SELECT 1 FROM upload_chunks c WHERE c.upload_id=u.id AND c.created_at >= ?)",
+                (upload_id, *statuses, cutoff, cutoff),
+            ).fetchone()
+            if row is None or self._connection.execute(
+                "SELECT 1 FROM attachments WHERE upload_id=? LIMIT 1", (upload_id,)
+            ).fetchone():
+                return False
+            self._release_locked(upload_id)
+            self._connection.execute("DELETE FROM upload_claims WHERE upload_id=?", (upload_id,))
+            self._connection.execute("DELETE FROM upload_chunks WHERE upload_id=?", (upload_id,))
+            self._connection.execute("DELETE FROM uploads WHERE id=?", (upload_id,))
+        return True
+
+    def list_uploads_with_status(self, status: str, limit: int = 5000) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM uploads WHERE status=? ORDER BY updated_at LIMIT ?", (status, max(1, int(limit)))
+            ).fetchall()
+        return [dict(item) for item in rows]
+
+    def upload_tenant(self, upload_id: str) -> str:
+        """The tenant key the upload's quota reservation is charged to ('' when none)."""
+        with self._lock:
+            row = self._connection.execute("SELECT tenant_id FROM upload_quota WHERE upload_id=?", (upload_id,)).fetchone()
+        return str(row[0]) if row else ""
+
+    def mark_upload_deleting(self, upload_id: str) -> str:
+        """CAS complete/uploading → deleting (t238 C7b D6). Returns the resulting status ('' if no row).
+
+        The reservation stays until the rows are removed, so a crash here keeps usage honest;
+        reconcile releases it (`deleting` is not a reserved status) and start-up finishes the delete.
+        """
+        with self._lock, self._connection:
+            self._connection.execute(
+                "UPDATE uploads SET status='deleting',updated_at=? WHERE id=? AND status IN ('complete','uploading')",
+                (utc_now(), upload_id),
+            )
+            row = self._connection.execute("SELECT status FROM uploads WHERE id=?", (upload_id,)).fetchone()
+        return str(row[0]) if row else ""
+
+    def unmark_upload_deleting(self, upload_id: str) -> bool:
+        """CAS deleting → complete (t238 C7b D6-M1: a delete refused before any file was removed)."""
+        with self._lock, self._connection:
+            cursor = self._connection.execute(
+                "UPDATE uploads SET status='complete',updated_at=? WHERE id=? AND status='deleting' AND final_path<>''",
+                (utc_now(), upload_id),
+            )
+        return cursor.rowcount == 1
+
+    def finish_upload_delete(self, upload_id: str, log_entry: dict[str, Any]) -> bool:
+        """Remove every row of a `deleting` upload, release its usage and append deletion_log — one transaction."""
+        with self._lock, self._connection:
+            row = self._connection.execute("SELECT status FROM uploads WHERE id=?", (upload_id,)).fetchone()
+            if row is None or row[0] != "deleting":
+                return False
+            self._release_locked(upload_id)
+            for table, column in (("attachments", "upload_id"), ("upload_chunks", "upload_id"),
+                                  ("upload_claims", "upload_id"), ("uploads", "id")):
+                self._connection.execute(f"DELETE FROM {table} WHERE {column}=?", (upload_id,))
+            self._connection.execute(
+                "INSERT INTO deletion_log VALUES (?,?,?,?,?,?,?,?,?)",
+                (new_id("deletion"), log_entry["tenant_id"], upload_id, log_entry["attachment_id"],
+                 int(log_entry["bytes"]), int(log_entry["files"]), utc_now(), log_entry["actor"], log_entry["name_sha256"]),
+            )
+        return True
+
+    def deleted_upload_ids(self) -> list[tuple[str, str]]:
+        """(upload_id, library attachment_id) of every logged delete (t238 C7b H2 owner-row repair)."""
+        with self._lock:
+            rows = self._connection.execute("SELECT DISTINCT upload_id, attachment_id FROM deletion_log").fetchall()
+        return [(str(row[0]), str(row[1])) for row in rows]
+
+    def deletion_logged(self, upload_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT * FROM deletion_log WHERE upload_id=? ORDER BY deleted_at DESC LIMIT 1", (upload_id,)
+            ).fetchone()
+        return _row(row)
+
+    def health_probe(self) -> None:
+        """Write + read inside a transaction that is always rolled back (t238 C7b O2); no business table touched."""
+        with self._lock:
+            self._connection.execute("BEGIN IMMEDIATE")
+            try:
+                self._connection.execute("INSERT INTO health_probe(probed_at) VALUES (?)", (utc_now(),))
+                self._connection.execute("SELECT COUNT(*) FROM health_probe").fetchone()
+            finally:
+                self._connection.rollback()
+
+    def queue_depth(self) -> dict[str, int]:
+        with self._lock:
+            pending = self._connection.execute(
+                "SELECT COUNT(*) FROM assistant_runs WHERE status NOT IN ('completed','blocked','failed','cancelled')"
+            ).fetchone()[0]
+            completing = self._connection.execute("SELECT COUNT(*) FROM uploads WHERE status='completing'").fetchone()[0]
+            deleting = self._connection.execute("SELECT COUNT(*) FROM uploads WHERE status='deleting'").fetchone()[0]
+        return {"active_runs": int(pending), "uploads_completing": int(completing), "uploads_deleting": int(deleting)}
 
     def put_upload_chunk(self, payload: dict[str, Any]) -> dict[str, Any]:
         with self._lock, self._connection:
@@ -1636,6 +2060,28 @@ class RuntimeStore:
         query += " ORDER BY created_at"
         with self._lock:
             rows = self._connection.execute(query, params).fetchall()
+        return [dict(item) for item in rows]
+
+    def delete_run_attachments(self, run_id: str) -> int:
+        """Drop the clone rows of one run (t238 C7b N-M1 rollback of a run that was never created)."""
+        if not run_id:
+            return 0
+        with self._lock, self._connection:
+            return self._connection.execute("DELETE FROM attachments WHERE run_id=?", (run_id,)).rowcount
+
+    def get_attachment_by_upload_id(self, upload_id: str) -> dict[str, Any] | None:
+        """The earliest attachment of an upload (the library row), via idx_attachments_upload."""
+        with self._lock:
+            return _row(self._connection.execute(
+                "SELECT * FROM attachments WHERE upload_id=? ORDER BY created_at LIMIT 1", (upload_id,)
+            ).fetchone())
+
+    def list_attachments_by_upload_id(self, upload_id: str, limit: int = 500) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT * FROM attachments WHERE upload_id=? ORDER BY created_at LIMIT ?",
+                (upload_id, max(1, min(int(limit), 5000))),
+            ).fetchall()
         return [dict(item) for item in rows]
 
     def bind_attachment(self, attachment_id: str, run_id: str, path: str) -> dict[str, Any]:

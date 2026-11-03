@@ -23,7 +23,7 @@ import { assistantRunTaskLabel } from "@/lib/task-context";
 import { VerifiedReportDocument } from "./AssistantReportPanel";
 import { AssistantControlledCredentials, type AssistantControlledCredentialsHandle } from "./AssistantControlledCredentials";
 import { isConfirmedControlledSecretBinding, isExactPendingWeatherAcceleration } from "./controlled-secret-binding";
-import { DeepEvoGlyph, DeepEvoLockup } from "../DeepEvoBrand";
+import { DeepEvoLockup, DeepEvoMark } from "../DeepEvoBrand";
 import { assistantActivityIdentity, upsertAssistantActivity } from "./assistant-activity.mjs";
 import { RunProgressPanel, type RunProgress } from "./RunProgressPanel";
 import { assistantArtifactLabel, assistantMessagePresentation, isAssistantExecutionRecord } from "./assistant-presentation";
@@ -1441,7 +1441,7 @@ export function AssistantScreen({
       {loginRequired ? <div role="alert" className="flex shrink-0 items-center justify-between gap-2 border-b border-warning/40 bg-warning-light p-3 text-xs text-warning-text"><span>{tx(locale, "登录已过期，后台任务不会因此重新启动。草稿已保留。", "Session expired. Background work is not restarted; your draft is retained.")}</span><a className="shrink-0 underline" href={`/login?next=${encodeURIComponent(typeof window === "undefined" ? "/?page=assistant" : window.location.pathname + window.location.search)}`}>{tx(locale, "重新登录", "Sign in")}</a></div> : null}
       <div className="flex h-14 shrink-0 items-center border-b border-edge/80 bg-surface-raised/82 px-3 shadow-sm backdrop-blur-xl sm:px-5">
         <div className="flex min-w-0 items-center gap-2">
-          <DeepEvoGlyph size={22} className="ring-1 ring-edge/80" />
+          <DeepEvoMark size={22} label="DeepEvo 深度进化" className="text-ink" />
           <div className="min-w-0">
             <h1 className="truncate text-sm font-semibold leading-4 text-ink">DeepEvo</h1>
             <p className="hidden truncate text-[10px] leading-4 text-ink-muted sm:block">{tx(locale, "可复现研究工作台", "Reproducible research workspace")}</p>
@@ -1480,7 +1480,7 @@ export function AssistantScreen({
             <div className="my-auto flex items-center justify-center gap-2 py-10 text-sm text-ink-muted"><Loader2 className="h-4 w-4 animate-spin" />{tx(locale, "正在恢复服务端会话", "Restoring server-side conversation")}</div>
           ) : messages.length === 0 ? (
             <div className="my-auto rounded-2xl border border-edge/70 bg-surface-raised/72 p-6 shadow-sm backdrop-blur sm:p-8">
-              <DeepEvoLockup height={48} className="mb-5 rounded-lg shadow-sm" />
+              <DeepEvoLockup width={180} className="mb-5" />
               <h2 className="text-2xl font-semibold text-ink">{tx(locale, "今天需要处理什么？", "What should we work on?")}</h2>
               <p className="mt-2 text-sm text-ink-muted">{tx(locale, "描述任务或添加数据，系统会先确认执行方案与资源，再开始工作。", "Describe a task or attach data. The system will establish the plan and resources before execution.")}</p>
               <div className="mt-6 grid gap-2 sm:grid-cols-2">
@@ -1505,8 +1505,8 @@ export function AssistantScreen({
                 return (
                 <article key={message.id} className={cn("group flex gap-3", message.role === "user" && "justify-end")}>
                   {message.role === "assistant" ? (
-                    <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-frame">
-                      <DeepEvoGlyph size={22} animated={false} />
+                    <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black text-white">
+                      <DeepEvoMark size={22} />
                     </span>
                   ) : null}
                   <div className={cn(

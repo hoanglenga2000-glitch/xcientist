@@ -1,0 +1,40 @@
+{
+  "source": "GATEWAY_PROBE.md",
+  "probed_at": "2026-10-26",
+  "gateway_host": "api.lt4net.org",
+  "endpoint": "/v1/messages",
+  "note": "Ids that returned HTTP 200 on the lt4net gateway (NewAPI group kiro) in one real call each. Every GPT/Grok/DeepSeek/Kimi id returned 503 model_not_found and is not listed. Pure aliases are kept once (hyphen form); aliases maps the dropped spelling to the kept id.",
+  "models": [
+    "claude-opus-5-5",
+    "claude-opus-5-5-thinking",
+    "claude-opus-5",
+    "claude-opus-5-thinking",
+    "claude-opus-4-8",
+    "claude-opus-4-8-thinking",
+    "claude-opus-4-7",
+    "claude-opus-4-7-thinking",
+    "claude-opus-4-6",
+    "claude-opus-4-6-thinking",
+    "claude-opus-4-5",
+    "claude-sonnet-5-5",
+    "claude-sonnet-5",
+    "claude-sonnet-5-thinking",
+    "claude-sonnet-4-6",
+    "claude-haiku-5-5",
+    "claude-haiku-5-5-thinking",
+    "claude-haiku-5-5-agentic",
+    "claude-haiku-4-5"
+  ],
+  "aliases": {
+    "claude-haiku-5.5": "claude-haiku-5-5",
+    "claude-sonnet-5.5": "claude-sonnet-5-5",
+    "claude-haiku-4-5-20251001": "claude-haiku-4-5",
+    "claude-opus-5.5": "claude-opus-5-5",
+    "claude-opus-4.8": "claude-opus-4-8",
+    "claude-opus-4.7": "claude-opus-4-7",
+    "claude-opus-4.6": "claude-opus-4-6",
+    "claude-opus-4.5": "claude-opus-4-5",
+    "claude-sonnet-4.6": "claude-sonnet-4-6",
+    "claude-haiku-4.5": "claude-haiku-4-5"
+  }
+}
