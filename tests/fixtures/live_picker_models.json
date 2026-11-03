@@ -1,0 +1,134 @@
+[
+ {
+  "id": "anthropic:claude-sonnet-5-5",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-5-5",
+  "provider": "anthropic",
+  "model": "claude-opus-5-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-5-5-thinking",
+  "provider": "anthropic",
+  "model": "claude-opus-5-5-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-5",
+  "provider": "anthropic",
+  "model": "claude-opus-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-5-thinking",
+  "provider": "anthropic",
+  "model": "claude-opus-5-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-8",
+  "provider": "anthropic",
+  "model": "claude-opus-4-8",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-8-thinking",
+  "provider": "anthropic",
+  "model": "claude-opus-4-8-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-7",
+  "provider": "anthropic",
+  "model": "claude-opus-4-7",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-7-thinking",
+  "provider": "anthropic",
+  "model": "claude-opus-4-7-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-6",
+  "provider": "anthropic",
+  "model": "claude-opus-4-6",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-6-thinking",
+  "provider": "anthropic",
+  "model": "claude-opus-4-6-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-opus-4-5",
+  "provider": "anthropic",
+  "model": "claude-opus-4-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-sonnet-5",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-sonnet-5-thinking",
+  "provider": "anthropic",
+  "model": "claude-sonnet-5-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-sonnet-4-6",
+  "provider": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-haiku-5-5",
+  "provider": "anthropic",
+  "model": "claude-haiku-5-5",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-haiku-5-5-thinking",
+  "provider": "anthropic",
+  "model": "claude-haiku-5-5-thinking",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-haiku-5-5-agentic",
+  "provider": "anthropic",
+  "model": "claude-haiku-5-5-agentic",
+  "label": ""
+ },
+ {
+  "id": "anthropic:claude-haiku-4-5",
+  "provider": "anthropic",
+  "model": "claude-haiku-4-5",
+  "label": ""
+ },
+ {
+  "id": "deepseek:deepseek-flash",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "label": ""
+ },
+ {
+  "id": "openai:gpt-4o",
+  "provider": "openai",
+  "model": "gpt-4o",
+  "label": ""
+ },
+ {
+  "id": "openai:gpt-4o-mini",
+  "provider": "openai",
+  "model": "gpt-4o-mini",
+  "label": ""
+ }
+]
