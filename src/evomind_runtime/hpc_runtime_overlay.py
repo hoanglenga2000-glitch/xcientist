@@ -72,6 +72,42 @@ class HpcRuntime(_ReleaseHpcRuntime):
         self._solution_deps_base = self.remote_solution_deps
         # 2026-11-03: set by prestage_environment(); execute_solution then skips the (long) dependency step inside the lease.
         self.environment_prestaged: dict[str, Any] | None = None
+        # 2026-11-03: set by prestage_bundle(); execute_solution reuses the upload when the bundle fingerprint matches.
+        self.bundle_prestaged: dict[str, Any] | None = None
+
+    def prestage_bundle(self, *, solution_id: str, script_path: str | Path, data_dir: str | Path) -> dict[str, Any] | None:
+        """Upload the bundle (script + inputs) BEFORE queueing for the card. Never raises; on failure execute_solution uploads."""
+        try:
+            self._stop_if_cancelled()
+            solution_id = _validate_component(solution_id, "solution_id")
+            script = Path(script_path)
+            local = Path(data_dir)
+            if script.is_symlink() or not script.is_file() or local.is_symlink() or not local.is_dir():
+                return None
+            files: dict[str, Path] = {"work/train_gpu.py": script}
+            count = size = 0
+            for path in sorted(local.rglob("*"), key=lambda value: value.as_posix().casefold()):
+                if path.is_symlink():
+                    return None
+                if not path.is_file():
+                    continue
+                count += 1
+                size += path.stat().st_size
+                if count > _MAX_SOLUTION_INPUT_FILES or size > _MAX_SOLUTION_INPUT_BYTES:
+                    return None
+                files[f"inputs/{_validate_relative_path(path.relative_to(local).as_posix())}"] = path
+            if count == 0:
+                return None
+            fingerprint = hashlib.sha256("".join(f"{relative}\0{_sha256(path)}\n" for relative, path in sorted(files.items())).encode("utf-8")).hexdigest()
+            remote_subdir = f"solutions/{solution_id}/bundle_{fingerprint[:16]}"
+            stage = self.stage_bundle(files, remote_subdir=remote_subdir)
+        except DispatchCancelled:
+            raise
+        except Exception:  # noqa: BLE001
+            self.bundle_prestaged = None
+            return None
+        self.bundle_prestaged = {"remote_subdir": remote_subdir, "stage": stage}
+        return self.bundle_prestaged
 
     def use_shared_environment(self) -> None:
         """One verified environment per exact pin set, shared by every run (see dependency_lock.prepare_target)."""
@@ -493,7 +529,11 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 fingerprint_source += f"private_input\0{name}\0{hashlib.sha256(payload).hexdigest()}\n"
             bundle_fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
             remote_subdir = f"solutions/{solution_id}/bundle_{bundle_fingerprint[:16]}"
-            stage = self.stage_bundle(bundle_files, remote_subdir=remote_subdir)
+            prestaged = self.bundle_prestaged
+            if prestaged and prestaged.get("remote_subdir") == remote_subdir and not supplied_secrets:
+                stage = prestaged["stage"]  # 2026-11-03: uploaded before queueing; same fingerprint = same files
+            else:
+                stage = self.stage_bundle(bundle_files, remote_subdir=remote_subdir)
             remote_bundle = _validate_remote(str(stage["remote_dir"]))
             remote_inputs = persistent_root or _validate_remote(posixpath.join(remote_bundle, "inputs"))
             remote_script = _validate_remote(posixpath.join(remote_bundle, "work", "train_gpu.py"))

@@ -4188,6 +4188,12 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
             from .hpc_runtime_overlay import DispatchCancelled
             try:
                 runtime.prestage_environment(execute_args["script_path"])
+                if execute_args.get("data_dir") is not None and not execute_args.get("secret_files"):
+                    if context.progress:
+                        context.progress(source="managed_adapter", work_kind="preparing", phase="staging_solution", worker_state="observed",
+                                         detail="Uploading the training data before queueing")
+                    runtime.prestage_bundle(solution_id=str(execute_args.get("solution_id") or "solution"),
+                                            script_path=execute_args["script_path"], data_dir=execute_args["data_dir"])
             except DispatchCancelled:
                 return ToolResult("", False, {"remote_dispatched": False}, gpu_admission.message("cancelled"), error="gpu_cancelled")
             runtime.cancel_check = None

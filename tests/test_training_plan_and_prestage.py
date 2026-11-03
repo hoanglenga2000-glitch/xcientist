@@ -131,3 +131,37 @@ def test_shared_root_that_fails_verification_is_set_aside_and_rebuilt(tmp_path, 
     monkeypatch.setattr(dependency_lock, "_prepare_target", fake)
     assert dependency_lock.prepare_target(root, {"x": "1"}) == {"reused": False}
     assert len(attempts) == 2 and any(p.name.startswith("abc.aside-") for p in root.parent.iterdir())
+
+
+def test_prestaged_bundle_is_reused_by_execute_solution_when_the_fingerprint_matches(tmp_path):
+    script = tmp_path / "train.py"
+    script.write_text("print(1)\n", encoding="utf-8")
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "training.npz").write_bytes(b"abc")
+    runtime = HpcRuntime(run_id="run_bundle", local_run_dir=tmp_path / "hpc", connector=lambda: None)
+    uploads = []
+    runtime.stage_bundle = lambda files, remote_subdir: uploads.append(remote_subdir) or {"remote_dir": runtime.remote_run_dir + "/" + remote_subdir}  # type: ignore[method-assign]
+    first = runtime.prestage_bundle(solution_id="s1", script_path=script, data_dir=data)
+    assert first and first["remote_subdir"].startswith("solutions/s1/bundle_") and len(uploads) == 1
+    runtime.environment_prestaged = {"status": "ready"}
+    runtime.on_dispatch = lambda: False  # stop right at the dispatch gate: everything before it ran
+    runtime._connector = lambda: SimpleNamespace(close=lambda: None)  # type: ignore[assignment]
+    result = runtime.execute_solution(solution_id="s1", script_path=script, data_dir=data)
+    assert len(uploads) == 1, "execute_solution must not upload the same bundle again"
+    assert result.failure_type == "cancelled"
+    (data / "training.npz").write_bytes(b"changed")
+    runtime.on_dispatch = lambda: False
+    runtime.execute_solution(solution_id="s1", script_path=script, data_dir=data)
+    assert len(uploads) == 2, "a changed input is uploaded again"
+
+
+def test_prestage_bundle_refuses_symlinks_and_empty_inputs(tmp_path):
+    script = tmp_path / "train.py"
+    script.write_text("print(1)\n", encoding="utf-8")
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    runtime = HpcRuntime(run_id="run_bundle2", local_run_dir=tmp_path / "hpc", connector=lambda: None)
+    runtime.stage_bundle = lambda *_a, **_k: pytest.fail("must not upload")  # type: ignore[method-assign]
+    assert runtime.prestage_bundle(solution_id="s1", script_path=script, data_dir=empty) is None
+    assert runtime.prestage_bundle(solution_id="../x", script_path=script, data_dir=empty) is None
