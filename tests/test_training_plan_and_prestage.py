@@ -165,3 +165,50 @@ def test_prestage_bundle_refuses_symlinks_and_empty_inputs(tmp_path):
     runtime.stage_bundle = lambda *_a, **_k: pytest.fail("must not upload")  # type: ignore[method-assign]
     assert runtime.prestage_bundle(solution_id="s1", script_path=script, data_dir=empty) is None
     assert runtime.prestage_bundle(solution_id="../x", script_path=script, data_dir=empty) is None
+
+
+def _store_with(calls):
+    return SimpleNamespace(list_tool_calls=lambda _sid, limit=500: calls)
+
+
+def test_training_completion_text_reports_the_headline_metrics_in_chinese():
+    from evomind_runtime.runtime import _training_completion_text
+    ok = {"tool_name": "managed_tensor_train", "result": {"ok": True, "content": {"managed_training": {
+        "task": "classification", "metrics": {"accuracy": 0.9649, "macro_f1": 0.96, "roc_auc": 0.9843, "holdout_rows": 113}}}}}
+    text = _training_completion_text(_store_with([ok]), "s")
+    assert text.startswith("训练完成。") and "准确率 0.9649" in text and "ROC-AUC 0.9843" in text and "113 行" in text
+    reg = {"tool_name": "managed_tensor_train", "result": {"ok": True, "content": {"managed_training": {
+        "task": "regression", "metrics": {"rmse": 0.61, "mae": 0.48, "r2": 0.41, "holdout_rows": 319}}}}}
+    assert "RMSE 0.6100" in _training_completion_text(_store_with([ok, reg]), "s")
+    failed = {"tool_name": "managed_tensor_train", "result": {"ok": False, "content": {}}}
+    assert _training_completion_text(_store_with([failed]), "s") == ""
+    assert _training_completion_text(_store_with([{"tool_name": "file_write", "result": {"ok": True}}]), "s") == ""
+
+
+def test_empty_answer_after_an_approved_training_completes_the_run_instead_of_blocking(tmp_path, monkeypatch):
+    """Live 2026-11-03: Opus 5.5 answered empty 3x after a successful approved training -> run was marked blocked."""
+    from research_os.agent import messaging
+    from evomind_runtime.runtime import AgentRuntime
+
+    class EmptyClient:
+        def is_available(self):
+            return True
+
+        def send(self, messages, *, system, tools, max_tokens):
+            return messaging.AssistantTurn(text="", tool_calls=[], stop_reason="end_turn", raw_content=[], provider="anthropic", model="claude-opus-5.5")
+
+    monkeypatch.setattr(messaging, "AgentMessageClient", EmptyClient)
+    runtime = AgentRuntime(tmp_path)
+    try:
+        run = runtime.assistant.create_run(prompt="train", conversation_id="empty_after_training", start=False)
+        output = Path(run["task_root"]) / "outputs" / "metrics.json"
+        output.write_text('{"accuracy":0.96}\n', encoding="utf-8")
+        runtime.assistant.publish_path(run["id"], output, source_tool_call="managed_tensor_train")
+        evidence = {"ok": True, "content": {"managed_training": {"task": "classification", "metrics": {"accuracy": 0.96, "holdout_rows": 20}}}}
+        monkeypatch.setattr(runtime.store, "list_tool_calls", lambda _sid, limit=500: [{"tool_name": "managed_tensor_train", "result": evidence}])
+        result = runtime.message(run["id"], "continue")
+        assert result["status"] == "completed"
+        assert result["text"].startswith("训练完成。") and "准确率 0.9600" in result["text"]
+        assert result["model_execution"]["completion_mode"] == "verified_artifact_fallback"
+    finally:
+        runtime.close()

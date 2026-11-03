@@ -45,6 +45,34 @@ def _history_has_tool_activity(messages: list[dict[str, Any]]) -> bool:
     return False
 
 
+def _training_completion_text(store: Any, session_id: str) -> str:
+    """Plain-Chinese result of the last successful managed training in this run, or '' (used when the model answers empty)."""
+    try:
+        calls = store.list_tool_calls(session_id, limit=500)
+    except Exception:  # noqa: BLE001
+        return ""
+    for call in reversed(calls):
+        result = call.get("result") if isinstance(call.get("result"), dict) else {}
+        content = result.get("content") if isinstance(result.get("content"), dict) else {}
+        evidence = content.get("managed_training") if isinstance(content.get("managed_training"), dict) else None
+        if call.get("tool_name") != "managed_tensor_train" or not result.get("ok") or not evidence:
+            continue
+        metrics = evidence.get("metrics") if isinstance(evidence.get("metrics"), dict) else {}
+        def number(key: str) -> str:
+            value = metrics.get(key)
+            return f"{float(value):.4f}" if isinstance(value, (int, float)) and not isinstance(value, bool) else ""
+        if evidence.get("task") == "classification":
+            parts = [f"{label} {number(key)}" for key, label in (("accuracy", "准确率"), ("macro_f1", "Macro-F1"), ("roc_auc", "ROC-AUC")) if number(key)]
+        else:
+            parts = [f"{label} {number(key)}" for key, label in (("rmse", "RMSE"), ("mae", "MAE"), ("r2", "R²")) if number(key)]
+        holdout = metrics.get("holdout_rows")
+        scope = f"（在 {holdout} 行留出数据上评估）" if isinstance(holdout, int) else ""
+        headline = "，".join(parts)
+        return ("训练完成。" + (f"评估结果{scope}：{headline}。" if headline else "")
+                + "模型权重、预测结果、训练日志和评估指标都已保存在这个任务的文件里，可以直接下载。")
+    return ""
+
+
 class AgentRuntime:
     def __init__(
         self, workspace_root: str | Path, runtime_root: str | Path | None = None, registry: ToolRegistry | None = None
@@ -1087,8 +1115,13 @@ class AgentRuntime:
                 remember_served_model(self.store, session_id, turn.provider, turn.model)
                 if not turn.text and not turn.tool_calls:
                     published_artifacts = self.store.list_deliverables(session_id)
-                    if model_execution["native_tool_calls"] and published_artifacts:
-                        fallback_text = (
+                    # 2026-11-03: a run resumed after an approval executes the approved tool outside this loop, so the
+                    # tool activity lives in the history, not in native_tool_calls (seen live: Opus 5.5 answered empty
+                    # three times after a successful training and the finished run was marked blocked).
+                    training_text = _training_completion_text(self.store, session_id) if published_artifacts else ""
+                    tool_activity = bool(model_execution["native_tool_calls"]) or _history_has_tool_activity(messages) or bool(training_text)
+                    if tool_activity and published_artifacts:
+                        fallback_text = training_text or (
                             "The model returned no final prose after verified tool execution. "
                             "Use the published artifacts and run evidence as the authoritative result."
                         )
