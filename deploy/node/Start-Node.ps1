@@ -149,7 +149,7 @@ try {
   # Never changes any User/Machine environment; credentials stay CurrentUser DPAPI files.
   $modelProfile = 'claude_lt4net_temp'
   if ($config.PSObject.Properties.Name -contains 'model_profile' -and [string]$config.model_profile) { $modelProfile = [string]$config.model_profile }
-  if ($modelProfile -notin @('claude_lt4net_temp','claude_opus55_temp','pezayo_deepseek_flash','gpt6_sub2api')) { throw "MODEL_PROFILE_INVALID: $modelProfile" }
+  if ($modelProfile -notin @('claude_lt4net_temp','claude_opus55_temp','pezayo_deepseek_flash','gpt6_sub2api','tri_vendor_v1')) { throw "MODEL_PROFILE_INVALID: $modelProfile" }
   $deepseekCredential = Import-DpapiCredentialChecked -Path (Join-Path $secretPaths.root 'pezayo_ev_deepseek_v4_pro.xml') -ExpectedUserName '__PEZAYO_DEEPSEEK_V4_PRO__'
   $baseEnv['OPENAI_API_KEY'] = $deepseekCredential.GetNetworkCredential().Password
   $baseEnv['OPENAI_BASE_URL'] = 'https://api.pezayo.com/v1'
@@ -210,10 +210,37 @@ try {
     $baseEnv['EVOMIND_MODEL_ROUTE_CONFIG_PATH'] = ''
     $modelBypassTargets += 'api.zhjjq.tech'
   }
+  # TRI_VENDOR_V1 (2026-11-03, owner-approved): three platform groups at once, Claude Opus 5.5 default.
+  #   anthropic = lt4net (newapi_lt4net_claude_temp.xml), Claude 5.5 family
+  #   openai    = api.zhjjq.tech Sub2API (newapi_gpt6_admin_direct.xml), GPT 6+
+  #   deepseek  = Alibaba Bailian token-plan compatible-mode (bailian_token_plan.xml), 国模
+  # Not STRICT so every keyed provider is listed; an explicit pick is still identity-checked.
+  # Rollback: node-config model_profile -> gpt6_sub2api, restart.
+  if ($modelProfile -eq 'tri_vendor_v1') {
+    $claudeCredential = Import-DpapiCredentialChecked -Path (Join-Path $secretPaths.root 'newapi_lt4net_claude_temp.xml') -ExpectedUserName '__NEWAPI_LT4NET_CLAUDE_TEMP__'
+    $baseEnv['ANTHROPIC_API_KEY'] = $claudeCredential.GetNetworkCredential().Password
+    $baseEnv['ANTHROPIC_BASE_URL'] = 'https://api.lt4net.org'
+    $baseEnv['CLAUDE_CODE_MODEL'] = 'claude-opus-5-5'
+    $baseEnv['ANTHROPIC_MODEL'] = 'claude-opus-5-5'
+    $gpt6Credential = Import-DpapiCredentialChecked -Path (Join-Path $secretPaths.root 'newapi_gpt6_admin_direct.xml') -ExpectedUserName '__NEWAPI_GPT6_ADMIN_DIRECT__'
+    $baseEnv['OPENAI_API_KEY'] = $gpt6Credential.GetNetworkCredential().Password
+    $baseEnv['OPENAI_BASE_URL'] = 'https://api.zhjjq.tech/v1'
+    $baseEnv['OPENAI_MODEL'] = 'gpt-6-astra'
+    $bailianCredential = Import-DpapiCredentialChecked -Path (Join-Path $secretPaths.root 'bailian_token_plan.xml') -ExpectedUserName '__BAILIAN_TOKEN_PLAN__'
+    $baseEnv['DEEPSEEK_API_KEY'] = $bailianCredential.GetNetworkCredential().Password
+    $baseEnv['DEEPSEEK_BASE_URL'] = 'https://token-plan.maas.qianwenaiapi.com/compatible-mode/v1'
+    $baseEnv['DEEPSEEK_MODEL'] = 'deepseek-v4.1-flash'
+    $baseEnv['EVOLUTION_PRIMARY_PROVIDER'] = 'anthropic'
+    $baseEnv['EVOLUTION_PROVIDER_STRICT'] = 'false'
+    $baseEnv['LLM_PROVIDER'] = 'anthropic'
+    $baseEnv['EVOMIND_MODEL_ROUTE_CONFIG_PATH'] = ''
+    $modelBypassTargets += @('api.lt4net.org','api.zhjjq.tech','token-plan.maas.qianwenaiapi.com')
+  }
   $baseEnv['EVOMIND_MODEL_PROFILE'] = $modelProfile
   foreach ($modelField in @('OPENAI_API_KEY','OPENAI_BASE_URL','OPENAI_MODEL',
       'OPENAI_REASONING_EFFORT','OPENAI_SERVICE_TIER','EVOLUTION_PRIMARY_PROVIDER',
-      'EVOLUTION_PROVIDER_STRICT','LLM_PROVIDER','ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL','CLAUDE_CODE_MODEL')) {
+      'EVOLUTION_PROVIDER_STRICT','LLM_PROVIDER','ANTHROPIC_API_KEY','ANTHROPIC_BASE_URL','CLAUDE_CODE_MODEL',
+      'DEEPSEEK_API_KEY','DEEPSEEK_BASE_URL','DEEPSEEK_MODEL')) {
     $baseEnv[$modelField + '_FILE'] = ''
   }
   # urllib honors NO_PROXY for the model origin. Keep all other proxy settings

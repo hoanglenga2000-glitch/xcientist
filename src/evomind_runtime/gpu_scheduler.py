@@ -800,6 +800,14 @@ class GpuScheduler:
         with self._tx() as db:
             db.execute("UPDATE train_jobs SET orphan_kill_at=NULL WHERE id=?", (job_id,))
 
+    def mark_orphan_pending(self, job_id: str, tenant_id: str = "") -> None:
+        """2026-11-03: a kill that was not confirmed by release time is queued for the reconcile kill (pid marker)
+        and audited as an alert, so the remote worker is never silently left running on the card."""
+
+        with self._tx() as db:
+            db.execute("UPDATE train_jobs SET orphan_kill_at=COALESCE(orphan_kill_at, ?) WHERE id=?", (self.clock(), job_id))
+            self.audit("orphan_kill_pending", tenant_id=tenant_id, job_id=job_id, db=db)
+
     @staticmethod
     def _mark_orphan(db: sqlite3.Connection, job_id: str, now: float) -> None:
         db.execute("UPDATE train_jobs SET orphan_kill_at=? WHERE id=?", (now, job_id))

@@ -3,7 +3,7 @@ export type Intensity = typeof INTENSITY_LEVELS[number];
 const EFFORT: Record<Intensity, 'low' | 'medium' | 'high'> = { 低: 'low', 中: 'medium', 高: 'high' };
 
 /** The product default model (display only here; the BE owns the default itself). */
-export const PRODUCT_DEFAULT_MODEL = 'claude-sonnet-5-5';
+export const PRODUCT_DEFAULT_MODEL = 'claude-opus-5-5';
 
 export const NEXT_MODEL_KEY = 'deepevo.next-model';
 export const NEXT_INTENSITY_KEY = 'deepevo.next-intensity';

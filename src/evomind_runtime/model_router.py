@@ -12,19 +12,25 @@ _EFFORTS = frozenset({'low', 'medium', 'high'})
 # User intensity is a chat-completions reasoning_effort. Only models that accept
 # that field get it. gpt-4o / gpt-4.1 and other OpenAI-compatible ids do not.
 _REASONING_MODEL = re.compile(
-    r'^(?:o1|o3)(?:$|[-_.])|^o4-mini(?:$|[-_.])|^gpt-5(?:$|[-_.])|^gpt-6-astra(?:$|[-_.])',
+    r'^(?:o1|o3)(?:$|[-_.])|^o4-mini(?:$|[-_.])|^gpt-5(?:$|[-_.])|^gpt-6(?:$|[-_.])',
     re.IGNORECASE,
 )
 
 
-# Known platform models per provider (historical xsci `_PROVIDERS` presets).
-# A provider is offered only when its key resolved a transport; each entry
-# reuses that transport's endpoint and key with the model swapped. Anthropic
-# extras come only from the probed lt4net catalog (see `_anthropic_catalog`).
+# Platform models per provider (tri_vendor_v1, probed 2026-11-03 with one real
+# call each). A provider is offered only when its key resolved a transport;
+# each entry reuses that transport's endpoint and key with the model swapped.
+#   openai   = api.zhjjq.tech Sub2API, GPT 6 and above
+#   deepseek = Alibaba Bailian token-plan compatible-mode (国模)
+# Anthropic extras come only from the probed lt4net catalog (see `_anthropic_catalog`).
 PLATFORM_CATALOG: dict[str, tuple[str, ...]] = {
-    'deepseek': ('deepseek-chat', 'deepseek-reasoner'),
-    'openai': ('gpt-4o', 'gpt-4o-mini', 'gpt-4.1'),
+    'deepseek': ('deepseek-v4.1-flash', 'deepseek-v4-pro', 'qwen3.8-max', 'qwen3.8-flash', 'glm-5.3'),
+    'openai': ('gpt-6-astra', 'gpt-6-luna', 'gpt-6-sol', 'gpt-6.1-sol'),
 }
+
+# The picker offers only the Claude 5.5 family from lt4net (the probed list keeps
+# every id that answered so a run on an older id still resolves its name).
+PICKER_CLAUDE_MODELS: tuple[str, ...] = ('claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5')
 
 # t237 C0 / t219u: ids that fail reproducibly on live, kept out of the picker
 # only. Hidden until root cause fixed; remove an id to re-list it.
@@ -39,7 +45,7 @@ _LT4NET_ALIASES: dict[str, str] = dict(_LT4NET['aliases'])
 
 # Product/UI default on the probed lt4net gateway. The node env model (e.g. the
 # IOAI profile's claude-sonnet-5) stays the default everywhere else.
-PRODUCT_DEFAULT_ANTHROPIC_MODEL = 'claude-sonnet-5-5'
+PRODUCT_DEFAULT_ANTHROPIC_MODEL = 'claude-opus-5-5'
 
 
 def _anthropic_catalog(transport) -> tuple[str, ...]:
@@ -49,7 +55,9 @@ def _anthropic_catalog(transport) -> tuple[str, ...]:
     else was probed, so only the env default is offered there.
     """
     host = (urlparse(str(transport.config.base_url or '')).hostname or '').lower()
-    return LT4NET_MODELS if host == LT4NET_HOST else ()
+    if host != LT4NET_HOST:
+        return ()
+    return tuple(model for model in PICKER_CLAUDE_MODELS if model in LT4NET_MODELS)
 
 
 def _catalog(transport) -> tuple[str, ...]:
@@ -221,7 +229,7 @@ def require_served_identity(transport):
 _IDENTITY_CHECKED: dict[type, type] = {}
 
 
-_BRANDS = {'claude': 'Claude', 'gpt': 'GPT', 'deepseek': 'DeepSeek', 'grok': 'Grok', 'kimi': 'Kimi', 'mini': 'mini'}
+_BRANDS = {'claude': 'Claude', 'gpt': 'GPT', 'deepseek': 'DeepSeek', 'grok': 'Grok', 'kimi': 'Kimi', 'mini': 'mini', 'glm': 'GLM'}
 _NUMBER = re.compile(r'^\d+(?:\.\d+)*$')
 _DEEPSEEK_VERSION = re.compile(r'^v(\d+(?:\.\d+)*)$')
 # Gateway alias -> the model it serves. Pezayo answers deepseek-flash as

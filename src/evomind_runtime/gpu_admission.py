@@ -676,10 +676,12 @@ class LeaseHandle:
             action = self.sched.lease_state(self.job_id)["action"]
             self.outcome = action if action in {"cancel", "timeout"} else ""
         info = dict(detail or {})
+        kill_pending = False
         if self._kill_thread is not None:
             self._kill_thread.join(timeout=0)
             if not self.kill_done.is_set():
                 info["remote_kill"] = "unconfirmed"
+                kill_pending = True
         if self.outcome == "cancel":
             status, info["reason"] = CANCELLED, "cancelled_by_owner"
         elif self.outcome == "timeout":
@@ -690,6 +692,8 @@ class LeaseHandle:
             status = SUCCEEDED if ok else FAILED
         try:
             self.released = self.sched.finish(self.job_id, status, info)
+            if kill_pending:
+                self.sched.mark_orphan_pending(self.job_id, self.tenant_id)
         finally:
             if self.broker is not None:
                 # Restore never delays the tenant's results; services stay down only for the linger

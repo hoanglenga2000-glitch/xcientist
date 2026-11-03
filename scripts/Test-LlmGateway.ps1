@@ -1,9 +1,11 @@
-# F2: bounded functional probe for the local cliproxy llm-gateway.
-# No paid model calls and no secrets: verifies listener, HTTP layer and that the
-# region-blocked OAuth refresh loop is gone. Writes state\llm-gateway-health.json.
+# F2: bounded functional probe for the local cliproxy llm-gateway, plus (2026-11-03)
+# the runtime's authenticated per-provider model probe (/v1/health/models). A 401/403
+# from a model upstream is a failure; the runtime caches the paid probe for 15 minutes.
+# No secret is printed. Writes state\llm-gateway-health.json.
 param(
   [string]$StateRoot = 'C:\ProgramData\EvoMind\state',
-  [string]$LogsRoot = 'C:\ProgramData\EvoMind\logs'
+  [string]$LogsRoot = 'C:\ProgramData\EvoMind\logs',
+  [string]$RuntimeTokenPath = 'C:\ProgramData\EvoMind\data\workspace\runtime\runtime.token'
 )
 $ErrorActionPreference = 'Continue'
 $now = (Get-Date).ToUniversalTime()
@@ -27,7 +29,28 @@ try {
     try { $httpStatus = [int]$_.Exception.Response.StatusCode } catch { $httpStatus = 0 }
   }
 }
+# The local gateway answers 401 without a client key: that only proves its HTTP layer is up.
 $httpLayerOk = @(200, 401, 403) -contains $httpStatus
+
+$modelsOk = $false
+$modelsDetail = 'probe_unavailable'
+$modelProviders = @()
+try {
+  $runtimeToken = (Get-Content -LiteralPath $RuntimeTokenPath -Raw -ErrorAction Stop).Trim()
+  $probe = $null
+  try {
+    $probe = Invoke-RestMethod -Uri 'http://127.0.0.1:8765/v1/health/models' -Headers @{ Authorization = "Bearer $runtimeToken" } -TimeoutSec 120 -ErrorAction Stop
+  } catch {
+    if ($_.ErrorDetails -and $_.ErrorDetails.Message) { $probe = $_.ErrorDetails.Message | ConvertFrom-Json }
+  }
+  $runtimeToken = $null
+  if ($probe) {
+    $modelsOk = [bool]$probe.ok
+    $modelProviders = @($probe.providers | ForEach-Object { [pscustomobject]@{ provider = $_.provider; model = $_.model; ok = [bool]$_.ok; state = $_.state; identity_ok = $_.identity_ok } })
+    $failed = @($modelProviders | Where-Object { -not $_.ok } | ForEach-Object { "$($_.provider):$($_.state)" })
+    $modelsDetail = if ($modelsOk) { 'ok' } elseif ($failed.Count) { 'model_provider_failed ' + ($failed -join ',') } else { 'no_model_provider' }
+  }
+} catch { $modelsDetail = 'runtime_token_unreadable' }
 
 $logPath = Join-Path $LogsRoot 'llm-gateway.out.log'
 $refreshFailures = 0
@@ -46,10 +69,11 @@ if (Test-Path -LiteralPath $logPath) {
   }
 }
 
-$ok = ($portListening -and $httpLayerOk -and ($refreshFailures -eq 0))
+$ok = ($portListening -and $httpLayerOk -and ($refreshFailures -eq 0) -and $modelsOk)
 if (-not $portListening) { $detail = 'gateway_port_not_listening' }
 elseif ($refreshFailures -gt 0) { $detail = 'oauth_refresh_loop' }
 elseif (-not $httpLayerOk) { $detail = 'http_layer_unreachable' }
+elseif (-not $modelsOk) { $detail = $modelsDetail }
 else { $detail = 'ok' }
 
 $payload = [pscustomobject]@{
@@ -66,6 +90,7 @@ $payload = [pscustomobject]@{
     refresh_failures_last_20m  = $refreshFailures
     log_tail_lines             = $logTailLines
     log_path                   = $logPath
+    model_providers            = $modelProviders
   }
 }
 

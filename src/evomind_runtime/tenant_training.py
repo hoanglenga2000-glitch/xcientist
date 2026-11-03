@@ -52,6 +52,7 @@ class TenantTrainingError(ValueError):
         "data_too_many_cells": "训练数据解压后的大小或行列数超过训练上限。先缩小或预处理，再继续。",
         "data_changed": "训练数据和批准时不一致，请重新确认后再训练。",
         "config_invalid": "训练设置无效，请检查后再试。",
+        "config_invalid_repeated": "训练设置连续多次无效，已停止自动重试。请检查数据文件和训练要求后重新发起。",
     }
 
     @property

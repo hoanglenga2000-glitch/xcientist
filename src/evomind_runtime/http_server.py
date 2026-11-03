@@ -545,6 +545,14 @@ def make_handler(runtime: AgentRuntime, token: str):
                     from .ops_metrics import collect
                     report["metrics"] = collect(runtime)  # t238 C7e O3
                     return self._json(200 if report["status"] == "ok" else 503, report)
+                if parsed.path == "/v1/health/models":
+                    # 2026-11-03: authenticated per-provider probe for the LLM monitor; operator only.
+                    if self.principal is not None:
+                        raise AccessError(403, "operator_required")
+                    from .model_probe import probe_providers
+                    force = parse_qs(parsed.query).get("force", ["0"])[0] == "1"
+                    report = probe_providers(runtime.runtime_root / "model-provider-probe.json", force=force)
+                    return self._json(200 if report["ok"] else 503, report)
                 if parsed.path == "/v1/metrics":
                     # t238 C7e O3: Prometheus text, operator only (service token, no user principal).
                     if self.principal is not None:

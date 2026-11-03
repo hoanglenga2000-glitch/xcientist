@@ -1395,10 +1395,10 @@ test('t237 C2a / C6b H5-4: model card is one Chinese line, 换个模型继续 + 
   }
 });
 
-test('t237 C2a: before model-profiles loads the trigger shows Claude Sonnet 5.5, not 选择模型', () => {
+test('t237 C2a: before model-profiles loads the trigger shows the product default (Claude Opus 5.5), not 选择模型', () => {
   const { ModelPicker } = require('./ComposerPicker.tsx');
   const before = renderToStaticMarkup(React.createElement(ModelPicker, { id: 'home-model', list: { profiles: [], default_profile_id: '' }, value: '', onChange() {} }));
-  assert.match(before, /<span title="Claude Sonnet 5\.5" class="tw-picker-text"><span class="tw-picker-name"><span class="tw-picker-vendor">Claude <\/span>Sonnet<\/span><span class="tw-picker-version"> 5\.5<\/span><\/span>/);
+  assert.match(before, /<span title="Claude Opus 5\.5" class="tw-picker-text"><span class="tw-picker-name"><span class="tw-picker-vendor">Claude <\/span>Opus<\/span><span class="tw-picker-version"> 5\.5<\/span><\/span>/);
   assert.doesNotMatch(before, /选择模型|· 默认/);
   // Loaded but nothing selectable: unchanged.
   const none = renderToStaticMarkup(React.createElement(ModelPicker, { id: 'home-model', list: { profiles: [], default_profile_id: '', platform_model: null }, value: '', onChange() {} }));

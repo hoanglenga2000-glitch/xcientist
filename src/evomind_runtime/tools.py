@@ -50,6 +50,8 @@ ALLOWED_PROCESS_EXECUTABLES = {
 }
 ALLOWED_PYTHON_MODULES = {"evomind_runtime.cli", "pip", "pytest", "venv", "xsci.kaggle"}
 HPC_PROFILE_LOCK = threading.RLock()
+# Refusals of an invalid tenant training configuration tolerated per session before the tool stops.
+CONFIG_INVALID_LIMIT = 3
 MEMORY_WRITEBACK_LOCK = threading.RLock()
 TRAINING_HPC_THRESHOLDS = {
     "rows": 20_000,
@@ -4245,6 +4247,17 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
     def refuse(code: str, message: str = "", content: dict[str, Any] | None = None) -> ToolResult:
         text = message or TenantTrainingError(code).message
         return ToolResult("", False, scrub({"user_message": text, "remote_dispatched": False, "reply_rule": tenant_training.REPLY_RULE, **(content or {})}), text, error="tenant_training_" + code)
+
+    # 2026-11-03: a model that keeps sending an invalid configuration must not loop (seen: 19 refusals in one Run).
+    # After CONFIG_INVALID_LIMIT refusals in this session the tool stops without preparing anything.
+    try:
+        previous = context.store.list_tool_calls(context.session_id, limit=200)
+    except Exception:  # noqa: BLE001 - the guard never blocks a first attempt
+        previous = []
+    invalid = sum(1 for item in previous if item.get("tool_name") == "managed_tensor_train" and item.get("status") == "failed"
+                  and isinstance(item.get("result"), dict) and item["result"].get("error") == "tenant_training_config_invalid")
+    if invalid >= CONFIG_INVALID_LIMIT:
+        return refuse("config_invalid_repeated")
 
     if not context.approval_verified:
         return ToolResult("", False, {"user_message": "需要你先确认这次训练。"}, "需要你先确认这次训练。", error="exact_approval_required")
