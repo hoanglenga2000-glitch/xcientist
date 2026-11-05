@@ -74,6 +74,8 @@ _SCRUB_PATTERNS = (
     re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{2,5})?\b"),
     re.compile(r"(?<![0-9A-Za-z])98270(?![0-9A-Za-z])"),
     re.compile(r"(?<![0-9A-Za-z])" + str(int(gpu_admission.ALLOWED_HPC_JOB_ID)) + r"(?![0-9A-Za-z])"),
+    # 2026-11-05: every card of the pool, not only the primary.
+    *(re.compile(r"(?<![0-9A-Za-z])" + str(int(job)) + r"(?![0-9A-Za-z])") for job in sorted(gpu_admission.POOL_HPC_JOB_IDS)),
 )
 HIDDEN = "[已隐藏]"
 # t238 C7c-FIX4: the model relays tool results; tell it how a training refusal may be worded (failure replies quoted the error
@@ -447,6 +449,33 @@ def service_identity(config: dict[str, Any]) -> dict[str, Any]:
     return {"tenant_id": tenant, "owner_principal_id": owner, "job_id": job_id,
             "credential_profile": binding["credential_profile"], "allocation_generation": generation,
             "profile_instance_id": binding["profile_instance_id"], "allocation_binding_id": binding["allocation_binding_id"]}
+
+
+def pool_node_identity(config: dict[str, Any], job_id: int) -> dict[str, Any]:
+    """2026-11-05: the managed HPC identity of an additional pool card, read strictly from ``pool-nodes/job<id>.json``.
+
+    Only cards listed in gpu-pool.json ``nodes`` qualify; the record must be active and name this tenant's profile for
+    exactly that job. Anything else raises ``binding_invalid`` (the card is then not schedulable)."""
+
+    tenant = str(config.get("service_tenant_id") or "")
+    if isinstance(job_id, bool) or not isinstance(job_id, int) or job_id not in gpu_admission.POOL_HPC_JOB_IDS or job_id == gpu_admission.ALLOWED_HPC_JOB_ID:
+        raise TenantTrainingError("binding_invalid")
+    path = byoa_state_root() / "tenants" / tenant / "pool-nodes" / f"job{job_id}.json"
+    try:
+        record = json.loads(path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError):
+        raise TenantTrainingError("binding_invalid") from None
+    generation = record.get("allocation_generation") if isinstance(record, dict) else None
+    if (not isinstance(record, dict) or record.get("schema") != "evomind.tenant_hpc_pool_node.v1"
+            or record.get("tenant_id") != tenant or record.get("state") != "active" or record.get("job_id") != job_id
+            or isinstance(generation, bool) or not isinstance(generation, int) or generation <= 0
+            or record.get("credential_profile") != f"{tenant}_job{job_id}_g{generation}"
+            or not _PROFILE_INSTANCE.fullmatch(str(record.get("profile_instance_id") or ""))
+            or not _BINDING_ID.fullmatch(str(record.get("allocation_binding_id") or ""))):
+        raise TenantTrainingError("binding_invalid")
+    return {"tenant_id": tenant, "job_id": job_id, "credential_profile": record["credential_profile"],
+            "allocation_generation": generation, "profile_instance_id": record["profile_instance_id"],
+            "allocation_binding_id": record["allocation_binding_id"]}
 
 
 # -- tenant data (inputs/ only) --

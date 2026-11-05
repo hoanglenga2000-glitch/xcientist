@@ -4158,10 +4158,29 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
     tenant_id = str(scope.get("tenant_id") or context.metadata.get("tenant_id") or "service")
     owner_id = str(scope.get("owner_principal_id") or context.metadata.get("owner_principal_id") or tenant_id)
     probe = context.gpu_probe or gpu_admission.ssh_free_vram_probe(lambda: connect_ssh(config, timeout=30), str(getattr(config, "expected_gpu_uuid", "") or ""))
+    # 2026-11-05 multi-card pool: every additional card with an active pool-node record gets its own bound config + probe.
+    node_configs: dict[str, tuple[Any, str, int]] = {}
+    node_probes: dict[str, Any] = {}
+    injected_probes = getattr(context, "gpu_node_probes", None) or {}
+    for node_id, identity in gpu_admission.pool_node_bindings(pool).items():
+        if node_id in injected_probes:
+            node_config = None  # tests: probe (and card verification) are injected
+        else:
+            try:
+                node_config = _load_bound_hpc_config(identity["credential_profile"], identity["job_id"], context.session_id)
+            except Exception:  # noqa: BLE001 - a card whose profile does not load is not offered
+                continue
+        node_configs[node_id] = (node_config, identity["credential_profile"], int(identity["job_id"]))
+        node_probes[node_id] = injected_probes.get(node_id) or gpu_admission.ssh_free_vram_probe(
+            (lambda cfg: (lambda: connect_ssh(cfg, timeout=30)))(node_config), str(getattr(node_config, "expected_gpu_uuid", "") or ""))
     gate_factory = context.gpu_gate_factory or gpu_admission.GpuGate
-    gate = gate_factory(context.runtime_root, {**pool, "credential_profile": profile}, probe=probe)
+    gate_config = {**pool, "credential_profile": profile, "node_profiles": {node_id: item[1] for node_id, item in node_configs.items()}}
+    gate = gate_factory(context.runtime_root, gate_config, probe=probe, **({"node_probes": node_probes} if node_probes else {}))
     if getattr(gate, "sched", None) is not None:
-        gate.sched.orphan_killer = gpu_admission.ssh_orphan_killer(lambda: connect_ssh(config, timeout=30))
+        connectors = {gpu_admission.ALLOWED_NODE_ID: lambda: connect_ssh(config, timeout=30)}
+        connectors.update({node_id: (lambda cfg: (lambda: connect_ssh(cfg, timeout=30)))(item[0]) for node_id, item in node_configs.items() if item[0] is not None})
+        # The kill of a lost/settled job goes to the card it ran on.
+        gate.sched.orphan_killer = gpu_admission.per_node(connectors, gpu_admission.ssh_orphan_killer, missing=False)
     # Operator studies share the slot but keep their own timeout and stay outside the tenant budget.
     from .personal_tool_boundary import is_personal
     operator = not is_personal(tenant_id)
@@ -4204,6 +4223,10 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
             public = error.public()
             return ToolResult("", False, {"gpu_queue": public, "remote_dispatched": False, "retryable": error.code not in {"quota_exhausted", "quota_exhausted_rolling"}},
                               public["message"], error="gpu_" + error.code)
+        if getattr(lease, "node_id", gpu_admission.ALLOWED_NODE_ID) != gpu_admission.ALLOWED_NODE_ID:
+            refused = _move_runtime_to_card(context, runtime, lease, node_configs)
+            if refused is not None:
+                return refused
         solution_id = str(execute_args.get("solution_id") or "solution")
         lease_deadline = time.monotonic() + lease.remaining_seconds()
         runtime.process_marker = lease.job_id  # the dead-man guard and orphan cleanup match on it
@@ -4236,6 +4259,45 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
         return result, state
     finally:
         gate.close()
+
+
+def _move_runtime_to_card(context: ToolContext, runtime: Any, lease: Any, node_configs: dict[str, tuple[Any, str, int]]) -> "ToolResult | None":
+    """2026-11-05: the job was granted an additional pool card. Prepared files live on the shared filesystem, so only the
+    connection moves: verify that card's job container (the full 5/5 identity gate, unbilled while preparing), then point
+    the runtime at it and use that card's own slot lock. On any doubt the lease is released unbilled and nothing runs."""
+
+    from . import gpu_admission
+    from research_agent_workstation.server.core.gpu_credentials import connect_ssh
+
+    entry = node_configs.get(lease.node_id)
+    if getattr(runtime, "reports_dispatch", False):
+        lease.sched.mark_preparing(lease.job_id)  # card verification is not GPU use
+    ok = False
+    verify = getattr(context, "gpu_node_verify", None)
+    if entry is not None and (entry[0] is not None or verify is not None):
+        try:
+            if verify is not None:
+                ok = bool(verify(lease.node_id))
+            else:
+                from xsci.terminal_tools import _live_hpc_connection_probe, hpc_identity_evidence_complete
+                with HPC_PROFILE_LOCK:
+                    evidence = _live_hpc_connection_probe(entry[1], entry[2], sample_count=5)
+                ok = hpc_identity_evidence_complete(evidence, expected_sample_count=5, expected_profile=entry[1], expected_job_id=entry[2])
+        except Exception:  # noqa: BLE001 - unverifiable card: refuse
+            ok = False
+    if not ok:
+        try:
+            gpu_admission.CircuitBreaker(lease.sched, node_id=lease.node_id).record(False)
+        finally:
+            lease.release(False, {"reason": "pool_unavailable", "while": "card_identity"})
+        text = gpu_admission.message("pool_unavailable")
+        return ToolResult("", False, {"gpu_queue": {"granted": False, "code": "pool_unavailable", "message": text},
+                                      "remote_dispatched": False, "retryable": True}, text, error="gpu_pool_unavailable")
+    node_config = entry[0]
+    if node_config is not None:
+        runtime._connector = lambda: connect_ssh(node_config, timeout=30)
+    runtime.gpu_slot_lock_name = f".evomind-gpu-slot-{lease.node_id}.lock"
+    return None
 
 
 def _gpu_job_cancelled(lease: Any) -> bool:

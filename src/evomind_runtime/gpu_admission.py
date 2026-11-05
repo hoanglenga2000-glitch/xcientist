@@ -29,8 +29,8 @@ from typing import Any, Callable, Iterator
 from research_os.remote_paths import HPC_HOME_ROOT, TRAINER_MARKER
 
 from .gpu_scheduler import (
-    ALLOWED_HPC_JOB_ID, ALLOWED_NODE_ID, CANCELLED, FAILED, FREEING, QUEUED, RUNNING, SUCCEEDED, TERMINAL, TIMEOUT,
-    GpuPolicy, GpuScheduler, SchedulerError,
+    ALLOWED_HPC_JOB_ID, ALLOWED_NODE_ID, CANCELLED, EXTRA_POOL_NODES, FAILED, FREEING, POOL_HPC_JOB_IDS, POOL_NODE_IDS, QUEUED,
+    RUNNING, SUCCEEDED, TERMINAL, TIMEOUT, GpuPolicy, GpuScheduler, SchedulerError,
 )
 
 DB_NAME = "gpu_scheduler.sqlite3"
@@ -119,10 +119,11 @@ def startup_reconcile(runtime_root: Path, *, process_alive: Callable[[dict], "bo
         return None
     sched = scheduler(runtime_root, config=config, clock=clock)
     try:
-        connect = _service_connector()
-        if connect is not None:
-            sched.orphan_killer = ssh_orphan_killer(connect)
-            process_alive = process_alive or ssh_process_alive(connect)
+        connectors = _node_connectors()
+        if connectors:
+            # Every check and kill goes to the card the job ran on.
+            sched.orphan_killer = per_node(connectors, ssh_orphan_killer, missing=False)
+            process_alive = process_alive or per_node(connectors, ssh_process_alive, missing=None)
         report = sched.reconcile(process_alive)
         # ADDENDUM 2: restore services the broker paused before a crash when no live job holds them.
         try:
@@ -247,6 +248,57 @@ def _service_connector() -> Callable[[], Any] | None:
         return None
 
 
+def pool_node_bindings(config: dict[str, Any] | None = None) -> dict[str, dict[str, Any]]:
+    """{node_id: identity} for every additional card with a valid, active pool-node record (others are skipped)."""
+
+    from .tenant_training import pool_node_identity
+
+    config = config if config is not None else pool_config()
+    bindings: dict[str, dict[str, Any]] = {}
+    if not config:
+        return bindings
+    for node in EXTRA_POOL_NODES:
+        try:
+            bindings[node["node_id"]] = pool_node_identity(config, node["hpc_job_id"])
+        except Exception:  # noqa: BLE001 - an unbound card is simply not schedulable
+            continue
+    return bindings
+
+
+def _node_connectors() -> dict[str, Callable[[], Any]]:
+    """{node_id: identity-gated connector} for the primary card and every bound additional card."""
+
+    connectors: dict[str, Callable[[], Any]] = {}
+    primary = _service_connector()
+    if primary is not None:
+        connectors[ALLOWED_NODE_ID] = primary
+    try:
+        from .tools import _load_bound_hpc_config
+        from research_agent_workstation.server.core.gpu_credentials import connect_ssh
+    except Exception:  # noqa: BLE001
+        return connectors
+    for node_id, identity in pool_node_bindings().items():
+        try:
+            bound = _load_bound_hpc_config(identity["credential_profile"], identity["job_id"], "gpu_reconcile")
+        except Exception:  # noqa: BLE001
+            continue
+        connectors[node_id] = (lambda cfg: (lambda: connect_ssh(cfg, timeout=30)))(bound)
+    return connectors
+
+
+def per_node(connectors: dict[str, Callable[[], Any]], factory: Callable[[Callable[[], Any]], Callable[[dict], Any]],
+             *, missing: Any) -> Callable[[dict], Any]:
+    """Route ``factory(connect)(job)`` to the card the job ran on (legacy rows without a card = the primary)."""
+
+    built = {node_id: factory(connect) for node_id, connect in connectors.items()}
+
+    def call(job: dict) -> Any:
+        target = built.get(str(job.get("node_id") or ALLOWED_NODE_ID))
+        return missing if target is None else target(job)
+
+    return call
+
+
 def cancel_run(runtime_root: Path, run_id: str) -> list[str]:
     """A stopped Run stops its GPU job, queued or running. No-op without the scheduler."""
 
@@ -324,23 +376,34 @@ CREATE TABLE IF NOT EXISTS gpu_breaker (
   id INTEGER PRIMARY KEY CHECK (id = 1), failures INTEGER NOT NULL DEFAULT 0, opened_at REAL,
   open_until REAL, backoff_seconds REAL NOT NULL DEFAULT 0, updated_at REAL NOT NULL
 );
+CREATE TABLE IF NOT EXISTS gpu_node_breaker (
+  node_id TEXT PRIMARY KEY, failures INTEGER NOT NULL DEFAULT 0, opened_at REAL,
+  open_until REAL, backoff_seconds REAL NOT NULL DEFAULT 0, updated_at REAL NOT NULL
+);
 """
 
 
 class CircuitBreaker:
     """Shared (SQLite) breaker: ``threshold`` consecutive probe failures open it; after the
-    backoff one half-open probe is allowed; success closes it, failure doubles the backoff."""
+    backoff one half-open probe is allowed; success closes it, failure doubles the backoff.
+
+    2026-11-05: one breaker per card. The primary card keeps the original ``gpu_breaker`` row; every additional
+    card has its own ``gpu_node_breaker`` row, so one failing card never closes the pool for the others."""
 
     def __init__(self, sched: GpuScheduler, *, threshold: int = 3, base_backoff_seconds: float = 30.0,
-                 max_backoff_seconds: float = 600.0) -> None:
+                 max_backoff_seconds: float = 600.0, node_id: str | None = None) -> None:
         self.sched = sched
         self.threshold = threshold
         self.base = base_backoff_seconds
         self.maximum = max_backoff_seconds
+        self.node_id = None if node_id in (None, "", ALLOWED_NODE_ID) else str(node_id)
         sched._db().executescript(_BREAKER_SCHEMA)
 
     def _row(self, db) -> dict:
-        row = db.execute("SELECT * FROM gpu_breaker WHERE id=1").fetchone()
+        if self.node_id is None:
+            row = db.execute("SELECT * FROM gpu_breaker WHERE id=1").fetchone()
+        else:
+            row = db.execute("SELECT * FROM gpu_node_breaker WHERE node_id=?", (self.node_id,)).fetchone()
         return dict(row) if row else {"failures": 0, "opened_at": None, "open_until": None, "backoff_seconds": 0.0}
 
     def state(self) -> str:
@@ -369,11 +432,17 @@ class CircuitBreaker:
                 elif failures >= self.threshold:
                     backoff = self.base
                     opened, until = now, now + backoff
-                    self.sched.audit("breaker_opened", detail={"failures": failures}, db=db)
-            db.execute("INSERT INTO gpu_breaker(id,failures,opened_at,open_until,backoff_seconds,updated_at) VALUES(1,?,?,?,?,?) "
-                       "ON CONFLICT(id) DO UPDATE SET failures=excluded.failures,opened_at=excluded.opened_at,"
-                       "open_until=excluded.open_until,backoff_seconds=excluded.backoff_seconds,updated_at=excluded.updated_at",
-                       (failures, opened, until, backoff, now))
+                    self.sched.audit("breaker_opened", detail={"failures": failures, **({"node": self.node_id} if self.node_id else {})}, db=db)
+            if self.node_id is None:
+                db.execute("INSERT INTO gpu_breaker(id,failures,opened_at,open_until,backoff_seconds,updated_at) VALUES(1,?,?,?,?,?) "
+                           "ON CONFLICT(id) DO UPDATE SET failures=excluded.failures,opened_at=excluded.opened_at,"
+                           "open_until=excluded.open_until,backoff_seconds=excluded.backoff_seconds,updated_at=excluded.updated_at",
+                           (failures, opened, until, backoff, now))
+            else:
+                db.execute("INSERT INTO gpu_node_breaker(node_id,failures,opened_at,open_until,backoff_seconds,updated_at) VALUES(?,?,?,?,?,?) "
+                           "ON CONFLICT(node_id) DO UPDATE SET failures=excluded.failures,opened_at=excluded.opened_at,"
+                           "open_until=excluded.open_until,backoff_seconds=excluded.backoff_seconds,updated_at=excluded.updated_at",
+                           (self.node_id, failures, opened, until, backoff, now))
         return self.state()
 
 
@@ -405,6 +474,16 @@ class HealthMonitor:
         return ("open" if state == "open" else "failed"), None
 
 
+def pool_breaker_state(sched: GpuScheduler) -> str:
+    """The pool is unavailable ("open") only when every schedulable card's breaker is open; one usable card is enough."""
+
+    cards = [row["id"] for row in sched._nodes(sched._db())] or [ALLOWED_NODE_ID]
+    states = [CircuitBreaker(sched, node_id=card).state() for card in cards]
+    if all(state == "open" for state in states):
+        return "open"
+    return "closed" if "closed" in states else "half_open"
+
+
 def ssh_free_vram_probe(connect: Callable[[], Any], expected_gpu_uuid: str = "") -> Probe:
     """Production probe: the identity-gated connector, then one read-only nvidia-smi query.
 
@@ -423,6 +502,8 @@ def ssh_free_vram_probe(connect: Callable[[], Any], expected_gpu_uuid: str = "")
             rows = [[part.strip() for part in line.split(",")] for line in text.splitlines() if line.strip()]
             wanted = {item.strip().casefold() for item in str(expected_gpu_uuid or "").split(",") if item.strip()}
             rows = [row for row in rows if len(row) == 2 and (not wanted or row[0].casefold() in wanted)]
+            if not rows and wanted and all(item.startswith("mig-") for item in wanted):
+                return _mig_free_vram(client, wanted)
             if len(rows) != 1 or not rows[0][1].isdigit():
                 return ProbeResult(False)
             return ProbeResult(True, int(rows[0][1]))
@@ -430,6 +511,36 @@ def ssh_free_vram_probe(connect: Callable[[], Any], expected_gpu_uuid: str = "")
             client.close()
 
     return probe
+
+
+_MIG_LIST = re.compile(r"^\s*MIG\s+\S+\s+Device\s+(\d+):\s+\(UUID:\s*(MIG-[^)\s]+)\)\s*$", re.IGNORECASE)
+_GPU_LIST = re.compile(r"^\s*GPU\s+(\d+):")
+_MIG_ROW = re.compile(r"^\|\s*(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s*\|\s*(\d+)MiB\s*/\s*(\d+)MiB")
+
+
+def _mig_free_vram(client: Any, wanted: set[str]) -> ProbeResult:
+    """2026-11-05: a MIG slice inside a container cannot query memory (「Insufficient Permissions」), but the
+    ``nvidia-smi`` table still lists the slice's own used/total memory. Read-only; exactly one expected slice."""
+
+    _stdin, stdout, _stderr = client.exec_command("nvidia-smi -L; echo __EVOMIND_MIG_TABLE__; nvidia-smi", timeout=20)
+    text = stdout.read().decode("utf-8", "replace")
+    if stdout.channel.recv_exit_status() != 0 or "__EVOMIND_MIG_TABLE__" not in text:
+        return ProbeResult(False)
+    listing, table = text.split("__EVOMIND_MIG_TABLE__", 1)
+    slots, gpu = [], None
+    for line in listing.splitlines():
+        if (match := _GPU_LIST.match(line)) is not None:
+            gpu = int(match.group(1))
+        elif (match := _MIG_LIST.match(line)) is not None and gpu is not None and match.group(2).casefold() in wanted:
+            slots.append((gpu, int(match.group(1))))
+    if len(slots) != 1:
+        return ProbeResult(False)
+    found = [(int(m.group(5)), int(m.group(6))) for m in map(_MIG_ROW.match, table.splitlines())
+             if m is not None and (int(m.group(1)), int(m.group(4))) == slots[0]]
+    if len(found) != 1 or found[0][1] <= 0:
+        return ProbeResult(False)
+    used, total = found[0]
+    return ProbeResult(True, max(0, total - used))
 
 
 # -- remote process check + orphan cleanup: only this user's processes carrying this job's marker --
@@ -498,6 +609,7 @@ class LeaseHandle:
         self.sched = sched
         self.job_id = str(job["id"])
         self.tenant_id = str(job["tenant_id"])
+        self.node_id = str(dict(job).get("node_id") or ALLOWED_NODE_ID)  # the granted card
         self.lease_id = str(lease["id"])
         self.deadline_at = float(job["deadline_at"])
         self.max_run_seconds = int(job["max_run_seconds"])
@@ -713,7 +825,7 @@ class GpuGate:
     def __init__(self, runtime_root: Path, config: dict[str, Any], *, probe: Probe,
                  clock: Callable[[], float] = time.time, sleep: Callable[[float], None] = time.sleep,
                  poll_seconds: float = 5.0, heartbeat_seconds: float = 30.0, wait_seconds: float = 900.0,
-                 broker_factory: Callable[..., Any] | None = None) -> None:
+                 broker_factory: Callable[..., Any] | None = None, node_probes: dict[str, Probe] | None = None) -> None:
         self.runtime_root = Path(runtime_root)
         # ADDENDUM 2: (runtime_root, VramConfig) -> GpuMemoryBroker | None; None = no broker.
         self.broker_factory = broker_factory
@@ -724,6 +836,14 @@ class GpuGate:
             self.sched.ensure_node(profile=profile)
         self.breaker = CircuitBreaker(self.sched)
         self.health = HealthMonitor(self.breaker, probe)
+        # 2026-11-05: additional cards (gpu-pool.json ``nodes``) that have a bound profile and a probe; each has its own breaker.
+        node_profiles = {str(k): str(v) for k, v in (config.get("node_profiles") or {}).items()}
+        node_probes = {node_id: item for node_id, item in (node_probes or {}).items()
+                       if node_id in POOL_NODE_IDS and node_id != ALLOWED_NODE_ID and node_profiles.get(node_id)}
+        if node_probes:
+            self.sched.ensure_extra_nodes({node_id: node_profiles[node_id] for node_id in node_probes})
+        self.node_health: dict[str, HealthMonitor] = {ALLOWED_NODE_ID: self.health, **{
+            node_id: HealthMonitor(CircuitBreaker(self.sched, node_id=node_id), item) for node_id, item in node_probes.items()}}
         self.sleep = sleep
         self.poll_seconds = poll_seconds
         self.heartbeat_seconds = min(float(heartbeat_seconds), 60.0)  # broker heartbeat every ≤ 60 s
@@ -739,7 +859,7 @@ class GpuGate:
         from . import gpu_vram
 
         sched = self.sched
-        if not self.breaker.allow_probe():
+        if not any(monitor.breaker.allow_probe() for monitor in self.node_health.values()):
             # Fail fast; an existing queued job of this run keeps its place.
             raise GpuAdmissionError("breaker_open", **self._place(tenant_id, run_id))
         try:
@@ -758,12 +878,23 @@ class GpuGate:
             raise GpuAdmissionError("tenant_busy")
         give_up = sched.clock() + self.wait_seconds
         last: tuple | None = None
+        multi = len(self.node_health) > 1
         while True:
             sched.touch_waiter(job["id"])
             status = sched.queue_status(job["id"])
             free: int | None = None
+            if multi:
+                free_map = self._multi_card_free(tenant_id, status)
+                if free_map is not None:
+                    for grant in sched.schedule(free_vram=free_map):
+                        if grant.job_id == job["id"]:
+                            row = sched.job(job["id"])
+                            return LeaseHandle(sched, row, sched.lease_for(job["id"]) or {"id": grant.lease_id},
+                                               heartbeat_seconds=self.heartbeat_seconds)
+                else:
+                    sched.reconcile()
             # position counts live jobs only, so a head without a waiter never stalls the next one.
-            if status["position"] == 1 and sched._db().execute("SELECT 1 FROM gpu_leases WHERE node_id=?", (ALLOWED_NODE_ID,)).fetchone() is None:
+            elif status["position"] == 1 and sched._db().execute("SELECT 1 FROM gpu_leases WHERE node_id=?", (ALLOWED_NODE_ID,)).fetchone() is None:
                 health, probe_free = self.health.check()
                 if health == "open":
                     raise GpuAdmissionError("breaker_open", position=status["position"], eta_seconds=status["eta_seconds"])
@@ -787,8 +918,11 @@ class GpuGate:
                         # Broker disabled / refused / circuit open: the honest queued line, job keeps its place.
                         sched.mark_reason(job["id"], "insufficient_gpu_memory")
                         free = None
-            if free is not None:
-                for grant in sched.schedule(free_vram=free):
+            if multi:
+                pass
+            elif free is not None:
+                # Only the primary card was probed: an unbound additional card is never granted on its number.
+                for grant in sched.schedule(free_vram={ALLOWED_NODE_ID: free} if EXTRA_POOL_NODES else free):
                     if grant.job_id == job["id"]:
                         row = sched.job(job["id"])
                         return LeaseHandle(sched, row, sched.lease_for(job["id"]) or {"id": grant.lease_id},
@@ -816,6 +950,34 @@ class GpuGate:
         if getattr(self, "_broker_cached", None) is None:
             self._broker_cached = self.broker_factory(self.runtime_root, vram)
         return self._broker_cached
+
+    def _multi_card_free(self, tenant_id: str, status: dict[str, Any]) -> dict[str, int | None] | None:
+        """2026-11-05 multi-card admission: probe each idle card (own breaker, cached) when this job could get one.
+
+        Returns ``{node_id: admissible MB}`` for the healthy idle cards, or None (nothing to schedule now). The memory
+        broker belongs to the primary card's co-located services and is not used in this mode.
+        """
+
+        from . import gpu_vram
+
+        position = status.get("position")
+        idle = [node for node in self.sched.idle_nodes() if node["id"] in self.node_health]
+        if position is None or not idle or position > len(idle):
+            return None
+        try:  # re-read on every admission: config edits apply without a redeploy
+            vram = gpu_vram.load(self.runtime_root)
+        except gpu_vram.VramConfigError:
+            return None  # fail closed: stay queued
+        frees: dict[str, int | None] = {}
+        for node in idle:
+            health, probe_free = self.node_health[node["id"]].check()
+            if health == "ok":
+                frees[node["id"]] = vram.admissible_mb(tenant_id, probe_free)
+        if frees:
+            return frees
+        if not any(monitor.breaker.allow_probe() for monitor in self.node_health.values()):
+            raise GpuAdmissionError("breaker_open", position=position, eta_seconds=status.get("eta_seconds"))
+        return None
 
     def _services_returning(self, vram: Any) -> bool:
         """The broker is restoring, or services it stopped are not back yet (unknown state counts)."""

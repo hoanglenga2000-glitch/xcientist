@@ -585,7 +585,11 @@ class HpcRuntime(_ReleaseHpcRuntime):
                     "assert hashlib.sha256(p.read_bytes()).hexdigest()==sys.argv[2],\"managed competition manifest mismatch\"' "
                     f"{shlex.quote(remote_manifest)} {shlex.quote(manifest_sha256)} && "
                 )
-            slot_lock = shlex.quote(_validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, ".evomind-gpu-slot.lock")))
+            # 2026-11-05: one slot lock per card (the pool's cards share this filesystem); the primary keeps the original name.
+            lock_name = str(getattr(self, "gpu_slot_lock_name", "") or ".evomind-gpu-slot.lock")
+            if not re.fullmatch(r"\.evomind-gpu-slot(?:-job\d{4,8})?\.lock", lock_name):
+                raise ValueError("gpu_slot_lock_rejected")
+            slot_lock = shlex.quote(_validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, lock_name)))
             environment_copy = f"cp {shlex.quote(self.solution_environment_manifest)} {q_output}/environment.lock.json && " if self.solution_environment_manifest else ""
             execution_seconds = self.remaining_seconds(self.timeout_seconds, margin=60)
             marker = f"-X {TRAINER_MARKER}={_validate_component(self.process_marker, 'process_marker')} " if self.process_marker else ""

@@ -143,7 +143,7 @@ def tenant_status(runtime_root: Path, principal: Any, *, run_id: str = "") -> di
     if sched is None:
         return {"schema": "evomind.gpu_tenant.v1", "enabled": False, "jobs": [], "budget": None}
     try:
-        breaker = gpu_admission.CircuitBreaker(sched).state()
+        breaker = gpu_admission.pool_breaker_state(sched)
         rows = sched.jobs_for_tenant(principal.tenant_id, run_id=run_id or None, limit=10)
         usage = sched.usage(principal.tenant_id)
         jobs = [project_job(sched, row, breaker) for row in rows]
@@ -170,7 +170,7 @@ def tenant_cancel(runtime_root: Path, principal: Any, run_id: str) -> dict[str, 
         row = rows[0]
         if row["status"] in gs.ACTIVE:
             row = sched.cancel(row["id"], principal.tenant_id)
-        return {"schema": "evomind.gpu_tenant.v1", "job": project_job(sched, row, gpu_admission.CircuitBreaker(sched).state())}
+        return {"schema": "evomind.gpu_tenant.v1", "job": project_job(sched, row, gpu_admission.pool_breaker_state(sched))}
     finally:
         sched.close()
 
@@ -200,7 +200,7 @@ def operator_pool(runtime_root: Path, principal: Any) -> dict[str, Any]:
     sched = gpu_admission.scheduler(runtime_root)
     try:
         snapshot = sched.snapshot()
-        snapshot["breaker"] = gpu_admission.CircuitBreaker(sched).state()
+        snapshot["breaker"] = gpu_admission.pool_breaker_state(sched)
         snapshot["active"] = gpu_admission.active() is not None
         snapshot["gpu_broker"] = broker_status(runtime_root)  # ADDENDUM 2: operator-only
         return snapshot

@@ -1,11 +1,12 @@
-"""Fair time-sharing of the single A800 (HPC job 98270) between tenants.
+"""Fair time-sharing of the pool's GPU cards between tenants.
 
 Supersedes the host-local hot-patch of the same module name. State lives in one
 SQLite file (WAL, busy_timeout) next to the runtime so every runtime thread
 sees the same queue:
 
-* ``pool_nodes``        - GPU cards. Only ``job98270`` is ever granted; every
-                          other row (e.g. the retired ``job98219``) is ignored.
+* ``pool_nodes``        - GPU cards. Only the cards named in gpu-pool.json (the
+                          primary ``node_id`` plus the optional ``nodes`` list) are
+                          granted; every other row (retired allocations) is ignored.
 * ``quotas``            - optional per-tenant override of the rolling budget.
 * ``train_jobs``        - queued / running / finished training requests.
 * ``gpu_leases``        - the active grant, kept alive by heartbeats.
@@ -15,8 +16,10 @@ sees the same queue:
 
 Policy (see docs/gpu-timeshare-c7c.md):
 
-* Concurrency 1 per tenant, enforced by SQLite triggers, plus the node's
-  UNIQUE lease. No preemption of a running lease.
+* Concurrency 1 per tenant, enforced by SQLite triggers, plus one UNIQUE lease
+  per card, so N cards run up to N tenants at once. No preemption of a running lease.
+* Card choice: the best idle card that fits the job now (lowest ``priority``,
+  then the most free memory); see ``schedule``.
 * Queue order = ``fair_order``: per tenant only the oldest queued job (FIFO in
   tenant) competes; the tenant with the lowest ``recent usage - head wait``
   wins, ties by submission order. Waiting lowers the score 1:1, so a tenant
@@ -80,6 +83,45 @@ def _service_node_display() -> tuple[str, int]:
 
 
 SERVICE_NODE_LABEL, SERVICE_NODE_VRAM_MB = _service_node_display()
+
+
+def _extra_pool_nodes() -> tuple[dict, ...]:
+    """2026-11-05: more cards in the same pool. ``gpu_pool.nodes`` = [{node_id, hpc_job_id, gpu_model, gpu_vram_mb, priority}].
+
+    The primary card (``node_id``/``hpc_job_id``) is always first. An entry that is malformed, duplicates a card or comes
+    with an invalid primary is ignored, so it is never schedulable. Read once at import, like the primary.
+    """
+
+    import os
+    path = Path(os.environ.get("EVOMIND_GPU_POOL_CONFIG", r"C:\ProgramData\EvoMind\state\gpu-pool.json"))
+    try:
+        block = json.loads(path.read_text(encoding="utf-8-sig")).get("gpu_pool") or {}
+        if block.get("hpc_job_id") != ALLOWED_HPC_JOB_ID or block.get("node_id") != ALLOWED_NODE_ID:
+            return ()
+        items = block.get("nodes") or []
+    except (OSError, ValueError, AttributeError):
+        return ()
+    nodes: list[dict] = []
+    seen = {ALLOWED_NODE_ID}
+    for item in items if isinstance(items, list) else []:
+        if not isinstance(item, dict):
+            continue
+        job, vram, priority = item.get("hpc_job_id"), item.get("gpu_vram_mb"), item.get("priority", 1)
+        valid_int = lambda value: isinstance(value, int) and not isinstance(value, bool)
+        if (not valid_int(job) or not 10_000 <= job <= 9_999_999 or item.get("node_id") != f"job{job}" or f"job{job}" in seen
+                or not valid_int(vram) or vram <= 0 or not valid_int(priority) or priority < 0):
+            continue
+        seen.add(f"job{job}")
+        nodes.append({"node_id": f"job{job}", "hpc_job_id": job, "label": str(item.get("gpu_model") or "GPU")[:32],
+                      "vram_mb": vram, "priority": priority})
+    return tuple(nodes)
+
+
+EXTRA_POOL_NODES = _extra_pool_nodes()
+POOL_NODE_IDS = (ALLOWED_NODE_ID, *(node["node_id"] for node in EXTRA_POOL_NODES))
+POOL_HPC_JOB_IDS = frozenset({ALLOWED_HPC_JOB_ID, *(node["hpc_job_id"] for node in EXTRA_POOL_NODES)})
+# Lower = preferred when several idle cards fit the job; ties go to the card with more free memory.
+NODE_PRIORITY = {ALLOWED_NODE_ID: 0, **{node["node_id"]: node["priority"] for node in EXTRA_POOL_NODES}}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pool_nodes (
@@ -349,6 +391,20 @@ class GpuScheduler:
                          gpu_model=SERVICE_NODE_LABEL, vram_mb=int(vram_mb or self.policy.node_vram_mb), profile=profile,
                          enabled=bool(row["enabled"]) if row else True)
 
+    def ensure_extra_nodes(self, profiles: dict[str, str]) -> None:
+        """Register the additional pool cards that have a verified credential profile (others stay unregistered)."""
+
+        db = self._db()
+        for node in EXTRA_POOL_NODES:
+            profile = str(profiles.get(node["node_id"]) or "")
+            if not profile:
+                continue
+            row = db.execute("SELECT * FROM pool_nodes WHERE id=?", (node["node_id"],)).fetchone()
+            if row is not None and row["profile"] == profile and row["gpu_model"] == node["label"] and int(row["vram_mb"]) == node["vram_mb"]:
+                continue
+            self.upsert_node(node["node_id"], label=node["label"], gpu_uuid=row["gpu_uuid"] if row else "", gpu_model=node["label"],
+                             vram_mb=node["vram_mb"], profile=profile, enabled=bool(row["enabled"]) if row else True)
+
     def set_node_enabled(self, node_id: str, enabled: bool) -> None:
         with self._tx() as db:
             db.execute("UPDATE pool_nodes SET enabled=?, updated_at=? WHERE id=?", (int(enabled), self.clock(), node_id))
@@ -356,6 +412,19 @@ class GpuScheduler:
 
     def _node(self, db: sqlite3.Connection) -> sqlite3.Row | None:
         return db.execute("SELECT * FROM pool_nodes WHERE id=? AND enabled=1", (ALLOWED_NODE_ID,)).fetchone()
+
+    def _nodes(self, db: sqlite3.Connection) -> list[sqlite3.Row]:
+        """Enabled, schedulable cards in preference order (the primary first)."""
+
+        rows = [row for row in db.execute("SELECT * FROM pool_nodes WHERE enabled=1") if row["id"] in POOL_NODE_IDS]
+        return sorted(rows, key=lambda row: (NODE_PRIORITY.get(row["id"], 99), POOL_NODE_IDS.index(row["id"])))
+
+    def idle_nodes(self) -> list[dict]:
+        """Schedulable cards that hold no lease right now."""
+
+        db = self._db()
+        leased = {row["node_id"] for row in db.execute("SELECT node_id FROM gpu_leases")}
+        return [dict(row) for row in self._nodes(db) if row["id"] not in leased]
 
     def set_quota(self, tenant_id: str, gpu_hours: float, period_days: int = 30) -> None:
         if gpu_hours < 0 or period_days < 1:
@@ -453,7 +522,7 @@ class GpuScheduler:
             raise SchedulerError("gpu_request_invalid")
         if not budget_exempt:
             requested = min(requested, self.policy.max_run_ceiling_seconds)
-        if required_node not in (None, "", ALLOWED_NODE_ID):
+        if required_node not in (None, "", *POOL_NODE_IDS):
             raise SchedulerError("pool_unavailable")
         with self._tx() as db:
             existing = db.execute(
@@ -462,10 +531,10 @@ class GpuScheduler:
             if existing:
                 db.execute("UPDATE train_jobs SET waiter_at=? WHERE id=? AND status=?", (now, existing["id"], QUEUED))
                 return dict(db.execute("SELECT * FROM train_jobs WHERE id=?", (existing["id"],)).fetchone())
-            node = self._node(db)
-            if node is None:
+            nodes = self._nodes(db)
+            if not nodes:
                 raise SchedulerError("pool_unavailable")
-            if vram > int(node["vram_mb"]):
+            if vram > max(int(node["vram_mb"]) for node in nodes):
                 raise SchedulerError("insufficient_gpu_memory")
             if not budget_exempt:
                 self._require_budget(db, tenant_id, now)
@@ -479,7 +548,8 @@ class GpuScheduler:
             db.execute(
                 "INSERT INTO train_jobs(id,tenant_id,owner_id,run_id,vram_mb,max_hours,status,required_node,created_at,"
                 "requested_seconds,waiter_at,budget_exempt) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                (job_id, tenant_id, owner_id or tenant_id, run_id, vram, requested / 3600.0, QUEUED, ALLOWED_NODE_ID, now, requested, now, int(budget_exempt)),
+                (job_id, tenant_id, owner_id or tenant_id, run_id, vram, requested / 3600.0, QUEUED,
+                 required_node or (ALLOWED_NODE_ID if not EXTRA_POOL_NODES else None), now, requested, now, int(budget_exempt)),
             )
             self.audit("submitted", tenant_id=tenant_id, job_id=job_id, detail={"requested_seconds": requested, "vram_mb": vram}, db=db)
             return dict(db.execute("SELECT * FROM train_jobs WHERE id=?", (job_id,)).fetchone())
@@ -547,14 +617,18 @@ class GpuScheduler:
         if job_id not in ids:
             return {"position": None, "eta_seconds": None}
         index = ids.index(job_id)
-        lease = db.execute("SELECT deadline_at, granted_at FROM gpu_leases WHERE node_id=?", (ALLOWED_NODE_ID,)).fetchone()
+        leases = {row["node_id"]: row for row in db.execute("SELECT node_id, deadline_at, granted_at FROM gpu_leases")}
+        cards = [row["id"] for row in self._nodes(db)] or [ALLOWED_NODE_ID]
         deadline = None
-        if lease is not None:
-            deadline = lease["deadline_at"] if lease["deadline_at"] is not None else float(lease["granted_at"]) + self.policy.max_run_seconds
+        if all(card in leases for card in cards):
+            # Every card is busy: the first one to free up starts the queue again.
+            deadline = min(lease["deadline_at"] if lease["deadline_at"] is not None else float(lease["granted_at"]) + self.policy.max_run_seconds
+                           for lease in (leases[card] for card in cards))
         # ADDENDUM 2: a job the broker is freeing memory for adds its stop estimate; restore after a job never does.
         freeing = [self.policy.broker_stop_seconds for row in ordered[: index + 1] if row["reason"] == FREEING]
+        ahead = [self._requested(row) / len(cards) for row in ordered[:index]]  # the jobs ahead spread over the cards
         status = {"position": index + 1,
-                  "eta_seconds": eta_seconds(now, deadline, [*(self._requested(row) for row in ordered[:index]), *freeing]),
+                  "eta_seconds": eta_seconds(now, deadline, [*ahead, *freeing]),
                   "eta_is_estimate": True}
         return status if self._live(ordered[index], now) else {**status, "held": True}
 
@@ -601,26 +675,47 @@ class GpuScheduler:
 
     def schedule(self, free_vram: "FreeVramProbe | int | None" = None, *, require_waiter: bool = True,
                  only_job: str | None = None) -> list[Grant]:
-        """Grant the free node to the first eligible queued job; never preempts.
+        """Grant the idle cards to the eligible queued jobs in fair order; never preempts.
 
-        ``free_vram`` is either a callable ``(node) -> free MB | None`` or a number
-        from an earlier probe. ``None`` from a callable means unknown/unhealthy: no grant.
+        ``free_vram`` is a callable ``(node) -> free MB | None``, a ``{node_id: free MB | None}`` map (a missing card is
+        unknown), or a number from an earlier probe (applied to every idle card). ``None`` means unknown/unhealthy: no grant.
         Jobs whose waiter has gone away keep their place (held) but are not granted and
         do not block the first live job.
+
+        2026-11-05 (multi-card): each job goes to the best idle card that fits it now: the lowest ``priority`` first, then
+        the one with the most free memory. When the head job fits no idle card it keeps its claim on every card big
+        enough for it (no skipping ahead, so large requests are never starved); only cards too small to ever hold it
+        stay open for the jobs behind it.
         """
 
         self.reconcile()
         now = self.clock()
         with self._tx() as db:
-            node = self._node(db)
-            if node is None or db.execute("SELECT 1 FROM gpu_leases WHERE node_id=?", (ALLOWED_NODE_ID,)).fetchone():
+            leased = {row["node_id"] for row in db.execute("SELECT node_id FROM gpu_leases")}
+            idle = [node for node in self._nodes(db) if node["id"] not in leased]
+            if not idle:
                 return []
             running_tenants = {row["tenant_id"] for row in db.execute("SELECT tenant_id FROM train_jobs WHERE status=?", (RUNNING,))}
             if only_job is None and db.execute(
                     "SELECT 1 FROM train_jobs WHERE status=? AND reason=? AND waiter_at >= ?", (QUEUED, FREEING, now - self.waiter_ttl)).fetchone():
                 return []  # memory is being freed for the head job; nobody else takes the card meanwhile
-            free: int | None
+            probed: dict[str, int | None] = {}
+
+            def free_of(node: sqlite3.Row) -> int | None:
+                if node["id"] not in probed:
+                    if callable(free_vram):
+                        value = free_vram(dict(node))
+                    elif isinstance(free_vram, dict):
+                        value = free_vram.get(node["id"])
+                    else:
+                        value = int(node["vram_mb"]) if free_vram is None else free_vram
+                    probed[node["id"]] = None if value is None else int(value)
+                return probed[node["id"]]
+
+            grants: list[Grant] = []
             for job in self._ordered_queue(db, now):
+                if not idle:
+                    break
                 if only_job is not None and job["id"] != only_job:
                     continue
                 if job["tenant_id"] in running_tenants:
@@ -636,23 +731,28 @@ class GpuScheduler:
                         limit = "quota_exhausted" if budget["daily_left"] < self.policy.min_grant_seconds else "quota_exhausted_rolling"
                         self._finish_row(db, job, REJECTED, {"reason": limit}, now)
                         continue
-                if callable(free_vram):
-                    free = free_vram(dict(node))
-                else:
-                    free = int(node["vram_mb"]) if free_vram is None else int(free_vram)
-                if free is None or free < int(job["vram_mb"]):
-                    # Head-of-line: no skipping ahead, so large requests are never starved.
-                    db.execute("UPDATE train_jobs SET reason=? WHERE id=?", ("insufficient_gpu_memory" if free is not None else "pool_unavailable", job["id"]))
-                    return []
+                need = int(job["vram_mb"])
+                frees = [(node, free_of(node)) for node in idle]
+                fitting = [(node, free) for node, free in frees if free is not None and free >= need]
+                if not fitting:
+                    # Head-of-line: no skipping ahead on any card this job could use, so large requests are never starved.
+                    known = any(free is not None for _node, free in frees)
+                    db.execute("UPDATE train_jobs SET reason=? WHERE id=?", ("insufficient_gpu_memory" if known else "pool_unavailable", job["id"]))
+                    idle = [node for node in idle if int(node["vram_mb"]) < need]
+                    continue
+                node = min(fitting, key=lambda item: (NODE_PRIORITY.get(item[0]["id"], 99), -int(item[1]), POOL_NODE_IDS.index(item[0]["id"])))[0]
                 lease_id = "glease_" + uuid.uuid4().hex
                 deadline = now + max_run
                 db.execute("INSERT INTO gpu_leases(id,job_id,node_id,granted_at,heartbeat_at,tenant_id,deadline_at) VALUES(?,?,?,?,?,?,?)",
-                           (lease_id, job["id"], ALLOWED_NODE_ID, now, now, job["tenant_id"], deadline))
+                           (lease_id, job["id"], node["id"], now, now, job["tenant_id"], deadline))
                 db.execute("UPDATE train_jobs SET status=?, node_id=?, started_at=?, max_run_seconds=?, deadline_at=?, reason=NULL WHERE id=?",
-                           (RUNNING, ALLOWED_NODE_ID, now, max_run, deadline, job["id"]))
-                self.audit("granted", tenant_id=job["tenant_id"], job_id=job["id"], detail={"max_run_seconds": max_run}, db=db)
-                return [Grant(job["id"], lease_id, ALLOWED_NODE_ID, str(node["profile"]), deadline, max_run)]
-        return []
+                           (RUNNING, node["id"], now, max_run, deadline, job["id"]))
+                detail = {"max_run_seconds": max_run} if len(POOL_NODE_IDS) == 1 else {"max_run_seconds": max_run, "node": node["id"]}
+                self.audit("granted", tenant_id=job["tenant_id"], job_id=job["id"], detail=detail, db=db)
+                grants.append(Grant(job["id"], lease_id, node["id"], str(node["profile"]), deadline, max_run))
+                idle = [item for item in idle if item["id"] != node["id"]]
+                running_tenants.add(job["tenant_id"])
+        return grants
 
     def heartbeat(self, lease_id: str) -> bool:
         with self._tx() as db:
@@ -886,7 +986,8 @@ class GpuScheduler:
         nodes = []
         for row in db.execute("SELECT * FROM pool_nodes ORDER BY id"):
             lease = leases.get(row["id"])
-            nodes.append({**dict(row), "schedulable": row["id"] == ALLOWED_NODE_ID and bool(row["enabled"]),
+            nodes.append({**dict(row), "schedulable": row["id"] in POOL_NODE_IDS and bool(row["enabled"]),
+                          "priority": NODE_PRIORITY.get(row["id"]),
                           "busy": bool(lease), "job_id": lease["job_id"] if lease else None,
                           "deadline_in_seconds": round(float(lease["deadline_at"]) - now, 1) if lease and lease["deadline_at"] is not None else None,
                           "heartbeat_age_seconds": round(now - lease["heartbeat_at"], 1) if lease else None})
