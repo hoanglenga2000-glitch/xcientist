@@ -24,7 +24,7 @@ import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterable, Iterator
 
 from research_os.remote_paths import HPC_HOME_ROOT, TRAINER_MARKER
 
@@ -855,10 +855,11 @@ class GpuGate:
 
     def acquire(self, *, tenant_id: str, owner_id: str, run_id: str, requested_seconds: int | None = None,
                 vram_mb: int | None = None, on_wait: Callable[[dict], None] | None = None,
-                operator: bool = False) -> LeaseHandle:
+                operator: bool = False, exclude_nodes: Iterable[str] = ()) -> LeaseHandle:
         from . import gpu_vram
 
         sched = self.sched
+        self.excluded = set(exclude_nodes or ())  # cards this request already found unusable (another card is tried)
         if not any(monitor.breaker.allow_probe() for monitor in self.node_health.values()):
             # Fail fast; an existing queued job of this run keeps its place.
             raise GpuAdmissionError("breaker_open", **self._place(tenant_id, run_id))
@@ -961,7 +962,8 @@ class GpuGate:
         from . import gpu_vram
 
         position = status.get("position")
-        idle = [node for node in self.sched.idle_nodes() if node["id"] in self.node_health]
+        excluded = getattr(self, "excluded", set())
+        idle = [node for node in self.sched.idle_nodes() if node["id"] in self.node_health and node["id"] not in excluded]
         if position is None or not idle or position > len(idle):
             return None
         try:  # re-read on every admission: config edits apply without a redeploy

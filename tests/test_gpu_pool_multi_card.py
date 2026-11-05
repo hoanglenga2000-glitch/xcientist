@@ -278,3 +278,89 @@ def test_kills_and_checks_go_to_the_card_the_job_ran_on(monkeypatch, tmp_path):
     route({"node_id": None})
     assert seen == ["c2", "c1"]
     assert route({"node_id": "job1"}) is None
+
+
+MAIN = {"node_id": "job98744", "hpc_job_id": 98744, "gpu_model": "A800 80GB", "gpu_vram_mb": 81920, "priority": 0}
+
+
+def test_a_new_card_can_be_preferred_over_the_primary(monkeypatch, tmp_path):
+    s, _a, _t = _reload(monkeypatch, tmp_path, {**PRIMARY, "priority": 1, "nodes": [MAIN, {**EXTRA, "priority": 2}]})
+    assert s.NODE_PRIORITY == {"job98456": 1, "job98744": 0, "job98229": 2}
+    sched = s.GpuScheduler(tmp_path / "sched.sqlite3")
+    try:
+        sched.ensure_node(profile=f"{TENANT}_job98456_g47")
+        sched.ensure_extra_nodes({"job98744": f"{TENANT}_job98744_g49", "job98229": f"{TENANT}_job98229_g48"})
+        jobs = [sched.submit(tenant_id="tenant_" + c * 24, owner_id="u", run_id="r" + c, requested_seconds=600, vram_mb=4096) for c in "abc"]
+        grants = sched.schedule(free_vram={"job98456": 48000, "job98744": 81000, "job98229": 40000})
+        assert [g.node_id for g in grants] == ["job98744", "job98456", "job98229"]
+        assert [g.job_id for g in grants] == [j["id"] for j in jobs]
+    finally:
+        sched.close()
+
+
+def test_invalid_primary_priority_falls_back_to_zero(monkeypatch, tmp_path):
+    s, _a, _t = _reload(monkeypatch, tmp_path, {**PRIMARY, "priority": True})
+    assert s.NODE_PRIORITY == {"job98456": 0}
+
+
+def test_gate_skips_a_card_it_was_told_to_exclude(monkeypatch, tmp_path):
+    _s, a, _t = _reload(monkeypatch, tmp_path, {**PRIMARY, "priority": 1, "nodes": [MAIN]})
+    config = {**a.pool_config(), "credential_profile": f"{TENANT}_job98456_g47", "node_profiles": {"job98744": f"{TENANT}_job98744_g49"}}
+    gate = a.GpuGate(tmp_path, config, probe=lambda: a.ProbeResult(True, 48000), node_probes={"job98744": lambda: a.ProbeResult(True, 81000)},
+                     sleep=lambda _s: None)
+    try:
+        lease = gate.acquire(tenant_id=TENANT, owner_id="admin", run_id="r1", requested_seconds=600, vram_mb=4096)
+        assert lease.node_id == "job98744"
+        lease.release(False)
+        lease = gate.acquire(tenant_id=TENANT, owner_id="admin", run_id="r1", requested_seconds=600, vram_mb=4096, exclude_nodes=("job98744",))
+        assert lease.node_id == "job98456"
+        lease.release(True)
+    finally:
+        gate.close()
+
+
+def test_rejected_password_is_retried_on_a_fresh_connection(monkeypatch, tmp_path):
+    import sys as python_sys
+
+    from research_agent_workstation.server.core import gpu_credentials as gc
+
+    class AuthenticationException(Exception):
+        pass
+
+    class BadAuthenticationType(AuthenticationException):
+        pass
+
+    outcomes: list = []
+
+    class FakeSSHClient:
+        def load_host_keys(self, path):
+            pass
+
+        def set_missing_host_key_policy(self, policy):
+            pass
+
+        def connect(self, **kwargs):
+            item = outcomes.pop(0)
+            if item is not None:
+                raise item
+
+        def close(self):
+            pass
+
+    fake = SimpleNamespace(SSHClient=FakeSSHClient, RejectPolicy=object, AuthenticationException=AuthenticationException)
+    monkeypatch.setitem(python_sys.modules, "paramiko", fake)
+    monkeypatch.setattr(gc, "AUTH_REJECT_RETRY_SECONDS", 0.0)
+    known = tmp_path / "known_hosts"
+    known.write_text("h ssh-ed25519 k\n", encoding="utf-8")
+    config = gc.GpuSshConfig(host="h", port=22, username="u", password="p", known_hosts_path=str(known))
+
+    outcomes[:] = [AuthenticationException(), AuthenticationException(), None]
+    assert gc.connect_ssh(config) is not None and outcomes == []
+    outcomes[:] = [AuthenticationException()] * gc.AUTH_REJECT_ATTEMPTS
+    with pytest.raises(AuthenticationException):
+        gc.connect_ssh(config)
+    assert outcomes == []
+    outcomes[:] = [BadAuthenticationType(), None]
+    with pytest.raises(BadAuthenticationType):
+        gc.connect_ssh(config)
+    assert outcomes == [None]  # a refused auth method is never retried

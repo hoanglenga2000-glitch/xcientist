@@ -1122,47 +1122,66 @@ def _connect_ssh_unlocked(config: GpuSshConfig, *, timeout: int = 20):
             kwargs["password"] = config.password
         return kwargs
 
-    jump_client = None
-    entry_host = config.jump_host or config.host
-    entry_port = config.jump_port if config.jump_host else config.port
-    entry_socket = None
-    if config.socks is not None:
-        entry_socket = open_socks_channel(config.socks, entry_host, entry_port, timeout=timeout)
-    try:
-        target_socket = entry_socket
-        if config.jump_host:
-            jump_client = paramiko.SSHClient()
-            apply_pinned_host_keys(jump_client)
-            jump_client.connect(**auth_kwargs(
-                host=config.jump_host,
-                port=config.jump_port,
-                username=config.jump_username or config.username,
-                sock=entry_socket,
-            ))
-            transport = jump_client.get_transport()
-            if transport is None or not transport.is_active():
-                raise CredentialError("HPC SSH jump transport is not active")
-            target_socket = transport.open_channel(
-                "direct-tcpip",
-                (config.host, config.port),
-                ("127.0.0.1", 0),
-            )
+    def open_once():
+        jump_client = None
+        entry_host = config.jump_host or config.host
+        entry_port = config.jump_port if config.jump_host else config.port
+        entry_socket = None
+        if config.socks is not None:
+            entry_socket = open_socks_channel(config.socks, entry_host, entry_port, timeout=timeout)
+        try:
+            target_socket = entry_socket
+            if config.jump_host:
+                jump_client = paramiko.SSHClient()
+                apply_pinned_host_keys(jump_client)
+                jump_client.connect(**auth_kwargs(
+                    host=config.jump_host,
+                    port=config.jump_port,
+                    username=config.jump_username or config.username,
+                    sock=entry_socket,
+                ))
+                transport = jump_client.get_transport()
+                if transport is None or not transport.is_active():
+                    raise CredentialError("HPC SSH jump transport is not active")
+                target_socket = transport.open_channel(
+                    "direct-tcpip",
+                    (config.host, config.port),
+                    ("127.0.0.1", 0),
+                )
 
-        client = CascadingSshClient(upstream=jump_client)
-        apply_pinned_host_keys(client)
-        client.connect(**auth_kwargs(
-            host=config.host,
-            port=config.port,
-            username=config.username,
-            sock=target_socket,
-        ))
-        return client
-    except Exception:
-        if jump_client is not None:
-            jump_client.close()
-        elif entry_socket is not None:
-            entry_socket.close()
-        raise
+            client = CascadingSshClient(upstream=jump_client)
+            apply_pinned_host_keys(client)
+            client.connect(**auth_kwargs(
+                host=config.host,
+                port=config.port,
+                username=config.username,
+                sock=target_socket,
+            ))
+            return client
+        except Exception:
+            if jump_client is not None:
+                jump_client.close()
+            elif entry_socket is not None:
+                entry_socket.close()
+            raise
+
+    # 2026-11-05: the gateway (SSHPiper) intermittently rejects a valid password for some allocations (measured ~40% for
+    # one job while another job's account passed 8/8). A plain password rejection is retried on a fresh connection a
+    # bounded number of times; host-key, proxy, transport and auth-method errors are never retried. Never logs the password.
+    attempts = max(1, AUTH_REJECT_ATTEMPTS)
+    rejected = getattr(paramiko, "AuthenticationException", ())
+    for attempt in range(1, attempts + 1):
+        try:
+            return open_once()
+        except rejected as exc:
+            if type(exc) is not rejected or attempt >= attempts:
+                raise
+            time.sleep(AUTH_REJECT_RETRY_SECONDS * attempt)
+    raise CredentialError("HPC SSH authentication failed")  # pragma: no cover - the loop returns or raises
+
+
+AUTH_REJECT_ATTEMPTS = 6
+AUTH_REJECT_RETRY_SECONDS = 1.0
 
 
 def connect_ssh(config: Optional[GpuSshConfig] = None, *, timeout: int = 20):

@@ -4216,17 +4216,26 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
             except DispatchCancelled:
                 return ToolResult("", False, {"remote_dispatched": False}, gpu_admission.message("cancelled"), error="gpu_cancelled")
             runtime.cancel_check = None
-        try:
-            lease = gate.acquire(tenant_id=tenant_id, owner_id=owner_id, run_id=context.session_id,
-                                 requested_seconds=requested_seconds, vram_mb=context.gpu_vram_mb, on_wait=waiting, operator=operator)
-        except gpu_admission.GpuAdmissionError as error:
-            public = error.public()
-            return ToolResult("", False, {"gpu_queue": public, "remote_dispatched": False, "retryable": error.code not in {"quota_exhausted", "quota_exhausted_rolling"}},
-                              public["message"], error="gpu_" + error.code)
-        if getattr(lease, "node_id", gpu_admission.ALLOWED_NODE_ID) != gpu_admission.ALLOWED_NODE_ID:
+        refused_cards: list[str] = []
+        while True:
+            try:
+                lease = gate.acquire(tenant_id=tenant_id, owner_id=owner_id, run_id=context.session_id,
+                                     requested_seconds=requested_seconds, vram_mb=context.gpu_vram_mb, on_wait=waiting, operator=operator,
+                                     **({"exclude_nodes": tuple(refused_cards)} if refused_cards else {}))
+            except gpu_admission.GpuAdmissionError as error:
+                public = error.public()
+                return ToolResult("", False, {"gpu_queue": public, "remote_dispatched": False, "retryable": error.code not in {"quota_exhausted", "quota_exhausted_rolling"}},
+                                  public["message"], error="gpu_" + error.code)
+            if getattr(lease, "node_id", gpu_admission.ALLOWED_NODE_ID) == gpu_admission.ALLOWED_NODE_ID:
+                break
             refused = _move_runtime_to_card(context, runtime, lease, node_configs)
-            if refused is not None:
+            if refused is None:
+                break
+            # 2026-11-05: an additional card that fails its identity check is skipped for this request (released unbilled) and
+            # the request queues again for the other cards; the primary card is never skipped, so this ends.
+            if lease.node_id in refused_cards:
                 return refused
+            refused_cards.append(lease.node_id)
         solution_id = str(execute_args.get("solution_id") or "solution")
         lease_deadline = time.monotonic() + lease.remaining_seconds()
         runtime.process_marker = lease.job_id  # the dead-man guard and orphan cleanup match on it

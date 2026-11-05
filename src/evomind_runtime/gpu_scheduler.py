@@ -118,10 +118,25 @@ def _extra_pool_nodes() -> tuple[dict, ...]:
 
 
 EXTRA_POOL_NODES = _extra_pool_nodes()
+
+
+def _primary_priority() -> int:
+    """2026-11-05: optional ``gpu_pool.priority`` of the primary card (default 0), so another card can be preferred."""
+
+    import os
+    path = Path(os.environ.get("EVOMIND_GPU_POOL_CONFIG", r"C:\ProgramData\EvoMind\state\gpu-pool.json"))
+    try:
+        block = json.loads(path.read_text(encoding="utf-8-sig")).get("gpu_pool") or {}
+        value = block.get("priority", 0) if block.get("node_id") == ALLOWED_NODE_ID else 0
+    except (OSError, ValueError, AttributeError):
+        return 0
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
+
+
 POOL_NODE_IDS = (ALLOWED_NODE_ID, *(node["node_id"] for node in EXTRA_POOL_NODES))
 POOL_HPC_JOB_IDS = frozenset({ALLOWED_HPC_JOB_ID, *(node["hpc_job_id"] for node in EXTRA_POOL_NODES)})
 # Lower = preferred when several idle cards fit the job; ties go to the card with more free memory.
-NODE_PRIORITY = {ALLOWED_NODE_ID: 0, **{node["node_id"]: node["priority"] for node in EXTRA_POOL_NODES}}
+NODE_PRIORITY = {ALLOWED_NODE_ID: _primary_priority(), **{node["node_id"]: node["priority"] for node in EXTRA_POOL_NODES}}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pool_nodes (
