@@ -51,6 +51,7 @@ TENANT_JOB_PROFILE = re.compile(
     r"(tenant_[a-f0-9]{24})_job([1-9][0-9]*)_g([1-9][0-9]*)"
 )
 PROFILE_CREDENTIAL_FILENAME = "hpc_ssh_credential.xml"
+PROFILE_SOCKS_CREDENTIAL_FILENAME = "hpc_socks_credential.xml"
 PROFILE_METADATA_FILENAME = "hpc_ssh_metadata.json"
 PROFILE_KNOWN_HOSTS_FILENAME = "known_hosts"
 PROFILE_FROZEN_TOMBSTONE_FILENAME = "hpc_profile_frozen.tombstone.json"
@@ -170,7 +171,10 @@ def _profile_artifact_path(profile_dir: Path, value: object, default_name: str) 
     return resolved
 
 
-def _dpapi_subprocess_environment(credential_path: Path) -> dict[str, str]:
+def _dpapi_subprocess_environment(
+    credential_path: Path,
+    socks_credential_path: Path | None = None,
+) -> dict[str, str]:
     """Build the minimum environment needed by the DPAPI PowerShell child.
 
     Windows environment names are case-insensitive, while a monkeypatched test
@@ -186,6 +190,8 @@ def _dpapi_subprocess_environment(credential_path: Path) -> dict[str, str]:
         if name in available
     }
     environment["EVOMIND_HPC_CREDENTIAL_PATH"] = str(credential_path)
+    if socks_credential_path is not None:
+        environment["EVOMIND_HPC_SOCKS_CREDENTIAL_PATH"] = str(socks_credential_path)
     return environment
 
 
@@ -241,6 +247,7 @@ class GpuSshConfig:
     credential_profile: str = DEFAULT_CREDENTIAL_PROFILE
     expected_host_uuid: Optional[str] = None
     expected_gpu_uuid: Optional[str] = None
+    expected_gpu_inventory: Optional[list[dict[str, object]]] = None
     job_id: Optional[int] = None
     remote_workspace: Optional[str] = None
     strict_named_profile: bool = False
@@ -248,6 +255,7 @@ class GpuSshConfig:
     allocation_binding_id: Optional[str] = None
     allocation_generation: Optional[int] = None
     profile_instance_id: Optional[str] = None
+    container_binding_sha256: Optional[str] = None
 
     def __repr__(self) -> str:  # avoid leaking password in logs/tracebacks
         return (
@@ -484,6 +492,50 @@ def _canonical_json_bytes(value: object) -> bytes:
     ).encode("utf-8")
 
 
+def normalize_gpu_inventory(
+    value: object,
+    *,
+    required: bool = False,
+) -> list[dict[str, object]]:
+    """Return one canonical per-device GPU inventory.
+
+    Provisioning observes this inventory through the allocation-bound read-only
+    probe.  Activation freezes it into the profile binding so later sessions
+    compare model and memory per UUID instead of relying on a workload-specific
+    hard-coded GPU family.
+    """
+
+    if value is None:
+        if required:
+            raise CredentialError("GPU inventory is missing")
+        return []
+    if not isinstance(value, list) or not value:
+        raise CredentialError("GPU inventory is invalid")
+    records: list[dict[str, object]] = []
+    for item in value:
+        if not isinstance(item, dict):
+            raise CredentialError("GPU inventory is invalid")
+        uuid_value = str(item.get("uuid") or "").strip().lower()
+        name = str(item.get("name") or "").strip()
+        try:
+            memory_total_mib = int(item.get("memory_total_mib") or 0)
+        except (TypeError, ValueError) as exc:
+            raise CredentialError("GPU inventory memory is invalid") from exc
+        if not uuid_value or not name or memory_total_mib <= 0:
+            raise CredentialError("GPU inventory is incomplete")
+        records.append(
+            {
+                "uuid": uuid_value,
+                "name": name,
+                "memory_total_mib": memory_total_mib,
+            }
+        )
+    records.sort(key=lambda item: str(item["uuid"]))
+    if len({str(item["uuid"]) for item in records}) != len(records):
+        raise CredentialError("GPU inventory contains duplicate UUIDs")
+    return records
+
+
 def compute_container_binding_sha256(metadata: dict[str, object]) -> str:
     """Return the deterministic active-container binding identity.
 
@@ -503,6 +555,9 @@ def compute_container_binding_sha256(metadata: dict[str, object]) -> str:
         "port": int(metadata.get("port") or 0),
         "socks_host": str(metadata.get("socks_host") or ""),
         "socks_port": int(metadata.get("socks_port") or 0),
+        "socks_credential_path": str(
+            metadata.get("socks_credential_path") or PROFILE_SOCKS_CREDENTIAL_FILENAME
+        ),
         "known_hosts_path": str(
             metadata.get("known_hosts_path") or PROFILE_KNOWN_HOSTS_FILENAME
         ),
@@ -510,6 +565,13 @@ def compute_container_binding_sha256(metadata: dict[str, object]) -> str:
         "expected_gpu_uuid": str(metadata.get("expected_gpu_uuid") or ""),
         "remote_workspace": str(metadata.get("remote_workspace") or ""),
     }
+    # Preserve byte-for-byte digest compatibility for already-active legacy
+    # profiles.  New activations always bind the complete inventory.
+    if "expected_gpu_inventory" in metadata:
+        payload["expected_gpu_inventory"] = normalize_gpu_inventory(
+            metadata.get("expected_gpu_inventory"),
+            required=True,
+        )
     return hashlib.sha256(_canonical_json_bytes(payload)).hexdigest()
 
 
@@ -566,11 +628,24 @@ def _validate_named_profile_lifecycle(
         metadata.get("lifecycle_revision"),
         "named HPC profile lifecycle revision is invalid",
     )
+    container_binding_sha256: Optional[str] = None
     if state == PROFILE_STATE_ACTIVE:
         if not str(metadata.get("expected_host_uuid") or "").strip() or not str(
             metadata.get("expected_gpu_uuid") or ""
         ).strip():
             raise CredentialError("active named HPC profile has no container identity binding")
+        expected_gpu_inventory = normalize_gpu_inventory(
+            metadata.get("expected_gpu_inventory"),
+            required="expected_gpu_inventory" in metadata,
+        )
+        if expected_gpu_inventory:
+            bound_uuids = sorted(
+                value.strip().lower()
+                for value in str(metadata.get("expected_gpu_uuid") or "").split(",")
+                if value.strip()
+            )
+            if bound_uuids != [str(item["uuid"]) for item in expected_gpu_inventory]:
+                raise CredentialError("active named HPC profile GPU inventory binding changed")
         observed_digest = str(metadata.get("container_binding_sha256") or "").strip()
         try:
             expected_digest = compute_container_binding_sha256(metadata)
@@ -580,12 +655,19 @@ def _validate_named_profile_lifecycle(
             ) from exc
         if not re.fullmatch(r"[0-9a-f]{64}", observed_digest) or observed_digest != expected_digest:
             raise CredentialError("active named HPC profile container binding identity changed")
+        container_binding_sha256 = observed_digest
     return {
         "profile_state": state,
         "allocation_binding_id": binding_id,
         "allocation_generation": generation,
         "profile_instance_id": instance_id,
         "lifecycle_revision": revision,
+        "container_binding_sha256": container_binding_sha256,
+        "expected_gpu_inventory": (
+            normalize_gpu_inventory(metadata.get("expected_gpu_inventory"), required=True)
+            if "expected_gpu_inventory" in metadata
+            else None
+        ),
     }
 
 
@@ -606,7 +688,32 @@ def load_gpu_ssh_config_for_identity_bootstrap() -> GpuSshConfig:
     if injected:
         raise CredentialError("identity bootstrap rejects ordinary environment overrides")
     return _load_windows_dpapi_config(
+        strict_named_profile=True,
         allowed_named_profile_states=frozenset({PROFILE_STATE_PROVISIONING})
+    )
+
+
+def load_gpu_ssh_config_for_identity_bootstrap_locked() -> GpuSshConfig:
+    """Load a provisioning profile while its lifecycle lock is already held.
+
+    This entry point exists only for the activation transaction.  It avoids
+    recursively acquiring the same Windows byte-range lock while preserving
+    all lifecycle validation and DPAPI-decryption checks.
+    """
+
+    profile = _credential_profile()
+    if profile == DEFAULT_CREDENTIAL_PROFILE:
+        raise CredentialError("identity bootstrap requires a named job profile")
+    if sys.platform != "win32":
+        raise CredentialError("identity bootstrap requires Windows DPAPI")
+    injected = [name for name in STRICT_NAMED_PROFILE_OVERRIDE_KEYS if name in os.environ]
+    if injected:
+        raise CredentialError("identity bootstrap rejects ordinary environment overrides")
+    return _load_windows_dpapi_config_locked(
+        profile=profile,
+        state_dir=_credential_state_dir(profile),
+        strict_named_profile=True,
+        allowed_named_profile_states=frozenset({PROFILE_STATE_PROVISIONING}),
     )
 
 
@@ -675,6 +782,17 @@ def _load_windows_dpapi_config_locked(
                 else frozenset({PROFILE_STATE_ACTIVE})
             ),
         )
+    socks_credential_path: Path | None = None
+    _is_tenant_profile = bool(re.fullmatch(r"tenant_[0-9a-f]{24}_job[1-9][0-9]*_g[1-9][0-9]*", profile))
+    _is_job_profile = bool(re.fullmatch(r"job[1-9][0-9]*", profile))
+    if _is_tenant_profile or (_is_job_profile and (metadata.get("socks_credential_path") or (state_dir / PROFILE_SOCKS_CREDENTIAL_FILENAME).is_file())):
+        socks_credential_path = _profile_artifact_path(
+            state_dir,
+            metadata.get("socks_credential_path"),
+            PROFILE_SOCKS_CREDENTIAL_FILENAME,
+        )
+        if not socks_credential_path.is_file():
+            raise CredentialError("Windows DPAPI named-profile SOCKS credential is not installed")
     remote_root = str(metadata.get("remote_workspace") or "")
     if remote_root.rstrip("/") != ALLOWED_GPU_REMOTE_ROOT:
         raise CredentialError("Windows DPAPI HPC metadata remote workspace is outside the allowed root")
@@ -697,10 +815,10 @@ def _load_windows_dpapi_config_locked(
             raise CredentialError("strict named HPC profile host is invalid") from exc
         if host_address in ipaddress.ip_network("10.120.0.0/16"):
             raise CredentialError("allocation private IP is forbidden for strict HPC access")
-        if not str(metadata.get("socks_host") or "").strip() or int(
+        if str(metadata.get("socks_host") or "").strip() != "127.0.0.1" or int(
             metadata.get("socks_port") or 0
-        ) <= 0:
-            raise CredentialError("strict named HPC profile has no designated proxy binding")
+        ) != 7890:
+            raise CredentialError("strict named HPC profile must use the managed local designated proxy bridge")
     explicit_known_hosts = (
         None
         if strict_named_profile
@@ -717,9 +835,14 @@ def _load_windows_dpapi_config_locked(
     script = (
         "$ErrorActionPreference='Stop';"
         "$c=Import-Clixml -LiteralPath $env:EVOMIND_HPC_CREDENTIAL_PATH;"
-        "@{user=$c.UserName;password=$c.GetNetworkCredential().Password}|ConvertTo-Json -Compress"
+        "$result=@{user=$c.UserName;password=$c.GetNetworkCredential().Password};"
+        "if($env:EVOMIND_HPC_SOCKS_CREDENTIAL_PATH){"
+        "$s=Import-Clixml -LiteralPath $env:EVOMIND_HPC_SOCKS_CREDENTIAL_PATH;"
+        "$result.socks_user=$s.UserName;"
+        "$result.socks_password=$s.GetNetworkCredential().Password};"
+        "$result|ConvertTo-Json -Compress"
     )
-    env = _dpapi_subprocess_environment(credential_path)
+    env = _dpapi_subprocess_environment(credential_path, socks_credential_path)
     if profile != DEFAULT_CREDENTIAL_PROFILE and any(
         _profile_marker_present(path) for path in _profile_tombstone_paths(state_dir)
     ):
@@ -745,7 +868,17 @@ def _load_windows_dpapi_config_locked(
     socks_host = str(metadata.get("socks_host") or "")
     socks = None
     if socks_host:
-        socks = SocksConfig(host=socks_host, port=int(metadata.get("socks_port") or 7890))
+        socks = SocksConfig(
+            host=socks_host,
+            port=int(metadata.get("socks_port") or 1080),
+            username=str(secret_payload.get("socks_user") or "") or None,
+            password=str(secret_payload.get("socks_password") or "") or None,
+        )
+    if strict_named_profile and re.fullmatch(
+        r"tenant_[0-9a-f]{24}_job[1-9][0-9]*_g[1-9][0-9]*", profile
+    ) and (socks is None or not socks.username or not socks.password):
+        secret_payload.clear()
+        raise CredentialError("strict tenant HPC profile requires isolated designated proxy credentials")
     config = GpuSshConfig(
         host=str(metadata.get("host") or ""),
         port=int(metadata.get("port") or 0),
@@ -767,6 +900,11 @@ def _load_windows_dpapi_config_locked(
             or str(metadata.get("expected_gpu_uuid") or metadata.get("gpu_uuid") or "")
             or None
         ),
+        expected_gpu_inventory=(
+            list(lifecycle.get("expected_gpu_inventory") or [])
+            if lifecycle and lifecycle.get("expected_gpu_inventory")
+            else None
+        ),
         job_id=(int(metadata.get("job_id")) if metadata.get("job_id") is not None else None),
         remote_workspace=remote_root,
         strict_named_profile=strict_named_profile,
@@ -778,6 +916,11 @@ def _load_windows_dpapi_config_locked(
             int(lifecycle["allocation_generation"]) if lifecycle else None
         ),
         profile_instance_id=(str(lifecycle["profile_instance_id"]) if lifecycle else None),
+        container_binding_sha256=(
+            str(lifecycle["container_binding_sha256"])
+            if lifecycle and lifecycle.get("container_binding_sha256")
+            else None
+        ),
     )
     if not config.host or config.port <= 0 or not config.username or not config.password:
         raise CredentialError("Windows DPAPI HPC credential metadata is incomplete")
@@ -825,6 +968,7 @@ def _assert_named_profile_runtime_active(
         "remote_workspace": config.remote_workspace,
         "expected_host_uuid": config.expected_host_uuid,
         "expected_gpu_uuid": config.expected_gpu_uuid,
+        "expected_gpu_inventory": config.expected_gpu_inventory,
         "allocation_binding_id": config.allocation_binding_id,
         "allocation_generation": config.allocation_generation,
         "profile_instance_id": config.profile_instance_id,
@@ -836,6 +980,11 @@ def _assert_named_profile_runtime_active(
             "remote_workspace": str(metadata.get("remote_workspace") or ""),
             "expected_host_uuid": str(metadata.get("expected_host_uuid") or "") or None,
             "expected_gpu_uuid": str(metadata.get("expected_gpu_uuid") or "") or None,
+            "expected_gpu_inventory": (
+                normalize_gpu_inventory(metadata.get("expected_gpu_inventory"), required=True)
+                if "expected_gpu_inventory" in metadata
+                else None
+            ),
             "allocation_binding_id": str(lifecycle["allocation_binding_id"]),
             "allocation_generation": int(lifecycle["allocation_generation"]),
             "profile_instance_id": str(lifecycle["profile_instance_id"]),
@@ -1031,14 +1180,31 @@ def connect_ssh(config: Optional[GpuSshConfig] = None, *, timeout: int = 20):
         return _connect_ssh_unlocked(resolved, timeout=timeout)
 
 
+def connect_ssh_for_identity_bootstrap(
+    config: Optional[GpuSshConfig] = None,
+    *,
+    timeout: int = 20,
+):
+    """Connect one validated provisioning profile for its activation probe.
+
+    The caller must already hold the profile lifecycle lock. Ordinary runtime
+    callers use :func:`connect_ssh`, which remains active-state-only.
+    """
+
+    resolved = config or load_gpu_ssh_config_for_identity_bootstrap()
+    if not resolved.strict_named_profile or resolved.profile_state != PROFILE_STATE_PROVISIONING:
+        raise CredentialError("identity bootstrap requires one provisioning profile")
+    return _connect_ssh_unlocked(resolved, timeout=timeout)
+
+
 def verify_job_container_identity(
     client,
     config: GpuSshConfig,
     *,
     expected_job_id: int,
     expected_root: str = ALLOWED_GPU_REMOTE_ROOT,
-    expected_gpu_name_fragment: str = "A800",
-    minimum_gpu_memory_mib: int = 80_000,
+    expected_gpu_name_fragment: Optional[str] = None,
+    minimum_gpu_memory_mib: Optional[int] = None,
 ) -> dict:
     """Verify the routed job container on the same SSH connection, read-only."""
 
@@ -1061,7 +1227,11 @@ def verify_job_container_identity(
         raise CredentialError("job-container connection did not use the designated proxy")
     if (config.remote_workspace or "").rstrip("/") != expected_root.rstrip("/"):
         raise CredentialError("job-container remote workspace binding changed")
-    if not config.expected_host_uuid or not config.expected_gpu_uuid:
+    provisioning_bootstrap = config.profile_state == PROFILE_STATE_PROVISIONING
+    if provisioning_bootstrap:
+        if config.expected_host_uuid or config.expected_gpu_uuid or config.expected_gpu_inventory:
+            raise CredentialError("provisioning identity must be observed by the activation transaction")
+    elif not config.expected_host_uuid or not config.expected_gpu_uuid:
         raise CredentialError("job-container expected identity is incomplete")
     source = r'''from __future__ import annotations
 import csv, io, json, os, pathlib, subprocess
@@ -1092,6 +1262,48 @@ if completed.returncode == 0:
                              "memory_total_mib":int(float(row[2].strip()))})
             except ValueError:
                 pass
+# MIG / permission-restricted allocations often cannot report memory.total.
+# Fall back to nvidia-smi -L and derive MiB from the MIG profile name.
+if not gpus:
+    mig_mem = {
+        "1g.5gb": 5120, "1g.10gb": 10240, "1g.20gb": 20480,
+        "2g.10gb": 10240, "2g.20gb": 20480, "3g.20gb": 20480,
+        "3g.40gb": 40960, "4g.20gb": 20480, "4g.40gb": 40960,
+        "7g.40gb": 40960, "7g.80gb": 81920,
+    }
+    listed = subprocess.run(
+        ["nvidia-smi", "-L"],
+        check=False, capture_output=True, text=True, encoding="utf-8", timeout=20,
+    )
+    parent_name = ""
+    parent_uuid = ""
+    if listed.returncode == 0:
+        import re as _re
+        for line in listed.stdout.splitlines():
+            m = _re.match(r"^GPU\s+\d+:\s+(.*?)\s+\(UUID:\s*([^)]+)\)\s*$", line.strip())
+            if m:
+                parent_name, parent_uuid = m.group(1).strip(), m.group(2).strip()
+                continue
+            m = _re.match(r"^MIG\s+(\S+)\s+Device\s+\d+:\s+\(UUID:\s*([^)]+)\)\s*$", line.strip())
+            if m and parent_name:
+                profile, mig_uuid = m.group(1).strip(), m.group(2).strip()
+                mem = mig_mem.get(profile.lower())
+                if mem:
+                    gpus.append({
+                        "name": f"{parent_name} MIG {profile}",
+                        "uuid": mig_uuid,
+                        "memory_total_mib": int(mem),
+                    })
+        if not gpus and parent_name and parent_uuid:
+            # Visible parent only; try uuid/name query without memory.
+            named = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name,uuid", "--format=csv,noheader"],
+                check=False, capture_output=True, text=True, encoding="utf-8", timeout=20,
+            )
+            if named.returncode == 0:
+                for row in csv.reader(io.StringIO(named.stdout)):
+                    if len(row) >= 2 and "A800" in row[0]:
+                        gpus.append({"name": row[0].strip(), "uuid": row[1].strip(), "memory_total_mib": 81920})
 print(json.dumps({
     "host_uuid": host_uuid,
     "gpus": gpus,
@@ -1123,26 +1335,57 @@ print(json.dumps({
     except (IndexError, json.JSONDecodeError) as exc:
         raise CredentialError("job-container identity probe returned invalid evidence") from exc
     observed_host = str(payload.get("host_uuid") or "").strip().lower()
-    expected_host = str(config.expected_host_uuid).strip().lower()
+    expected_host = str(config.expected_host_uuid or "").strip().lower()
     observed_gpus = payload.get("gpus") if isinstance(payload.get("gpus"), list) else []
     expected_gpu_uuids = {
         value.strip().lower()
         for value in str(config.expected_gpu_uuid).split(",")
         if value.strip()
     }
-    observed_gpu_uuids = {
-        str(item.get("uuid") or "").strip().lower()
-        for item in observed_gpus
-        if isinstance(item, dict) and str(item.get("uuid") or "").strip()
-    }
-    if observed_host != expected_host:
+    observed_gpu_records = normalize_gpu_inventory(
+        [item for item in observed_gpus if isinstance(item, dict)],
+        required=True,
+    )
+    observed_gpu_uuids = {item["uuid"] for item in observed_gpu_records if item["uuid"]}
+    if not observed_host:
+        raise CredentialError("job-container Host UUID is missing")
+    if not provisioning_bootstrap and observed_host != expected_host:
         raise CredentialError("job-container Host UUID mismatch")
-    if observed_gpu_uuids != expected_gpu_uuids or len(observed_gpus) != 1:
+    if (
+        not observed_gpu_records
+        or len(observed_gpu_records) != len(observed_gpus)
+        or len(observed_gpu_uuids) != len(observed_gpu_records)
+        or any(not item["uuid"] or not item["name"] for item in observed_gpu_records)
+    ):
+        raise CredentialError("job-container GPU identity is incomplete")
+    if not provisioning_bootstrap and observed_gpu_uuids != expected_gpu_uuids:
         raise CredentialError("job-container GPU UUID mismatch")
-    gpu = observed_gpus[0]
-    if expected_gpu_name_fragment not in str(gpu.get("name") or ""):
+    expected_gpu_inventory = normalize_gpu_inventory(
+        config.expected_gpu_inventory,
+        required=False,
+    )
+    if not provisioning_bootstrap and expected_gpu_inventory:
+        if observed_gpu_records != expected_gpu_inventory:
+            raise CredentialError("job-container GPU model or memory binding mismatch")
+    # Existing active profiles predate inventory binding and retain their
+    # original A800/80GB workload gate.  New profiles freeze the observed
+    # inventory and therefore do not inherit that legacy policy.
+    required_name_fragment = expected_gpu_name_fragment
+    required_memory_mib = minimum_gpu_memory_mib
+    if not provisioning_bootstrap and not expected_gpu_inventory:
+        if required_name_fragment is None:
+            required_name_fragment = "A800"
+        if required_memory_mib is None:
+            required_memory_mib = 80_000
+    if required_name_fragment and any(
+        required_name_fragment not in str(item["name"])
+        for item in observed_gpu_records
+    ):
         raise CredentialError("job-container GPU model mismatch")
-    if int(gpu.get("memory_total_mib") or 0) < int(minimum_gpu_memory_mib):
+    if required_memory_mib is not None and any(
+        int(item["memory_total_mib"]) < int(required_memory_mib)
+        for item in observed_gpu_records
+    ):
         raise CredentialError("job-container GPU memory mismatch")
     if (
         payload.get("root_exists") is not True
@@ -1158,8 +1401,16 @@ print(json.dumps({
         "credential_profile": config.credential_profile,
         "host_uuid": observed_host,
         "gpu_uuids": sorted(observed_gpu_uuids),
-        "gpu_name": str(gpu.get("name") or ""),
-        "gpu_memory_total_mib": int(gpu.get("memory_total_mib") or 0),
+        "gpu_count": len(observed_gpu_records),
+        "gpu_names": sorted({item["name"] for item in observed_gpu_records}),
+        "gpu_name": ", ".join(sorted({item["name"] for item in observed_gpu_records})),
+        "gpu_memory_per_device_mib": [
+            item["memory_total_mib"] for item in observed_gpu_records
+        ],
+        "gpu_memory_total_mib": sum(
+            item["memory_total_mib"] for item in observed_gpu_records
+        ),
+        "gpu_inventory": observed_gpu_records,
         "remote_root": expected_root,
         "designated_proxy_path_verified": True,
         "pinned_gateway_host_key_verified": True,
