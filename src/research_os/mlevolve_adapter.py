@@ -13,6 +13,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from .feature_flags import (
+    ff_cross_branch_fusion,
+    ff_search_budget_500,
+    ff_stagnation_detect,
+)
+
 
 @dataclass
 class MLEvolveSearchPolicy:
@@ -106,29 +112,37 @@ def extract_policy(repo_root: str | Path) -> MLEvolveSearchPolicy:
     config = load_mlevolve_config(repo / "config" / "config.yaml")
     agent = config.get("agent", {})
     search = agent.get("search", {})
+    fusion_on = ff_cross_branch_fusion()
+    stagn_on = ff_stagnation_detect()
+    budget_on = ff_search_budget_500()
+    # Reference YAML values; arm fusion / long wall only when flags allow.
+    time_hours = float(agent.get("time_limit", 43200)) / 3600.0
+    if not budget_on and time_hours > 12.0:
+        # Prior workstation default wall (~12h); medal multi-day budgets need flag.
+        time_hours = 12.0
     return MLEvolveSearchPolicy(
         source_repo=str(repo),
-        time_budget_hours=float(agent.get("time_limit", 43200)) / 3600.0,
+        time_budget_hours=time_hours,
         initial_drafts=int(agent.get("initial_drafts", 3)),
         parallel_search_num=int(search.get("parallel_search_num", 3)),
         num_drafts=int(search.get("num_drafts", 5)),
         num_improves=int(search.get("num_improves", 3)),
         top_candidates_size=int(search.get("top_candidates_size", 20)),
-        branch_stagnation_threshold=int(search.get("branch_stagnation_threshold", 3)),
-        topk_stagnation_threshold=int(search.get("topk_stagnation_threshold", 6)),
-        stagnation_window=int(search.get("stagnation_window", 4)),
+        branch_stagnation_threshold=int(search.get("branch_stagnation_threshold", 3)) if stagn_on else 10**9,
+        topk_stagnation_threshold=int(search.get("topk_stagnation_threshold", 6)) if stagn_on else 10**9,
+        stagnation_window=int(search.get("stagnation_window", 4)) if stagn_on else 10**9,
         explore_switch_start=float(search.get("explore_switch_start", 0.5)),
         explore_switch_end=float(search.get("explore_switch_end", 0.7)),
         min_exploration_weight=float(search.get("min_exploration_weight", 0.2)),
-        fusion_min_time_hours=float(search.get("fusion_min_time_hours", 6)),
-        fusion_max_time_hours=float(search.get("fusion_max_time_hours", 10)),
-        fusion_min_successful_nodes=int(search.get("fusion_min_successful_nodes", 2)),
-        fusion_min_branches=int(search.get("fusion_min_branches", 2)),
+        fusion_min_time_hours=float(search.get("fusion_min_time_hours", 6)) if fusion_on else 10**9,
+        fusion_max_time_hours=float(search.get("fusion_max_time_hours", 10)) if fusion_on else 10**9,
+        fusion_min_successful_nodes=int(search.get("fusion_min_successful_nodes", 2)) if fusion_on else 10**9,
+        fusion_min_branches=int(search.get("fusion_min_branches", 2)) if fusion_on else 10**9,
         use_diff_mode=bool(agent.get("use_diff_mode", True)),
         use_stepwise_generation=bool(agent.get("use_stepwise_generation", True)),
         use_evolution=bool(agent.get("use_evolution", True)),
-        use_fusion=bool(agent.get("use_fusion", True)),
-        use_aggregation=bool(agent.get("use_aggregation", True)),
+        use_fusion=bool(agent.get("use_fusion", True)) and fusion_on,
+        use_aggregation=bool(agent.get("use_aggregation", True)) and fusion_on,
         use_global_memory=bool(agent.get("use_global_memory", True)),
         memory_similarity_threshold=float(agent.get("memory_similarity_threshold", 0.7)),
     )
@@ -138,6 +152,11 @@ def build_workstation_alignment(policy: MLEvolveSearchPolicy) -> dict[str, Any]:
     return {
         "schema": "academic_research_os.mlevolve_alignment_matrix.v1",
         "source_repo": policy.source_repo,
+        "feature_flags": {
+            "EVOMIND_FF_SEARCH_BUDGET_500": ff_search_budget_500(),
+            "EVOMIND_FF_STAGNATION_DETECT": ff_stagnation_detect(),
+            "EVOMIND_FF_CROSS_BRANCH_FUSION": ff_cross_branch_fusion(),
+        },
         "mlevolve_reference_policy": asdict(policy),
         "workstation_mapping": {
             "Progressive MCGS": {

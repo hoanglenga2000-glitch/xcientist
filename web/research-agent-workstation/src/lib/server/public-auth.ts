@@ -99,8 +99,17 @@ export function publicAuthStatus(rateKey: string, now = Date.now()) {
 export async function verifyPublicCredentials(username: string, password: string, rateKey: string, now = Date.now()) {
   const rate = publicAuthStatus(rateKey, now);
   if (rate.blocked) return { ok: false as const, code: "rate_limited", ...rate };
-  const managed = accountRegistryEnabled();
-  const account = managed ? findAccount(username.trim()) : null;
+  let managed = accountRegistryEnabled();
+  let account: ReturnType<typeof findAccount> = null;
+  if (managed) {
+    try {
+      account = findAccount(username.trim());
+    } catch {
+      // Registry unreadable/invalid: do not lock everyone out. Only the configured
+      // legacy administrator (env hash, fixed tenant) is accepted below.
+      managed = false;
+    }
+  }
   const expectedUsername = managed ? account?.username ?? "" : configuredUsername();
   const encoded = managed ? account?.password_hash ?? DUMMY_HASH : configuredHash();
   let actualDigest: string;

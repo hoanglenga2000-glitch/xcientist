@@ -101,6 +101,10 @@ class ProfileSecrets:
             handle.flush()
             os.fsync(handle.fileno())
 
+    def revoke(self, tenant, owner, profile_id, version):
+        path, _purpose = self.path(tenant, owner, profile_id, version)
+        path.unlink(missing_ok=True)
+
     def load(self, tenant, owner, profile_id, version):
         path, purpose = self.path(tenant, owner, profile_id, version)
         return crypt(path.read_bytes(), purpose, decrypt=True).decode()

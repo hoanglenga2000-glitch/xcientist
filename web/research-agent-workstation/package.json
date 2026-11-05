@@ -30,9 +30,13 @@
     "prisma": "^6.19.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
+    "react-markdown": "10.1.0",
     "recharts": "^2.15.0",
+    "rehype-sanitize": "6.0.0",
+    "remark-gfm": "4.0.1",
     "tailwind-merge": "^2.6.0",
-    "ws": "8.21.0"
+    "ws": "8.21.0",
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@types/node": "22.20.1",

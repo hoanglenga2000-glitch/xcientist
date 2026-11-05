@@ -31,6 +31,13 @@ def project_message_history(run: dict[str, Any], turns: list[dict[str, Any]]) ->
         if role not in {"user", "assistant"} or not isinstance(content, str):
             continue
         identity = str(turn.get("id") or hashlib.sha256(f"{index}:{role}:{content}".encode()).hexdigest())
+        if role == "assistant" and "tenant_training_" in content:
+            from .tenant_training import plain_reply  # t238 C7c-FIX4: never show an internal refusal code to a tenant
+            content = plain_reply(content)
+        if role == "assistant":
+            from . import tenant_training  # t238 C7c-FIX5: the machinery's words never reach a tenant-training chat, old turns included
+            if tenant_training.enabled():
+                content = tenant_training.plain_prose(tenant_training.plain_reply(content)) if content.strip() else content
         row = {"id": f"history_{run_id}_{identity}", "role": role, "content": content,
                "created_at": str(turn.get("created_at") or ""), "kind": "stored_reply"}
         if role == "user":

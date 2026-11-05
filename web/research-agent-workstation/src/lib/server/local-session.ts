@@ -1,8 +1,10 @@
 import { createHash, createHmac, randomUUID, timingSafeEqual } from "node:crypto";
-import { accountRegistryEnabled, findAccount } from "./account-registry.mjs";
+import { accountRegistryEnabled, findAccount, legacyAdminUsername } from "./account-registry.mjs";
+import { tenantIdForUsername } from "./tenant-identity.mjs";
 
 export const SESSION_COOKIE = "evomind_local_session";
 export const CSRF_HEADER = "x-evomind-csrf";
+export const LOCAL_AUTOMATION_HEADER = "x-evomind-local-automation";
 export const LOCAL_AUTOMATION_VERIFIED_HEADER = "x-evomind-local-automation-verified";
 export const SESSION_MAX_AGE_SECONDS = 12 * 60 * 60;
 
@@ -98,7 +100,16 @@ export function sessionPrincipal(value: string | undefined, nowSeconds = Math.fl
       || !/^[0-9a-f-]{36}$/i.test(jti)
     ) return null;
     if (accountRegistryEnabled()) {
-      const account = findAccount(username);
+      let account: ReturnType<typeof findAccount> | undefined;
+      try {
+        account = findAccount(username);
+      } catch {
+        // Registry unreadable: honour only sessions issued by the legacy-admin fallback login.
+        const legacy = legacyAdminUsername();
+        return payload.av === 0 && legacy !== "" && username === legacy && tenantId === tenantIdForUsername(username)
+          ? { username, tenantId, authentication: "public_password", issuedAt, expiresAt, role: "admin", sessionVersion: 0 }
+          : null;
+      }
       if (!account || account.enabled !== 1 || account.username !== username || account.tenant_id !== tenantId
         || account.session_version !== payload.av) return null;
       return { username, tenantId, authentication: "public_password", issuedAt, expiresAt,

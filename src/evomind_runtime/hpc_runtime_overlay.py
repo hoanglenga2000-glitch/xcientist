@@ -11,6 +11,7 @@ import ast
 import base64
 import hashlib
 import json
+import logging
 import posixpath
 import re
 import shlex
@@ -28,8 +29,10 @@ from research_os.hpc_runtime import (
     _validate_relative_path,
     _validate_remote,
 )
+from research_os.remote_paths import TRAINER_MARKER, RemotePathError, output_file_name
 from research_agent_workstation.server.core.gpu_credentials import ALLOWED_GPU_REMOTE_ROOT
 
+LOG = logging.getLogger(__name__)
 _MAX_SOLUTION_INPUT_FILES = 256
 _MAX_SOLUTION_INPUT_BYTES = 256 * 1024 * 1024
 _MAX_SOLUTION_OUTPUT_FILES = 512
@@ -47,6 +50,10 @@ _PERSISTENT_COMPETITION_DATA_ROOT = _validate_remote(
 _SECRET_ENV_NAME = re.compile(r"^EVOMIND_SECRET_[A-Z0-9_]{1,64}_FILE$")
 
 
+class DispatchCancelled(Exception):
+    """C7c-FIX5: the tenant cancelled while the environment was still being prepared; nothing was handed to the card."""
+
+
 class HpcRuntime(_ReleaseHpcRuntime):
     """Patch the release runtime's Kaggle-only solution staging contract."""
 
@@ -56,9 +63,87 @@ class HpcRuntime(_ReleaseHpcRuntime):
         self.trusted_progress = False
         self.managed_work_kind = "downloading"
         self.deadline = None
+        self.reports_dispatch = True  # C7c-FIX4: the time-share is told when work really reaches the card
+        self.on_dispatch = None
+        self.cancel_check = None  # C7c-FIX5: () -> True once the tenant (or the run) asked to stop
+        self.process_marker = ""  # GPU job id under the time-share; empty keeps the legacy command line
         self.solution_environment_manifest = ""
         self.remote_solution_deps = _validate_remote(posixpath.join(self.remote_runtime_dir, "solution_deps"))
         self._solution_deps_base = self.remote_solution_deps
+        # 2026-11-03: set by prestage_environment(); execute_solution then skips the (long) dependency step inside the lease.
+        self.environment_prestaged: dict[str, Any] | None = None
+        # 2026-11-03: set by prestage_bundle(); execute_solution reuses the upload when the bundle fingerprint matches.
+        self.bundle_prestaged: dict[str, Any] | None = None
+
+    def prestage_bundle(self, *, solution_id: str, script_path: str | Path, data_dir: str | Path) -> dict[str, Any] | None:
+        """Upload the bundle (script + inputs) BEFORE queueing for the card. Never raises; on failure execute_solution uploads."""
+        try:
+            self._stop_if_cancelled()
+            solution_id = _validate_component(solution_id, "solution_id")
+            script = Path(script_path)
+            local = Path(data_dir)
+            if script.is_symlink() or not script.is_file() or local.is_symlink() or not local.is_dir():
+                return None
+            files: dict[str, Path] = {"work/train_gpu.py": script}
+            count = size = 0
+            for path in sorted(local.rglob("*"), key=lambda value: value.as_posix().casefold()):
+                if path.is_symlink():
+                    return None
+                if not path.is_file():
+                    continue
+                count += 1
+                size += path.stat().st_size
+                if count > _MAX_SOLUTION_INPUT_FILES or size > _MAX_SOLUTION_INPUT_BYTES:
+                    return None
+                files[f"inputs/{_validate_relative_path(path.relative_to(local).as_posix())}"] = path
+            if count == 0:
+                return None
+            fingerprint = hashlib.sha256("".join(f"{relative}\0{_sha256(path)}\n" for relative, path in sorted(files.items())).encode("utf-8")).hexdigest()
+            remote_subdir = f"solutions/{solution_id}/bundle_{fingerprint[:16]}"
+            stage = self.stage_bundle(files, remote_subdir=remote_subdir)
+        except DispatchCancelled:
+            raise
+        except Exception:  # noqa: BLE001
+            self.bundle_prestaged = None
+            return None
+        self.bundle_prestaged = {"remote_subdir": remote_subdir, "stage": stage}
+        return self.bundle_prestaged
+
+    def use_shared_environment(self) -> None:
+        """One verified environment per exact pin set, shared by every run (see dependency_lock.prepare_target)."""
+        self._solution_deps_base = _validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, "solution-deps-shared"))
+
+    def prestage_environment(self, script_path: str | Path) -> dict[str, Any] | None:
+        """Prepare the dependency environment BEFORE queueing for the card, so a queued job is ready when the card frees up.
+
+        Never raises: on failure the normal in-lease preparation runs (and reports the error) as before.
+        """
+        try:
+            self._stop_if_cancelled()
+            result = self.prepare_solution_environment(script_path)
+        except DispatchCancelled:
+            raise
+        except Exception:  # noqa: BLE001
+            self.environment_prestaged = None
+            return None
+        self.environment_prestaged = result
+        return result
+
+    def _stop_if_cancelled(self) -> None:
+        """C7c-FIX5: honour a cancel at every stage boundary before the work reaches the card.
+
+        Deliberately called OUTSIDE the dispatch try/except, which maps any exception to remote_settlement_unconfirmed.
+        """
+
+        check = self.cancel_check
+        if not callable(check):
+            return
+        try:
+            cancelled = bool(check())
+        except Exception:  # noqa: BLE001 - an unreadable flag must never block or fake a cancel
+            return
+        if cancelled:
+            raise DispatchCancelled("cancelled_before_dispatch")
 
     def remaining_seconds(self, maximum: int, *, margin: int = 0) -> int:
         if self.deadline is None:
@@ -120,13 +205,20 @@ class HpcRuntime(_ReleaseHpcRuntime):
     def _download_solution_outputs(self, sftp, remote_root: str, local_root: Path) -> list[dict[str, Any]]:
         artifacts: list[dict[str, Any]] = []
         downloaded_bytes = 0
+        self.skipped_output_names = 0
         local_root.mkdir(parents=True, exist_ok=True)
 
         def walk(remote_dir: str, local_dir: Path) -> None:
             nonlocal downloaded_bytes
             local_dir.mkdir(parents=True, exist_ok=True)
             for entry in sftp.listdir_attr(remote_dir):
-                remote_path = _validate_remote(posixpath.join(remote_dir, entry.filename))
+                try:
+                    # SFTP only, no shell: remote_root is confined and each component is a checked name.
+                    remote_path = posixpath.join(remote_dir, output_file_name(entry.filename))
+                except RemotePathError:
+                    self.skipped_output_names += 1  # the name count only: a job-chosen name is not logged
+                    LOG.warning("skipped a remote output with an unsafe name")
+                    continue
                 local_path = local_dir / entry.filename
                 file_type = entry.st_mode & 0o170000
                 if file_type == 0o040000:
@@ -150,7 +242,7 @@ class HpcRuntime(_ReleaseHpcRuntime):
                     }
                 )
 
-        walk(remote_root, local_root)
+        walk(_validate_remote(remote_root), local_root)
         return artifacts
 
     def prepare_solution_environment(self, script_path: str | Path) -> dict[str, Any]:
@@ -179,7 +271,7 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 self.progress_callback(source="managed_adapter", work_kind="installing", phase="hash_locked_dependencies", worker_state="observed", detail="Resolving exact official wheels before installation")
             limit = self.remaining_seconds(2800, margin=60)
             prefix = f"timeout --kill-after=10 {limit} " if self.deadline is not None else ""
-            command = prefix + "python3 -c " + shlex.quote(program) + " " + shlex.quote(locked_root) + " " + shlex.quote(json.dumps(required))
+            command = prefix + "python3 -c " + shlex.quote(program) + " " + shlex.quote(locked_root) + " " + shlex.quote(json.dumps(required)) + " " + shlex.quote(_validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, "wheel-store")))
             rc, out, err = self._exec(client, command, timeout=limit + 20 if self.deadline is not None else limit)
             if rc != 0:
                 raise RuntimeError(f"managed dependency lock preparation failed: exit={rc}")
@@ -397,6 +489,7 @@ class HpcRuntime(_ReleaseHpcRuntime):
             elif local_data_dir is None or local_data_dir.is_symlink() or not local_data_dir.is_dir():
                 raise FileNotFoundError(f"data directory not found: {local_data_dir}")
 
+            self._stop_if_cancelled()
             bundle_files: dict[str, Path] = {"work/train_gpu.py": script_path}
             input_count = 0
             input_bytes = 0
@@ -417,7 +510,9 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 if input_count == 0:
                     raise FileNotFoundError(f"input directory contains no regular files: {local_data_dir}")
 
-            self.prepare_solution_environment(script_path)
+            if self.environment_prestaged is None:
+                self.prepare_solution_environment(script_path)
+            self._stop_if_cancelled()  # a cancel during the (long) dependency step ends here: no staging, no dispatch, no charge
             if self.progress_callback and not self.trusted_progress:
                 self.progress_callback(
                     source="executor", work_kind="preparing", phase="staging_solution",
@@ -434,7 +529,11 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 fingerprint_source += f"private_input\0{name}\0{hashlib.sha256(payload).hexdigest()}\n"
             bundle_fingerprint = hashlib.sha256(fingerprint_source.encode("utf-8")).hexdigest()
             remote_subdir = f"solutions/{solution_id}/bundle_{bundle_fingerprint[:16]}"
-            stage = self.stage_bundle(bundle_files, remote_subdir=remote_subdir)
+            prestaged = self.bundle_prestaged
+            if prestaged and prestaged.get("remote_subdir") == remote_subdir and not supplied_secrets:
+                stage = prestaged["stage"]  # 2026-11-03: uploaded before queueing; same fingerprint = same files
+            else:
+                stage = self.stage_bundle(bundle_files, remote_subdir=remote_subdir)
             remote_bundle = _validate_remote(str(stage["remote_dir"]))
             remote_inputs = persistent_root or _validate_remote(posixpath.join(remote_bundle, "inputs"))
             remote_script = _validate_remote(posixpath.join(remote_bundle, "work", "train_gpu.py"))
@@ -486,9 +585,14 @@ class HpcRuntime(_ReleaseHpcRuntime):
                     "assert hashlib.sha256(p.read_bytes()).hexdigest()==sys.argv[2],\"managed competition manifest mismatch\"' "
                     f"{shlex.quote(remote_manifest)} {shlex.quote(manifest_sha256)} && "
                 )
-            slot_lock = shlex.quote(_validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, ".evomind-gpu-slot.lock")))
+            # 2026-11-05: one slot lock per card (the pool's cards share this filesystem); the primary keeps the original name.
+            lock_name = str(getattr(self, "gpu_slot_lock_name", "") or ".evomind-gpu-slot.lock")
+            if not re.fullmatch(r"\.evomind-gpu-slot(?:-job\d{4,8})?\.lock", lock_name):
+                raise ValueError("gpu_slot_lock_rejected")
+            slot_lock = shlex.quote(_validate_remote(posixpath.join(ALLOWED_GPU_REMOTE_ROOT, lock_name)))
             environment_copy = f"cp {shlex.quote(self.solution_environment_manifest)} {q_output}/environment.lock.json && " if self.solution_environment_manifest else ""
             execution_seconds = self.remaining_seconds(self.timeout_seconds, margin=60)
+            marker = f"-X {TRAINER_MARKER}={_validate_component(self.process_marker, 'process_marker')} " if self.process_marker else ""
             command = (
                 f"{secret_trap}{manifest_guard}"
                 f"mkdir -p {q_output} {q_work} {q_home} {q_userbase} {q_pip_cache} {q_xdg_cache} && "
@@ -500,13 +604,18 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 f"EVOMIND_INPUT_MANIFEST_SHA256={shlex.quote(manifest_sha256)} "
                 f"EVOMIND_TASK_ROOT={q_bundle} EVOMIND_INPUT_DIR={q_inputs} "
                 f"EVOMIND_OUTPUT_DIR={q_output} EVOMIND_WORK_DIR={q_work} "
-                f"{secret_environment}CUDA_VISIBLE_DEVICES=0 python3 -u {q_script} --data-dir {q_inputs} --out-dir {q_output}; "
+                f"{secret_environment}CUDA_VISIBLE_DEVICES=0 python3 -u {marker}{q_script} --data-dir {q_inputs} --out-dir {q_output}; "
                 "rc=$?; "
                 f"if test -d {q_compat_output}; then cp -a {q_compat_output}/. {q_output}/; fi; "
                 f"if test -f {q_work}/execution-summary.json; then cp {q_work}/execution-summary.json {q_output}/execution-summary.json; fi; "
                 "exit $rc"
             )
             observation_timeout = self.remaining_seconds(self.timeout_seconds + 60)
+            self._stop_if_cancelled()  # gate before the card: outside the try below, whose handler would call this an unconfirmed settlement
+            if callable(self.on_dispatch) and self.on_dispatch() is False:
+                # C7c-FIX5: the scheduler refuses to start billing for a job whose cancel is already requested — the final,
+                # atomic gate (a cancel landing after the check above still stops here, before the remote command).
+                raise DispatchCancelled("cancelled_at_dispatch")
             try:
                 if self.progress_callback and not self.trusted_progress:
                     self.progress_callback(
@@ -552,6 +661,12 @@ class HpcRuntime(_ReleaseHpcRuntime):
                 local_artifacts=artifacts,
                 failure_type="" if success else self.classify_failure(exit_code=rc, error=primary_error),
                 error=evidence_error or ("secret_bearing_solution_failed" if supplied_secrets and rc else err[-1200:] if rc else ""),
+            )
+            return job_result
+        except DispatchCancelled:
+            job_result = HpcJobResult(
+                status="failed", run_id=self.run_id, solution_id=solution_id, remote_dir=remote_solution,
+                exit_code=-1, failure_type="cancelled", error="cancelled_before_dispatch",
             )
             return job_result
         except Exception as exc:

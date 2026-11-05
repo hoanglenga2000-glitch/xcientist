@@ -35,6 +35,44 @@ def _message_max_output_tokens(session: dict[str, Any], client: Any) -> int:
     return 32768 if getattr(client, "model", "") == "deepseek-flash" else 4096
 
 
+
+def _history_has_tool_activity(messages: list[dict[str, Any]]) -> bool:
+    """True when any earlier turn of this run already carried a tool call or result."""
+    for item in messages:
+        content = item.get("content") if isinstance(item, dict) else None
+        if isinstance(content, list) and any(isinstance(block, dict) and block.get("type") in {"tool_use", "tool_result"} for block in content):
+            return True
+    return False
+
+
+def _training_completion_text(store: Any, session_id: str) -> str:
+    """Plain-Chinese result of the last successful managed training in this run, or '' (used when the model answers empty)."""
+    try:
+        calls = store.list_tool_calls(session_id, limit=500)
+    except Exception:  # noqa: BLE001
+        return ""
+    for call in reversed(calls):
+        result = call.get("result") if isinstance(call.get("result"), dict) else {}
+        content = result.get("content") if isinstance(result.get("content"), dict) else {}
+        evidence = content.get("managed_training") if isinstance(content.get("managed_training"), dict) else None
+        if call.get("tool_name") != "managed_tensor_train" or not result.get("ok") or not evidence:
+            continue
+        metrics = evidence.get("metrics") if isinstance(evidence.get("metrics"), dict) else {}
+        def number(key: str) -> str:
+            value = metrics.get(key)
+            return f"{float(value):.4f}" if isinstance(value, (int, float)) and not isinstance(value, bool) else ""
+        if evidence.get("task") == "classification":
+            parts = [f"{label} {number(key)}" for key, label in (("accuracy", "准确率"), ("macro_f1", "Macro-F1"), ("roc_auc", "ROC-AUC")) if number(key)]
+        else:
+            parts = [f"{label} {number(key)}" for key, label in (("rmse", "RMSE"), ("mae", "MAE"), ("r2", "R²")) if number(key)]
+        holdout = metrics.get("holdout_rows")
+        scope = f"（在 {holdout} 行留出数据上评估）" if isinstance(holdout, int) else ""
+        headline = "，".join(parts)
+        return ("训练完成。" + (f"评估结果{scope}：{headline}。" if headline else "")
+                + "模型权重、预测结果、训练日志和评估指标都已保存在这个任务的文件里，可以直接下载。")
+    return ""
+
+
 class AgentRuntime:
     def __init__(
         self, workspace_root: str | Path, runtime_root: str | Path | None = None, registry: ToolRegistry | None = None
@@ -258,6 +296,20 @@ class AgentRuntime:
     def tools(self) -> list[dict[str, Any]]:
         return [spec.to_dict() for spec in self.registry.specs()]
 
+    def _training_plan_scope(self, session: dict[str, Any], arguments: dict[str, Any]) -> dict[str, Any]:
+        """Display-only training plan for the consent card; absent when it cannot be computed."""
+        try:
+            from . import gpu_vram, training_plan
+            from .personal_tool_boundary import session_tenant
+            try:
+                budget = int(gpu_vram.load(self.runtime_root).ceiling_mb(session_tenant(session)))
+            except Exception:  # noqa: BLE001 - same fallback as the trainer (4 GiB)
+                budget = None
+            plan = training_plan.build(session["workspace_root"], arguments, vram_budget_mb=budget)
+        except Exception:  # noqa: BLE001
+            plan = None
+        return {"training_plan": plan} if plan else {}
+
     def invoke_tool(
         self,
         session_id: str,
@@ -434,6 +486,10 @@ class AgentRuntime:
                 call.approval_id = approval_id
             if decision.requires_approval:
                 call.status = "waiting_approval"
+                impact_scope = dict(decision.scope)
+                if tool_name == "managed_tensor_train":
+                    # 2026-11-03: the consent card shows the plan (task, network, epochs, estimated on-card time) before the GPU.
+                    impact_scope.update(self._training_plan_scope(session, decision.normalized_arguments))
                 approval = ApprovalRequest(
                     new_id("approval"),
                     session_id,
@@ -441,7 +497,7 @@ class AgentRuntime:
                     tool_name,
                     argument_fingerprint(tool_name, decision.normalized_arguments),
                     decision.normalized_arguments,
-                    decision.scope,
+                    impact_scope,
                     decision.risk_level,
                     decision.reversible,
                     expires_at=(datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
@@ -587,7 +643,17 @@ class AgentRuntime:
             self.store.set_user_pause_requested(session_id, False)
             session = self.store.update_session(session_id, status=SessionStatus.CANCELLED.value)
         self.store.append_event(session_id, "session.cancelled", {})
+        self._cancel_gpu_job(session_id)
         return session
+
+    def _cancel_gpu_job(self, session_id: str) -> None:
+        """t238 C7c: the gate's waiter and the lease supervisor see this; the session state alone reaches neither."""
+        from . import gpu_admission
+
+        try:
+            gpu_admission.cancel_run(self.runtime_root, session_id)
+        except Exception as error:  # noqa: BLE001 - the Run is cancelled either way; the lease deadline still bounds the job
+            self.store.append_event(session_id, "gpu.cancel_failed", {"error": type(error).__name__})
 
     # Statuses that claim work is in flight.  A session may only rest in one of
     # them while some piece of live evidence supports it (an active tool call, a
@@ -672,6 +738,10 @@ class AgentRuntime:
             if session_id in fresh_gates:
                 skip("approval_pending")
                 continue
+            from .run_supervisor import job_is_live
+            if job_is_live(session_id):  # t238 C7e A4: queued/running GPU job with a live lease heartbeat (provider; default never)
+                skip("scheduler_job_live")
+                continue
             run = self.store.get_assistant_run(session_id)
             run_status = str((run or {}).get("status") or "")
             if run and run_status in self.ACTIVE_RUN_STATUSES:
@@ -752,7 +822,7 @@ class AgentRuntime:
                 "file_list", "file_search", "file_read", "file_write", "file_patch",
                 "shell_exec", "process_start", "process_list", "process_poll", "process_log", "process_stdin", "process_cancel",
                 "attachment_list", "attachment_read", "artifact_publish", "artifact_list", "artifact_preview", "artifact_bundle",
-                "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route",
+                "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route", "memory_remember",
                 "managed_model_prepare", "artifact_import",
                 "model_protocols", "managed_tensor_train",
                 "report_generate", "report_status",
@@ -778,7 +848,25 @@ class AgentRuntime:
         }
         if allowed:
             specs = [item for item in specs if item.name in allowed]
-        return specs
+        from .personal_tool_boundary import offered, session_tenant
+        tenant_id = session_tenant(session)
+        return [item for item in specs if offered(tenant_id, item.name)]
+
+    def _empty_failover_client(self, session_id: str, turn, make_client):
+        """The silent one-shot alternate for repeated empty answers, or None. Technical event only (no tenant notice)."""
+        from .model_router import empty_failover_transport
+        try:
+            transport = empty_failover_transport(turn.provider, turn.model)
+            if transport is None:
+                return None
+            alternate = make_client(transport)
+        except Exception:  # noqa: BLE001 - a broken candidate never replaces the real error
+            return None
+        self.store.append_event(session_id, "model.empty_failover", {
+            "from": f"{turn.provider}:{turn.model}",
+            "to": f"{transport.name}:{transport.config.model}",
+            "reason": "model_empty_response", "silent": True})
+        return alternate
 
     def message(self, session_id: str, content: str, *, max_steps: int = 12) -> dict[str, Any]:
         if self.get_session(session_id)["status"] == "cancelled":
@@ -847,6 +935,7 @@ class AgentRuntime:
             from research_os.agent.messaging import ToolSpec as MessageToolSpec
 
             from .model_transport import governed_client, bind_run_client
+            from .model_router import apply_reasoning_effort
             def guard_model_stream():
                 session_state = self.get_session(session_id)
                 if session_state['status'] == 'cancelled':
@@ -872,12 +961,16 @@ class AgentRuntime:
                                          reasoning_effort=reasoning_effort)
                 self.store.append_event(session_id, 'model.personal_profile_bound', personal_binding)
             else:
-                from .model_router import apply_reasoning_effort, platform_transport_for
+                from .model_router import apply_reasoning_effort, platform_transport_for, product_default_transports, require_served_identity
+                product_default = None if chosen_platform else product_default_transports()
                 if chosen_platform:
                     selected = platform_transport_for(chosen_platform)
                     if selected is None:
                         raise RuntimeError('platform_model_unavailable')
-                    message_client = AgentMessageClient(transports=[apply_reasoning_effort(selected, reasoning_effort)])
+                    # A substitute model answering the user's pick is not success (t237 C4.1).
+                    message_client = AgentMessageClient(transports=[require_served_identity(apply_reasoning_effort(selected, reasoning_effort))])
+                elif product_default:
+                    message_client = AgentMessageClient(transports=[apply_reasoning_effort(item, reasoning_effort) for item in product_default])
                 elif reasoning_effort:
                     from research_os.agent.messaging import _resolve_transports
                     resolved = [apply_reasoning_effort(item, reasoning_effort) for item in _resolve_transports()]
@@ -887,6 +980,16 @@ class AgentRuntime:
                 client = governed_client(message_client, lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
                                          before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
                 bind_run_client(self.store, session_id, client)
+            # t238 C7e A1: failover across configured equivalent backends (implicit selection), or to the
+            # user's own pre-selected fallback (explicit). No config and no fallback = same client, metrics only.
+            from .llm_backends import wrap_run_client
+            make_alternate_client = lambda transport: governed_client(
+                AgentMessageClient(transports=[apply_reasoning_effort(transport, reasoning_effort)]),
+                lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
+                before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
+            implicit_selection = not (chosen_platform or personal_binding)
+            client = wrap_run_client(self, session_id, client, explicit=bool(chosen_platform or personal_binding),
+                                     reasoning_effort=reasoning_effort, make_client=make_alternate_client)
             if not client.is_available():
                 raise RuntimeError("no configured model provider")
             from .message_journal import MessageJournal
@@ -901,20 +1004,36 @@ class AgentRuntime:
             if messages is not fallback_messages:
                 messages.append({"role": "user", "content": content})
             expanded_tool_names: set[str] = set()
+            from .personal_tool_boundary import offered, session_tenant
+            tenant_id = session_tenant(session)
             system = (
                 "You are EvoMind, a durable task-completion agent. Plan, use tools, verify observations, preserve evidence, "
                 "and continue until the objective is complete or an exact approval/input gate is reached. Work only inside "
-                "the configured task workspace. Put final user-facing files in outputs/ and call artifact_publish for every "
-                "deliverable. A file write is not completion until the file is re-read or tested and published. Stop at "
+                "the configured task workspace. Answer directly in Markdown by default; do not create a file just to answer a "
+                "question. First decide whether a file is needed: only when the user explicitly asks for a file, or the result "
+                "is a standalone, reusable, longer artifact (a document, a dataset, or code over 30 lines), write it to "
+                "outputs/final/ and call artifact_publish. When you do create a file, still give a short Markdown summary "
+                "(conclusion and key points) in the reply, and never copy the answer body verbatim into a file. A published file is shown "
+                "to the user as a file card, so do not put download links, file URLs or \"Download\" lines in the reply, "
+                "do not start a line with \"Download\" or paste artifact, sandbox: or ?download=1 URLs, and do not "
+                "write English publish/verify phrases such as \"verified and published\"; write the reply in Chinese. A file write "
+                "is not completion until the file is re-read or tested and published. Stop at "
                 "approval gates for external or irreversible effects. To request approval, issue the exact intended tool call; "
                 "the runtime policy will create the approval card. Never replace a required tool call with a prose-only approval request."
-                " Discover authorized capabilities before guessing a specialized tool. Address files as directory_id plus a "
-                "capability-relative path; never invent connector roots or absolute remote paths."
-                " Before fitting any model, call training_route with the attachment/path and the complete training request. "
-                "Obey its decision: local_cpu may use CPU only; hpc_gpu must call hpc_verify and pass all five current "
-                "identity samples before hpc_execute_solution. Never use a local GPU and never silently fall back to local "
-                "training when an HPC route is blocked. Collect, publish, and independently verify the resulting artifacts."
             )
+            # Personal sessions are never offered these tools; do not instruct the model to call them.
+            if offered(tenant_id, "capability_discover"):
+                system += (
+                    " Discover authorized capabilities before guessing a specialized tool. Address files as directory_id plus a "
+                    "capability-relative path; never invent connector roots or absolute remote paths."
+                )
+            if offered(tenant_id, "training_route"):
+                system += (
+                    " Before fitting any model, call training_route with the attachment/path and the complete training request. "
+                    "Obey its decision: local_cpu may use CPU only; hpc_gpu must call hpc_verify and pass all five current "
+                    "identity samples before hpc_execute_solution. Never use a local GPU and never silently fall back to local "
+                    "training when an HPC route is blocked. Collect, publish, and independently verify the resulting artifacts."
+                )
             model_execution: dict[str, Any] = {
                 "provider": "",
                 "model": "",
@@ -925,9 +1044,35 @@ class AgentRuntime:
                 "turns": 0,
             }
             empty_terminal_turns = 0
+            empty_failover_done = False
+            # C6b L14: adaptive summarized thinking on Anthropic transports when present.
+            try:
+                from research_os.agent.messaging import enable_anthropic_thinking
+                targets = []
+                single = getattr(client, "transport", None)
+                if single is not None:
+                    targets.append(single)
+                inner = getattr(client, "client", None)
+                if inner is not None and hasattr(inner, "_resolve_transports"):
+                    targets.extend(inner._resolve_transports())
+                elif hasattr(client, "_resolve_transports"):
+                    targets.extend(client._resolve_transports())
+                for item in targets:
+                    enable_anthropic_thinking(item)
+            except Exception:
+                pass
             for step in range(max_steps):
                 if self.user_pause_requested(session_id):
                     return {"status": "paused", "text": "Task paused at the next model-call boundary."}
+                # C6b L11: inject pending steer at the next model/tool boundary.
+                try:
+                    steered = self.assistant.apply_pending_steer(session_id)
+                except Exception:
+                    steered = None
+                if steered and str(steered.get("text") or "").strip():
+                    steer_text = str(steered["text"]).strip()
+                    messages.append({"role": "user", "content": steer_text})
+                    self.store.add_turn(session_id, "user", steer_text)
                 specs = [
                     MessageToolSpec(item.name, item.description, item.input_schema)
                     for item in self._message_tool_specs(content, session, expanded_tool_names)
@@ -956,12 +1101,27 @@ class AgentRuntime:
                         "tool_names": [requested.name for requested in turn.tool_calls],
                     },
                 )
+                try:
+                    from research_os.agent.messaging import summarize_thinking
+                    summary = summarize_thinking(turn)
+                    if summary:
+                        session_meta = dict((self.get_session(session_id).get("metadata") or {}))
+                        session_meta["reasoning_summary"] = summary
+                        self.store.update_session(session_id, metadata_json=session_meta)
+                        self.store.append_event(session_id, "reasoning_summary", {"summary": summary})
+                except Exception:
+                    pass
                 from .model_router import remember_served_model
                 remember_served_model(self.store, session_id, turn.provider, turn.model)
                 if not turn.text and not turn.tool_calls:
                     published_artifacts = self.store.list_deliverables(session_id)
-                    if model_execution["native_tool_calls"] and published_artifacts:
-                        fallback_text = (
+                    # 2026-11-03: a run resumed after an approval executes the approved tool outside this loop, so the
+                    # tool activity lives in the history, not in native_tool_calls (seen live: Opus 5.5 answered empty
+                    # three times after a successful training and the finished run was marked blocked).
+                    training_text = _training_completion_text(self.store, session_id) if published_artifacts else ""
+                    tool_activity = bool(model_execution["native_tool_calls"]) or _history_has_tool_activity(messages) or bool(training_text)
+                    if tool_activity and published_artifacts:
+                        fallback_text = training_text or (
                             "The model returned no final prose after verified tool execution. "
                             "Use the published artifacts and run evidence as the authoritative result."
                         )
@@ -997,7 +1157,19 @@ class AgentRuntime:
                         },
                     )
                     if empty_terminal_turns >= 3:
-                        raise RuntimeError("model returned an empty terminal response after 3 attempts")
+                        # t238 C7e R2: at most ONE silent switch per run, implicit selection only, and only while no
+                        # tool has run (an empty answer never executed or billed anything; a half-executed run is not
+                        # handed to another model, so no GPU job can be dispatched twice).
+                        alternate = None
+                        if (implicit_selection and not empty_failover_done and not model_execution["native_tool_calls"]
+                                and not _history_has_tool_activity(messages)):
+                            empty_failover_done = True
+                            alternate = self._empty_failover_client(session_id, turn, make_alternate_client)
+                        if alternate is None:
+                            from .model_transport import ModelTransportError
+                            raise ModelTransportError("model_empty_response", retryable=False)
+                        client = alternate
+                        empty_terminal_turns = 0
                     continue
                 empty_terminal_turns = 0
                 messages.append({"role": "assistant", "content": turn.raw_content})
@@ -1041,6 +1213,15 @@ class AgentRuntime:
                 return {"status": "cancelled", "text": "Task cancelled; existing receipts are preserved."}
             from .model_transport import ModelTransportError
             detail = exc.code if isinstance(exc, ModelTransportError) else type(exc).__name__
+            if detail == "LLMError":  # t238 C7e A2: name the last HTTP status / timeout instead of the class
+                from .llm_backends import public_code
+                detail = public_code(exc)
+            import re as _re
+            if type(exc) is ValueError and _re.fullmatch(r"model_[a-z0-9_]{1,80}", str(exc)):
+                # A personal-model worker failure is a plain ValueError whose text is already a public code
+                # (model_http_401, model_transport_failed, ...). Naming it lets the UI tell a bad key from an
+                # internal fault; any other ValueError text stays hidden behind the type name.
+                detail = str(exc)
             text = f"Runtime session is durable. Model execution is unavailable: LLMError/{detail}. No tool was executed by the failed model request."
             self.store.add_turn(session_id, "assistant", text)
             contract_error = isinstance(exc, ValueError) and str(exc) in {

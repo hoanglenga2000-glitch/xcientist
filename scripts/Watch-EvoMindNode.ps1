@@ -19,6 +19,29 @@ function Get-ListenerOwnerPid {
   return 0
 }
 
+# Records a repair attempt and returns $true, or returns $false when 3 attempts
+# already happened in the last 30 minutes (backoff window).
+function Register-RepairAttempt {
+  $path = Join-Path $StateRoot 'watchdog-repair-attempts.json'
+  $recent = @()
+  if (Test-Path -LiteralPath $path) {
+    try {
+      $doc = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+      foreach ($item in @($doc.attempts_utc)) {
+        # PS 7 converts ISO strings to DateTime on read; PS 5.1 keeps strings.
+        if ($item -is [DateTime]) { $at = $item.ToUniversalTime() }
+        else { $at = [DateTime]::Parse([string]$item, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime() }
+        if (($now - $at).TotalMinutes -lt 30) { $recent += $at.ToString('o') }
+      }
+    } catch { $recent = @() }
+  }
+  if ($recent.Count -ge 3) { return $false }
+  $recent += $now.ToString('o')
+  $json = [pscustomobject]@{ schema = 'evomind.watchdog_repair_attempts.v1'; attempts_utc = @($recent) } | ConvertTo-Json
+  [IO.File]::WriteAllText($path, $json + "`n", [Text.UTF8Encoding]::new($false))
+  return $true
+}
+
 $portMap = @(
   [pscustomobject]@{ role = 'caddy_http'; port = 80 },
   [pscustomobject]@{ role = 'caddy_https'; port = 443 },
@@ -84,20 +107,24 @@ if ($healthJson.ok -and $healthJson.status -eq 'ready' -and
   $coreOk = $true
 }
 
-# The managed service clock anchor expires 24 h after the node starts, after
-# which every /api/hpc/byoa/enrollment-identity call fails with
-# service_clock_anchor_invalid while every listener still looks healthy. Treat
-# an anchor older than 20 h as a repair condition so the node restarts (and
-# rewrites the anchor) hours before the expiry can break tenant enrollment.
+# Renew the trusted QPC sample without interrupting active work.
+# The immutable launch anchor and its environment binding stay unchanged.
 $anchorPath = Join-Path $StateRoot 'service-clock-anchor.json'
+$clockRenewal = $null
+try {
+  $renewalHelper = Join-Path $PSScriptRoot 'Renew-EvoMindServiceClock.ps1'
+  $clockRenewal = & $renewalHelper -AnchorPath $anchorPath -Apply:$Repair
+} catch { $clockRenewal = [pscustomobject]@{ status='renewal_rejected'; renewed=$false } }
 $anchorOk = $false
 $anchorAgeHours = -1
 if (Test-Path -LiteralPath $anchorPath) {
   try {
     $anchorDoc = Get-Content -LiteralPath $anchorPath -Raw | ConvertFrom-Json
-    $anchorCreated = [DateTimeOffset]::Parse([string]$anchorDoc.created_at_utc)
-    $anchorAgeHours = [math]::Round(($now - $anchorCreated.UtcDateTime).TotalHours, 2)
-    if ($anchorDoc.schema -eq 'evomind.service_clock_anchor.v1' -and $anchorAgeHours -ge 0 -and $anchorAgeHours -lt 20) {
+    $clockSample = $anchorDoc
+    if ($anchorDoc.renewal) { $clockSample = $anchorDoc.renewal }
+    $anchorCreated = [DateTimeOffset]::Parse([string]$clockSample.created_at_utc)
+    $anchorAgeHours = [math]::Round(([DateTimeOffset]::UtcNow - $anchorCreated).TotalHours, 2)
+    if ($clockRenewal -and $clockRenewal.status -in @('fresh','renewed','renewal_due') -and $anchorDoc.schema -eq 'evomind.service_clock_anchor.v1' -and $anchorAgeHours -ge 0 -and $anchorAgeHours -lt 20) {
       $anchorOk = $true
     }
   } catch {
@@ -126,13 +153,17 @@ $listenersDoc = [pscustomobject]@{
   listeners        = $listeners
 }
 
-$repairOutcome = 'not_attempted'
-if (((-not $coreOk) -or (-not $anchorOk)) -and $Repair) {
+$repairOutcome = if ($clockRenewal -and $clockRenewal.renewed) { 'clock_renewed_without_restart' } else { 'not_attempted' }
+if ((-not $coreOk) -and $Repair) {
   $maintenanceFlag = Join-Path $StateRoot 'node-maintenance.flag'
-  $mutexHeld = $false
+  $mutexHeld = $true
   try {
     $mutex = New-Object System.Threading.Mutex($false, 'Global\EvoMind-Byoa-V12-Deployment')
-    try { $mutexHeld = -not $mutex.WaitOne(0) } finally { $mutex.Dispose() }
+    $watchdogHasLock = $false
+    try {
+      try { $watchdogHasLock = $mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $watchdogHasLock = $true }
+      $mutexHeld = -not $watchdogHasLock
+    } finally { if ($watchdogHasLock) { $mutex.ReleaseMutex() }; $mutex.Dispose() }
   } catch { }
   $flagAgeMinutes = -1
   if (Test-Path -LiteralPath $maintenanceFlag) {
@@ -142,19 +173,14 @@ if (((-not $coreOk) -or (-not $anchorOk)) -and $Repair) {
     $repairOutcome = 'skipped_maintenance_flag'
   } elseif ($mutexHeld) {
     $repairOutcome = 'skipped_deployment_in_progress'
+  } elseif (-not (Register-RepairAttempt)) {
+    # Backoff: more than 3 repairs within 30 minutes means restarts are not helping.
+    $repairOutcome = 'backoff_alert_only'
+    $alertLine = '{0} watchdog backoff: 3 repairs in last 30 min and core still down; manual action required' -f $now.ToString('o')
+    Add-Content -LiteralPath (Join-Path $LogsRoot 'watchdog-alerts.log') -Value $alertLine -Encoding ascii
   } else {
     try {
-      $bundleRoot = 'C:\ProgramData\EvoMind\bundle'
-      $restartScript = Join-Path $bundleRoot 'scripts\Restart-Node.ps1'
-      if (Test-Path -LiteralPath $restartScript) {
-        # Start-Node is intentionally idempotent and exits when healthz is
-        # already green. A stale managed clock therefore needs the explicit
-        # restart action, otherwise the watchdog can report a false recovery.
-        & $restartScript | Out-Null
-        if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { throw "RESTART_NODE_FAILED:$LASTEXITCODE" }
-      } else {
-        Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
-      }
+      & 'C:/SecureInput/Invoke-ServiceAccountAction.ps1' -Action Start | Out-Null
       $deadline = (Get-Date).AddSeconds(240)
       $recovered = $false
       while ((Get-Date) -lt $deadline) {
@@ -162,16 +188,7 @@ if (((-not $coreOk) -or (-not $anchorOk)) -and $Repair) {
         try {
           $r3 = Invoke-WebRequest -Uri 'http://127.0.0.1:8088/api/healthz' -UseBasicParsing -TimeoutSec 10 -ErrorAction Stop
           $p3 = $r3.Content | ConvertFrom-Json
-          $freshAnchor = $false
-          if (Test-Path -LiteralPath $anchorPath) {
-            try {
-              $fresh = Get-Content -LiteralPath $anchorPath -Raw | ConvertFrom-Json
-              $freshCreated = [DateTimeOffset]::Parse([string]$fresh.created_at_utc)
-              $freshAge = (($now - $freshCreated.UtcDateTime).TotalHours)
-              $freshAnchor = $fresh.schema -eq 'evomind.service_clock_anchor.v1' -and $freshAge -ge 0 -and $freshAge -lt 20
-            } catch { $freshAnchor = $false }
-          }
-          if ([bool]$p3.ok -and [string]$p3.status -eq 'ready' -and $freshAnchor) { $recovered = $true; break }
+          if ([bool]$p3.ok -and [string]$p3.status -eq 'ready') { $recovered = $true; break }
         } catch { }
       }
       if ($recovered) { $repairOutcome = 'restart_ok' } else { $repairOutcome = 'restart_timeout' }
@@ -197,4 +214,4 @@ $summary = [pscustomobject]@{
   repair_outcome = $repairOutcome
 }
 $summary | ConvertTo-Json -Compress
-if ($coreOk) { exit 0 } else { exit 1 }
+if ($coreOk -and $anchorOk) { exit 0 } else { exit 1 }

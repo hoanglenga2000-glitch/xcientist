@@ -2,20 +2,23 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import mimetypes
 import os
 import re
 import secrets
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlparse
 
 from .benchmark import parity_status, parity_suite
-from .assistant_runs import CHUNK_SIZE
+from .assistant_runs import CHUNK_SIZE, UploadLimitError
 from .competition_goal import FIXED_GOAL_ID, FIXED_RUN_ID, validate_goal_record
 from .runtime import AgentRuntime
 from .tenant_access import AccessError, AccessStore, current_principal, principal_from_headers
 from .run_requests import RunRequests, request_key
+from .user_memory import UserMemoryStore
 from .user_projects import ProjectStore
 from .user_tasks import UserTasks
 from .model_profiles import ModelProfiles
@@ -261,6 +264,19 @@ def _invoke_direct_tool(
     return outcome
 
 
+def _stop_run_after_gpu_cancel(runtime, run_id: str, cancelled: dict) -> None:
+    """Cancel the assistant Run once the tenant's own queue place or training was cancelled (best effort, idempotent)."""
+    job = cancelled.get("job") if isinstance(cancelled, dict) else None
+    if not isinstance(job, dict) or job.get("label") not in {"已取消", "正在取消…"}:
+        return
+    try:
+        row = runtime.assistant.store.get_assistant_run(run_id)
+        if row and str(row.get("status") or "") in {"created", "queued", "planning", "running", "verifying", "recovering"}:
+            runtime.assistant.action(run_id, "cancel")
+    except Exception:  # noqa: BLE001 - the GPU job is cancelled either way; the lease deadline still bounds the run
+        logging.getLogger(__name__).exception("run cancel after gpu cancel failed for %s", run_id)
+
+
 def ensure_token(root: Path) -> str:
     path = root / "runtime.token"
     current = ""
@@ -287,11 +303,27 @@ def make_handler(runtime: AgentRuntime, token: str):
     access = AccessStore(runtime.runtime_root)
     requests = RunRequests(runtime.runtime_root)
     projects = ProjectStore(runtime.runtime_root)
+    memories = UserMemoryStore(runtime.runtime_root)
     user_tasks = UserTasks(runtime.runtime_root)
     model_profiles = ModelProfiles(runtime.runtime_root)
 
     class Handler(BaseHTTPRequestHandler):
         server_version = "EvoMindRuntime/0.3"
+
+        def handle_one_request(self):
+            # t238 C7e O3: one api latency sample per request; SSE/ZIP streams are excluded.
+            started, self._ops_stream = time.monotonic(), False
+            try:
+                super().handle_one_request()
+            finally:
+                if getattr(self, "command", None) and not self._ops_stream:
+                    from .ops_metrics import METRICS
+                    METRICS.observe_api(time.monotonic() - started)
+
+        def send_header(self, keyword, value):
+            if keyword.lower() == "content-type" and str(value).startswith(("text/event-stream", "application/zip")):
+                self._ops_stream = True
+            super().send_header(keyword, value)
 
         def _json(self, status: int, value):
             data = json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")
@@ -351,7 +383,10 @@ def make_handler(runtime: AgentRuntime, token: str):
             return data
 
         def _contract_error(self, exc: Exception):
-            if isinstance(exc, (RequestContractError, AccessError)):
+            if isinstance(exc, UploadLimitError):
+                # Fixed product copy only (no paths or exception text).
+                self._json(exc.status, {"error": exc.code, "message": exc.message})
+            elif isinstance(exc, (RequestContractError, AccessError)):
                 self._json(exc.status, {"error": exc.code})
             elif getattr(self, "principal", None) is not None:
                 # Never leak paths, database details, or exception credentials.
@@ -363,6 +398,25 @@ def make_handler(runtime: AgentRuntime, token: str):
                 self._json(400, {"error": "invalid_request", "message": str(exc)[:1000]})
             else:
                 self._json(500, {"error": type(exc).__name__, "message": str(exc)[:1000]})
+
+        def _export(self):
+            """t238 C7b D6: stream the caller's files as ZIP64 (no Content-Length; the connection closes)."""
+            from .user_data import acquire_export_slot, export_filename, export_items, write_export
+            items = export_items(runtime, access, self.principal)
+            slot = acquire_export_slot()
+            try:
+                name = export_filename()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/zip")
+                self.send_header("Content-Disposition", f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(name, safe='')}")
+                self.send_header("Cache-Control", "private, no-store")
+                self.send_header("X-Content-Type-Options", "nosniff")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                self.close_connection = True
+                write_export(runtime, items, self.wfile)
+            finally:
+                slot.release()
 
         def _authorized(self):
             supplied = self.headers.get("Authorization", "")
@@ -396,11 +450,21 @@ def make_handler(runtime: AgentRuntime, token: str):
                 if len(parts) == 3 and parts[:2] == ["v1", "run-requests"]:
                     return self._json(200, requests.lookup(runtime, access, self.principal, parts[2]))
                 access.guard(runtime, self.principal, "GET", parts)
+                if len(parts) == 4 and parts[:2] == ['v1', 'user-files'] and parts[3] == 'usage':
+                    from .user_data import usage
+                    return self._json(200, usage(runtime, access, self.principal, user_tasks, parts[2]))
+                if parts == ['v1', 'tenant', 'export']:
+                    return self._export()
                 if parts[:2] == ['v1', 'user-files'] and len(parts) in {2, 3}:
                     from .user_files import catalog, generated_catalog, open_verified
                     if len(parts) == 2:
-                        return self._json(200, {'files': catalog(runtime, access, self.principal),
-                                                 'generated': generated_catalog(runtime, access, self.principal)})
+                        hidden = user_tasks.hidden_run_ids(self.principal)
+                        files = catalog(runtime, access, self.principal)
+                        if project_filter := parse_qs(parsed.query).get('project_id', [''])[0]:
+                            bound = projects.file_ids(runtime, access, self.principal, project_filter)
+                            files = [item for item in files if item['id'] in bound]
+                        return self._json(200, {'files': files,
+                                                 'generated': [item for item in generated_catalog(runtime, access, self.principal) if item['run_id'] not in hidden]})
                     item, handle = open_verified(runtime, access, self.principal, parts[2])
                     with handle:
                         self.send_response(200)
@@ -419,16 +483,83 @@ def make_handler(runtime: AgentRuntime, token: str):
                 if len(parts) == 3 and parts[:2] == ["v1", "model-profiles"]:
                     return self._json(200, {"profile": model_profiles.get(self.principal, parts[2])})
                 if parts == ["v1", "user-tasks"]:
-                    return self._json(200, {"tasks": user_tasks.list(self.principal, runtime, access)})
+                    query = parse_qs(parsed.query)
+                    return self._json(200, {"tasks": user_tasks.list(self.principal, runtime, access, archived=query.get("archived", [""])[0] == "1",
+                                                                     query=query.get("q", [""])[0])})
                 if len(parts) == 3 and parts[:2] == ["v1", "user-tasks"]:
                     return self._json(200, user_tasks.detail(self.principal, parts[2], runtime, access))
+                if len(parts) == 4 and parts[:2] == ["v1", "user-tasks"] and parts[3] == "export":
+                    if parse_qs(parsed.query).get("format", ["md"])[0] != "md":
+                        raise AccessError(400, "invalid_export_format")
+                    from .task_export import content_disposition, today_utc
+                    name, text = user_tasks.export_markdown(self.principal, parts[2], runtime, access)
+                    return self._binary(200, text.encode("utf-8"), {
+                        "Content-Type": "text/markdown; charset=utf-8", "Content-Disposition": content_disposition(name, today_utc()),
+                        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff"})
+                if parts == ["v1", "user-memory"]:
+                    def live_title(task_id: str) -> str | None:
+                        try:
+                            return str(user_tasks.get(self.principal, task_id).get("title") or "") or None
+                        except AccessError:
+                            return None
+                    query = parse_qs(parsed.query)
+                    pick = lambda name: query.get(name, [""])[0] or None
+                    pinned = {"1": True, "true": True, "0": False, "false": False}.get(pick("pinned") or "")
+                    return self._json(200, {"memories": memories.list_owned(self.principal, title_of=live_title, kind=pick("kind"),
+                                                                           scope=pick("scope"), q=pick("q"), pinned=pinned)})
+                if parts == ["v1", "user-settings"]:
+                    return self._json(200, memories.settings(self.principal))
+                if parts == ["v1", "experience", "summary"]:
+                    from .experience_entry import summary
+                    return self._json(200, summary(self.principal))
                 if parts == ["v1", "execution-budget"]:
                     from .budget_web import status
                     return self._json(200, status(runtime.runtime_root, self.principal))
-                if parts == ["v1", "projects"]:
-                    return self._json(200, {"projects": projects.list_owned(self.principal), "runs": projects.runs(runtime, access, self.principal), "limit": 100})
-                if len(parts) == 3 and parts[:2] == ["v1", "projects"]:
-                    return self._json(200, {"project": projects.get_owned(self.principal, parts[2]), "runs": projects.runs(runtime, access, self.principal, parts[2]), "limit": 100})
+                if parts == ["v1", "gpu", "me"]:
+                    from .gpu_web import tenant_status
+                    run_id = parse_qs(parsed.query).get("run_id", [""])[0]
+                    if run_id:
+                        access.require_run(runtime, run_id, self.principal)
+                    return self._json(200, tenant_status(runtime.runtime_root, self.principal, run_id=run_id))
+                if parts == ["v1", "gpu", "pool"]:
+                    from .gpu_web import operator_pool
+                    return self._json(200, operator_pool(runtime.runtime_root, self.principal))
+                if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "files":
+                    return self._json(200, projects.files(runtime, access, self.principal, parts[2]))
+                if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "memory-settings":
+                    projects.get_owned(self.principal, parts[2])
+                    return self._json(200, memories.project_settings(self.principal, parts[2]))
+                if parts[:2] == ["v1", "projects"] and len(parts) in {2, 3}:
+                    hidden = user_tasks.hidden_run_ids(self.principal)
+                    runs = [row for row in projects.runs(runtime, access, self.principal, parts[2] if len(parts) == 3 else "") if row["id"] not in hidden]
+                    if len(parts) == 2:
+                        return self._json(200, {"projects": projects.list_owned(self.principal, user_tasks.project_counts(self.principal)), "runs": runs, "limit": 100})
+                    return self._json(200, {"project": projects.get_owned(self.principal, parts[2]), "runs": runs, "limit": 100})
+                if parsed.path == "/v1/health/deep":
+                    # t238 C7b O2: operator only (service token, no user principal).
+                    if self.principal is not None:
+                        raise AccessError(403, "operator_required")
+                    from .deep_health import deep_health, default_checks, ops_checks
+                    version = os.environ.get("EVOMIND_BACKEND_VERSION", "0.3.0").strip() or "0.3.0"
+                    report = deep_health({**default_checks(runtime), **ops_checks(runtime)}, version=version)  # t238 C7e O2/O4: + hpc, llm, capacity
+                    from .ops_metrics import collect
+                    report["metrics"] = collect(runtime)  # t238 C7e O3
+                    return self._json(200 if report["status"] == "ok" else 503, report)
+                if parsed.path == "/v1/health/models":
+                    # 2026-11-03: authenticated per-provider probe for the LLM monitor; operator only.
+                    if self.principal is not None:
+                        raise AccessError(403, "operator_required")
+                    from .model_probe import probe_providers
+                    force = parse_qs(parsed.query).get("force", ["0"])[0] == "1"
+                    report = probe_providers(runtime.runtime_root / "model-provider-probe.json", force=force)
+                    return self._json(200 if report["ok"] else 503, report)
+                if parsed.path == "/v1/metrics":
+                    # t238 C7e O3: Prometheus text, operator only (service token, no user principal).
+                    if self.principal is not None:
+                        raise AccessError(403, "operator_required")
+                    from .ops_metrics import collect, prometheus
+                    return self._binary(200, prometheus(collect(runtime)).encode("utf-8"),
+                                        {"Content-Type": "text/plain; version=0.0.4; charset=utf-8", "Cache-Control": "private, no-store"})
                 if parsed.path == "/v1/health":
                     backend_version = os.environ.get("EVOMIND_BACKEND_VERSION", "0.3.0").strip() or "0.3.0"
                     source_commit = os.environ.get("EVOMIND_SOURCE_COMMIT", "").strip().lower()
@@ -447,7 +578,9 @@ def make_handler(runtime: AgentRuntime, token: str):
                         },
                     )
                 if parsed.path == "/v1/tools":
-                    return self._json(200, {"tools": runtime.tools()})
+                    from .personal_tool_boundary import offered
+                    tenant_id = self.principal.tenant_id if self.principal is not None else ""
+                    return self._json(200, {"tools": [item for item in runtime.tools() if offered(tenant_id, item["name"])]})
                 if parsed.path == "/v1/goals":
                     goal = runtime.store.get_goal_record(FIXED_GOAL_ID)
                     if goal is not None and self.principal is not None and not access.owns_run(runtime, str(goal.get("run_id") or ""), self.principal):
@@ -492,15 +625,21 @@ def make_handler(runtime: AgentRuntime, token: str):
                         for item in str(value).split(",")
                         if item
                     ]
+                    from .personal_tool_boundary import offered
+                    tenant_id = self.principal.tenant_id if self.principal is not None else ""
+                    matches = runtime.super_agent.discover(
+                        objective,
+                        required_operations=operations,
+                        limit=min(int(query.get("limit", ["20"])[0]), 100),
+                    )
                     return self._json(
                         200,
                         {
                             "schema": "evomind.capability_discovery.v1",
-                            "matches": runtime.super_agent.discover(
-                                objective,
-                                required_operations=operations,
-                                limit=min(int(query.get("limit", ["20"])[0]), 100),
-                            ),
+                            "matches": [
+                                item for item in matches
+                                if offered(tenant_id, str(item["descriptor"]["capability_id"]))
+                            ],
                         },
                     )
                 if len(parts) == 4 and parts[:3] == ["v1", "super-agent", "runs"]:
@@ -515,8 +654,10 @@ def make_handler(runtime: AgentRuntime, token: str):
                     query = parse_qs(parsed.query)
                     conversation_id = query.get("conversation_id", [""])[0]
                     limit = int(query.get("limit", ["50"])[0])
-                    runs = access.list_runs(runtime, self.principal, conversation_id, limit) if self.principal is not None else runtime.assistant.list_runs(conversation_id, limit)
-                    return self._json(200, {"runs": runs})
+                    if self.principal is None:
+                        return self._json(200, {"runs": runtime.assistant.list_runs(conversation_id, limit)})
+                    hidden = user_tasks.hidden_run_ids(self.principal)
+                    return self._json(200, {"runs": [run for run in access.list_runs(runtime, self.principal, conversation_id, limit) if run["id"] not in hidden]})
                 if parsed.path == "/v1/approvals":
                     approvals = runtime.store.list_approvals(parse_qs(parsed.query).get("status", [""])[0])
                     if self.principal is not None:
@@ -612,6 +753,14 @@ def make_handler(runtime: AgentRuntime, token: str):
                     key = request_key(body, self.headers.get("Idempotency-Key", ""))
                     return self._json(200, requests.lookup(runtime, access, self.principal, key, body))
                 access.guard(runtime, self.principal, "POST", parts, body)
+                if len(parts) == 5 and parts[:3] == ["v1", "gpu", "runs"] and parts[4] == "cancel":
+                    from .gpu_web import tenant_cancel
+                    access.require_run(runtime, parts[3], self.principal)
+                    cancelled = tenant_cancel(runtime.runtime_root, self.principal, parts[3])
+                    # t238 C7c-FIX4: stopping the training is stopping the task. Cancelling only the GPU job left the Run
+                    # "正在处理" and the loop re-entered with a 继续执行此任务 turn after the cancelled queue place.
+                    _stop_run_after_gpu_cancel(runtime, parts[3], cancelled)
+                    return self._json(200, cancelled)
                 if parts == ["v1", "model-profiles"]:
                     return self._json(201, model_profiles.save(self.principal, body))
                 if len(parts) == 3 and parts[:2] == ["v1", "model-profiles"]:
@@ -625,6 +774,8 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, user_tasks.update_draft(self.principal, parts[2], body))
                 if len(parts) == 4 and parts[:2] == ['v1', 'user-tasks'] and parts[3] == 'files':
                     return self._json(200, user_tasks.select_files(self.principal, parts[2], body, runtime, access))
+                if len(parts) == 4 and parts[:2] == ["v1", "user-tasks"] and parts[3] == "restore":
+                    return self._json(200, user_tasks.restore(self.principal, parts[2]))
                 if len(parts) == 4 and parts[:2] == ["v1", "user-tasks"] and parts[3] == "links":
                     if set(body) != {"run_id"} or not isinstance(body.get("run_id"), str):
                         raise AccessError(400, "invalid_task_link")
@@ -634,9 +785,22 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, amend(runtime.runtime_root, self.principal, body))
                 if len(parts) == 4 and parts[:2] == ["v1", "runs"] and parts[3] == "reports":
                     return self._json(202, _request_report_export(runtime, parts[2], body))
+                if len(parts) == 4 and parts[:2] == ["v1", "runs"] and parts[3] == "plan":
+                    from .experience_entry import PlanDecisions
+                    return self._json(200, PlanDecisions(runtime.runtime_root).decide(runtime, parts[2], body))
+                if len(parts) == 4 and parts[:2] == ["v1", "user-memory"] and parts[3] == "restore":
+                    if body:
+                        raise AccessError(400, "invalid_memory_request")
+                    return self._json(200, memories.restore(self.principal, parts[2]))
                 if parts == ["v1", "projects"]:
                     result = projects.create(self.principal, body)
                     return self._json(200 if result["replayed"] else 201, result)
+                if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "files":
+                    return self._json(*projects.bind_file(runtime, access, self.principal, parts[2], body))
+                if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "restore":
+                    if body:
+                        raise AccessError(400, "invalid_project_request")
+                    return self._json(200, projects.restore(self.principal, parts[2], user_tasks))
                 if parts == ["v1", "sessions"]:
                     return self._json(201, runtime.create_session(**body))
                 if parts == ["v1", "goals"]:
@@ -682,6 +846,16 @@ def make_handler(runtime: AgentRuntime, token: str):
                     )
                     access.created_run(runtime, result, self.principal)
                     return self._json(201, result)
+                if len(parts) == 4 and parts[:2] == ["v1", "runs"] and parts[3] == "messages":
+                    return self._json(
+                        200,
+                        runtime.assistant.post_message(
+                            parts[2],
+                            mode=str(body.get("mode") or ""),
+                            text=str(body.get("text") or ""),
+                            idempotency_key=str(body.get("idempotency_key") or ""),
+                        ),
+                    )
                 if len(parts) == 4 and parts[:2] == ["v1", "runs"] and parts[3] == "actions":
                     secret_refs = body.get("secret_refs") if isinstance(body.get("secret_refs"), list) else []
                     return self._json(
@@ -787,6 +961,59 @@ def make_handler(runtime: AgentRuntime, token: str):
             except Exception as exc:
                 self._contract_error(exc)
 
+        def do_PATCH(self):
+            if not self._authorized():
+                return
+            parts = urlparse(self.path).path.strip("/").split("/")
+            try:
+                body = self._body()
+                access.guard(runtime, self.principal, "PATCH", parts, body)
+                if len(parts) == 3 and parts[:2] == ["v1", "user-tasks"]:
+                    return self._json(200, user_tasks.patch(self.principal, parts[2], body, projects))
+                if len(parts) == 3 and parts[:2] == ["v1", "projects"]:
+                    return self._json(200, projects.patch(self.principal, parts[2], body))
+                if len(parts) == 3 and parts[:2] == ["v1", "user-memory"]:
+                    return self._json(200, memories.patch(self.principal, parts[2], body))
+                if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "memory-settings":
+                    projects.get_owned(self.principal, parts[2])
+                    return self._json(200, memories.patch_project_settings(self.principal, parts[2], body))
+                if parts == ["v1", "user-settings"]:
+                    return self._json(200, memories.patch_settings(self.principal, body))
+                self._json(404, {"error": "not_found"})
+            except Exception as exc:
+                self._contract_error(exc)
+
+        def do_DELETE(self):
+            if not self._authorized():
+                return
+            parts = urlparse(self.path).path.strip("/").split("/")
+            try:
+                # The web proxy always sends a JSON body; a bare DELETE is accepted too.
+                body = self._body() if self.headers.get("Content-Length", "0") != "0" else {}
+                access.guard(runtime, self.principal, "DELETE", parts, body)
+                if len(parts) == 3 and parts[:2] == ["v1", "user-tasks"] and not body:
+                    return self._json(200, user_tasks.delete(self.principal, parts[2]))
+                if len(parts) == 3 and parts[:2] == ["v1", "model-profiles"]:
+                    return self._json(200, model_profiles.delete(self.principal, parts[2], body))
+                if len(parts) == 3 and parts[:2] == ["v1", "projects"] and not body:
+                    return self._json(200, projects.delete(self.principal, parts[2], user_tasks))
+                if parts == ["v1", "user-memory"] and not body:
+                    return self._json(200, {"cleared": memories.clear_all(self.principal)})  # no undo (LOCKED)
+                if len(parts) == 3 and parts[:2] == ["v1", "user-memory"] and not body:
+                    return self._json(200, memories.delete(self.principal, parts[2]))
+                if len(parts) == 5 and parts[:2] == ["v1", "projects"] and parts[3] == "files" and not body:
+                    return self._json(200, projects.unbind_file(self.principal, parts[2], parts[4]))
+                if len(parts) == 3 and parts[1] in {"uploads", "attachments"}:
+                    from .user_data import delete_upload
+                    key = "upload_id" if parts[1] == "uploads" else "attachment_id"
+                    return self._json(200, delete_upload(runtime, access, self.principal, user_tasks, **{key: parts[2]}))
+                if parts == ["v1", "tenant", "data"]:
+                    from .user_data import delete_all
+                    return self._json(200, delete_all(runtime, access, self.principal, user_tasks, body))
+                self._json(404 if not body else 400, {"error": "not_found" if not body else "invalid_task_request"})
+            except Exception as exc:
+                self._contract_error(exc)
+
         def log_message(self, _format, *_args):
             pass
 
@@ -798,9 +1025,24 @@ def serve(workspace: Path, host: str = "127.0.0.1", port: int = 8765) -> None:
     runtime.assistant.recover_incomplete()
     token = ensure_token(runtime.runtime_root)
     server = ThreadingHTTPServer((host, port), make_handler(runtime, token))
+    # t238 C7c FIX1 H3: the port binds first. schedule() itself reconciles before any grant, and a
+    # broker restore can take minutes.
+    from .gpu_admission import broker_housekeeping_in_background, reconcile_in_background
+    reconcile_in_background(runtime.runtime_root)
+    broker_housekeeping_in_background(runtime.runtime_root)
+    from .run_supervisor import install_job_liveness
+    install_job_liveness(runtime.runtime_root)  # t238 C7e m-2: stall exemption for live C7c GPU jobs
+    from .tenant_purge import retry_in_background
+    retry_in_background(runtime.runtime_root, runtime.assistant.task_root)
+    from .ops_alerts import monitor_for
+    monitor = monitor_for(runtime)  # t238 C7e O3: local alerts; EVOMIND_OPS_MONITOR=0 disables
+    if monitor is not None:
+        monitor.start()
     try:
         server.serve_forever(poll_interval=0.25)
     finally:
+        if monitor is not None:
+            monitor.stop()
         server.server_close()
         runtime.close()
 

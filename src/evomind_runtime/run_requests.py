@@ -18,6 +18,7 @@ from .model_profiles import PROFILE_ID, ModelProfiles
 from .model_router import platform_transport_for
 
 _EFFORTS = frozenset({'low', 'medium', 'high'})
+MEMORY_MODES = ('on', 'off', 'incognito')
 
 
 KEY_PATTERN = re.compile(r"[A-Za-z0-9_-]{8,128}")
@@ -48,11 +49,29 @@ def normalized_request(body: dict) -> dict:
         if result.get('model_profile_id') or platform_transport_for(platform_model_id) is None:
             raise AccessError(400, 'invalid_platform_model')
         result['platform_model_id'] = platform_model_id
+    if 'fallback_model_id' in body:
+        # t238 C7e A1: the alternate the user pre-selected for an explicit pick; absent keeps the legacy fingerprint.
+        from .llm_backends import visible_fallback_model_ids
+        fallback = body.get('fallback_model_id')
+        if (not isinstance(fallback, str) or not fallback or fallback == result.get('platform_model_id')
+                or not (result.get('platform_model_id') or result.get('model_profile_id')) or fallback not in visible_fallback_model_ids()):
+            raise AccessError(400, 'invalid_fallback_model')
+        result['fallback_model_id'] = fallback
     if 'reasoning_effort' in body:
         effort = body.get('reasoning_effort')
         if effort not in _EFFORTS:
             raise AccessError(400, 'invalid_reasoning_effort')
         result['reasoning_effort'] = effort
+    if 'intent' in body:
+        from .experience_entry import valid_intent
+        if valid_intent(body['intent']):  # absent / '' keeps the legacy fingerprint
+            result['intent'] = body['intent']
+    if 'memory_mode' in body:
+        # t237 C6c: 本次不使用记忆 / 无痕. 'on' is the default and keeps the legacy fingerprint.
+        if body['memory_mode'] not in MEMORY_MODES:
+            raise AccessError(400, 'invalid_memory_mode')
+        if body['memory_mode'] != 'on':
+            result['memory_mode'] = body['memory_mode']
     user_task_id = body.get('user_task_id', '')
     if not isinstance(user_task_id, str) or (user_task_id and not TASK_ID.fullmatch(user_task_id)):
         raise AccessError(400, 'invalid_user_task_id')
@@ -152,6 +171,11 @@ class RunRequests:
         scope = self.scope(principal, key)
         if key and self.find(scope):
             return self.lookup(runtime, access, principal, key, body)
+        if values.get('user_task_id') and not values.get('project_id'):
+            # A run inherits its conversation's project when the request names none.
+            inherited = UserTasks(self.root).get(principal, values['user_task_id'])['project_id']
+            if inherited:
+                values['project_id'] = inherited
         if values.get("project_id"):
             ProjectStore(self.root).get_owned(principal, values["project_id"])
         if values.get('model_profile_id'):

@@ -7,6 +7,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from .feature_flags import ff_retro_memory
+
 
 @dataclass
 class MemoryRecord:
@@ -79,6 +81,9 @@ class MemoryRecord:
 class RetrospectiveMemoryStore:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
+        # W3: store I/O remains available for pre-existing EvolutionLoop / agent
+        # callers. Controller write/reload helpers honor EVOMIND_FF_RETRO_MEMORY.
+        self.feature_flag_enabled = ff_retro_memory()
 
     def _load(self) -> list[MemoryRecord]:
         if not self.path.exists():
@@ -118,3 +123,38 @@ class RetrospectiveMemoryStore:
         if task_type is not None:
             records = [record for record in records if record.task_type == task_type]
         return [record for record in records if record.what_worked or record.reusable_strategy]
+
+
+    def write_enabled(self) -> bool:
+        """Live flag check (env may change between tests)."""
+        self.feature_flag_enabled = ff_retro_memory()
+        return self.feature_flag_enabled
+
+    def add_memory_gated(self, record: MemoryRecord) -> bool:
+        """Write only when EVOMIND_FF_RETRO_MEMORY is on. Returns whether written.
+
+        Pre-existing callers should keep using ``add_memory`` (always persists).
+        Controller / new paths use this gated entry so flag-off is a no-op.
+        """
+        if not self.write_enabled():
+            return False
+        self.add_memory(record)
+        return True
+
+    def reload_for_reuse(
+        self,
+        task_type: str | None = None,
+        *,
+        failures: bool = False,
+        successes: bool = False,
+    ) -> list[MemoryRecord]:
+        """Reload strategies across runs when RETRO_MEMORY is on; else []."""
+        if not self.write_enabled():
+            return []
+        if failures:
+            return self.retrieve_failures(task_type)
+        if successes:
+            return self.retrieve_successes(task_type)
+        if task_type is not None:
+            return self.retrieve_by_task_type(task_type)
+        return self._load()

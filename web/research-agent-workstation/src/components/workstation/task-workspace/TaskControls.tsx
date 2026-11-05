@@ -1,7 +1,8 @@
 'use client';
-import { useRef, useState } from 'react';
-import { confirmActionLabel, confirmNoOutboundCopy, confirmSpendLabel, usesSeparateConfirm } from './task-presentation';
+import { useEffect, useRef, useState } from 'react';
+import { confirmActionLabel, confirmNoOutboundCopy, confirmSpendLabel, isModelFailure, separateConfirmCopy, STOPPABLE_RUN_STATUSES, stoppedByUser, trainingFailed, trainingPlanRows, usesSeparateConfirm } from './task-presentation';
 import { jsonPost, taskRequest, type TaskRun } from './types';
+import { revealBelowBar } from './chat-scroll';
 
 function targetLabel(approval: NonNullable<TaskRun['approvals']>[number]) {
   const target = String(approval.normalized_arguments?.path || approval.normalized_arguments?.destination || '').replaceAll('\\', '/');
@@ -32,31 +33,47 @@ export function TaskControls({ run, onChanged }: { run: TaskRun; onChanged: () =
   const pending = (run.approvals ?? []).filter(item => item.status === 'pending');
   const inline = pending.filter(item => !usesSeparateConfirm(item));
   const separate = pending.filter(item => usesSeparateConfirm(item));
-  const canPause = ['queued', 'running', 'planning', 'verifying', 'recovering', 'waiting_approval'].includes(run.status);
+  // H3: a confirmation that waits on the reader is brought into view below the sticky 停止/暂停 bar when it first appears.
+  const confirmKey = separate.map(item => item.id).join('|');
+  const confirmCard = useRef<HTMLElement | null>(null);
+  useEffect(() => { if (confirmKey) revealBelowBar(confirmCard.current); }, [confirmKey]);
+  const canStop = STOPPABLE_RUN_STATUSES.includes(run.status);
+  const canPause = canStop;
   const canResume = ['paused', 'blocked', 'failed'].includes(run.status)
-    && !['execution_reconciliation_required', 'approval_execution_unconfirmed'].includes(run.error_class || '') && !pending.length;
-  return <section aria-label="运行操作">
+    && !['execution_reconciliation_required', 'approval_execution_unconfirmed'].includes(run.error_class || '') && !pending.length
+    // A model failure keeps only the fail card (换个模型继续 / 再试一次); resuming would hit the same model again.
+    && !isModelFailure(run)
+    // 已完成 / 已取消 / a declined step: 检查并继续 would contradict the status word (the follow-up goes in the composer).
+    && !stoppedByUser(run) && !trainingFailed(run)
+    // Critiquito F5-7: the CTA follows training_outcome, not status alone — a failed page whose training already succeeded stays terminal (paused may still continue).
+    && !(run.training_outcome === 'failed' && run.status !== 'paused')
+    && !(run.training_outcome === 'succeeded' && run.status !== 'paused');
+  // C6c H_c6c_s3: the section is display:contents so 停止 sticks to the top of the chat scroll (first fold @393).
+  // H_c6c_s1: no help text under 停止 / 暂停 — the button weight carries the difference.
+  return <section className="tw-run-ops" aria-label="运行操作">
+    <div className="tw-actions tw-run-controls">{canStop && <button type="button" className="tw-primary tw-stop" data-testid="tw-stop" disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'cancel' })}>停止</button>}
+      {canPause && <button type="button" className="tw-text-button tw-pause" data-testid="tw-pause" disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'pause' })}>暂停</button>}
+      {canResume && <button className="tw-primary" disabled={busy} onClick={() => { setResuming(!resuming); resumeKey.current ||= crypto.randomUUID(); }}>检查并继续</button>}
+    </div>
     {inline.map(approval => {
       const outbound = confirmNoOutboundCopy(approval);
+      const spend = confirmSpendLabel(approval);
       return <section className="tw-confirm tw-inline-confirm" aria-label="等你确认" key={approval.id}><h2>等你确认</h2>
-      <p>要做什么</p><p>{confirmActionLabel(approval.tool_name)}</p>
-      <p>花多少</p><p>{confirmSpendLabel(approval)}</p>
-      {outbound ? <><p>外发</p><p>{outbound}</p></> : null}
+      <p className="tw-confirm-label">要做什么</p><p>{confirmActionLabel(approval.tool_name)}</p>
+      {spend ? <><p className="tw-confirm-label">花多少</p><p>{spend}</p></> : null}
+      {outbound ? <><p className="tw-confirm-label">外发</p><p>{outbound}</p></> : null}
       <div className="tw-actions"><button className="tw-primary" disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户同意按当前额度继续' })}>同意并继续</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户要求调整方案' })}>调整方案</button></div>
     </section>;
     })}
-    {separate.map(approval => <section className="tw-confirm" aria-label="待你确认" key={approval.id}><h2>待你确认：{approval.tool_name === 'file_delete' ? '删除文件' : '执行一项受控操作'}</h2>
-      <p className="tw-operation-target">目标：{targetLabel(approval)}</p>
-      <p>{approval.reversible ? '操作标记为可恢复，恢复仍需核对实际结果。' : '这项操作不保证可撤销，请先确认目标。'}拒绝后不会执行这项操作，任务会保留并等待调整。</p>
-      <p>仅确认当前目标和参数；涉及资源的操作仍须符合已批准上限，不会因本次确认扩大权限。</p>
-      <details className="tw-details"><summary>参数与影响详情</summary><pre className="tw-file-preview">{JSON.stringify({ operation: approval.tool_name, arguments: approval.normalized_arguments, impact: approval.impact_scope, risk: approval.risk_level }, null, 2)}</pre></details>
-      <label><input type="checkbox" checked={consent === approval.id} disabled={busy} onChange={event => setConsent(event.target.checked ? approval.id : '')} />我已核对目标与影响</label>
-      <div className="tw-actions"><button disabled={busy || consent !== approval.id} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户已核对任务内目标和影响' })}>确认执行</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户在任务内拒绝此操作' })}>拒绝这项操作</button></div>
-    </section>)}
-    <div className="tw-actions">{canPause && <button disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'pause' })}>暂停任务</button>}
-      {canResume && <button className="tw-primary" disabled={busy} onClick={() => { setResuming(!resuming); resumeKey.current ||= crypto.randomUUID(); }}>检查并继续</button>}
-    </div>
-    {canPause && <p className="tw-muted">暂停会阻止新操作；已发出的操作需等待安全结束，不强制终止服务器作业。</p>}
+    {separate.map((approval, index) => { const copy = separateConfirmCopy(approval); const plan = trainingPlanRows(approval); return <section ref={index === 0 ? confirmCard : undefined} className="tw-confirm" aria-label="待你确认" key={approval.id}><h2>待你确认：{copy.title}</h2>
+      <p className="tw-operation-target">目标：{copy.target ?? targetLabel(approval)}</p>
+      {plan.length > 0 && <dl className="tw-training-plan" aria-label="训练方案">{plan.map(row => <div key={row.label}><dt>{row.label}</dt><dd>{row.value}</dd></div>)}</dl>}
+      <p>{copy.reversible ?? (approval.reversible ? '这一步可以撤销，撤销后请核对实际结果。' : '这一步不保证可以撤销，请先确认目标。')}{copy.refusal}</p>
+      <p>{copy.scope}</p>
+      {copy.showDetails && <details className="tw-details"><summary>参数与影响详情</summary><pre className="tw-file-preview">{JSON.stringify({ operation: approval.tool_name, arguments: approval.normalized_arguments, impact: approval.impact_scope, risk: approval.risk_level }, null, 2)}</pre></details>}
+      <label><input type="checkbox" checked={consent === approval.id} disabled={busy} onChange={event => setConsent(event.target.checked ? approval.id : '')} />{copy.consent}</label>
+      <div className="tw-actions"><button disabled={busy || consent !== approval.id} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: true, note: '用户已核对任务内目标和影响' })}>{copy.approve}</button><button disabled={busy} onClick={() => void submit(`/api/assistant/approvals/${approval.id}`, { approved: false, note: '用户在任务内拒绝此操作' })}>{copy.reject}</button></div>
+    </section>; })}
     {resuming && <section className="tw-confirm"><h2>继续当前运行？</h2><p>会沿用这次运行绑定的模型版本和输入，可能继续产生服务商费用。模型设置的新版本不会替换此运行。</p><div className="tw-actions"><button disabled={busy} onClick={() => void submit(`/api/assistant/runs/${run.id}/actions`, { action: 'resume', idempotency_key: resumeKey.current })}>确认继续当前运行</button><button onClick={() => setResuming(false)}>暂不继续</button></div></section>}
     {error && <p role="alert" className="tw-error">{error}<button disabled={busy} onClick={onChanged}>重新读取状态</button></p>}<p role="status">{notice}</p>
   </section>;

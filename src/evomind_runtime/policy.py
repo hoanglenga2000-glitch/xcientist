@@ -28,6 +28,7 @@ WORKSPACE_WRITE_TOOLS = {
     "tool_synthesize", "tool_test", "tool_canary", "tool_promote", "tool_reject",
     "transfer_fetch", "job_execute",
     "managed_tensor_train",
+    "memory_remember",
 }
 HIGH_RISK_TOOLS = {
     "file_delete", "process_cancel", "browser_open", "browser_click", "browser_type",

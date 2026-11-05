@@ -28,7 +28,15 @@ from pathlib import Path
 from typing import Any, Callable, Optional
 
 from ..claim_audit import audit_claim
+from ..debug_review_agents import (
+    build_debug_feedback,
+    format_debug_prompt_section,
+    review_code_before_enqueue,
+    write_code_review_artifacts,
+    write_debug_feedback,
+)
 from ..evolution_loop import _classify_failure, _clean_error_for_feedback, _is_transient_infra
+from ..feature_flags import ff_code_review_agent, ff_debug_agent
 from ..mcgs_selector import ExpansionPlan, MCGSSelector
 from ..retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 from ..search_graph import ExperimentNode, SearchGraph
@@ -536,6 +544,26 @@ class ResearchToolbox:
         self.code_by_exp[exp_id] = code
         out_dir = str(self.work_dir / exp_id / "out")
 
+        # P0-AG-02: persist review + quality gate before enqueue when flag on.
+        # Guardrails.before_call already blocks hard fails; this writes artifacts.
+        if ff_code_review_agent():
+            review = review_code_before_enqueue(
+                code, exp_id=exp_id, task_id=self.context.task_name,
+            )
+            try:
+                write_code_review_artifacts(self.work_dir, review)
+            except OSError:
+                pass
+            if review.get("quality_gate") == "block":
+                self._pending_plan = None
+                issues = ", ".join(review.get("issues") or []) or "hard_fail"
+                return ToolOutcome(
+                    f"exp_id={exp_id} BLOCKED by code_review_agent quality gate.\n"
+                    f"issues=[{issues}]\nFix the script before enqueue.",
+                    f"{exp_id} code_review_blocked",
+                    ok=False,
+                )
+
         self.emit("propose", exp_id=exp_id, mode=mode, expansion_type=plan.expansion_type,
                   parent_exp_id=parent, hypothesis=hypothesis)
         self.emit("exec_begin", exp_id=exp_id, runner=type(self.runner).__name__)
@@ -608,12 +636,28 @@ class ResearchToolbox:
         except OSError:
             pass
         self.emit("repair", exp_id=exp_id, failure_pattern=pattern, error=clean_feed[:300])
-        body = (f"exp_id={exp_id} FAILED (run did not complete successfully) exit={result.exit_code}\n"
-                f"failure_pattern={pattern or 'unknown'}\n"
-                f"This run is NOT promotable regardless of any score on disk.\n"
-                f"REAL error (progress-bar noise stripped):\n{clean_feed}\n"
-                f"Diagnose the root cause, then plan_next_experiment (it will likely give Diff "
-                f"mode to fix this) and submit a corrected script.")
+        if ff_debug_agent():
+            feedback = build_debug_feedback(
+                clean_full, exp_id=exp_id, failure_pattern=pattern, stderr_trace=clean_full,
+            )
+            try:
+                write_debug_feedback(self.work_dir, feedback)
+            except OSError:
+                pass
+            debug_section = format_debug_prompt_section(feedback)
+            body = (f"exp_id={exp_id} FAILED (run did not complete successfully) exit={result.exit_code}\n"
+                    f"failure_pattern={pattern or 'unknown'}\n"
+                    f"This run is NOT promotable regardless of any score on disk.\n"
+                    f"{debug_section}\n"
+                    f"Diagnose via DEBUG_AGENT trace, then plan_next_experiment (Diff) "
+                    f"and submit a corrected script within budget.")
+        else:
+            body = (f"exp_id={exp_id} FAILED (run did not complete successfully) exit={result.exit_code}\n"
+                    f"failure_pattern={pattern or 'unknown'}\n"
+                    f"This run is NOT promotable regardless of any score on disk.\n"
+                    f"REAL error (progress-bar noise stripped):\n{clean_feed}\n"
+                    f"Diagnose the root cause, then plan_next_experiment (it will likely give Diff "
+                    f"mode to fix this) and submit a corrected script.")
         return ToolOutcome(body, f"{exp_id} FAILED exit={result.exit_code} ({pattern})", ok=False)
 
     def _tool_evaluate_promotion(self, args: dict[str, Any]) -> ToolOutcome:

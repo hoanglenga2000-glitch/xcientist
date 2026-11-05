@@ -320,7 +320,7 @@ body[data-evidence-lock="true"] {
 
 .thin-scrollbar {
   scrollbar-width: thin;
-  scrollbar-color: rgb(var(--color-edge-strong)) transparent;
+  scrollbar-color: #C9CEC9 transparent;
 }
 
 .thin-scrollbar::-webkit-scrollbar {
@@ -329,7 +329,7 @@ body[data-evidence-lock="true"] {
 }
 
 .thin-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(var(--color-edge-strong));
+  background: #C9CEC9;
   border-radius: 999px;
 }
 
@@ -514,23 +514,4 @@ body[data-evidence-lock="true"] {
 
 .workstation-divider {
   background: rgb(var(--color-edge));
-}
-
-@keyframes deepevo-orbit-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.deepevo-orbit {
-  animation: deepevo-orbit-spin 18s linear infinite;
-  transform-origin: center;
-  will-change: transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .deepevo-orbit {
-    animation: none;
-    will-change: auto;
-  }
 }

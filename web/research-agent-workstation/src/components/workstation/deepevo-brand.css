@@ -1,0 +1,16 @@
+/* t237 C6-brand: DeepEvo Iris kit. Static mark = currentColor only (no tint / outline / gradient / tilt). */
+.deepevo-mark{display:inline-block;flex:none;vertical-align:middle;background-color:currentColor;-webkit-mask:var(--deepevo-mark-src) center/contain no-repeat;mask:var(--deepevo-mark-src) center/contain no-repeat}
+/* Loader: rotate only. The master is 7-fold symmetric, so one 360°/7 step per cycle loops seamlessly; the small cut is 5-fold (72°). */
+@keyframes deepevo-loader-master{from{transform:rotate(0deg)}to{transform:rotate(51.4286deg)}}
+@keyframes deepevo-loader-small{from{transform:rotate(0deg)}to{transform:rotate(72deg)}}
+.deepevo-loader{animation:deepevo-loader-master 1.8s ease-in-out infinite;transition:opacity 240ms ease}
+.deepevo-loader.is-small{animation-name:deepevo-loader-small}
+.deepevo-loader.is-done{animation-play-state:paused;opacity:0}
+@media (prefers-reduced-motion: reduce){.deepevo-loader,.deepevo-loader.is-small{animation:none}}
+/* Lockup: kit image wordmark, black ink on light, white ink on dark. */
+.deepevo-lockup{display:inline-block;flex:none;line-height:0}
+.deepevo-lockup>img{width:100%;height:100%;max-width:none;user-select:none}
+.deepevo-lockup-light{display:block}
+.deepevo-lockup-dark{display:none}
+[data-theme="dark"] .deepevo-lockup-light{display:none}
+[data-theme="dark"] .deepevo-lockup-dark{display:block}

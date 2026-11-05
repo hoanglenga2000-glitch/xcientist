@@ -2,6 +2,9 @@ export const INTENSITY_LEVELS = ['低', '中', '高'] as const;
 export type Intensity = typeof INTENSITY_LEVELS[number];
 const EFFORT: Record<Intensity, 'low' | 'medium' | 'high'> = { 低: 'low', 中: 'medium', 高: 'high' };
 
+/** The product default model (display only here; the BE owns the default itself). */
+export const PRODUCT_DEFAULT_MODEL = 'claude-opus-5-5';
+
 export const NEXT_MODEL_KEY = 'deepevo.next-model';
 export const NEXT_INTENSITY_KEY = 'deepevo.next-intensity';
 export const LAST_MODEL_KEY = 'deepevo.last-model';
@@ -20,6 +23,12 @@ type Choices = {
   profiles: Array<{ id: string; enabled: boolean }>; default_profile_id: string;
   platform_model?: { provider: string; model: string } | null; platform_models?: PlatformModel[] | null;
 };
+
+/** The model list as the composer sees it: a disabled personal model is dropped on receipt, so no picker, default or send path can reach it. */
+export function pickerModels<T extends Pick<Choices, 'profiles' | 'default_profile_id'>>(list: T): T {
+  const profiles = list.profiles.filter(item => item.enabled);
+  return { ...list, profiles, default_profile_id: profiles.some(item => item.id === list.default_profile_id) ? list.default_profile_id : '' };
+}
 
 /** Platform entries other than the default, which is served as `platform`. */
 export function extraPlatformModels(list: Pick<Choices, 'platform_model' | 'platform_models'>) {

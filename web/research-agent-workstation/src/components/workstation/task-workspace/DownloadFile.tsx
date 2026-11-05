@@ -1,8 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { verifiedDownloadBytes } from './verified-download';
+import { timeoutSignal } from './abort-signal';
 
-export function DownloadFile({ url, file, label = '下载' }: { url: string; file: { name: string; bytes: number; sha256: string }; label?: string }) {
+export function DownloadFile({ url, file, label = '下载', className = 'tw-button' }: { url: string; file: { name: string; bytes: number; sha256: string }; label?: string; className?: string }) {
   const [busy, setBusy] = useState(false); const [error, setError] = useState('');
   const controller = useRef<AbortController | null>(null);
   useEffect(() => () => { controller.current?.abort(); }, [url]);
@@ -10,7 +11,7 @@ export function DownloadFile({ url, file, label = '下载' }: { url: string; fil
     if (controller.current) return;
     const abort = new AbortController(); controller.current = abort; setBusy(true); setError('');
     try {
-      const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.any([abort.signal, AbortSignal.timeout(60000)]) });
+      const response = await fetch(url, { cache: 'no-store', signal: timeoutSignal(60000, abort.signal) });
       const bytes = await verifiedDownloadBytes(response, file);
       if (abort.signal.aborted) return;
       const objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/octet-stream' }));
@@ -19,5 +20,5 @@ export function DownloadFile({ url, file, label = '下载' }: { url: string; fil
     } catch (cause) { if (!abort.signal.aborted) setError(cause instanceof Error ? cause.message : '下载未完成，请重试。'); }
     finally { controller.current = null; if (!abort.signal.aborted) setBusy(false); }
   }
-  return <div><a className="tw-button" href={url} aria-disabled={busy} onClick={event => { event.preventDefault(); void download(); }}>{busy ? '正在校验下载…' : label}</a>{error && <p role="alert" className="tw-error">{error}</p>}</div>;
+  return <div><a className={className} href={url} aria-disabled={busy} onClick={event => { event.preventDefault(); void download(); }}>{busy ? '正在校验下载…' : label}</a>{error && <p role="alert" className="tw-error">{error}</p>}</div>;
 }

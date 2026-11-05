@@ -31,15 +31,27 @@ test("assistant composer uses the concise professional placeholder", async () =>
   assert.doesNotMatch(assistant, /一句话交代任务/);
 });
 
-test("teacher-provided DeepEvo lockup is byte-identical and wired to a reduced-motion-safe orbit", async () => {
-  const [asset, brand, styles] = await Promise.all([
-    readFile(path.join(ROOT, "public/brand/deepevo-lockup.png")),
-    text("src/components/workstation/DeepEvoBrand.tsx"),
-    text("src/app/globals.css"),
-  ]);
+// t237 C6-brand: the cropped teacher lockup (deepevo-lockup.png + 18 s orbit) is replaced by the Iris kit
+// (/workspace/deepevo-brand/final, Iris refined v2). These pins prove the kit ships unmodified.
+const KIT_SHA256: Record<string, string> = {
+  "public/brand/mark.svg": "0e46f6cf5d3bb4551ba547f532ef009e77a1c3d46bd09cc9252e33d880511bef",
+  "public/brand/mark-small.svg": "af0b289505b0c93cbe6253e1d0838c0b786e20ff8953611c47d13f68daa87bdd",
+  "public/brand/lockup-horizontal-black.svg": "9a711ee229a77661bee12d50afcce707428e43167efbcbb2c4db2f56eb8f35cb",
+  "public/brand/lockup-horizontal-white.svg": "dade519f3559868c111185b7ff54100d210e87aabac89eb68e9bc6e762cd1d6a",
+};
 
-  assert.equal(createHash("sha256").update(asset).digest("hex"), "2a180c85832fd34953f94921b1d7bc8a95460a83ad4253a77d6b7ed6532f16ae");
-  assert.match(brand, /\/brand\/deepevo-lockup\.png/);
-  assert.match(styles, /@keyframes deepevo-orbit-spin/);
+test("DeepEvo Iris kit marks and lockups are byte-identical and wired to a reduced-motion-safe loader", async () => {
+  for (const [file, hash] of Object.entries(KIT_SHA256)) {
+    assert.equal(createHash("sha256").update(await readFile(path.join(ROOT, file))).digest("hex"), hash, file);
+  }
+  const [brand, styles] = await Promise.all([
+    text("src/components/workstation/DeepEvoBrand.tsx"),
+    text("src/components/workstation/deepevo-brand.css"),
+  ]);
+  assert.match(brand, /\/brand\/mark\.svg/);
+  assert.match(brand, /\/brand\/mark-small\.svg/);
+  assert.match(brand, /\/brand\/lockup-horizontal-black\.svg/);
+  assert.doesNotMatch(brand, /deepevo-lockup\.png/);
+  assert.match(styles, /@keyframes deepevo-loader-master/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
 });

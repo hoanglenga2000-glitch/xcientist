@@ -1,7 +1,9 @@
 """A single pinned user transport, with no process-global provider changes/fallback."""
 from __future__ import annotations
 
+import contextvars
 import json
+import logging
 import os
 from pathlib import Path
 import queue
@@ -17,6 +19,34 @@ from .chat_stream_transport import consume_chat_stream
 from .model_transport import _response_error
 from .models import utc_now
 
+logger = logging.getLogger(__name__)
+# The runtime session the current model call belongs to (set by PersonalModelClient.send; read before the reader thread starts).
+_LOG_REF = contextvars.ContextVar('personal_model_log_ref', default='')
+_SAFE_REF = re.compile(r'[A-Za-z0-9_.:-]{1,80}')
+
+
+def _worker_argv(*flags):
+    # -X utf8 is a command-line option, so -I (which ignores PYTHON* env vars) does not drop it: belt and braces
+    # next to the worker's own UTF-8 stdio and ASCII wire.
+    return [sys.executable, '-X', 'utf8', '-I', *flags, str(Path(__file__).with_name('personal_model_http.py'))]
+
+
+def _log_worker_fault(ref, code, error_class, position=None, exit_code=None):
+    """One line per worker fault. Only fixed-vocabulary fields and integers: never a body, header, key or stderr text."""
+    ref = ref if isinstance(ref, str) and _SAFE_REF.fullmatch(ref) else '-'
+    position = position if isinstance(position, int) and not isinstance(position, bool) else '-'
+    exit_code = exit_code if isinstance(exit_code, int) and not isinstance(exit_code, bool) else '-'
+    logger.warning('personal_model_worker_fault session=%s code=%s error_class=%s position=%s exit_code=%s',
+                   ref, code, error_class if _SAFE_REF.fullmatch(str(error_class)) else 'Error', position, exit_code)
+
+
+def _bad_wire_position(error, base=0):
+    # UnicodeDecodeError.start is a byte offset in the line, JSONDecodeError.pos a character offset. Never str(error): it quotes the data.
+    value = getattr(error, 'start', None)
+    if value is None:
+        value = getattr(error, 'pos', None)
+    return base + value if isinstance(value, int) else None
+
 
 def client_for_run(runtime, session, before_attempt=None, text_observer=None, during_request=None, reasoning_effort=None):
     from .model_profiles import ModelProfiles
@@ -27,8 +57,10 @@ def client_for_run(runtime, session, before_attempt=None, text_observer=None, du
     declared = (session.get('metadata') or {}).get('model_profile') or {}
     if any(frozen[key] != declared.get(key) for key in ('id', 'version')):
         raise ValueError('model_run_binding_mismatch')
-    return PersonalModelClient(profile_store, owner, frozen, before_attempt=before_attempt, record_use=True,
-                               text_observer=text_observer, during_request=during_request, reasoning_effort=reasoning_effort)
+    client = PersonalModelClient(profile_store, owner, frozen, before_attempt=before_attempt, record_use=True,
+                                 text_observer=text_observer, during_request=during_request, reasoning_effort=reasoning_effort)
+    client.log_ref = session['id']
+    return client
 
 
 def redact(value, key):
@@ -48,15 +80,23 @@ def post_public_json(url, headers, payload):
     request = json.dumps({'url': url, 'headers': headers, 'payload': payload}).encode()
     if len(request) > 3 * 1024 * 1024:
         raise ValueError('model_request_too_large')
+    ref = _LOG_REF.get()
     try:
-        result = subprocess.run([sys.executable, '-I', str(Path(__file__).with_name('personal_model_http.py'))],
+        result = subprocess.run(_worker_argv(),
             input=request, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     except subprocess.TimeoutExpired:
         raise ValueError('model_total_timeout') from None
     if result.returncode or len(result.stdout) > 2 * 1024 * 1024:
+        _log_worker_fault(ref, 'model_transport_failed', 'WorkerExit' if result.returncode else 'WorkerOutputTooLarge',
+                          exit_code=result.returncode)
         raise ValueError('model_transport_failed')
-    result = json.loads(result.stdout)
+    try:
+        result = json.loads(result.stdout)
+    except ValueError as error:
+        # JSONDecodeError and UnicodeDecodeError are both ValueError: a wire the parent cannot read is a response fault.
+        _log_worker_fault(ref, 'model_response_invalid', type(error).__name__, _bad_wire_position(error), result.returncode)
+        raise ValueError('model_response_invalid') from None
     if 'error' in result:
         raise ValueError(result['error'])
     return result['body']
@@ -79,7 +119,7 @@ def _usage_int(value):
 
 
 def consume_anthropic_stream(records, expected_model, on_text):
-    """Rebuild a /v1/messages body. Thinking and tool-argument fragments stay off the UI."""
+    """Rebuild a /v1/messages body. Thinking stays off the UI callback; blocks are kept for summarize/echo."""
     model_ok, blocks, order = False, {}, []
     stop_reason, stopped = None, False
     usage = {'input_tokens': 0, 'output_tokens': 0}
@@ -130,7 +170,15 @@ def consume_anthropic_stream(records, expected_model, on_text):
                     raise ValueError('stream_tool_fragment_invalid')
                 blocks[index] = {'type': 'tool_use', 'id': ident, 'name': name, 'input': ''}
             elif btype in {'thinking', 'redacted_thinking'}:
-                blocks[index] = {'type': btype, 'hidden': True}
+                # Keep thinking off the UI (on_text) but preserve blocks for
+                # summarize_thinking + API echo-back (signature required).
+                thinking = block.get('thinking') or ''
+                if not isinstance(thinking, str):
+                    raise ValueError('stream_chunk_invalid')
+                entry = {'type': btype, 'hidden': True, 'thinking': thinking}
+                if 'signature' in block and isinstance(block.get('signature'), str):
+                    entry['signature'] = block['signature']
+                blocks[index] = entry
             else:
                 raise ValueError('stream_chunk_invalid')
             order.append(index)
@@ -151,8 +199,16 @@ def consume_anthropic_stream(records, expected_model, on_text):
                 if not isinstance(fragment, str):
                     raise ValueError('stream_tool_fragment_invalid')
                 block['input'] += fragment
-            elif block.get('hidden') and dtype in {'thinking_delta', 'signature_delta'}:
-                continue
+            elif block.get('hidden') and dtype == 'thinking_delta':
+                fragment = delta.get('thinking')
+                if not isinstance(fragment, str):
+                    raise ValueError('stream_chunk_invalid')
+                block['thinking'] = block.get('thinking', '') + fragment
+            elif block.get('hidden') and dtype == 'signature_delta':
+                fragment = delta.get('signature')
+                if not isinstance(fragment, str):
+                    raise ValueError('stream_chunk_invalid')
+                block['signature'] = block.get('signature', '') + fragment
             else:
                 raise ValueError('stream_chunk_invalid')
         elif kind == 'content_block_stop':
@@ -181,6 +237,11 @@ def consume_anthropic_stream(records, expected_model, on_text):
         block = blocks[index]
         if block['type'] == 'text':
             content.append({'type': 'text', 'text': block['text']})
+        elif block['type'] in {'thinking', 'redacted_thinking'}:
+            entry = {'type': block['type'], 'thinking': block.get('thinking', '')}
+            if block.get('signature'):
+                entry['signature'] = block['signature']
+            content.append(entry)
         elif block['type'] == 'tool_use':
             raw = block['input']
             try:
@@ -254,7 +315,8 @@ def post_public_stream(url, headers, payload, on_text, *, provider, expected_mod
     request = json.dumps({'url': url, 'headers': {**headers, 'Accept': 'text/event-stream'}, 'payload': wire, 'stream': True}).encode()
     if len(request) > 3 * 1024 * 1024:
         raise ValueError('model_request_too_large')
-    process = subprocess.Popen([sys.executable, '-I', '-u', str(Path(__file__).with_name('personal_model_http.py'))],
+    ref = _LOG_REF.get()
+    process = subprocess.Popen(_worker_argv('-u'),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
         creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
     events = queue.Queue()
@@ -272,14 +334,19 @@ def post_public_stream(url, headers, payload, on_text, *, provider, expected_mod
                     break
                 try:
                     item = json.loads(line)
-                except json.JSONDecodeError:
+                except ValueError as error:
+                    # JSONDecodeError and UnicodeDecodeError (a worker that wrote a non-UTF-8 code page).
+                    _log_worker_fault(ref, 'model_response_invalid', type(error).__name__,
+                                      _bad_wire_position(error, total - len(line)), process.poll())
                     events.put({'error': 'model_response_invalid'})
                     break
                 if not isinstance(item, dict):
+                    _log_worker_fault(ref, 'model_response_invalid', 'WireNotObject', total - len(line), process.poll())
                     events.put({'error': 'model_response_invalid'})
                     break
                 events.put(item)
-        except Exception:
+        except Exception as error:
+            _log_worker_fault(ref, 'model_transport_failed', type(error).__name__, total, process.poll())
             events.put({'error': 'model_transport_failed'})
         finally:
             events.put({'end': True})
@@ -325,6 +392,7 @@ def post_public_stream(url, headers, payload, on_text, *, provider, expected_mod
         except subprocess.TimeoutExpired:
             raise ValueError('model_total_timeout') from None
         if process.returncode:
+            _log_worker_fault(ref, 'model_transport_failed', 'WorkerExit', exit_code=process.returncode)
             raise ValueError('model_transport_failed')
         return body
     finally:
@@ -379,13 +447,17 @@ class PersonalModelClient:
                 started = True
                 self.text_observer({'phase': 'start'})
             # Fixtures replace post_public_json. Keep that one-shot seam so existing tests still bind the provider.
-            if self.text_observer is not None and post_public_json is _POST_PUBLIC_JSON:
-                live = True
-                redactor = _RedactingDeltas(self.transport.config.api_key, self.text_observer)
-                body = post_public_stream(url, headers, payload, redactor, provider=self.transport.name,
-                                          expected_model=self.model, during_request=self.during_request)
-            else:
-                body = post_public_json(url, headers, payload)
+            log_token = _LOG_REF.set(getattr(self, 'log_ref', '') or '')
+            try:
+                if self.text_observer is not None and post_public_json is _POST_PUBLIC_JSON:
+                    live = True
+                    redactor = _RedactingDeltas(self.transport.config.api_key, self.text_observer)
+                    body = post_public_stream(url, headers, payload, redactor, provider=self.transport.name,
+                                              expected_model=self.model, during_request=self.during_request)
+                else:
+                    body = post_public_json(url, headers, payload)
+            finally:
+                _LOG_REF.reset(log_token)
             # A malicious provider must not reflect the credential into stored output.
             body = redact(body, self.transport.config.api_key)
             if self.transport.name != 'anthropic':

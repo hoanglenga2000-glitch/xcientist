@@ -7,6 +7,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from typing import Any
@@ -89,7 +90,116 @@ def requirements_text(lock: dict[str, Any]) -> str:
     return "\n".join(f"{row['name']}=={row['version']} --hash=sha256:{row['sha256']}" for row in validated["files"]) + "\n"
 
 
-def prepare_target(root: Path, pins: dict[str, str]) -> dict[str, Any]:
+DOWNLOAD_ATTEMPTS = 3
+DOWNLOAD_ATTEMPT_SECONDS = 900
+DOWNLOAD_TOTAL_SECONDS = 2400
+
+
+def _wheel_filename(row: dict[str, Any]) -> str:
+    name = Path(urlsplit(str(row["url"])).path).name
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+!-]*\.whl", name):
+        raise ValueError("dependency_wheel_name_invalid")
+    return name
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with open(path, "rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _copy_verified(source: Path, target: Path, expected: str) -> bool:
+    """Copy through a temporary name and publish it only when the bytes hash to ``expected``."""
+    temporary = target.with_name(f".{target.name}.tmp-{os.getpid()}")
+    try:
+        with open(source, "rb") as reader, open(temporary, "wb") as writer:
+            for chunk in iter(lambda: reader.read(1 << 20), b""):
+                writer.write(chunk)
+        if _file_sha256(temporary) != expected:
+            return False
+        os.replace(temporary, target)
+        return True
+    except OSError:
+        return False
+    finally:
+        try:
+            temporary.unlink()
+        except OSError:
+            pass
+
+
+def seed_wheelhouse(lock: dict[str, Any], wheelhouse: Path, store: Path | None) -> int:
+    """t238 C7c-FIX4: take wheels an earlier run already fetched from the shared, hash-named store (only exact hashes are used)."""
+    if store is None or not store.is_dir() or store.is_symlink():
+        return 0
+    taken = 0
+    for row in lock["files"]:
+        source = store / f"{row['sha256']}.whl"
+        target = wheelhouse / _wheel_filename(row)
+        if target.exists() or source.is_symlink() or not source.is_file():
+            continue
+        if _copy_verified(source, target, row["sha256"]):
+            taken += 1
+        else:  # a damaged store file is dropped and fetched again
+            try:
+                source.unlink()
+            except OSError:
+                pass
+    return taken
+
+
+def share_wheelhouse(lock: dict[str, Any], wheelhouse: Path, store: Path | None) -> int:
+    """Publish every finished, hash-verified wheel so the next run (even after a timeout) does not download it again."""
+    if store is None:
+        return 0
+    try:
+        store.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return 0
+    if store.is_symlink():
+        return 0
+    stored = 0
+    for row in lock["files"]:
+        source = wheelhouse / _wheel_filename(row)
+        target = store / f"{row['sha256']}.whl"
+        if target.exists() or source.is_symlink() or not source.is_file():
+            continue
+        if _file_sha256(source) == row["sha256"] and _copy_verified(source, target, row["sha256"]):
+            stored += 1
+    return stored
+
+
+def prepare_target(root: Path, pins: dict[str, str], store: Path | None = None) -> dict[str, Any]:
+    """2026-11-03: a root under ``solution-deps-shared`` is one environment reused by every run with the same pins.
+
+    Concurrent preparations serialize on an exclusive lock next to the root; every reuse re-verifies the installed file set and
+    hashes, and a shared root that fails verification (or was left half-installed) is renamed aside — never deleted — and rebuilt.
+    """
+    if root.parent.name != SHARED_DIR_NAME:
+        return _prepare_target(root, pins, store)
+    import fcntl
+    root.parent.mkdir(parents=True, exist_ok=True)
+    if root.parent.is_symlink():
+        raise ValueError("dependency_target_symlink")
+    with open(root.parent / (root.name + ".lock"), "a+") as lock_handle:
+        fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            return _prepare_target(root, pins, store)
+        except ValueError as error:
+            if str(error) not in RECOVERABLE_SHARED_ERRORS or root.is_symlink():
+                raise
+            root.rename(root.parent / f"{root.name}.aside-{int(time.time())}-{os.getpid()}")
+            return _prepare_target(root, pins, store)
+
+
+SHARED_DIR_NAME = "solution-deps-shared"
+RECOVERABLE_SHARED_ERRORS = {"installed_dependency_file_set_mismatch", "installed_dependency_integrity_mismatch",
+                             "incomplete_environment_preserved_requires_reconciliation"}
+
+
+def _prepare_target(root: Path, pins: dict[str, str], store: Path | None = None) -> dict[str, Any]:
     """Resolve first, lock official wheels, then install offline into a new target."""
     if not pins or any(not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]*", name) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.+!-]*", version) for name, version in pins.items()):
         raise ValueError("exact_dependency_pins_required")
@@ -109,8 +219,8 @@ def prepare_target(root: Path, pins: dict[str, str]) -> dict[str, Any]:
     req_path = root / "requirements.lock"
     wheelhouse = root / "wheels"
     target = root / "site-packages"
-    def command(*arguments: str) -> None:
-        subprocess.run([sys.executable, "-m", "pip", "--isolated", "--cache-dir", str(root / "cache"), "--disable-pip-version-check", *arguments], env=environment, check=True, timeout=900, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    def command(*arguments: str, timeout: float = 900) -> None:
+        subprocess.run([sys.executable, "-m", "pip", "--isolated", "--cache-dir", str(root / "cache"), "--disable-pip-version-check", *arguments], env=environment, check=True, timeout=timeout, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     if not lock_path.exists():
         command("install", "--dry-run", "--ignore-installed", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "--report", str(report_path), *[f"{name}=={version}" for name, version in sorted(pins.items())])
         lock = lock_pip_report(json.loads(report_path.read_text(encoding="utf-8")))
@@ -143,7 +253,25 @@ def prepare_target(root: Path, pins: dict[str, str]) -> dict[str, Any]:
     if target.exists() and any(target.iterdir()):
         raise ValueError("incomplete_environment_preserved_requires_reconciliation")
     wheelhouse.mkdir(exist_ok=True)
-    command("download", "--require-hashes", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "--dest", str(wheelhouse), "-r", str(req_path))
+    # t238 C7c-FIX4: a cold torch+CUDA download is ~3.7 GB and took 12-15+ min on the shared link; one 900 s attempt killed a
+    # run at 57 %. pip keeps every finished wheel in the per-run cache, so a retry only fetches the rest. Bounded overall.
+    # The shared store (hash-named, verified on every copy) carries finished wheels from run to run, so a second run only fetches what is missing.
+    seed_wheelhouse(lock, wheelhouse, store)
+    download_deadline = time.monotonic() + DOWNLOAD_TOTAL_SECONDS
+    try:
+        for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
+            budget = min(DOWNLOAD_ATTEMPT_SECONDS, download_deadline - time.monotonic())
+            if budget < 60:
+                raise subprocess.TimeoutExpired("pip download", DOWNLOAD_TOTAL_SECONDS)
+            try:
+                command("download", "--require-hashes", "--only-binary=:all:", "--index-url", "https://pypi.org/simple", "--dest", str(wheelhouse), "-r", str(req_path), timeout=budget)
+                break
+            except (subprocess.TimeoutExpired, subprocess.CalledProcessError):
+                share_wheelhouse(lock, wheelhouse, store)
+                if attempt == DOWNLOAD_ATTEMPTS:
+                    raise
+    finally:
+        share_wheelhouse(lock, wheelhouse, store)
     expected_hashes = {row["sha256"] for row in lock["files"]}
     actual_hashes = set()
     for wheel in wheelhouse.iterdir():
@@ -166,4 +294,8 @@ def prepare_target(root: Path, pins: dict[str, str]) -> dict[str, Any]:
 if __name__ == "__main__":
     managed_root = Path(sys.argv[1])
     managed_root.resolve().relative_to(Path("/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra"))
-    print(json.dumps(prepare_target(managed_root, json.loads(sys.argv[2]))))
+    shared_store = None
+    if len(sys.argv) > 3:
+        shared_store = Path(sys.argv[3])
+        shared_store.resolve().relative_to(Path("/hpc2hdd/home/aimslab/jinghw/scripts/gpu_tra"))
+    print(json.dumps(prepare_target(managed_root, json.loads(sys.argv[2]), shared_store)))

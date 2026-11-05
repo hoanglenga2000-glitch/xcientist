@@ -44,6 +44,9 @@ class ModelProfiles:
                 CREATE TABLE IF NOT EXISTS run_bindings (run_id TEXT PRIMARY KEY, profile_id TEXT NOT NULL,
                     version INTEGER NOT NULL, tenant TEXT NOT NULL, owner TEXT NOT NULL);
             ''')
+            # t237 C6a soft delete: additive and idempotent; '' means not deleted.
+            if 'deleted_at' not in {row[1] for row in connection.execute('PRAGMA table_info(profiles)')}:
+                connection.execute("ALTER TABLE profiles ADD COLUMN deleted_at TEXT NOT NULL DEFAULT ''")
 
     @contextmanager
     def connect(self):
@@ -62,23 +65,23 @@ class ModelProfiles:
             'verification': 'connection_test_passed' if row['verified_at'] else 'not_tested',
         }
 
-    def get(self, principal, profile_id, version=None):
+    def get(self, principal, profile_id, version=None, *, include_deleted=False):
         scope = UserTasks.scope(principal)
         if not isinstance(profile_id, str) or not PROFILE_ID.fullmatch(profile_id):
             raise AccessError(404, 'model_profile_not_found')
         with self.connect() as connection:
-            row = connection.execute('''SELECT r.*,p.enabled FROM profiles p JOIN revisions r
+            row = connection.execute('''SELECT r.*,p.enabled,p.deleted_at FROM profiles p JOIN revisions r
                 ON r.id=p.id AND r.version=COALESCE(?,p.version)
                 WHERE p.id=? AND p.tenant=? AND p.owner=?''', (version, profile_id, *scope)).fetchone()
-            if row is None:
+            if row is None or (row['deleted_at'] and not include_deleted):
                 raise AccessError(404, 'model_profile_not_found')
-            return self.public(row)
+            return self.public(row) | ({'deleted': True} if row['deleted_at'] else {})
 
     def list(self, principal):
         scope = UserTasks.scope(principal)
         with self.connect() as connection:
             profiles = [self.public(row) for row in connection.execute('''SELECT r.*,p.enabled FROM profiles p JOIN revisions r
-                ON r.id=p.id AND r.version=p.version WHERE p.tenant=? AND p.owner=? ORDER BY p.created_at DESC''', scope)]
+                ON r.id=p.id AND r.version=p.version WHERE p.tenant=? AND p.owner=? AND p.deleted_at='' ORDER BY p.created_at DESC''', scope)]
             default = connection.execute('SELECT profile_id FROM defaults WHERE tenant=? AND owner=?', scope).fetchone()
         from .model_router import ModelRouter, available_platform_models
         decision = ModelRouter().route('execution', 'balanced')
@@ -112,10 +115,11 @@ class ModelProfiles:
             else:
                 if not body['api_key']:
                     raise AccessError(400, 'model_key_required')
-                if connection.execute('SELECT count(*) FROM profiles WHERE tenant=? AND owner=?', scope).fetchone()[0] >= 20:
+                if connection.execute("SELECT count(*) FROM profiles WHERE tenant=? AND owner=? AND deleted_at=''", scope).fetchone()[0] >= 20:
                     raise AccessError(409, 'model_profile_limit_reached')
                 profile_id, version, key = new_id('model'), 1, body['api_key']
-                connection.execute('INSERT INTO profiles VALUES(?,?,?,?,?,?)', (profile_id, *scope, version, 1, utc_now()))
+                connection.execute('INSERT INTO profiles(id,tenant,owner,version,enabled,created_at) VALUES(?,?,?,?,?,?)',
+                                   (profile_id, *scope, version, 1, utc_now()))
             try:
                 self.secrets.save(*scope, profile_id, version, key)
             except (ValueError, OSError):
@@ -131,7 +135,7 @@ class ModelProfiles:
             raise AccessError(409, 'model_profile_version_conflict')
         if action == 'test':
             return self.test(principal, profile, body)
-        if action not in {'default', 'disable'} or set(body) != {'version'}:
+        if action not in {'default', 'disable', 'enable'} or set(body) != {'version'}:
             raise AccessError(400, 'invalid_model_profile_action')
         scope = UserTasks.scope(principal)
         with self.connect() as connection:
@@ -143,13 +147,37 @@ class ModelProfiles:
                 if not current['enabled']:
                     raise AccessError(409, 'model_profile_disabled')
                 connection.execute('INSERT INTO defaults VALUES(?,?,?) ON CONFLICT(tenant,owner) DO UPDATE SET profile_id=excluded.profile_id', (*scope, profile_id))
+            elif action == 'enable':
+                # Enabling never restores a cleared default; the user sets it again.
+                connection.execute('UPDATE profiles SET enabled=1 WHERE id=?', (profile_id,))
             else:
                 connection.execute('UPDATE profiles SET enabled=0 WHERE id=?', (profile_id,))
                 connection.execute('DELETE FROM defaults WHERE tenant=? AND owner=? AND profile_id=?', (*scope, profile_id))
         return self.list(principal)
 
-    def binding(self, principal, profile_id, version):
+    def delete(self, principal, profile_id, body):
+        """Soft delete: hidden from list and picker, keys revoked; historical runs keep their frozen snapshot."""
         profile = self.get(principal, profile_id)
+        if set(body) != {'version'} or type(body.get('version')) is not int or body['version'] != profile['version']:
+            raise AccessError(409, 'model_profile_version_conflict')
+        scope = UserTasks.scope(principal)
+        with self.connect() as connection:
+            connection.execute('BEGIN IMMEDIATE')
+            if self.get(principal, profile_id)['version'] != profile['version']:
+                raise AccessError(409, 'model_profile_version_conflict')
+            connection.execute('UPDATE profiles SET enabled=0, deleted_at=? WHERE id=?', (utc_now(), profile_id))
+            connection.execute('DELETE FROM defaults WHERE tenant=? AND owner=? AND profile_id=?', (*scope, profile_id))
+        for version in range(1, profile['version'] + 1):
+            try:
+                self.secrets.revoke(*scope, profile_id, version)
+            except (ValueError, OSError):
+                pass  # The profile is already unusable: deleted rows never bind or load a key.
+        return self.list(principal)
+
+    def binding(self, principal, profile_id, version):
+        profile = self.get(principal, profile_id, include_deleted=True)
+        if profile.get('deleted'):
+            raise AccessError(409, 'model_profile_deleted')
         if type(version) is not int or version != profile['version']:
             raise AccessError(409, 'model_profile_version_conflict')
         if not profile['enabled']:

@@ -83,37 +83,40 @@ def consume_chat_stream(records, expected_model, on_text):
         'content': ''.join(text), 'tool_calls': [calls[i] for i in sorted(calls)], 'refusal': refusal}}], 'usage': usage}
 
 
-def post_chat_stream(url, headers, payload, timeout, on_text):
-    payload = {**payload, 'stream': True, 'stream_options': {'include_usage': True}}
+def sse_records(url, headers, payload, timeout):
+    """Yield each SSE ``data:`` record under one total deadline; the payload is sent as given."""
     request = urllib.request.Request(url, data=json.dumps(payload).encode('utf-8'), method='POST',
                                      headers={**headers, 'Accept': 'text/event-stream'})
     deadline = time.monotonic() + timeout
     with urllib.request.build_opener(NoRedirect()).open(request, timeout=timeout) as response:
-        def records():
-            total, lines = 0, []
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError('stream_deadline_exceeded')
-                sock = getattr(getattr(getattr(response, 'fp', None), 'raw', None), '_sock', None)
-                if sock is not None:
-                    sock.settimeout(remaining)
-                raw = response.readline(1_048_577)
-                if not raw:
-                    break
-                total += len(raw)
-                if len(raw) > 1_048_576 or total > 16_777_216:
-                    raise ValueError('stream_size_exceeded')
-                line = raw.decode('utf-8').rstrip('\r\n')
-                if not line:
-                    if lines:
-                        yield '\n'.join(lines)
-                        lines = []
-                elif line.startswith('data:'):
-                    lines.append(line[5:].lstrip())
-            if lines:
-                yield '\n'.join(lines)
-        return consume_chat_stream(records(), str(payload['model']), on_text)
+        total, lines = 0, []
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('stream_deadline_exceeded')
+            sock = getattr(getattr(getattr(response, 'fp', None), 'raw', None), '_sock', None)
+            if sock is not None:
+                sock.settimeout(remaining)
+            raw = response.readline(1_048_577)
+            if not raw:
+                break
+            total += len(raw)
+            if len(raw) > 1_048_576 or total > 16_777_216:
+                raise ValueError('stream_size_exceeded')
+            line = raw.decode('utf-8').rstrip('\r\n')
+            if not line:
+                if lines:
+                    yield '\n'.join(lines)
+                    lines = []
+            elif line.startswith('data:'):
+                lines.append(line[5:].lstrip())
+        if lines:
+            yield '\n'.join(lines)
+
+
+def post_chat_stream(url, headers, payload, timeout, on_text):
+    payload = {**payload, 'stream': True, 'stream_options': {'include_usage': True}}
+    return consume_chat_stream(sse_records(url, headers, payload, timeout), str(payload['model']), on_text)
 
 
 class PublicTextStream:

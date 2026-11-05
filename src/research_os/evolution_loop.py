@@ -28,7 +28,28 @@ from pathlib import Path
 from typing import Any, Callable, Optional, Protocol
 
 from . import events as ev
+from .debug_review_agents import (
+    build_debug_feedback,
+    format_debug_prompt_section,
+    review_code_before_enqueue,
+    write_code_review_artifacts,
+    write_debug_feedback,
+)
 from .claim_audit import audit_claim
+from .feature_flags import (
+    ff_code_review_agent,
+    ff_cross_branch_fusion,
+    ff_debug_agent,
+    ff_mcgs_c_decay,
+    ff_mcgs_uct,
+    ff_multi_branch,
+    ff_research_os_harness,
+    ff_retro_memory,
+    ff_search_budget_500,
+    ff_single_task_loop,
+    ff_stagnation_detect,
+    flags_snapshot,
+)
 from .mlevolve_controller import choose_code_generation_mode
 from .retrospective_memory import MemoryRecord, RetrospectiveMemoryStore
 from .search_graph import ExperimentNode, SearchGraph
@@ -222,11 +243,43 @@ class EvolutionLoop:
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.runner = runner
         self.generator = generator or VariationGenerator()
+        # W3: RETRO_MEMORY gates controller reuse + claim citation. Store
+        # construction / EvolutionLoop lesson writes stay pre-existing (always-on)
+        # so existing agent/loop callers keep persisting lessons.
+        self._ff_retro_memory = ff_retro_memory()
         self.memory = memory or RetrospectiveMemoryStore(self.work_dir / "retrospective_memory.json")
         self.config = config or EvolutionConfig()
-        # Optional MCGS selection brain. When None (default), the loop keeps its
-        # simple linear best-so-far behavior, so all existing callers are unchanged.
+        # Optional MCGS selection brain. When None (default) and MCGS_UCT off,
+        # the loop keeps linear best-so-far behavior. W2: when EVOMIND_FF_MCGS_UCT
+        # is on and no selector was injected, auto-create MCGSSelector.
         self.selector = selector
+        self.feature_flags = flags_snapshot()
+        self._ff_mcgs_uct = ff_mcgs_uct()
+        self._ff_mcgs_c_decay = ff_mcgs_c_decay()
+        self._ff_multi_branch = ff_multi_branch()
+        self._ff_stagnation_detect = ff_stagnation_detect()
+        self._ff_cross_branch_fusion = ff_cross_branch_fusion()
+        self._ff_search_budget_500 = ff_search_budget_500()
+        self._ff_debug_agent = ff_debug_agent()
+        self._ff_code_review_agent = ff_code_review_agent()
+        self._ff_research_os_harness = ff_research_os_harness()
+        self._ff_single_task_loop = ff_single_task_loop()
+        # P0-BUD-01: never arm a 500-step loop unless SEARCH_BUDGET_500 is on.
+        from .mcgs_selector import resolve_search_budget_steps
+
+        resolved_iters = resolve_search_budget_steps(
+            int(self.config.max_iterations),
+            flag_on=self._ff_search_budget_500,
+        )
+        if resolved_iters != int(self.config.max_iterations):
+            self.config.max_iterations = resolved_iters
+        if self.selector is None and self._ff_mcgs_uct:
+            from .mcgs_selector import MCGSSelector
+
+            self.selector = MCGSSelector(
+                total_steps=max(1, int(self.config.max_iterations)),
+                max_branches=3 if self._ff_multi_branch else 1,
+            )
         # Innovation accounting is opt-in. A normal run can apply several
         # recommended strategies without falsely becoming an innovation trial.
         self.innovation_engine = innovation_engine
@@ -394,10 +447,16 @@ class EvolutionLoop:
         )
 
     def _decide_mode(self, iteration: int, consecutive_no_improve: int, last_failed: bool) -> str:
+        # P0-ST-01: global detect only when flag on; off keeps prior patience → Diff.
+        global_stagnant = (
+            self.graph.detect_global_stagnation(min_delta=self.config.min_delta)
+            if self._ff_stagnation_detect
+            else False
+        )
         return choose_code_generation_mode(
             has_parent=self.best_code is not None,
             branch_stagnant=consecutive_no_improve >= self.config.stagnation_patience,
-            global_stagnant=self.graph.detect_global_stagnation(min_delta=self.config.min_delta),
+            global_stagnant=global_stagnant,
             failure_count=2 if last_failed else 0,
         )
 
@@ -464,6 +523,9 @@ class EvolutionLoop:
                         operator=getattr(plan, "operator", ""),
                         retrieval_card_ids=list(getattr(plan, "retrieval_card_ids", []) or []),
                         parent_exp_ids=parent_exp_ids,
+                        branch_id=getattr(plan, "branch_id", ""),
+                        exploration_c=getattr(plan, "exploration_c", 0.0),
+                        c_schedule=getattr(self.selector, "last_c_schedule", {}) or {},
                     )
                 except Exception as exc:
                     if self._experience_mode():
@@ -479,12 +541,26 @@ class EvolutionLoop:
                     self._pending_plan = None
             else:
                 self._pending_plan = None
-            # feed the last error back so Diff-mode proposals can fix it. Prefer the
-            # cleaned full error (real traceback) over the 120-char summary note.
+            # Feed last error into Diff prompts. P0-AG-01: when DEBUG_AGENT is on,
+            # attach structured stderr/trace via debug feedback (and persist artifact);
+            # when off, keep the prior short LAST RUN FAILED notes path (no regression).
             notes = self.context.extra_notes
             if last_failed and (self.last_error or self.cv_history):
                 err = self.last_error or str(self.cv_history[-1].get("note", ""))
-                notes = (notes + "\nLAST RUN FAILED. Fix THIS error:\n" + err)[:2400]
+                if self._ff_debug_agent:
+                    feedback = build_debug_feedback(
+                        err,
+                        exp_id=str(self.last_exp_id or ""),
+                        failure_pattern=_classify_failure(err),
+                        stderr_trace=err,
+                    )
+                    try:
+                        write_debug_feedback(self.work_dir, feedback)
+                    except OSError:
+                        pass
+                    notes = (notes + "\n" + format_debug_prompt_section(feedback))[:2400]
+                else:
+                    notes = (notes + "\nLAST RUN FAILED. Fix THIS error:\n" + err)[:2400]
             ctx = self.context
             if notes != self.context.extra_notes:
                 ctx = _with_notes(self.context, notes)
@@ -535,6 +611,40 @@ class EvolutionLoop:
                 provider=proposal.provider, model=proposal.model,
             )
             out_dir = str(self.work_dir / exp_id / "out")
+            # P0-AG-02: pre-execution code review + quality gate before enqueue.
+            if self._ff_code_review_agent:
+                review = review_code_before_enqueue(
+                    proposal.code, exp_id=exp_id, task_id=self.context.task_name,
+                )
+                try:
+                    write_code_review_artifacts(self.work_dir, review)
+                except OSError:
+                    pass
+                if review.get("quality_gate") == "block":
+                    issues = ", ".join(review.get("issues") or []) or "hard_fail"
+                    result = RunResult(
+                        False, None,
+                        error=f"code_review_blocked: {issues}",
+                        out_dir=out_dir,
+                    )
+                    self._emit(ev.EXEC_BEGIN, exp_id=exp_id, runner="code_review_agent")
+                    self._emit(ev.SCORE, exp_id=exp_id, success=False, cv_score=None,
+                               exit_code=None)
+                    promoted, delta = self._integrate(
+                        proposal, result, tree_parent=tree_parent, parent_exp_ids=parent_exp_ids,
+                    )
+                    last_failed = True
+                    consecutive_no_improve += 1
+                    self.iterations.append(IterationRecord(
+                        exp_id=exp_id, mode=mode, success=False, cv_score=None,
+                        promoted=False, note=f"code_review_blocked: {issues[:120]}",
+                        provider=proposal.provider, model=proposal.model,
+                        applied_strategies=list(proposal.applied_strategies or []),
+                        memory_ref_ids=list(proposal.memory_ref_ids or []),
+                    ))
+                    self._emit(ev.ITER_END, exp_id=exp_id, mode=mode, success=False,
+                               cv_score=None, promoted=False)
+                    continue
             self._emit(ev.EXEC_BEGIN, exp_id=exp_id, runner=type(self.runner).__name__)
             # Transient infra (SSH dropped, SOCKS/connect timeout) is NOT a bad
             # proposal: re-run the SAME code before giving up, so we don't waste an
@@ -572,7 +682,7 @@ class EvolutionLoop:
             # ancestor chain (what makes UCT live) and update stagnation counters.
             if self.selector is not None and getattr(self, "_pending_plan", None) is not None:
                 try:
-                    self.selector.register_child(self._pending_plan, exp_id)
+                    self.selector.register_child(self._pending_plan, exp_id, graph=self.graph)
                     if hasattr(self.selector, "record_execution"):
                         self.selector.record_execution(
                             self.graph,
@@ -627,6 +737,19 @@ class EvolutionLoop:
                     (self.work_dir / exp_id / "run_error.txt").write_text(err_text, encoding="utf-8")
                 except OSError:
                     pass
+                if self._ff_debug_agent:
+                    try:
+                        write_debug_feedback(
+                            self.work_dir,
+                            build_debug_feedback(
+                                err_text,
+                                exp_id=exp_id,
+                                failure_pattern=_classify_failure(result.error),
+                                stderr_trace=err_text,
+                            ),
+                        )
+                    except OSError:
+                        pass
                 self._emit(ev.REPAIR, exp_id=exp_id,
                            failure_pattern=_classify_failure(result.error),
                            error=_salient_error(result.error, max_chars=300))
@@ -653,9 +776,13 @@ class EvolutionLoop:
             # (cross_branch / aggregation), not a reason to quit — so let it use its
             # full budget. Breaking here would kill the brain exactly when it should
             # be doing its most valuable work.
-            if (self.selector is None
-                    and self.graph.detect_global_stagnation(min_delta=self.config.min_delta)
-                    and iteration >= 2):
+            # P0-ST-01: early-exit only when STAGNATION_DETECT is on (off = patience only).
+            if (
+                self._ff_stagnation_detect
+                and self.selector is None
+                and self.graph.detect_global_stagnation(min_delta=self.config.min_delta)
+                and iteration >= 2
+            ):
                 break
         if (
             not self.terminal_reason
@@ -700,6 +827,12 @@ class EvolutionLoop:
             if incumbent_node is not None and getattr(incumbent_node, "run_success", True)
             else None
         )
+        # P0-ST-02: multi-parent reference_parent_ids + reference_edges only when
+        # CROSS_BRANCH_FUSION is on; parent_id lineage stays single either way.
+        if self._ff_cross_branch_fusion:
+            ref_parent_ids = list(resolved_parents)
+        else:
+            ref_parent_ids = [parent_for_tree] if parent_for_tree else []
         node = ExperimentNode(
             exp_id=proposal.exp_id, parent_id=parent_for_tree, branch_type=proposal.code_generation_mode,
             task_name=self.context.task_name, hypothesis=proposal.hypothesis,
@@ -708,19 +841,20 @@ class EvolutionLoop:
             cv_score=result.cv_score, metric_name="cv_score", metric_direction=self.context.metric_direction,
             run_success=result.success,
             created_at=datetime.now().isoformat(timespec="seconds"),
-            reference_parent_ids=resolved_parents,
+            reference_parent_ids=ref_parent_ids,
         )
         self.graph.add_node(node)
         if parent_for_tree and parent_for_tree in self.graph.nodes:
             self.graph.add_edge(parent_for_tree, proposal.exp_id, proposal.code_generation_mode)
-        for reference_parent in resolved_parents[1:]:
-            if reference_parent in self.graph.nodes:
-                self.graph.add_reference_edge(
-                    reference_parent,
-                    proposal.exp_id,
-                    reason="selected crossover parent",
-                    reference_type="crossover_parent",
-                )
+        if self._ff_cross_branch_fusion:
+            for reference_parent in resolved_parents[1:]:
+                if reference_parent in self.graph.nodes:
+                    self.graph.add_reference_edge(
+                        reference_parent,
+                        proposal.exp_id,
+                        reason="selected crossover parent",
+                        reference_type="crossover_parent",
+                    )
         decision = self.graph.decide_promotion(
             proposal.exp_id, parent_exp_id=self.best_exp_id, metric="cv_score",
             direction=self.context.metric_direction, min_delta=self.config.min_delta,
@@ -821,6 +955,12 @@ class EvolutionLoop:
         evidence = {"has_required_experiments": bool(result.success and incumbent_score is not None),
                     "has_mechanistic_evidence": False,
                     "missing_evidence": missing}
+        # W3: cite memory ids when RETRO_MEMORY flag on and proposal has refs.
+        cite_ids = (
+            list(proposal.memory_ref_ids or [])
+            if getattr(self, "_ff_retro_memory", False)
+            else []
+        )
         audit = audit_claim(
             claim_id=f"{self.context.task_name}:{proposal.exp_id}:claim",
             claim_text=claim_text, related_exp_ids=[proposal.exp_id],
@@ -829,15 +969,22 @@ class EvolutionLoop:
             required_ablations=list(proposal.applied_strategies),
             completed_ablations=[],
             evidence=evidence,
+            memory_ids=cite_ids,
         )
         from dataclasses import asdict
+        cross_refs = (
+            list(self.graph.reference_edges)
+            if self._ff_cross_branch_fusion
+            else []
+        )
         audit_payload = {"schema": "academic_research_os.claim_audit.v1",
                          "created_at": datetime.now().isoformat(timespec="seconds"),
                          "task_id": self.context.task_name, **asdict(audit),
                          "completed_ablations": [], "evidence": evidence,
                          "score_verification": SCORE_VERIFICATION_UNVERIFIED,
                          "promotion_claim_allowed": False,
-                         "search_decision": "promote" if decision.get("promoted") else "hold"}
+                         "search_decision": "promote" if decision.get("promoted") else "hold",
+                         "cross_branch_references": cross_refs}
         (exp_dir / "claim_audit.json").write_text(
             json.dumps(audit_payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
@@ -869,6 +1016,7 @@ class EvolutionLoop:
                 if self.selector is not None and hasattr(self.selector, "budget")
                 else None
             ),
+            "feature_flags": dict(self.feature_flags),
         }
 
 

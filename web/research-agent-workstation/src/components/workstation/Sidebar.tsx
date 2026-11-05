@@ -17,7 +17,7 @@ import { connectorStatus, connectorLabel, preferredModelConnector } from "@/lib/
 export { preferredModelConnector } from "@/lib/connector-presentation";
 import type { WorkstationSummary } from "@/lib/api/types";
 import { t } from "./localization";
-import { DeepEvoGlyph, DeepEvoLockup } from "./DeepEvoBrand";
+import { DeepEvoLockup, DeepEvoMark } from "./DeepEvoBrand";
 
 type Locale = "zh-CN" | "en-US";
 
@@ -119,11 +119,11 @@ function NavTree({
 
 function BrandIdentity({ collapsed }: { collapsed: boolean }) {
   if (!collapsed) {
-    return <DeepEvoLockup height={40} className="max-w-[146px] rounded-md" />;
+    return <DeepEvoLockup width={160} className="text-ink" />;
   }
   return (
-    <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full border border-edge/80 bg-black shadow-raised ring-1 ring-inset ring-accent/10">
-      <DeepEvoGlyph size={38} />
+    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-black text-white">
+      <DeepEvoMark size={32} label="DeepEvo 深度进化" />
     </div>
   );
 }

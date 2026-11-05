@@ -74,6 +74,14 @@ logs/
 !web/research-agent-workstation/public/brand/evomind-mark.png
 !web/research-agent-workstation/public/brand/evomind-mark-symbol.png
 !web/research-agent-workstation/src/app/icon.png
+!web/research-agent-workstation/public/apple-touch-icon.png
+!web/research-agent-workstation/public/icon-16.png
+!web/research-agent-workstation/public/icon-32.png
+!web/research-agent-workstation/public/icon-48.png
+!web/research-agent-workstation/public/icon-192.png
+!web/research-agent-workstation/public/icon-512.png
+!web/research-agent-workstation/public/icon-maskable-512.png
+!web/research-agent-workstation/public/og-image.png
 *.jpg
 *.jpeg
 *.pdf

@@ -5,6 +5,7 @@ Only model requests are retried here; no tool is executed by this module.
 """
 from __future__ import annotations
 
+import contextlib
 import copy
 import hashlib
 import hmac
@@ -27,6 +28,26 @@ from research_os.llm_client import LLMError
 
 
 RETRY_HTTP = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+# t238 C7e A1: set only while llm_backends.FailoverClient tries a backend that has a healthy
+# alternate behind it. Inside it a stream that sends nothing for N seconds fails fast
+# (model_first_byte_timeout) and _StreamingClient re-raises instead of its slow non-stream retry,
+# so the next backend is reached within the 30 s budget. Unset = unchanged behaviour.
+_FAILOVER_GUARD = threading.local()
+
+
+@contextlib.contextmanager
+def first_byte_timeout(seconds):
+    previous = getattr(_FAILOVER_GUARD, 'seconds', None)
+    _FAILOVER_GUARD.seconds = float(seconds)
+    try:
+        yield
+    finally:
+        _FAILOVER_GUARD.seconds = previous
+
+
+def _first_byte_seconds():
+    return getattr(_FAILOVER_GUARD, 'seconds', None)
 RETRY_ENVELOPES = frozenset({"upstream_error", "server_error", "rate_limit_error", "timeout_error", "overloaded_error"})
 GOVERNED_MODELS = frozenset({"gpt-6-astra", "gpt-5.6-sol", "gpt-5.5", "deepseek-v4-pro", "deepseek-flash"})
 ACCEPTANCE_EXTRA_MODELS = frozenset({'gpt-5.6-terra', 'gpt-5.6-luna'})
@@ -109,10 +130,19 @@ def retry_after_seconds(headers):
     return delay if 0 <= delay < float('inf') else None
 
 
-def post_stream_with_deadline(url, headers, payload, timeout, on_text, check_cancel=None):
-    """Read real deltas over private worker pipes under the same total deadline."""
+def post_stream_with_deadline(url, headers, payload, timeout, on_text, check_cancel=None, decode=None):
+    """Read real deltas over private worker pipes under the same total deadline.
+
+    With ``decode`` the worker forwards raw SSE records and ``decode(records, on_text)``
+    rebuilds the body here (any provider wire, e.g. Anthropic /v1/messages).
+    """
     deadline = time.monotonic() + timeout
-    request = json.dumps({'url': url, 'headers': headers, 'payload': payload, 'timeout': timeout, 'stream': True}).encode()
+    first_byte = _first_byte_seconds()  # t238 C7e A1
+    first_byte_deadline = time.monotonic() + first_byte if first_byte else None
+    wire = {'url': url, 'headers': headers, 'payload': payload, 'timeout': timeout, 'stream': True}
+    if decode is not None:
+        wire['raw'] = True
+    request = json.dumps(wire).encode()
     if len(request) > 16 * 1024 * 1024:
         raise ModelTransportError('model_request_too_large', retryable=False)
     process = subprocess.Popen([sys.executable, '-I', '-u', str(Path(__file__).with_name('model_deadline_worker.py'))],
@@ -136,43 +166,76 @@ def post_stream_with_deadline(url, headers, payload, timeout, on_text, check_can
             events.put({'kind': 'eof'})
     reader = threading.Thread(target=read_worker, daemon=True)
     reader.start()
-    try:
-        process.stdin.write(request)
-        process.stdin.close()
+    def next_event():
+        nonlocal first_byte_deadline
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise ModelTransportError('model_total_deadline_exceeded', retryable=False)
+            if first_byte_deadline is not None and time.monotonic() >= first_byte_deadline:
+                raise ModelTransportError('model_first_byte_timeout', retryable=True)
             try:
                 event = events.get(timeout=min(0.25, remaining))
             except queue.Empty:
                 if check_cancel:
                     check_cancel()
                 continue
+            first_byte_deadline = None
             if not isinstance(event, dict):
                 raise ModelTransportError('model_response_protocol_error', retryable=True)
+            return event
+
+    def finish(body):
+        try:
+            process.wait(timeout=max(0.001, deadline - time.monotonic()))
+        except subprocess.TimeoutExpired:
+            raise ModelTransportError('model_total_deadline_exceeded', retryable=False) from None
+        if time.monotonic() > deadline:
+            raise ModelTransportError('model_total_deadline_exceeded', retryable=False)
+        if process.returncode:
+            raise ModelTransportError('model_http_worker_failed', retryable=False)
+        return body
+
+    def fail(event):
+        if event.get('kind') == 'http_error':
+            status = int(event['status'])
+            raise ModelTransportError(f'http_{status}', retryable=status in RETRY_HTTP, status=status,
+                retry_after_seconds=retry_after_seconds({'Retry-After': event.get('retry_after')}))
+        if event.get('code') == 'model_identity_unconfirmed':
+            raise ModelTransportError('model_identity_unconfirmed', retryable=False)
+        raise ModelTransportError('model_network_error' if event.get('kind') == 'network_error' else 'model_response_protocol_error', retryable=True)
+
+    def records():
+        while True:
+            event = next_event()
+            if event.get('kind') == 'data' and isinstance(event.get('data'), str):
+                yield event['data']
+            elif event.get('kind') == 'end':
+                return
+            else:
+                fail(event)
+
+    try:
+        process.stdin.write(request)
+        process.stdin.close()
+        if decode is not None:
+            try:
+                body = decode(records(), on_text)
+            except ModelTransportError:
+                raise
+            except ValueError:
+                raise ModelTransportError('model_response_protocol_error', retryable=True) from None
+            return finish(body)
+        while True:
+            event = next_event()
             if event.get('kind') == 'text':
                 if not isinstance(event.get('text'), str):
                     raise ModelTransportError('model_response_protocol_error', retryable=True)
                 on_text(event['text'])
             elif event.get('kind') == 'response':
-                try:
-                    process.wait(timeout=max(0.001, deadline - time.monotonic()))
-                except subprocess.TimeoutExpired:
-                    raise ModelTransportError('model_total_deadline_exceeded', retryable=False) from None
-                if time.monotonic() > deadline:
-                    raise ModelTransportError('model_total_deadline_exceeded', retryable=False)
-                if process.returncode:
-                    raise ModelTransportError('model_http_worker_failed', retryable=False)
-                return event['body']
-            elif event.get('kind') == 'http_error':
-                status = int(event['status'])
-                raise ModelTransportError(f'http_{status}', retryable=status in RETRY_HTTP, status=status,
-                    retry_after_seconds=retry_after_seconds({'Retry-After': event.get('retry_after')}))
-            elif event.get('code') == 'model_identity_unconfirmed':
-                raise ModelTransportError('model_identity_unconfirmed', retryable=False)
+                return finish(event['body'])
             else:
-                raise ModelTransportError('model_network_error' if event.get('kind') == 'network_error' else 'model_response_protocol_error', retryable=True)
+                fail(event)
     finally:
         if process.poll() is None:
             process.kill()
@@ -438,17 +501,114 @@ class _GovernedClient:
         raise last from None
 
 
+STREAM_TRANSPORTS = frozenset({'openai', 'deepseek', 'anthropic'})
+
+
+def _served_model_decoder(name, requested):
+    """Decode one provider's SSE wire, pinning the model the gateway reports in its first record.
+
+    Whether that served model is acceptable stays the transport's own ``parse`` decision
+    (``require_served_identity`` for an explicit pick), exactly as on the non-stream path.
+    """
+    from .chat_stream_transport import consume_chat_stream
+    from .personal_model_client import consume_anthropic_stream
+
+    def decode(records, on_text):
+        records = iter(records)
+        first = next(records, None)
+        served = requested
+        try:
+            head = json.loads(first) if isinstance(first, str) and first != '[DONE]' else {}
+        except ValueError:
+            head = {}
+        if isinstance(head, dict):
+            reported = (head.get('message') or {}).get('model') if name == 'anthropic' and isinstance(head.get('message'), dict) else head.get('model')
+            if isinstance(reported, str) and reported:
+                served = reported
+        consume = consume_anthropic_stream if name == 'anthropic' else consume_chat_stream
+        return consume(records if first is None else _chain(first, records), served, on_text)
+    return decode
+
+
+def _chain(first, records):
+    yield first
+    yield from records
+
+
+class _StreamingClient:
+    """Stream the selected platform transport; one silent non-stream retry if the stream fails.
+
+    Not a governed contract: identity, retries and provider failover remain the wrapped
+    client's own. A failed stream emits ``reset`` (the UI clears the bubble) and the answer
+    then appears whole, with no wording about the fallback.
+    """
+
+    def __init__(self, client, text_observer, during_request=None):
+        self.client, self.text_observer, self.during_request = client, text_observer, during_request
+
+    def __getattr__(self, name):
+        return getattr(self.client, name)
+
+    @property
+    def model(self):
+        return self.client.model
+
+    def is_available(self):
+        return self.client.is_available()
+
+    def send(self, messages, *, system, tools, max_tokens=4096, temperature=0.3):
+        self.last_stream_error = ''  # t238 C7e A2: the precise code when the stream failed
+        transport = self.client._resolve_transports()[0]
+        url, headers, payload = transport.build(messages, system, tools, max_tokens, temperature)
+        wire = {**payload, 'stream': True}
+        if transport.name != 'anthropic':
+            wire['stream_options'] = {'include_usage': True}
+        self.text_observer({'phase': 'start'})
+        try:
+            body = post_stream_with_deadline(url, headers, wire, self.client.timeout,
+                lambda text: self.text_observer({'phase': 'delta', 'text': text}), self.during_request,
+                decode=_served_model_decoder(transport.name, transport.config.model))
+            if not isinstance(body, dict) or 'error' in body:
+                raise ModelTransportError('provider_error', retryable=True)
+        except ModelTransportError as error:
+            self.text_observer({'phase': 'reset'})
+            self.last_stream_error = error.code
+            if _first_byte_seconds():
+                raise  # t238 C7e A1: an alternate backend is waiting; skip the slow non-stream retry
+            turn = self.client.send(messages, system=system, tools=tools, max_tokens=max_tokens, temperature=temperature)
+            self.text_observer({'phase': 'start'})
+            if turn.text:
+                self.text_observer({'phase': 'delta', 'text': turn.text})
+            self.text_observer({'phase': 'complete'})
+            return turn
+        try:
+            turn = transport.parse(body)
+            if self.client._is_empty(turn):
+                raise ModelTransportError('empty_model_response', retryable=True)
+        except Exception:
+            self.text_observer({'phase': 'reset'})
+            raise
+        self.text_observer({'phase': 'complete'})
+        return turn
+
+
 def governed_client(client: Any, observer: Callable[[dict], None] | None = None,
                     *, before_attempt: Callable[[], None] | None = None,
                     text_observer: Callable[[dict], None] | None = None,
                     during_request: Callable[[], None] | None = None):
-    """Govern the selected Astra/Sol transport; preserve unrelated integrations."""
+    """Govern the selected Astra/Sol transport; stream every other streamable transport.
+
+    ``GOVERNED_MODELS`` selects the strict contract and extra validation only. Whether
+    a run streams depends on the transport wire, not on that list.
+    """
     if not hasattr(client, "_resolve_transports"):
         return client
     try:
         transports = client._resolve_transports()
     except LLMError:
         return client
-    if not transports or transports[0].name != "openai" or transports[0].config.model not in governed_model_names():
-        return client
-    return _GovernedClient(client, observer, before_attempt, text_observer, during_request)
+    if transports and transports[0].name == "openai" and transports[0].config.model in governed_model_names():
+        return _GovernedClient(client, observer, before_attempt, text_observer, during_request)
+    if text_observer is not None and transports and transports[0].name in STREAM_TRANSPORTS:
+        return _StreamingClient(client, text_observer, during_request)
+    return client

@@ -19,7 +19,20 @@ def metadata(runtime, access, principal, file_id):
 def catalog(runtime, access, principal):
     if principal is None:
         raise AccessError(403, 'file_principal_required')
-    return [metadata(runtime, access, principal, file_id) for file_id in access.resources('attachment', principal)[:1000]]
+    items = []
+    for file_id in access.resources('attachment', principal)[:1000]:
+        try:
+            items.append(metadata(runtime, access, principal, file_id))
+        except AccessError:
+            # t238 C7b H2: an owner row whose attachment is gone (deleted) is skipped, never a 404 for the
+            # whole list, and dropped best-effort. completed_upload binds after the row commits, so a
+            # missing row here is a deleted file, not one being created.
+            if runtime.store.get_attachment(file_id) is None:
+                try:
+                    access.forget('attachment', file_id)
+                except Exception:
+                    pass
+    return items
 
 
 def public_generated(row):

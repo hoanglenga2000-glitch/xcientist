@@ -1,4 +1,12 @@
-import { jsonPost, taskRequest, type UserFile } from './types';
+import { jsonPost, taskRequest, type Trainability, type UserFile } from './types';
+
+/** t238 C7a D2: shown after an upload whose size or file count exceeds the training input bound. */
+// t238 C7b COPY: single-file hints name only the limit that was hit; the server sentence wins when present.
+export const TRAINABILITY_NOTICE = '文件超过训练上限（256\u00a0MiB）。可以直接对话和分析；要训练，先缩小或预处理。';
+export const TRAINABILITY_FILES_NOTICE = '文件数超过训练上限（256\u00a0个）。可以直接对话和分析；要训练，先缩小或预处理。';
+export const trainabilityNotice = (file: Pick<UserFile, 'trainability'>) =>
+  file.trainability?.reasons?.includes('input_bytes_exceeded') || !file.trainability?.reasons?.includes('input_files_exceeded') ? TRAINABILITY_NOTICE : TRAINABILITY_FILES_NOTICE;
+export const untrainable = (file: Pick<UserFile, 'trainability'>) => file.trainability?.trainable === false;
 
 export type UploadJob = { file: File; id: string; chunkSize: number };
 
@@ -20,8 +28,8 @@ export async function uploadUserFile(file: File, signal: AbortSignal, onProgress
     onProgress?.(Math.round(offset / file.size * 100));
     await taskRequest(`/api/assistant/uploads/${current.id}/chunks/${index}`, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'X-Chunk-SHA256': digest }, body: chunk, signal });
   }
-  const result = await taskRequest<{ attachment: UserFile }>(`/api/assistant/uploads/${current.id}/complete`, { ...jsonPost({}), signal });
-  return result.attachment;
+  const result = await taskRequest<{ attachment: UserFile; trainability?: Trainability }>(`/api/assistant/uploads/${current.id}/complete`, { ...jsonPost({}), signal });
+  return result.trainability ? { ...result.attachment, trainability: result.trainability } : result.attachment;
 }
 
 /** Attachments chosen on the home composer, handed to the task created from it. */

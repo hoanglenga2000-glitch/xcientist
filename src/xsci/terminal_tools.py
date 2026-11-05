@@ -31,6 +31,10 @@ from .tasks import list_tasks
 
 
 HPC_IDENTITY_RECEIPT_SCHEMA = "evomind.hpc.identity_receipt.v2"
+# 2026-11-05: model/memory are matched against the bound profile inventory (expected_gpu_model_and_memory_match);
+# this is only a floor. 40 GB admits the A40 (job 98456) as well as the A800.
+MIN_TRAINING_GPU_MEMORY_MIB = 40_000
+
 HPC_REQUIRED_CONTAINER_EVIDENCE = (
     "designated_proxy_path_verified",
     "pinned_gateway_host_key_verified",
@@ -68,7 +72,7 @@ def hpc_identity_evidence_complete(
         and len(gpu_uuids) == 1
         and all(str(value).strip() for value in gpu_uuids)
         and str(evidence.get("gpu_name") or "").strip()
-        and int(evidence.get("gpu_memory_total_mib") or 0) >= 80_000
+        and int(evidence.get("gpu_memory_total_mib") or 0) >= MIN_TRAINING_GPU_MEMORY_MIB
         and remote_root
         and evidence.get("read_only") is True
         and int(evidence.get("signals_sent") or 0) == 0
@@ -131,7 +135,7 @@ def _hpc_identity_sample(
         and item["host_uuid"]
         and len(item["gpu_uuids"]) == 1
         and item["gpu_name"]
-        and item["gpu_memory_total_mib"] >= 80_000
+        and item["gpu_memory_total_mib"] >= MIN_TRAINING_GPU_MEMORY_MIB
         and item["remote_root"]
         and item["job_container_verified"] is True
         and all(item[field] is True for field in HPC_REQUIRED_CONTAINER_EVIDENCE)

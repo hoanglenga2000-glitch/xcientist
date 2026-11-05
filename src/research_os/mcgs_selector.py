@@ -42,6 +42,47 @@ from .experience_mcgs import (
     route_operator,
     select_experience_parent,
 )
+from .feature_flags import (
+    ff_cross_branch_fusion,
+    ff_mcgs_c_decay,
+    ff_mcgs_uct,
+    ff_multi_branch,
+    ff_search_budget_500,
+    ff_stagnation_detect,
+    flags_snapshot,
+)
+
+
+# ── search budget (P0-BUD-01) ─────────────────────────────────────────────────
+# Medal-scale 500-step budgets are armed only when EVOMIND_FF_SEARCH_BUDGET_500
+# is on. Flag-off keeps prior soft caps so prod cannot accidentally schedule 500.
+PRIOR_SEARCH_BUDGET_SOFT_MAX = 64
+MEDAL_SEARCH_BUDGET_MAX = 500
+DEFAULT_SEARCH_BUDGET_STEPS = 6
+
+
+def resolve_search_budget_steps(requested: int, *, flag_on: bool | None = None) -> int:
+    """Clamp requested step budget according to EVOMIND_FF_SEARCH_BUDGET_500."""
+    req = max(1, int(requested))
+    enabled = ff_search_budget_500() if flag_on is None else bool(flag_on)
+    if enabled:
+        return min(req, MEDAL_SEARCH_BUDGET_MAX)
+    if req >= MEDAL_SEARCH_BUDGET_MAX:
+        return PRIOR_SEARCH_BUDGET_SOFT_MAX
+    return req
+
+
+def resolve_search_budget_wall_seconds(
+    max_wall_seconds: float,
+    *,
+    time_budget_hours: float | None = None,
+    flag_on: bool | None = None,
+) -> float:
+    """Optional hours override only when SEARCH_BUDGET_500 is on; else prior wall."""
+    enabled = ff_search_budget_500() if flag_on is None else bool(flag_on)
+    if enabled and time_budget_hours is not None:
+        return max(1.0, float(time_budget_hours) * 3600.0)
+    return max(1.0, float(max_wall_seconds))
 
 
 # ── plan the loop asks for each round ────────────────────────────────────────
@@ -58,6 +99,7 @@ class ExpansionPlan:
     # Ordered selected parents.  Crossover requires exactly two entries from
     # distinct successful method families; the first remains the tree parent.
     parent_exp_ids: list[str] = field(default_factory=list)
+    exploration_c: float = 0.0       # C used for this decision (logged when C_DECAY on)
 
 
 # ── progressive exploration schedule (ported from the sound part of A) ───────
@@ -96,15 +138,28 @@ class MCGSSelector:
     side-tables keyed by ``exp_id`` so B's audited node schema is never touched.
     """
 
-    def __init__(self, *, total_steps: int = 6, exploration_c: float = 1.414,
+    def __init__(self, *, total_steps: int = DEFAULT_SEARCH_BUDGET_STEPS,
+                 exploration_c: float = 1.414,
                  branch_stagnation_patience: int = 2, global_stagnation_patience: int = 4,
                  min_delta: float = 1e-4, max_branches: int = 3,
                  search_mode: str | SearchMode | None = None,
                  max_total_tokens: int = 2_000_000,
                  max_wall_seconds: float = 12 * 60 * 60,
                  max_cost_usd: float | None = None,
+                 time_budget_hours: float | None = None,
                  summarizer_model: str = "deterministic-public-summary-v1") -> None:
-        self.total_steps = max(1, total_steps)
+        # Snapshot flags first so budget resolution can honor SEARCH_BUDGET_500.
+        self.feature_flags = flags_snapshot()
+        self._ff_mcgs_uct = ff_mcgs_uct()
+        self._ff_mcgs_c_decay = ff_mcgs_c_decay()
+        self._ff_multi_branch = ff_multi_branch()
+        self._ff_stagnation_detect = ff_stagnation_detect()
+        self._ff_cross_branch_fusion = ff_cross_branch_fusion()
+        self._ff_search_budget_500 = ff_search_budget_500()
+        # P0-BUD-01: same BudgetLedger path for small-N dry runs and medal 500.
+        self.total_steps = resolve_search_budget_steps(
+            total_steps, flag_on=self._ff_search_budget_500,
+        )
         self.exploration_c = exploration_c
         self.branch_stagnation_patience = branch_stagnation_patience
         self.global_stagnation_patience = global_stagnation_patience
@@ -123,10 +178,15 @@ class MCGSSelector:
         ).hexdigest()
         self.summary_cache_hits = 0
         self.summary_cache_misses = 0
+        wall = resolve_search_budget_wall_seconds(
+            max_wall_seconds,
+            time_budget_hours=time_budget_hours,
+            flag_on=self._ff_search_budget_500,
+        )
         self.budget = BudgetLedger(
             max_nodes=self.total_steps,
             max_total_tokens=max(1, int(max_total_tokens)),
-            max_wall_seconds=max(1.0, float(max_wall_seconds)),
+            max_wall_seconds=wall,
             max_cost_usd=max_cost_usd,
         )
         # private side-tables (never written back to ExperimentNode)
@@ -135,6 +195,9 @@ class MCGSSelector:
         self.branch_stagnation: dict[str, int] = {}  # branch_id -> consecutive no-improve
         self.global_stagnation = 0
         self._branch_counter = 0
+        # W2 observability: last C / schedule written on each select().
+        self.last_exploration_c: float = float(self.exploration_c)
+        self.last_c_schedule: dict[str, Any] = {}
 
     # ── reward normalization: make "better" always mean higher, any direction ──
     def _reward(self, graph, node) -> float:
@@ -175,30 +238,115 @@ class MCGSSelector:
     def _children(self, graph, exp_id: str) -> list:
         return [n for n in graph.nodes.values() if n.parent_id == exp_id]
 
-    def select(self, graph, *, step: int) -> ExpansionPlan:
-        """Walk from root by UCT to a frontier node, then decide expansion + mode.
+    def _compute_exploration_c(self, step: int) -> float:
+        """Return C for this step; piecewise decay only when EVOMIND_FF_MCGS_C_DECAY."""
+        phase = _phase_for(step / self.total_steps)
+        if self._ff_mcgs_c_decay:
+            c = _piecewise_decay(step, self.total_steps, initial_c=self.exploration_c)
+        else:
+            c = float(self.exploration_c)
+        t1 = max(1, round(self.total_steps * 0.3))
+        t2 = max(t1 + 1, round(self.total_steps * 0.7))
+        self.last_exploration_c = c
+        self.last_c_schedule = {
+            "schema": "academic_research_os.mcgs_c_schedule.v1",
+            "step": int(step),
+            "total_steps": int(self.total_steps),
+            "exploration_c": float(c),
+            "decay_enabled": bool(self._ff_mcgs_c_decay),
+            "phase": phase,
+            "initial_c": float(self.exploration_c),
+            "lower_bound": 0.5,
+            "breakpoints": {"t1": t1, "t2": t2, "t1_frac": 0.3, "t2_frac": 0.7},
+            "feature_flag": "EVOMIND_FF_MCGS_C_DECAY",
+        }
+        return c
 
-        Falls back gracefully: if the graph has no root yet, the caller should be
-        seeding the baseline (this returns a primary/Base plan on the root id).
+    def _select_linear(self, graph, *, phase: str, exploration_c: float) -> ExpansionPlan:
+        """Pre-MCGS linear/ensemble path: expand from the best-reward scored node."""
+        root_id = graph.root_exp_id
+        scored = [n for n in graph.nodes.values() if graph._node_score(n) is not None]
+        if not scored:
+            node = graph.nodes.get(root_id)
+            if node is None:
+                return ExpansionPlan(
+                    node_exp_id=root_id, expansion_type="primary", coding_mode="Base",
+                    branch_id="branch_0", phase=phase, operator=SearchOperator.DRAFT.value,
+                    exploration_c=exploration_c,
+                )
+        else:
+            node = max(scored, key=lambda n: self._reward(graph, n))
+        plan = self._plan_expansion(graph, node, phase=phase)
+        plan.exploration_c = exploration_c
+        return plan
+
+    def select(self, graph, *, step: int) -> ExpansionPlan:
+        """Select a parent to expand.
+
+        When ``EVOMIND_FF_MCGS_UCT`` is on: walk from root by UCT to a frontier.
+        When off: linear/ensemble best-reward parent (pre-MCGS path).
+        ``EVOMIND_FF_MCGS_C_DECAY`` gates piecewise C; when off, C stays constant.
         """
-        c = _piecewise_decay(step, self.total_steps, initial_c=self.exploration_c)
+        c = self._compute_exploration_c(step)
         phase = _phase_for(step / self.total_steps)
         root_id = graph.root_exp_id
-        # traverse to a leaf by best UCT child
         node = graph.nodes.get(root_id)
         if node is None:
-            return ExpansionPlan(node_exp_id=root_id, expansion_type="primary",
-                                 coding_mode="Base", branch_id="branch_0", phase=phase,
-                                 operator=SearchOperator.DRAFT.value)
+            return ExpansionPlan(
+                node_exp_id=root_id, expansion_type="primary", coding_mode="Base",
+                branch_id="branch_0", phase=phase, operator=SearchOperator.DRAFT.value,
+                exploration_c=c,
+            )
         if self.search_mode is SearchMode.EXPERIENCE_MCGS_V1:
-            return self._select_experience(graph, phase=phase)
+            plan = self._select_experience(graph, phase=phase)
+            plan.exploration_c = c
+            return plan
+        # P0-SG-01: UCT path only when flag on; else linear best-so-far.
+        if not self._ff_mcgs_uct:
+            return self._select_linear(graph, phase=phase, exploration_c=c)
         while True:
             children = self._children(graph, node.exp_id)
             if not children:
                 break
             parent_visits = self.visits.get(node.exp_id, 0)
             node = max(children, key=lambda ch: self._uct(graph, ch, parent_visits, c))
-        return self._plan_expansion(graph, node, phase=phase)
+        plan = self._plan_expansion(graph, node, phase=phase)
+        plan.exploration_c = c
+        return plan
+
+    def plan_concurrent_drafts(self, graph, *, step: int, n: int | None = None) -> list[ExpansionPlan]:
+        """P0-BR-01: when MULTI_BRANCH on, return ≥2 primary drafts from one parent.
+
+        Each draft gets a distinct ``branch_id``. When the flag is off, returns a
+        single-element list from :meth:`select` (single-path behavior).
+        """
+        base = self.select(graph, step=step)
+        if not self._ff_multi_branch:
+            return [base]
+        # Concurrent drafts: 2..3 (or max_branches), all from the same parent.
+        cap = max(2, min(int(self.max_branches), 3))
+        count = cap if n is None else max(2, min(int(n), cap))
+        parent = base.node_exp_id
+        plans: list[ExpansionPlan] = []
+        for i in range(count):
+            if i == 0:
+                bid = base.branch_id or ("branch_0" if not graph.nodes else self._new_branch())
+            else:
+                bid = self._new_branch()
+            plans.append(
+                ExpansionPlan(
+                    node_exp_id=parent,
+                    expansion_type="primary",
+                    coding_mode="Base" if i > 0 else base.coding_mode,
+                    reference_exp_ids=list(base.reference_exp_ids) if i == 0 else [],
+                    branch_id=bid,
+                    phase=base.phase,
+                    operator=base.operator or SearchOperator.DRAFT.value,
+                    exploration_c=base.exploration_c,
+                    parent_exp_ids=list(base.parent_exp_ids) if i == 0 else ([parent] if parent else []),
+                )
+            )
+        return plans
 
     def _ensure_experience_board(self, graph, *, skip_node_ids: set[str] | None = None) -> ExperienceBoard:
         if self.experience_board is None:
@@ -311,13 +459,27 @@ class MCGSSelector:
                 refs.append(node_id)
         bid = self._branch(selected_node.exp_id)
         n_branches = len(set(self.branch_of.values())) or 1
+        max_br = self._effective_max_branches()
         if operator is SearchOperator.DEBUG:
             expansion_type, coding_mode, branch_id = "intra_branch", "Diff", bid
         elif operator is SearchOperator.CROSSOVER:
-            expansion_type, coding_mode = ("aggregation" if self.global_stagnation >= self.global_stagnation_patience else "cross_branch"), "Stepwise"
-            branch_id = self._new_branch() if n_branches < self.max_branches else bid
+            # P0-ST-02: cross_branch / aggregation only when fusion (+ stagnation) armed.
+            if self._ff_cross_branch_fusion and self._ff_stagnation_detect:
+                expansion_type = (
+                    "aggregation"
+                    if self.global_stagnation >= self.global_stagnation_patience
+                    else "cross_branch"
+                )
+            else:
+                expansion_type = "intra_branch"
+            coding_mode = "Stepwise"
+            branch_id = self._new_branch() if (self._ff_multi_branch and n_branches < max_br) else bid
         elif operator is SearchOperator.DRAFT:
-            expansion_type, coding_mode, branch_id = "primary", "Base", self._new_branch() if graph.nodes else "branch_0"
+            if self._ff_multi_branch and graph.nodes and n_branches < max_br:
+                branch_id = self._new_branch()
+            else:
+                branch_id = bid if graph.nodes else "branch_0"
+            expansion_type, coding_mode = "primary", "Base"
         else:
             expansion_type, coding_mode, branch_id = "intra_branch", "Stepwise", bid
         return ExpansionPlan(
@@ -488,9 +650,35 @@ class MCGSSelector:
         return rows
 
     def export_observability(self, work_dir: str | Path) -> None:
+        root = Path(work_dir)
+        # Always write flag snapshot when observability is requested (W1 scaffolding).
+        (root / "feature-flags.json").write_text(
+            json.dumps(
+                {
+                    "schema": "academic_research_os.feature_flags.snapshot.v1",
+                    "flags": dict(self.feature_flags),
+                    "locus": "mcgs_selector",
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        if self.last_c_schedule:
+            (root / "c-decay-schedule.json").write_text(
+                json.dumps(self.last_c_schedule, ensure_ascii=False, indent=2, sort_keys=True)
+                + "\n",
+                encoding="utf-8",
+            )
+        # P0-BUD-01: always persist budget.to_dict() when observability is requested.
+        (root / "budget-ledger.json").write_text(
+            json.dumps(self.budget.to_dict(), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         if self.search_mode is not SearchMode.EXPERIENCE_MCGS_V1 or self.experience_board is None:
             return
-        root = Path(work_dir)
         if self.summary_cache is None:
             self.summary_cache = LazySummaryCache(root / "experience-summary-cache.json")
         self.experience_board.write(root / "experience-board.json")
@@ -501,7 +689,6 @@ class MCGSSelector:
             "".join(json.dumps(record, ensure_ascii=False, sort_keys=True) + "\n" for record in self.retrieval_records),
             encoding="utf-8",
         )
-        (root / "budget-ledger.json").write_text(json.dumps(self.budget.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         (root / "summary-cache-stats.json").write_text(
             json.dumps(
                 {
@@ -562,28 +749,48 @@ class MCGSSelector:
             return "Stepwise"
         return "Diff"
 
+    def _effective_max_branches(self) -> int:
+        """P0-BR-01: multi-branch flag off forces single-path (max_branches=1)."""
+        if not self._ff_multi_branch:
+            return 1
+        return max(1, int(self.max_branches))
+
+    def _fusion_armed(self) -> bool:
+        """P0-ST-02 needs fusion + stagnation detect + multi-branch (checklist deps)."""
+        return bool(
+            self._ff_cross_branch_fusion
+            and self._ff_stagnation_detect
+            and self._ff_multi_branch
+        )
+
     def _plan_expansion(self, graph, node, *, phase: str) -> ExpansionPlan:
         bid = self._branch(node.exp_id)
         n_branches = len(set(self.branch_of.values())) or 1
-        # 1) aggregation: global stall + enough branches to fuse
-        if self.global_stagnation >= self.global_stagnation_patience and n_branches >= 2:
+        max_br = self._effective_max_branches()
+        # 1) aggregation: global stall + enough branches to fuse (flag-gated)
+        if (
+            self._fusion_armed()
+            and self.global_stagnation >= self.global_stagnation_patience
+            and n_branches >= 2
+        ):
             refs = self._top_exp_ids(graph, n=4)
-            new_bid = self._new_branch() if n_branches < self.max_branches else bid
+            new_bid = self._new_branch() if n_branches < max_br else bid
             return ExpansionPlan(node.exp_id, "aggregation", "Base", refs,
                                  branch_id=new_bid, phase=phase)
-        # 2) this branch stalled. Two sub-cases:
-        #    (a) other branches exist -> borrow their ideas (cross_branch).
-        #    (b) single-branch world -> DIVERSIFY: open a fresh branch from the global
-        #        best. Without (b) the search can never leave branch_0, so cross_branch
-        #        AND aggregation are unreachable dead code (the multi-branch brain needs
-        #        a second branch to bootstrap, but only these paths create one).
+        # 2) this branch stalled. Two sub-cases (multi-branch only for diversify/cross):
+        #    (a) fusion armed + other branches -> borrow ideas (cross_branch).
+        #    (b) MULTI_BRANCH only -> DIVERSIFY: open a fresh branch (W2 path).
         if self.branch_stagnation.get(bid, 0) >= self.branch_stagnation_patience:
-            refs = self._top_exp_ids(graph, n=3, exclude_branch=bid)
+            refs = (
+                self._top_exp_ids(graph, n=3, exclude_branch=bid)
+                if self._fusion_armed()
+                else []
+            )
             if refs:
-                new_bid = self._new_branch() if n_branches < self.max_branches else bid
+                new_bid = self._new_branch() if n_branches < max_br else bid
                 return ExpansionPlan(node.exp_id, "cross_branch", "Stepwise", refs,
                                      branch_id=new_bid, phase=phase)
-            if n_branches < self.max_branches:
+            if self._ff_multi_branch and n_branches < max_br:
                 seed = (self._top_exp_ids(graph, n=1) or [node.exp_id])[0]
                 return ExpansionPlan(seed, "primary", "Base", [],
                                      branch_id=self._new_branch(), phase=phase)
@@ -603,23 +810,36 @@ class MCGSSelector:
         return f"branch_{self._branch_counter}"
 
     # ── backpropagation: the increment A never did + stagnation bookkeeping ──
-    def register_child(self, plan: ExpansionPlan, child_exp_id: str) -> None:
-        """Record which branch the newly-created child belongs to."""
-        self.branch_of[child_exp_id] = plan.branch_id or self._branch(plan.node_exp_id)
+    def register_child(self, plan: ExpansionPlan, child_exp_id: str, graph=None) -> None:
+        """Record which branch the newly-created child belongs to.
+
+        When ``graph`` is provided and exposes ``branch_ids``, persist the id there
+        too (additive; does not mutate ExperimentNode audit schema).
+        """
+        bid = plan.branch_id or self._branch(plan.node_exp_id)
+        self.branch_of[child_exp_id] = bid
+        if graph is not None:
+            branch_ids = getattr(graph, "branch_ids", None)
+            if isinstance(branch_ids, dict):
+                branch_ids[child_exp_id] = bid
+            if hasattr(graph, "selected_next_branch"):
+                graph.selected_next_branch = bid
 
     def backpropagate(self, graph, exp_id: str, *, improved: bool) -> None:
         """Increment visit counts up the ancestor chain and update stagnation.
 
-        ``improved`` is whether this node improved the global best (the caller
-        already knows this from the promotion decision, so we don't recompute it).
+        Visit backpropagation runs when ``EVOMIND_FF_MCGS_UCT`` is on (UCT needs
+        live visit counts). Stagnation bookkeeping always runs so MULTI_BRANCH
+        diversify still sees stalls when UCT is on.
         """
-        # visit increment along the path to root (this is what makes UCT live)
-        cur = graph.nodes.get(exp_id)
-        seen = set()
-        while cur is not None and cur.exp_id not in seen:
-            seen.add(cur.exp_id)
-            self.visits[cur.exp_id] = self.visits.get(cur.exp_id, 0) + 1
-            cur = graph.nodes.get(cur.parent_id) if cur.parent_id else None
+        if self._ff_mcgs_uct:
+            # visit increment along the path to root (this is what makes UCT live)
+            cur = graph.nodes.get(exp_id)
+            seen = set()
+            while cur is not None and cur.exp_id not in seen:
+                seen.add(cur.exp_id)
+                self.visits[cur.exp_id] = self.visits.get(cur.exp_id, 0) + 1
+                cur = graph.nodes.get(cur.parent_id) if cur.parent_id else None
         # stagnation bookkeeping
         bid = self._branch(exp_id)
         if improved:
