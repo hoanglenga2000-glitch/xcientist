@@ -73,6 +73,7 @@ _SCRUB_PATTERNS = (
     re.compile(r"\b10\.120\.\d{1,3}\.\d{1,3}(?::\d+)?\b"),
     re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}(?::\d{2,5})?\b"),
     re.compile(r"(?<![0-9A-Za-z])98270(?![0-9A-Za-z])"),
+    re.compile(r"(?<![0-9A-Za-z])" + str(int(gpu_admission.ALLOWED_HPC_JOB_ID)) + r"(?![0-9A-Za-z])"),
 )
 HIDDEN = "[已隐藏]"
 # t238 C7c-FIX4: the model relays tool results; tell it how a training refusal may be worded (failure replies quoted the error
@@ -152,7 +153,7 @@ def plain_reply(text: str) -> str:
 # FIX5h (ACCEPT11 H-1): word-bounded, so ordinary ML talk (shape, SHAP, shared, Shanghai) is never dropped.
 INTERNAL_TERMS = re.compile(
     r"哈希|校验和|(?<![a-z])sha[-_ ]?\d{3}(?!\d)|_sha\d*|(?<![a-z])sha(?![a-z])|\bhash(?:ed|es|ing)?\b|\bprotocols?\b|\bdata[_-]protocol\b|"
-    r"\bmanaged\b|\b[0-9a-f]{40,64}\b|受管|适配器|\badapters?\b|\bGPU[s]?\b|\bCUDA\b|显存|显卡|\bVRAM\b|vLLM|A800|AIMSLAB|Workbench|"
+    r"\bmanaged\b|\b[0-9a-f]{40,64}\b|受管|适配器|\badapters?\b|\bGPU[s]?\b|\bCUDA\b|显存|显卡|\bVRAM\b|vLLM|A800|\bA40\b|AIMSLAB|Workbench|"
     r"训练身份|\bidentity[\s_-]*(?:gate|binding)|租约|\blease\b|remote_dispatched|tenant_training|managed_tensor_train|\bshell\b|训练资源|\bdispatch(?:ed|es|ing)?\b|\bcheck-?sums?\b|"
     r"[A-Za-z]:\\ProgramData|/hpc2hdd", re.IGNORECASE)
 OMITTED_STEP = "这部分说明已省略。"

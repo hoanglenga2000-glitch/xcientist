@@ -45,8 +45,41 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterable, Iterator
 
-ALLOWED_NODE_ID = "job98270"
-ALLOWED_HPC_JOB_ID = 98270
+def _service_node_job_id() -> int:
+    """2026-11-05: the one schedulable card follows the operator-owned pool file (job ids change when an
+    allocation expires). Read once at import; a restart applies a new card. Default keeps job 98270."""
+
+    import os
+    path = Path(os.environ.get("EVOMIND_GPU_POOL_CONFIG", r"C:\ProgramData\EvoMind\state\gpu-pool.json"))
+    try:
+        block = json.loads(path.read_text(encoding="utf-8-sig")).get("gpu_pool") or {}
+        job = block.get("hpc_job_id")
+        if isinstance(job, int) and not isinstance(job, bool) and 10_000 <= job <= 9_999_999 and block.get("node_id") == f"job{job}":
+            return job
+    except (OSError, ValueError, AttributeError):
+        pass
+    return 98270
+
+
+ALLOWED_HPC_JOB_ID = _service_node_job_id()
+ALLOWED_NODE_ID = f"job{ALLOWED_HPC_JOB_ID}"
+
+
+def _service_node_display() -> tuple[str, int]:
+    """Display label / VRAM of the card (admin pool view only; admission uses the live free-memory probe)."""
+
+    import os
+    try:
+        path = Path(os.environ.get("EVOMIND_GPU_POOL_CONFIG", r"C:\ProgramData\EvoMind\state\gpu-pool.json"))
+        block = json.loads(path.read_text(encoding="utf-8-sig")).get("gpu_pool") or {}
+        label = str(block.get("gpu_model") or "A800")[:32]
+        vram = block.get("gpu_vram_mb")
+        return label, int(vram) if isinstance(vram, int) and not isinstance(vram, bool) and vram > 0 else 81920
+    except (OSError, ValueError, AttributeError):
+        return "A800", 81920
+
+
+SERVICE_NODE_LABEL, SERVICE_NODE_VRAM_MB = _service_node_display()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS pool_nodes (
@@ -154,7 +187,7 @@ class GpuPolicy:
     max_queued_per_tenant: int = 3
     max_queue_length: int = 50
     default_vram_mb: int = 4096
-    node_vram_mb: int = 81920
+    node_vram_mb: int = SERVICE_NODE_VRAM_MB
     broker_stop_seconds: int = 60  # ADDENDUM 2: estimate of the memory broker's stop time (vLLM ≈ 30–60 s)
     waiter_live_seconds: int = 90  # waiters refresh every poll (5 s); a probe can take up to 50 s
     orphan_kill_retry_seconds: int = 60
@@ -310,10 +343,10 @@ class GpuScheduler:
 
         db = self._db()
         row = db.execute("SELECT * FROM pool_nodes WHERE id=?", (ALLOWED_NODE_ID,)).fetchone()
-        if row is not None and row["profile"] == profile:
+        if row is not None and row["profile"] == profile and row["gpu_model"] == SERVICE_NODE_LABEL:
             return
-        self.upsert_node(ALLOWED_NODE_ID, label="A800", gpu_uuid=row["gpu_uuid"] if row else "",
-                         gpu_model="A800", vram_mb=int(vram_mb or self.policy.node_vram_mb), profile=profile,
+        self.upsert_node(ALLOWED_NODE_ID, label=SERVICE_NODE_LABEL, gpu_uuid=row["gpu_uuid"] if row else "",
+                         gpu_model=SERVICE_NODE_LABEL, vram_mb=int(vram_mb or self.policy.node_vram_mb), profile=profile,
                          enabled=bool(row["enabled"]) if row else True)
 
     def set_node_enabled(self, node_id: str, enabled: bool) -> None:
