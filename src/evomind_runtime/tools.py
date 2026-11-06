@@ -4264,7 +4264,8 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
         status = str(row["status"])
         code = {"timeout": "timeout", "cancelled": "cancelled"}.get(status, "")
         state = {"status": status, "max_run_minutes": lease.max_run_seconds // 60,
-                 "message": gpu_admission.message(code) if code else ""}
+                 "message": gpu_admission.message(code) if code else "",
+                 "node_id": str(getattr(lease, "node_id", "") or "")}
         return result, state
     finally:
         gate.close()
@@ -4344,7 +4345,78 @@ def _model_protocols(args: dict[str, Any], context: ToolContext) -> ToolResult:
 
 
 def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResult:
-    """t238 C7c-4: tenant-scoped managed training on the time-shared A800 (see tenant_training)."""
+    """t238 C7c-4: tenant-scoped managed training; phase 2 deposits one private experience per attempt.
+
+    The deposit is deterministic (no LLM) and never changes the training result: any error in it is logged and dropped.
+    """
+    facts: dict[str, Any] = {}
+    started = time.monotonic()
+    result = _tenant_tensor_train_core(args, context, facts)
+    try:
+        _deposit_training_experience(context, facts, result, time.monotonic() - started)
+    except Exception:  # noqa: BLE001 - the knowledge base never fails a training
+        import logging
+        logging.getLogger(__name__).exception("experience deposit failed")
+    return result
+
+
+def _training_card_label(runtime_root: Path, node_id: str) -> str:
+    """Card model of the node a lease ran on (gpu_scheduler pool_nodes); '' when unknown."""
+    if not node_id:
+        return ""
+    from . import gpu_admission
+    path = Path(runtime_root) / gpu_admission.DB_NAME
+    if not path.is_file():
+        return ""
+    try:
+        with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=5) as connection:
+            row = connection.execute("SELECT gpu_model FROM pool_nodes WHERE id=?", (node_id,)).fetchone()
+    except sqlite3.Error:
+        return ""
+    return str(row[0] or "") if row else ""
+
+
+def _deposit_training_experience(context: ToolContext, facts: dict[str, Any], result: ToolResult, elapsed: float) -> None:
+    from . import experience_store, tenant_training
+    from .personal_tool_boundary import is_personal
+    from .user_memory import principal_from_metadata
+
+    principal = principal_from_metadata(context.metadata)
+    task, data_key = facts.get("task"), facts.get("data_key")
+    if principal is None or not is_personal(principal.tenant_id) or task not in {"classification", "regression"} or not data_key:
+        return
+    code = "" if result.ok else str(result.error or "")
+    if not result.ok and (code in experience_store.NOT_EXPERIENCE_CODES or not code):
+        return
+    profile = facts.get("profile")
+    if profile is None:
+        config = facts.get("config") if isinstance(facts.get("config"), dict) else {}
+        try:
+            path = tenant_training.resolve_input(context.workspace_root, str(config.get("data_path") or ""))
+            shape = experience_store.quick_csv_shape(path) if path.suffix.casefold() == ".csv" else None
+        except Exception:  # noqa: BLE001 - an unreadable path just leaves the shape unknown
+            shape = None
+        profile = experience_store.data_profile(task, *shape) if shape else {}
+    try:
+        session = context.store.get_session(context.session_id) or {}
+        used = (session.get("metadata") or {}).get("experience_used") or {}
+        used_ids = [str(item) for item in used.get("private_ids") or []] if isinstance(used, dict) else []
+    except Exception:  # noqa: BLE001
+        used_ids = []
+    store = experience_store.ExperienceStore(context.runtime_root)
+    store.record_training(
+        principal, run_id=str(context.session_id), data_key=str(data_key), task=str(task), profile=profile,
+        config=facts.get("trainer") or facts.get("config"), outcome="success" if result.ok else "failed",
+        metrics=facts.get("metrics"), failure_code=code, elapsed_seconds=elapsed,
+        card=_training_card_label(context.runtime_root, str(facts.get("node_id") or "")),
+        project_id=str(context.metadata.get("project_id") or ""), used_ids=used_ids)
+
+
+def _tenant_tensor_train_core(args: dict[str, Any], context: ToolContext, facts: dict[str, Any]) -> ToolResult:
+    """t238 C7c-4: tenant-scoped managed training on the time-shared A800 (see tenant_training).
+
+    ``facts`` collects what the experience deposit needs (task, data hash, profile, trainer numbers, card, metrics).
+    """
     import dataclasses
     from . import managed_tensor_train, tenant_training, tensor_inference
     from .tenant_training import TenantTrainingError, scrub
@@ -4394,8 +4466,16 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
             budget = int(vram.ceiling_mb(str(scope.get("tenant_id") or "")))
         except gpu_vram.VramConfigError:
             budget = None
-        prepared = tenant_training.prepare(context.workspace_root, read_json(config_path), protocol_id, vram_budget_mb=budget)
+        tenant_config = read_json(config_path)
+        if isinstance(tenant_config, dict):
+            facts.update(config=tenant_config, task=tenant_config.get("task"), data_key=protocol_id)
+        prepared = tenant_training.prepare(context.workspace_root, tenant_config, protocol_id, vram_budget_mb=budget)
         import numpy as np
+        from .experience_store import data_profile
+        facts["profile"] = data_profile(prepared["task"], len(prepared["x"]) + len(prepared["evaluation_x"]), int(prepared["x"].shape[1]),
+                                        labels=np.concatenate([prepared["y"], prepared["evaluation_y"]]) if prepared["task"] == "classification" else None,
+                                        classes=int(prepared.get("classes") or 0))
+        facts["trainer"] = dict(prepared["trainer_config"])
         work = context.workspace_root / "work" / ("managed-fit-" + new_id("input"))
         work.mkdir(parents=True, exist_ok=False)
         np.savez(work / "training.npz", x=prepared["x"], y=prepared["y"])
@@ -4425,6 +4505,7 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
     content = result.content if isinstance(result.content, dict) else {}
     gpu = content.get("gpu_time_share") or {}
     queue = content.get("gpu_queue") or {}
+    facts["node_id"] = gpu.get("node_id") or ""
     if not result.ok:
         if result.error == "remote_path_rejected":
             return refuse("remote_path_rejected", result.summary)
@@ -4477,6 +4558,7 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
         files = {name: digest(output / name) for name in (*required, "predict.py", "data-protocol.json", "metrics.json")}
     except (OSError, ValueError, TypeError):
         return refuse("unverified", "训练跑完了，但结果文件没有通过校验，请重新训练。", {"published_artifacts": _tenant_artifacts(content)})
+    facts["metrics"] = metrics
     message = "训练完成。模型和预测结果已保存到这个任务的文件里。"
     skipped = int(content.get("skipped_output_names") or 0)
     if skipped:

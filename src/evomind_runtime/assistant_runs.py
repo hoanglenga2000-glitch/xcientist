@@ -2090,6 +2090,50 @@ class AssistantRunService:
             metadata["memory_used"] = (used + added)[:MEMORY_PROMPT_TOP_K * 2]
             self.store.update_session(session_id, metadata_json=metadata)
 
+    def _experience_prompt_lines(self, metadata: dict[str, Any], guidance: Any, tenant_id: str, root: Path,
+                                 attachments: list[dict[str, Any]], *, session_id: str, query: str) -> list[str]:
+        """Phase 2 recall. Tenant runs with a CSV input that may train: <= 3 private + 3 anonymous global experiences.
+
+        Operator runs that ask for training get platform knowledge instead. Recalled ids are recorded once per
+        session (``experience_used``) so a later success can credit them. Never raises: recall is advisory.
+        """
+        try:
+            from . import experience_store
+            from .personal_tool_boundary import is_personal
+            from .user_memory import principal_from_metadata
+
+            store = experience_store.ExperienceStore(self.runtime.runtime_root)
+            if not is_personal(tenant_id):
+                from .experience_entry import detect_compute_intent
+                return store.platform_lines(query) if detect_compute_intent(query) else []
+            principal = principal_from_metadata(metadata)
+            if principal is None or str(metadata.get("memory_mode") or "on") != "on" or not guidance(("managed_tensor_train",), "x"):
+                return []
+            csv_inputs = [root / "inputs" / Path(str(item.get("path") or "")).name for item in attachments
+                          if Path(str(item.get("path") or "")).suffix.casefold() == ".csv"]
+            guessed = next((value for value in (experience_store.guess_task_profile(path) for path in csv_inputs[:2]) if value), None)
+            if guessed is None:
+                return []
+            task, profile = guessed
+            recalled = store.recall(principal, task=task, profile=profile, project_id=str(metadata.get("project_id") or ""))
+            if recalled["lines"] and session_id:
+                session = self.store.get_session(session_id) or {}
+                session_metadata = dict(session.get("metadata") or {})
+                if not session_metadata.get("experience_used"):
+                    store.mark_used(principal, recalled["private_ids"])
+                    session_metadata["experience_used"] = {key: recalled[key] for key in ("private_ids", "prior_keys", "recommended")}
+                    self.store.update_session(session_id, metadata_json=session_metadata)
+            return list(recalled["lines"])
+        except Exception:  # noqa: BLE001 - a broken knowledge base never blocks a run
+            logging.getLogger(__name__).exception("experience recall failed")
+            return []
+
+    @staticmethod
+    def _experience_used_view(value: Any) -> dict[str, Any]:
+        value = value if isinstance(value, dict) else {}
+        return {"private": len(value.get("private_ids") or []), "global": len(value.get("prior_keys") or []),
+                "recommended": bool(value.get("recommended"))}
+
     def _execution_prompt(self, run: dict[str, Any], *, resume: bool, recovery_reason: str = "") -> str:
         from .run_supervision import recovery_note
 
@@ -2233,6 +2277,8 @@ class AssistantRunService:
                 *(attachment_lines or ["- none"]),
                 *project_lines,
                 *memory_lines,
+                *self._experience_prompt_lines(metadata, guidance, tenant_id, root, attachments,
+                                               session_id=str(run["session_id"]), query=str(run.get("prompt") or "")),
                 f"Recent conversation: {self._conversation_context(run)}",
                 (
                     "Original user objective (historical context only; overridden wherever it conflicts with the active continuation):"
@@ -3238,6 +3284,7 @@ class AssistantRunService:
             **self._activity(str(run["session_id"]), str(effective_run["status"])),
             "memory_saved": UserMemoryStore(self.runtime.runtime_root).saved_by_run(run_id),
             "memory_used": [item for item in (session_metadata.get("memory_used") or []) if isinstance(item, dict)],
+            "experience_used": self._experience_used_view(session_metadata.get("experience_used")),
             "memory_mode": str(session_metadata.get("memory_mode") or "on"),
             "queued_messages": [
                 item for item in ((session_metadata.get("c6b_inbox") or {}).get("queued") or [])

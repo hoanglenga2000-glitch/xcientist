@@ -259,7 +259,7 @@ class UserMemoryStore:
         return {"memory": self.get(principal, memory_id), "truncated": truncated}
 
     def select_for_prompt(self, principal: Principal | None, query: str, *, project_id: str = "", limit: int = PROMPT_TOP_K) -> list[dict]:
-        """Rows to inject: pinned first, then by token overlap with ``query``, then newest; at most ``limit``.
+        """Rows to inject: pinned first, then by BM25 relevance to ``query``, then newest; at most ``limit``.
 
         ``scope='project'`` rows join only runs of their own project (L17); the project's memory settings
         (``project_only`` / ``use_account_memory=0``) drop account-wide rows from that project's runs.
@@ -269,8 +269,9 @@ class UserMemoryStore:
         account = settings is None or (settings["use_account_memory"] and not settings["project_only"])
         rows = [row for row in rows if (row["scope"] == "project" and project_id and row["project_id"] == project_id)
                 or (row["scope"] != "project" and account)]
-        wanted = tokens(query)
-        ranked = sorted(enumerate(rows), key=lambda item: (not item[1]["pinned"], -len(wanted & tokens(item[1]["text"])), item[0]))
+        from .experience_store import bm25_rank
+        scores = bm25_rank(query, [row["text"] for row in rows])
+        ranked = sorted(enumerate(rows), key=lambda item: (not item[1]["pinned"], -scores[item[0]], item[0]))
         return [row for _, row in ranked[:limit]]
 
     def mark_used(self, memory_ids: list[str]) -> None:

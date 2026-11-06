@@ -347,6 +347,12 @@ def monitor_for(runtime, *, env: dict | None = None, clock: Callable[[], float] 
                 logging.getLogger(__name__).info("events compacted: %s", result)
             except Exception:  # noqa: BLE001 - housekeeping never stops the monitor
                 logging.getLogger(__name__).exception("event compaction failed")
+            try:
+                from .experience_store import housekeeping
+                root = Path(runtime.runtime_root)
+                logging.getLogger(__name__).info("knowledge housekeeping: %s", housekeeping(root, (root.parent,)))
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).exception("knowledge housekeeping failed")
 
         compaction["thread"] = threading.Thread(target=work, name="evomind-event-compaction", daemon=True)
         compaction["thread"].start()

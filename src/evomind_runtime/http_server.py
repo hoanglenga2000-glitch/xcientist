@@ -511,7 +511,18 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, memories.settings(self.principal))
                 if parts == ["v1", "experience", "summary"]:
                     from .experience_entry import summary
-                    return self._json(200, summary(self.principal))
+                    from .experience_store import ExperienceStore
+                    counted = summary(self.principal)
+                    count = ExperienceStore(runtime.runtime_root).count_mine(self.principal)
+                    # 06 §2: an empty personal store keeps the unknown (null) count so the 有经验 entry stays visible.
+                    return self._json(200, {**counted, "count": count or counted.get("count")})
+                if parts == ["v1", "experience"]:
+                    from .experience_store import ExperienceStore
+                    store = ExperienceStore(runtime.runtime_root)
+                    return self._json(200, {"experiences": store.list_mine(self.principal), "settings": store.settings(self.principal)})
+                if parts == ["v1", "experience", "settings"]:
+                    from .experience_store import ExperienceStore
+                    return self._json(200, ExperienceStore(runtime.runtime_root).settings(self.principal))
                 if parts == ["v1", "execution-budget"]:
                     from .budget_web import status
                     return self._json(200, status(runtime.runtime_root, self.principal))
@@ -985,6 +996,9 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, memories.patch_project_settings(self.principal, parts[2], body))
                 if parts == ["v1", "user-settings"]:
                     return self._json(200, memories.patch_settings(self.principal, body))
+                if parts == ["v1", "experience", "settings"]:
+                    from .experience_store import ExperienceStore
+                    return self._json(200, ExperienceStore(runtime.runtime_root).patch_settings(self.principal, body))
                 self._json(404, {"error": "not_found"})
             except Exception as exc:
                 self._contract_error(exc)
@@ -1007,6 +1021,9 @@ def make_handler(runtime: AgentRuntime, token: str):
                     return self._json(200, {"cleared": memories.clear_all(self.principal)})  # no undo (LOCKED)
                 if len(parts) == 3 and parts[:2] == ["v1", "user-memory"] and not body:
                     return self._json(200, memories.delete(self.principal, parts[2]))
+                if len(parts) == 3 and parts[:2] == ["v1", "experience"] and parts[2] != "settings" and not body:
+                    from .experience_store import ExperienceStore
+                    return self._json(200, ExperienceStore(runtime.runtime_root).delete_mine(self.principal, parts[2]))
                 if len(parts) == 5 and parts[:2] == ["v1", "projects"] and parts[3] == "files" and not body:
                     return self._json(200, projects.unbind_file(self.principal, parts[2], parts[4]))
                 if len(parts) == 3 and parts[1] in {"uploads", "attachments"}:
