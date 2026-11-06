@@ -344,7 +344,8 @@ export function thinkingRowState(run: TaskRun, now = Date.now(), gpuJob?: { run_
   const status = String(run.status || '');
   const steps = timelineRows(run.activity ?? [], true).length;
   const started = runStartedAt(run);
-  if (status === 'queued') return { phase: 'queued', text: '排队中', clock: null, steps, live: true };
+  // Run supervision v1: a run waiting for a model slot shows its place in line.
+  if (status === 'queued') return { phase: 'queued', text: run.queue_position ? `排队中（第 ${run.queue_position} 位）` : '排队中', clock: null, steps, live: true };
   if (THINKING_LIVE.has(status)) {
     const clock = liveClock(started === null ? null : Math.max(0, now - started));
     if (String(run.streaming_text || '').trim()) return { phase: 'answering', text: '正在整理答案…', clock, steps, live: true };

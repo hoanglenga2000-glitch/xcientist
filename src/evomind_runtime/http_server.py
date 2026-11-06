@@ -524,6 +524,12 @@ def make_handler(runtime: AgentRuntime, token: str):
                 if parts == ["v1", "gpu", "pool"]:
                     from .gpu_web import operator_pool
                     return self._json(200, operator_pool(runtime.runtime_root, self.principal))
+                if parts == ["v1", "ops", "supervision"]:
+                    # Run supervision v1: what waits for a person, slot use and failure categories (operator only).
+                    if self.principal is not None:
+                        raise AccessError(403, "operator_required")
+                    from .run_supervision import supervision_view
+                    return self._json(200, supervision_view(runtime))
                 if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "files":
                     return self._json(200, projects.files(runtime, access, self.principal, parts[2]))
                 if len(parts) == 4 and parts[:2] == ["v1", "projects"] and parts[3] == "memory-settings":

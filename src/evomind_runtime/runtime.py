@@ -479,6 +479,17 @@ class AgentRuntime:
                 if spec is None or not spec.read_only:
                     return {"status": "paused", "error": "user_pause_requested", "dispatched": False}
 
+            breaker = None if approval_verified else self._tool_breaker(session, session_id, tool_name,
+                                                                        decision.normalized_arguments, call_id)
+            if breaker is not None:
+                refused = ToolCall(call_id, session_id, tool_name, decision.normalized_arguments, idempotency_key=idempotency_key)
+                refused.status, refused.completed_at = "failed", utc_now()
+                replay = admit(refused, breaker)
+                if replay is not None:
+                    return replay
+                self.store.append_event(session_id, "tool.failed", breaker.to_dict())
+                return {"status": "failed", "result": breaker.to_dict(), "decision": decision.to_dict()}
+
             call = ToolCall(
                 call_id, session_id, tool_name, decision.normalized_arguments, idempotency_key=idempotency_key
             )
@@ -546,7 +557,7 @@ class AgentRuntime:
             lambda payload: self.store.append_event(session_id, "run_progress", payload),
         ) as heartbeat:
             context.progress = heartbeat.report
-            result = self.registry.invoke(tool_name, decision.normalized_arguments, context)
+            result = self._invoke_with_slot_policy(session_id, tool_name, decision.normalized_arguments, context)
             heartbeat.report(phase="tool_completed" if result.ok else "tool_failed", worker_state="unverified", failure_class=safe_text(result.error))
         result.tool_call_id = call.id
         call.status, call.completed_at = ("completed" if result.ok else "failed"), utc_now()
@@ -555,6 +566,53 @@ class AgentRuntime:
         self.store.checkpoint(session_id, {"phase": "observation_confirmed", "tool_call_id": call.id, "ok": result.ok})
         self.settle_user_pause(session_id)
         return {"status": call.status, "result": result.to_dict(), "decision": decision.to_dict()}
+
+    def _invoke_with_slot_policy(self, session_id: str, tool_name: str, arguments: dict[str, Any], context: Any) -> ToolResult:
+        """Run supervision v1: a GPU tool gives its run's model slot back while the GPU scheduler owns the work."""
+        from .run_supervision import GPU_SLOT_RELEASE_TOOLS
+
+        assistant = getattr(self, "assistant", None)
+        slots = getattr(assistant, "slots", None)
+        if slots is None or tool_name not in GPU_SLOT_RELEASE_TOOLS:
+            return self.registry.invoke(tool_name, arguments, context)
+        with slots.released_for_gpu(session_id):
+            return self.registry.invoke(tool_name, arguments, context)
+
+    def _tool_breaker(self, session: dict[str, Any], session_id: str, tool_name: str, arguments: dict[str, Any],
+                      call_id: str) -> ToolResult | None:
+        """Run supervision v1: refuse a call that can only fail again (identical x3, or the tool x10 same error)."""
+        from .run_supervision import tool_breaker_verdict
+
+        metadata = dict(session.get("metadata") or {})
+        circuit = dict(metadata.get("tool_circuit") or {}) if isinstance(metadata.get("tool_circuit"), dict) else {}
+        try:
+            failed = self.store.list_failed_tool_calls(session_id, tool_name, since=str(metadata.get("breaker_reset_at") or ""))
+        except Exception:  # noqa: BLE001 - the breaker never blocks a call it cannot judge
+            return None
+        verdict = tool_breaker_verdict(failed, tool_name, arguments, open_tools=circuit.keys())
+        if not verdict.refuse:
+            return None
+        if verdict.reason == "identical_call":
+            message = (f"This exact {tool_name} call already failed {verdict.count} times with the same arguments; it was not run again. "
+                       "Change the arguments or take another approach instead of repeating it.")
+            return ToolResult(call_id, False, {"count": verdict.count, "remote_dispatched": False}, message,
+                              error="repeated_identical_failure")
+        if tool_name not in circuit:
+            circuit[tool_name] = {"code": verdict.code, "count": verdict.count, "opened_at": utc_now()}
+            metadata["tool_circuit"] = circuit
+            self.store.update_session(session_id, metadata_json=metadata)
+            self.store.append_event(session_id, "tool_circuit_opened", {"tool": tool_name, "code": verdict.code, "count": verdict.count})
+            ledger = getattr(getattr(self, "assistant", None), "ledger", None)
+            if ledger is not None:
+                try:
+                    ledger.failure(session_id, signature=f"tool:{tool_name}:{verdict.code}", category="tool_circuit_open",
+                                   node_id=tool_name, count=verdict.count)
+                except Exception:  # noqa: BLE001
+                    pass
+        info = circuit.get(tool_name) or {}
+        message = (f"{tool_name} failed {info.get('count') or verdict.count} times with the same error in this run and is paused until "
+                   "the user resumes the run. Do not call it again; finish with what is verified and tell the user which step needs their help.")
+        return ToolResult(call_id, False, {"remote_dispatched": False}, message, error="tool_circuit_open")
 
     def decide_approval(self, approval_id: str, approved: bool, note: str = "", *, execute: bool = True) -> dict[str, Any]:
         with self._invoke_lock:
@@ -886,7 +944,9 @@ class AgentRuntime:
                 self.store.append_event(session_id, "research_outcome", {"status": "blocked", "error_class": code, "objective_outcome": "not_verified"})
                 self.store.update_session(session_id, status="blocked")
                 return {"status": "blocked", "text": f"Research state retained; orchestration requires attention ({code}).", "error_class": code}
-        if self.super_agent.mode is not SuperAgentMode.OFF:
+        from .run_supervision import shadow_plans_enabled
+        # Run supervision v1: shadow task graphs only on request (666 graphs stayed `planned` and were never read).
+        if self.super_agent.mode is not SuperAgentMode.OFF and shadow_plans_enabled():
             try:
                 kernel = self.super_agent.shadow_plan(
                     run_id=session_id,
@@ -1230,7 +1290,11 @@ class AgentRuntime:
                 detail = str(exc) if contract_error else exc.code
                 self.store.append_event(session_id, 'assistant.blocked', {'error_code': detail, 'degraded': True})
                 self.store.update_session(session_id, status=SessionStatus.BLOCKED.value)
-                return {'status': 'blocked', 'text': text, 'error_code': detail, 'model': decision.to_dict()}
+                blocked = {'status': 'blocked', 'text': text, 'error_code': detail, 'model': decision.to_dict()}
+                retry_after = getattr(exc, 'retry_after_seconds', None)
+                if isinstance(retry_after, (int, float)) and retry_after > 0:
+                    blocked['retry_after_seconds'] = float(retry_after)
+                return blocked
             self.store.append_event(session_id, "assistant.completed", {"text": text, "degraded": True})
             self.store.update_session(session_id, status=SessionStatus.PAUSED.value)
             return {"status": "paused", "text": text, "model": decision.to_dict()}

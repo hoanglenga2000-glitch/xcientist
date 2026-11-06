@@ -585,9 +585,16 @@ class SuperAgentRuntime:
         digest = hashlib.sha256(
             "\n".join(item["directory_id"] for item in public_directories).encode("utf-8")
         ).hexdigest()
-        active_run_ids = self.supervisor.active_run_ids()
+        from datetime import datetime, timedelta, timezone
+        from .run_supervision import shadow_plans_enabled
+
+        since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        # Run supervision v1: the panel reads the run ledger; shadow task graphs only when they are still written.
+        open_attempts = self.store.open_attempt_runs(limit=100)
+        active_run_ids = self.supervisor.active_run_ids() if shadow_plans_enabled() else [
+            str(item.get("run_id") or "") for item in open_attempts]
         run_summaries: list[dict[str, Any]] = []
-        for run_id in active_run_ids[:100]:
+        for run_id in (active_run_ids[:100] if shadow_plans_enabled() else []):
             snapshot = self.repository.load(run_id) or {}
             graph = snapshot.get("graph") if isinstance(snapshot.get("graph"), dict) else {}
             nodes = graph.get("nodes") if isinstance(graph.get("nodes"), list) else []
@@ -624,6 +631,15 @@ class SuperAgentRuntime:
             "directory_ids_sha256": digest,
             "active_run_ids": active_run_ids,
             "runs": run_summaries,
+            "supervision": {
+                "source": "execution_attempts_v2",
+                "open_attempts": [
+                    {key: item.get(key) for key in ("run_id", "number", "reason", "report", "started_at")}
+                    for item in open_attempts
+                ],
+                "reports_7d": self.store.attempt_summary(since=since),
+                "failures_7d": self.store.failure_summary(since=since),
+            },
             "directories": public_directories,
         }
 

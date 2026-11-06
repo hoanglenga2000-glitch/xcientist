@@ -37,7 +37,7 @@ export function explicitModelErrorLine(run: Pick<TaskRun, 'model_error'>) {
  * else the first listed model other than the failed one (the product default first). Hidden ids are never in the
  * list (the BE drops them), so they can never be offered. Null when nothing else is available.
  */
-export function fallbackChoice(list: ModelList, run: Pick<TaskRun, 'model_error' | 'fallback_model_id' | 'model_profile'>): { value: string; label: string } | null {
+export function fallbackChoice(list: ModelList, run: Pick<TaskRun, 'model_error' | 'fallback_model_id' | 'model_profile'> & Partial<Pick<TaskRun, 'attention'>>): { value: string; label: string } | null {
   if (!run.model_error?.explicit) return null;
   const failed = run.model_error.platform_model_id ?? '';
   const extra = extraPlatformModels(list);
@@ -45,8 +45,15 @@ export function fallbackChoice(list: ModelList, run: Pick<TaskRun, 'model_error'
   const label = (model: string) => productModelLabel(model) || '备选模型';
   const own = run.fallback_model_id ? extra.find(item => item.id === run.fallback_model_id && item.id !== failed) : undefined;
   if (own) return { value: 'platform:' + own.id, label: label(own.model) };
-  // The product default (`platform`) is an alternate unless it is the model that just failed.
   const base = list.platform_model;
+  // Run supervision v1: the card's suggestion is the failed model's group default (Claude / GPT / 国模), when listed.
+  const suggested = run.attention?.options?.find(item => item.action === 'new_run_with_model')?.platform_model_id ?? '';
+  if (suggested && suggested !== failed) {
+    if (base && suggested === `${base.provider}:${base.model}`) return { value: 'platform', label: label(base.model) };
+    const listed = extra.find(item => item.id === suggested);
+    if (listed) return { value: 'platform:' + listed.id, label: label(listed.model) };
+  }
+  // The product default (`platform`) is an alternate unless it is the model that just failed.
   const failedIsDefault = base && failed && failed === `${base.provider}:${base.model}`;
   if (base && !failedIsDefault && (failed || run.model_profile)) return { value: 'platform', label: label(base.model) };
   const other = extra.find(item => item.id !== failed);

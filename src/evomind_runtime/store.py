@@ -571,6 +571,26 @@ class RuntimeStore:
             result.append(item)
         return result
 
+    def list_assistant_runs_by_status(self, statuses: tuple[str, ...] | list[str], *, since: str = "",
+                                      limit: int = 500) -> list[dict[str, Any]]:
+        """Runs in any of ``statuses`` updated at or after ``since``, oldest created first (run supervision v1)."""
+        wanted = [str(item) for item in statuses if str(item)]
+        if not wanted:
+            return []
+        marks = ",".join("?" for _ in wanted)
+        with self._lock:
+            rows = self._connection.execute(
+                f"SELECT * FROM assistant_runs WHERE status IN ({marks}) AND updated_at >= ? "
+                "ORDER BY created_at ASC, id ASC LIMIT ?",
+                (*wanted, str(since or ""), max(1, min(int(limit), 5000))),
+            ).fetchall()
+        result: list[dict[str, Any]] = []
+        for item in map(dict, rows):
+            item["plan"] = json.loads(item.pop("plan_json"))
+            item["attachment_ids"] = json.loads(item.pop("attachment_ids_json"))
+            result.append(item)
+        return result
+
     @staticmethod
     def _decode_goal_row(row: sqlite3.Row | dict[str, Any] | None) -> dict[str, Any] | None:
         item = _row(row) if isinstance(row, sqlite3.Row) else dict(row) if row is not None else None
@@ -1352,6 +1372,18 @@ class RuntimeStore:
             item["result"] = json.loads(item.pop("result_json"))
             result.append(item)
         return result
+
+    def list_failed_tool_calls(self, session_id: str, tool_name: str, *, since: str = "", limit: int = 400) -> list[dict[str, Any]]:
+        """Failed calls of one tool in one session after ``since`` (run supervision v1 tool breaker)."""
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT id, session_id, tool_name, status, created_at, arguments_json, json_extract(result_json,'$.error') "
+                "FROM tool_calls WHERE session_id=? AND tool_name=? AND status='failed' AND created_at > ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (session_id, tool_name, str(since or ""), max(1, min(int(limit), 2000))),
+            ).fetchall()
+        return [{"id": row[0], "session_id": row[1], "tool_name": row[2], "status": row[3], "created_at": row[4],
+                 "arguments": json.loads(row[5]), "result": {"error": row[6] or ""}} for row in rows]
 
     def get_idempotent_tool_call(self, session_id: str, key: str) -> dict[str, Any] | None:
         if not key:
