@@ -77,6 +77,13 @@ def test_recall_budget_ranking_and_credit(tmp_path: Path) -> None:
     assert next(row for row in store.list_mine(ALICE) if row["id"] == best)["success_count"] == 1
 
 
+def test_a_run_never_recalls_its_own_experience(tmp_path: Path) -> None:
+    store = es.ExperienceStore(tmp_path)
+    own = record(store, ALICE, run="run_self")
+    assert store.recall(ALICE, task="classification", profile=PROFILE, exclude_run_id="run_self")["private_ids"] == []
+    assert store.recall(ALICE, task="classification", profile=PROFILE, exclude_run_id="run_next")["private_ids"] == [own]
+
+
 def test_recall_char_budget_is_hard(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(es, "RECALL_CHAR_BUDGET", 400)
     store = es.ExperienceStore(tmp_path)

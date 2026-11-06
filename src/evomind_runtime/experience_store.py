@@ -521,10 +521,11 @@ class ExperienceStore:
         return [items[index] for score, index in ranked if score > 0][:limit]
 
     def recall(self, principal: Principal | None, *, task: str, profile: dict[str, str] | None,
-               project_id: str = "") -> dict[str, Any]:
+               project_id: str = "", exclude_run_id: str = "") -> dict[str, Any]:
         """Up to 3 private + 3 global experiences for a planned training, as prompt lines within RECALL_CHAR_BUDGET.
 
         ``recommended`` is the trainer numbers of the best matching success (private first, then global).
+        ``exclude_run_id`` drops what the current run itself wrote (a run never recalls its own result).
         """
         tenant_id, owner_id = self.owner(principal)
         profile = profile or {}
@@ -536,7 +537,7 @@ class ExperienceStore:
         with self.connect() as connection:
             own = [dict(row) for row in connection.execute(
                 "SELECT * FROM experiences WHERE scope='private' AND tenant_id=? AND owner_id=? AND task=? AND deleted_at IS NULL "
-                "ORDER BY seq DESC LIMIT 300", (tenant_id, owner_id, task)).fetchall()]
+                "AND COALESCE(run_id,'')<>? ORDER BY seq DESC LIMIT 300", (tenant_id, owner_id, task, str(exclude_run_id or ""))).fetchall()]
             priors = [dict(row) for row in connection.execute(
                 "SELECT * FROM global_priors WHERE task=?", (task,)).fetchall()]
         own.sort(key=lambda row: (-(closeness(row) + (2 if project_id and row["project_id"] == project_id else 0)

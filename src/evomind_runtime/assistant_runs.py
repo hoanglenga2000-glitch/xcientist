@@ -2115,7 +2115,8 @@ class AssistantRunService:
             if guessed is None:
                 return []
             task, profile = guessed
-            recalled = store.recall(principal, task=task, profile=profile, project_id=str(metadata.get("project_id") or ""))
+            recalled = store.recall(principal, task=task, profile=profile, project_id=str(metadata.get("project_id") or ""),
+                                    exclude_run_id=session_id)
             if recalled["lines"] and session_id:
                 session = self.store.get_session(session_id) or {}
                 session_metadata = dict(session.get("metadata") or {})
