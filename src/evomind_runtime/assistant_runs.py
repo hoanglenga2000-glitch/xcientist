@@ -4147,15 +4147,28 @@ class AssistantRunService:
             })
             return {"run_id": current_id, "from": "planning", "to": target, "reason": reason}
 
-    def recover_incomplete(self) -> list[str]:
+    def recover_incomplete(self, max_age_seconds: float | None = None) -> list[str]:
+        """Resume interrupted runs (oldest first) and start the background run supervision.
+
+        ``max_age_seconds`` is the production entry's recovery window (EVOMIND_RECOVER_WINDOW_HOURS);
+        without it the window is 7 days. Older stragglers are left to the stall supervisor.
+        """
+        if max_age_seconds is not None:  # the production entry; tests and the legacy serve() start no monitor here
+            from .run_supervision import ensure_background_supervision
+
+            try:
+                ensure_background_supervision(self.runtime)
+            except Exception:
+                logger.exception("background run supervision failed to start")
         try:
             self.close_idle_planning()
         except Exception:
             logger.exception("close_idle_planning failed during recover_incomplete")
         recovered: list[str] = []
-        # Run supervision v1: every active run of the last 7 days, oldest first (dsh 003 "Restart"),
+        # Run supervision v1: every active run inside the window, oldest first (dsh 003 "Restart"),
         # not only the newest 200; older stragglers are left to the stall supervisor.
-        since = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        window = 7 * 86400.0 if max_age_seconds is None else max(0.0, float(max_age_seconds))
+        since = (datetime.now(timezone.utc) - timedelta(seconds=window)).isoformat()
         candidates = self.store.list_assistant_runs_by_status(
             ("queued", "planning", "running", "verifying", "recovering", "pausing", "paused",
              SessionStatus.WAITING_APPROVAL.value), since=since, limit=500)

@@ -360,3 +360,27 @@ def test_shadow_plans_are_off_by_default(tmp_path: Path, monkeypatch: pytest.Mon
     assert sv.shadow_plans_enabled() is False
     monkeypatch.setenv("EVOMIND_SUPER_AGENT_SHADOW_PLANS", "1")
     assert sv.shadow_plans_enabled() is True
+
+
+def test_production_recovery_window_and_background_supervision_start_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """run_python_runtime.py calls recover_incomplete(max_age_seconds=...): it must accept the window and start the monitor."""
+    started: list[str] = []
+
+    class Monitor:
+        def start(self) -> None:
+            started.append("monitor")
+
+    monkeypatch.setattr("evomind_runtime.ops_alerts.monitor_for", lambda runtime: Monitor())
+    monkeypatch.setattr("evomind_runtime.run_supervisor.install_job_liveness", lambda root: started.append("liveness"))
+    runtime = AgentRuntime(tmp_path)
+    old = runtime.assistant.create_run(prompt="旧", conversation_id="window_old", start=False)
+    fresh = runtime.assistant.create_run(prompt="新", conversation_id="window_new", start=False)
+    for run_id, age in ((old["id"], 10 * 3600), (fresh["id"], 60)):
+        runtime.store.update_assistant_run(run_id, status="running")
+        with runtime.store._lock, runtime.store._connection:
+            runtime.store._connection.execute("UPDATE assistant_runs SET updated_at=? WHERE id=?", (_iso(age), run_id))
+    monkeypatch.setattr(runtime.assistant, "start", lambda run_id, **kw: kw.get("reason") == "host_restarted")
+    assert runtime.assistant.recover_incomplete(max_age_seconds=6 * 3600) == [fresh["id"]]
+    assert runtime.assistant.recover_incomplete(max_age_seconds=6 * 3600) == [fresh["id"]]
+    assert started == ["liveness", "monitor"]
+    runtime.close()

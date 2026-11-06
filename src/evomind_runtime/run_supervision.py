@@ -558,6 +558,26 @@ def shadow_plans_enabled(env: dict | None = None) -> bool:
     return str(env.get("EVOMIND_SUPER_AGENT_SHADOW_PLANS", "0")).strip() == "1"
 
 
+def ensure_background_supervision(runtime: Any) -> Any:
+    """Start the GPU-job liveness provider and the ops monitor (stall supervisor + compaction) once per runtime.
+
+    The production entry (``run_python_runtime.py``) only calls ``recover_incomplete``; before v1 the
+    monitor ran only under the legacy ``http_server.serve`` entry. Liveness is installed first so a
+    live GPU job is never stall-failed. ``EVOMIND_OPS_MONITOR=0`` still disables the monitor.
+    """
+    if getattr(runtime, "_run_supervision_started", False):
+        return getattr(runtime, "_run_supervision_monitor", None)
+    runtime._run_supervision_started = True
+    from .run_supervisor import install_job_liveness
+    install_job_liveness(runtime.runtime_root)
+    from .ops_alerts import monitor_for
+    monitor = monitor_for(runtime)
+    if monitor is not None:
+        monitor.start()
+    runtime._run_supervision_monitor = monitor
+    return monitor
+
+
 # ---------------------------------------------------------------- operator view
 
 
