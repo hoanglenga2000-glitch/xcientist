@@ -10,7 +10,6 @@ import pytest
 
 from evomind_runtime import managed_tensor_train as card
 from evomind_runtime import tenant_search, tenant_training, tools
-from evomind_runtime.tenant_training import TenantTrainingError
 from evomind_runtime.training_control import digest
 
 BASE = {"hidden_sizes": [64, 32], "epochs": 40, "batch_size": 64, "learning_rate": 0.001}
@@ -114,7 +113,7 @@ def test_prepare_auto_by_default_mlp_on_request_and_rejects_unknown_family(tmp_p
     assert auto["trainer_config"]["hidden_sizes"] == BASE["hidden_sizes"] and auto["trainer_config"]["class_weight"] == "none"
     plain = tenant_training.prepare(root, {**config, "model_family": "mlp"}, protocol)
     assert plain["model_family"] == "mlp" and "search" not in plain["trainer_config"]
-    with pytest.raises(TenantTrainingError):
+    with pytest.raises(tenant_training.TenantTrainingError):  # resolved at call time: other tests reload the module
         tenant_training.prepare(root, {**config, "model_family": "gbdt"}, protocol)
 
 
