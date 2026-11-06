@@ -35,14 +35,18 @@ def candidates(base: dict[str, Any], *, task: str, warm: dict[str, Any] | None =
                          "class_weight": warm.get("class_weight") if warm.get("class_weight") in {"none", "balanced"} else "none"})
         except (TypeError, ValueError):
             pass
+    # 2026-11-06 study (5 random 80/20 splits, wine + breast cancer): class weighting, a wider network and fewer epochs
+    # (a light regulariser) helped; learning-rate and depth changes did not. Order = priority under the 6-trial cap.
+    wide = [min(1024, width * 2) for width in hidden]
+    short = max(10, round(epochs * 0.3))
     if task == "classification":
-        pool.append({**plain, "class_weight": "balanced"})
-    pool += [
-        {**plain, "hidden_sizes": [min(1024, width * 2) for width in hidden], "class_weight": weighted},
-        {**plain, "learning_rate": min(0.1, rate * 3), "class_weight": weighted},
-        {**plain, "learning_rate": max(1e-5, rate * 0.3), "epochs": min(200, max(epochs, int(epochs * 1.5))), "class_weight": weighted},
-        {**plain, "hidden_sizes": [*hidden, max(4, hidden[-1] // 2)] if len(hidden) < 6 else hidden, "class_weight": weighted},
-    ]
+        pool += [{**plain, "class_weight": "balanced"}, {**plain, "hidden_sizes": wide},
+                 {**plain, "hidden_sizes": wide, "class_weight": "balanced"}, {**plain, "epochs": short},
+                 {**plain, "epochs": short, "class_weight": "balanced"}]
+    else:
+        pool += [{**plain, "hidden_sizes": wide}, {**plain, "epochs": short}, {**plain, "hidden_sizes": wide, "epochs": short},
+                 {**plain, "learning_rate": max(1e-5, rate * 0.3)}, {**plain, "hidden_sizes": [*hidden, max(4, hidden[-1] // 2)] if len(hidden) < 6 else hidden}]
+    del weighted
     chosen: list[dict[str, Any]] = []
     seen: set[tuple] = set()
     for candidate in pool:
