@@ -35,7 +35,8 @@ def test_explicit_recovery_preserves_run_failure_and_budget(tmp_path, monkeypatc
         snapshot = runtime.assistant.action(run["id"], "resume", "Retry only the failed model call", idempotency_key="recovery-fixture")
         assert snapshot["id"] == run["id"]
         assert len(runtime.store.list_assistant_runs()) == 1
-        assert seen == [(run["id"], {"resume": True})]
+        # Run supervision v1: a person's resume may take the reserved model slot.
+        assert seen == [(run["id"], {"resume": True, "priority": "human"})]
         graph = MultiAgentStore(engine.path).load()
         assert graph.tasks["setup"].status == "ready"
         assert graph.tasks["setup"].attempts == 1

@@ -6,10 +6,10 @@ import { PopMenu } from './ProjectMenu';
 import { showToast } from './Toast';
 import { useReturnFocus } from './focus-return';
 import {
-  MEMORY_COPY, MEMORY_HIGHLIGHT_MS, MEMORY_KINDS, MEMORY_KIND_LABEL, MEMORY_TABS, clampMemoryText, clearMemories, deleteMemory, filterMemories,
+  EXPERIENCE_COPY, MEMORY_COPY, MEMORY_HIGHLIGHT_MS, MEMORY_KINDS, MEMORY_KIND_LABEL, MEMORY_TABS, clampMemoryText, clearMemories, deleteExperience, deleteMemory, filterMemories,
   getMemorySettings, getProjectMemorySettings, listMemories, memoryChipLabel, memoryChipTitle, memoryDate, memoryHref, memoryKindLabel, memorySource,
-  memorySourceHref, memoryUsedLabel, memoryUsedText, mergeEditedMemory, patchMemory, resolveMemoryEnabled, restoreMemory, setMemoryEnabled, setMemoryPaused,
-  setProjectMemoryOnly, type Memory, type MemoryKind, type MemorySaved, type MemoryTab,
+  listExperiences, memorySourceHref, memoryUsedLabel, memoryUsedText, mergeEditedMemory, patchMemory, resolveMemoryEnabled, restoreMemory, setExperienceContribution,
+  setMemoryEnabled, setMemoryPaused, setProjectMemoryOnly, type Experience, type Memory, type MemoryKind, type MemorySaved, type MemoryTab,
 } from './memory';
 
 const MENU_ID = 'tw-memory-menu';
@@ -212,6 +212,59 @@ export function MemorySettings() {
       <MemoryRowMenu onEdit={() => { setMenu(null); startEdit(menu.memory); }}
         onDelete={() => { setMenu(null); void remove(menu.memory); }} /></PopMenu>}
     {confirming && memories && <ClearAllDialog onCancel={() => setConfirming(false)} onConfirm={() => void clearAll()} />}
+    <ExperienceSection />
+  </>;
+}
+
+/** Phase 2 我的经验 (presentational): newest first, one delete per row, and the anonymous-statistics switch. */
+export function ExperienceView({ experiences, contribute, loading = false, busy = '', now = Date.now(), onContribute, onDelete }: {
+  experiences: Experience[]; contribute: boolean; loading?: boolean; busy?: string; now?: number;
+  onContribute: (contribute: boolean) => void; onDelete: (experience: Experience) => void;
+}) {
+  return <section className="tw-experience" aria-labelledby="tw-experience-title" data-testid="tw-experience">
+    <h2 id="tw-experience-title" className="tw-memory-title">{EXPERIENCE_COPY.title}</h2>
+    <p className="tw-muted">{EXPERIENCE_COPY.line}</p>
+    <Switch id="tw-experience-contribute-label" label={EXPERIENCE_COPY.contribute} checked={contribute} onChange={onContribute} />
+    <p className="tw-muted">{EXPERIENCE_COPY.contributeLine}</p>
+    {loading ? null : experiences.length ? <ul className="tw-memory-list">{experiences.map(experience =>
+      <li key={experience.id} className="tw-memory-row" data-experience-id={experience.id}>
+        <div className="tw-memory-body"><p className="tw-memory-text">{experience.title}</p>
+          <p className="tw-memory-source">{experience.summary}</p>
+          <p className="tw-memory-source"><time dateTime={experience.created_at}>{memoryDate(experience.created_at, now)}</time>
+            {experience.success_count > 0 ? ` · ${EXPERIENCE_COPY.reused(experience.success_count)}` : ''}</p></div>
+        <div className="tw-memory-side"><button type="button" className="tw-row-more" aria-label={EXPERIENCE_COPY.remove(experience.title)}
+          disabled={busy === experience.id} onClick={() => onDelete(experience)}><Trash2 size={16} aria-hidden="true" /></button></div>
+      </li>)}</ul> : <p className="tw-memory-miss">{EXPERIENCE_COPY.empty}</p>}
+  </section>;
+}
+
+export function ExperienceSection() {
+  const [experiences, setExperiences] = useState<Experience[] | null>(null);
+  const [contribute, setContribute] = useState(true);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const abort = new AbortController();
+    void listExperiences(abort.signal).then(found => { if (!abort.signal.aborted) { setExperiences(found.experiences); setContribute(found.settings.contribute_global); } })
+      .catch(() => { if (!abort.signal.aborted) { setExperiences([]); setError(EXPERIENCE_COPY.loadFailed); } });
+    return () => abort.abort();
+  }, []);
+  async function toggle(next: boolean) {
+    const previous = contribute; setContribute(next);
+    try { setContribute((await setExperienceContribution(next)).contribute_global !== false); } catch { setContribute(previous); showToast({ message: EXPERIENCE_COPY.failed }); }
+  }
+  async function remove(experience: Experience) {
+    setBusy(experience.id);
+    try {
+      await deleteExperience(experience.id);
+      setExperiences(current => current?.filter(item => item.id !== experience.id) ?? null);
+      showToast({ message: EXPERIENCE_COPY.deleted });
+    } catch { showToast({ message: EXPERIENCE_COPY.failed }); } finally { setBusy(''); }
+  }
+  return <>
+    <ExperienceView experiences={experiences ?? []} loading={experiences === null} contribute={contribute} busy={busy}
+      onContribute={next => void toggle(next)} onDelete={experience => void remove(experience)} />
+    {error && <p role="alert" className="tw-error">{error}</p>}
   </>;
 }
 

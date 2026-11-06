@@ -11,6 +11,7 @@ uses ``for_seconds`` <= 60, so a fault that persists is alerted within 30 + 60 +
 from __future__ import annotations
 
 import json
+import logging
 import os
 import subprocess
 import threading
@@ -329,6 +330,32 @@ def monitor_for(runtime, *, env: dict | None = None, clock: Callable[[], float] 
     evaluator = AlertEvaluator(load_rules(env.get("EVOMIND_ALERT_RULES_FILE")), sinks, status_sink=status_sink, clock=clock)
     from .run_supervisor import StallSupervisor, enabled as stall_enabled
     supervisor = StallSupervisor(runtime) if stall_enabled(env) else None
+    from .run_supervision import compact_events, compaction_enabled
+    compaction = {"next_at": clock() + 600.0, "thread": None}  # first pass 10 min after start, then daily
+
+    def maybe_compact() -> None:
+        if not compaction_enabled(env) or clock() < compaction["next_at"]:
+            return
+        running = compaction["thread"]
+        if running is not None and running.is_alive():
+            return
+        compaction["next_at"] = clock() + 24 * 3600.0
+
+        def work() -> None:
+            try:
+                result = compact_events(Path(runtime.runtime_root) / "runtime.sqlite3")
+                logging.getLogger(__name__).info("events compacted: %s", result)
+            except Exception:  # noqa: BLE001 - housekeeping never stops the monitor
+                logging.getLogger(__name__).exception("event compaction failed")
+            try:
+                from .experience_store import housekeeping
+                root = Path(runtime.runtime_root)
+                logging.getLogger(__name__).info("knowledge housekeeping: %s", housekeeping(root, (root.parent,)))
+            except Exception:  # noqa: BLE001
+                logging.getLogger(__name__).exception("knowledge housekeeping failed")
+
+        compaction["thread"] = threading.Thread(target=work, name="evomind-event-compaction", daemon=True)
+        compaction["thread"].start()
 
     def collect() -> dict:
         if supervisor is not None:  # t238 C7e A4: act on STALLED before the snapshot counts it
@@ -336,6 +363,7 @@ def monitor_for(runtime, *, env: dict | None = None, clock: Callable[[], float] 
                 supervisor.tick()
             except Exception:  # noqa: BLE001 - never stop the metrics/alert tick
                 pass
+        maybe_compact()
         return ops_metrics.collect(runtime, capacity="sample")
 
     return OpsMonitor(collect, evaluator, tick)

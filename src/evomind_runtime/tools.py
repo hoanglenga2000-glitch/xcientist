@@ -4264,7 +4264,8 @@ def _gpu_time_share_execute(pool: dict[str, Any], context: ToolContext, runtime:
         status = str(row["status"])
         code = {"timeout": "timeout", "cancelled": "cancelled"}.get(status, "")
         state = {"status": status, "max_run_minutes": lease.max_run_seconds // 60,
-                 "message": gpu_admission.message(code) if code else ""}
+                 "message": gpu_admission.message(code) if code else "",
+                 "node_id": str(getattr(lease, "node_id", "") or "")}
         return result, state
     finally:
         gate.close()
@@ -4344,7 +4345,78 @@ def _model_protocols(args: dict[str, Any], context: ToolContext) -> ToolResult:
 
 
 def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResult:
-    """t238 C7c-4: tenant-scoped managed training on the time-shared A800 (see tenant_training)."""
+    """t238 C7c-4: tenant-scoped managed training; phase 2 deposits one private experience per attempt.
+
+    The deposit is deterministic (no LLM) and never changes the training result: any error in it is logged and dropped.
+    """
+    facts: dict[str, Any] = {}
+    started = time.monotonic()
+    result = _tenant_tensor_train_core(args, context, facts)
+    try:
+        _deposit_training_experience(context, facts, result, time.monotonic() - started)
+    except Exception:  # noqa: BLE001 - the knowledge base never fails a training
+        import logging
+        logging.getLogger(__name__).exception("experience deposit failed")
+    return result
+
+
+def _training_card_label(runtime_root: Path, node_id: str) -> str:
+    """Card model of the node a lease ran on (gpu_scheduler pool_nodes); '' when unknown."""
+    if not node_id:
+        return ""
+    from . import gpu_admission
+    path = Path(runtime_root) / gpu_admission.DB_NAME
+    if not path.is_file():
+        return ""
+    try:
+        with sqlite3.connect(f"file:{path.as_posix()}?mode=ro", uri=True, timeout=5) as connection:
+            row = connection.execute("SELECT gpu_model FROM pool_nodes WHERE id=?", (node_id,)).fetchone()
+    except sqlite3.Error:
+        return ""
+    return str(row[0] or "") if row else ""
+
+
+def _deposit_training_experience(context: ToolContext, facts: dict[str, Any], result: ToolResult, elapsed: float) -> None:
+    from . import experience_store, tenant_training
+    from .personal_tool_boundary import is_personal
+    from .user_memory import principal_from_metadata
+
+    principal = principal_from_metadata(context.metadata)
+    task, data_key = facts.get("task"), facts.get("data_key")
+    if principal is None or not is_personal(principal.tenant_id) or task not in {"classification", "regression"} or not data_key:
+        return
+    code = "" if result.ok else str(result.error or "")
+    if not result.ok and (code in experience_store.NOT_EXPERIENCE_CODES or not code):
+        return
+    profile = facts.get("profile")
+    if profile is None:
+        config = facts.get("config") if isinstance(facts.get("config"), dict) else {}
+        try:
+            path = tenant_training.resolve_input(context.workspace_root, str(config.get("data_path") or ""))
+            shape = experience_store.quick_csv_shape(path) if path.suffix.casefold() == ".csv" else None
+        except Exception:  # noqa: BLE001 - an unreadable path just leaves the shape unknown
+            shape = None
+        profile = experience_store.data_profile(task, *shape) if shape else {}
+    try:
+        session = context.store.get_session(context.session_id) or {}
+        used = (session.get("metadata") or {}).get("experience_used") or {}
+        used_ids = [str(item) for item in used.get("private_ids") or []] if isinstance(used, dict) else []
+    except Exception:  # noqa: BLE001
+        used_ids = []
+    store = experience_store.ExperienceStore(context.runtime_root)
+    store.record_training(
+        principal, run_id=str(context.session_id), data_key=str(data_key), task=str(task), profile=profile,
+        config=facts.get("trainer") or facts.get("config"), outcome="success" if result.ok else "failed",
+        metrics=facts.get("metrics"), failure_code=code, elapsed_seconds=elapsed,
+        card=_training_card_label(context.runtime_root, str(facts.get("node_id") or "")),
+        project_id=str(context.metadata.get("project_id") or ""), used_ids=used_ids)
+
+
+def _tenant_tensor_train_core(args: dict[str, Any], context: ToolContext, facts: dict[str, Any]) -> ToolResult:
+    """t238 C7c-4: tenant-scoped managed training on the time-shared A800 (see tenant_training).
+
+    ``facts`` collects what the experience deposit needs (task, data hash, profile, trainer numbers, card, metrics).
+    """
     import dataclasses
     from . import managed_tensor_train, tenant_training, tensor_inference
     from .tenant_training import TenantTrainingError, scrub
@@ -4394,8 +4466,17 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
             budget = int(vram.ceiling_mb(str(scope.get("tenant_id") or "")))
         except gpu_vram.VramConfigError:
             budget = None
-        prepared = tenant_training.prepare(context.workspace_root, read_json(config_path), protocol_id, vram_budget_mb=budget)
+        tenant_config = read_json(config_path)
+        if isinstance(tenant_config, dict):
+            facts.update(config=tenant_config, task=tenant_config.get("task"), data_key=protocol_id)
+        prepared = tenant_training.prepare(context.workspace_root, tenant_config, protocol_id, vram_budget_mb=budget,
+                                           warm_start=_experience_warm_start(context))
         import numpy as np
+        from .experience_store import data_profile
+        facts["profile"] = data_profile(prepared["task"], len(prepared["x"]) + len(prepared["evaluation_x"]), int(prepared["x"].shape[1]),
+                                        labels=np.concatenate([prepared["y"], prepared["evaluation_y"]]) if prepared["task"] == "classification" else None,
+                                        classes=int(prepared.get("classes") or 0))
+        facts["trainer"] = dict(prepared["trainer_config"])
         work = context.workspace_root / "work" / ("managed-fit-" + new_id("input"))
         work.mkdir(parents=True, exist_ok=False)
         np.savez(work / "training.npz", x=prepared["x"], y=prepared["y"])
@@ -4425,6 +4506,7 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
     content = result.content if isinstance(result.content, dict) else {}
     gpu = content.get("gpu_time_share") or {}
     queue = content.get("gpu_queue") or {}
+    facts["node_id"] = gpu.get("node_id") or ""
     if not result.ok:
         if result.error == "remote_path_rejected":
             return refuse("remote_path_rejected", result.summary)
@@ -4448,8 +4530,9 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
         if any(not (output / name).is_file() or (output / name).is_symlink() for name in required):
             raise ValueError("managed_training_deliverables_missing")
         receipt = read_json(output / "training-receipt.json")
+        selected = _tenant_selected_config(output, prepared["trainer_config"], receipt, expected_config)
         if (receipt.get("schema") != "evomind.managed_tensor_training.v1" or receipt.get("protocol_id") != protocol_id
-                or receipt.get("config_sha256") != expected_config or digest(output / "model-config.json") != expected_config
+                or receipt.get("config_sha256") != expected_config or selected is None
                 or receipt.get("checkpoint_sha256") != digest(output / "model.safetensors")
                 or receipt.get("predictions_sha256") != digest(output / "predictions.npz")
                 or receipt.get("device") != "cuda:0" or type(receipt.get("fit_steps")) is not int or receipt["fit_steps"] < 1
@@ -4462,10 +4545,12 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
             predictions = loaded["predictions"]
         metrics = (classification_metrics(predictions, prepared["evaluation_y"]) if prepared["task"] == "classification"
                    else regression_metrics(predictions, prepared["evaluation_y"]))
+        selection = _tenant_selection_report(output, prepared, receipt, selected, classification_metrics, regression_metrics)
         loss_curve = [round(float(json.loads(line)["loss"]), 6) for line in (output / "training-log.jsonl").read_text(encoding="utf-8").splitlines()
                       if line.strip() and "loss" in json.loads(line)][:1000]
         (output / "metrics.json").write_text(json.dumps({"schema": "evomind.tenant_training_metrics.v1", "split": "holdout_20pct",
-                                                         **metrics, "loss_curve": loss_curve, "official_score": False},
+                                                         **metrics, "loss_curve": loss_curve, "official_score": False,
+                                                         **({"model_selection": selection} if selection else {})},
                                                         sort_keys=True, indent=2) + "\n", encoding="utf-8")
         public = {"task": prepared["task"], "data_file": prepared["data_name"], "data_sha256": protocol_id,
                   "holdout_rows": int(len(prepared["evaluation_ids"])), "official_score": False}
@@ -4474,9 +4559,12 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
             published = _artifact_publish({"path": str(output / name)}, context).content.get("artifact")
             if published:
                 content.setdefault("published_artifacts", []).append(published)
-        files = {name: digest(output / name) for name in (*required, "predict.py", "data-protocol.json", "metrics.json")}
+        extra = ("baseline-predictions.npz",) if (output / "baseline-predictions.npz").is_file() else ()
+        files = {name: digest(output / name) for name in (*required, *extra, "predict.py", "data-protocol.json", "metrics.json")}
     except (OSError, ValueError, TypeError):
         return refuse("unverified", "训练跑完了，但结果文件没有通过校验，请重新训练。", {"published_artifacts": _tenant_artifacts(content)})
+    facts["metrics"] = metrics
+    facts["trainer"] = {**selected, "model_family": prepared.get("model_family", "mlp")}
     message = "训练完成。模型和预测结果已保存到这个任务的文件里。"
     skipped = int(content.get("skipped_output_names") or 0)
     if skipped:
@@ -4486,10 +4574,78 @@ def _tenant_tensor_train(args: dict[str, Any], context: ToolContext) -> ToolResu
                                     "relative_root": output.relative_to(context.workspace_root).as_posix(), "files": files,
                                     "fit_steps": receipt["fit_steps"], "epochs": receipt.get("epochs"), "final_loss": receipt.get("final_loss"),
                                     "task": prepared["task"], "scope": "tenant", "model_acceptance": "pending_independent_reload",
-                                    "hidden_sizes": prepared["trainer_config"]["hidden_sizes"], "metrics": metrics, "loss_curve": loss_curve},
+                                    "hidden_sizes": selected["hidden_sizes"], "metrics": metrics, "loss_curve": loss_curve,
+                                    **({"model_selection": selection} if selection else {})},
                "gpu": {"status": gpu.get("status"), "max_run_minutes": gpu.get("max_run_minutes")},
                "published_artifacts": _tenant_artifacts(content)}
     return ToolResult("", True, scrub(summary), message)
+
+
+def _experience_warm_start(context: ToolContext) -> dict[str, Any] | None:
+    """Trainer numbers of the best matching past experience recalled for this run (phase 2), if any."""
+    try:
+        session = context.store.get_session(context.session_id) or {}
+        used = (session.get("metadata") or {}).get("experience_used") or {}
+        recommended = used.get("recommended") if isinstance(used, dict) else None
+        return dict(recommended) if isinstance(recommended, dict) and recommended else None
+    except Exception:  # noqa: BLE001 - no warm start is a valid start
+        return None
+
+
+_SELECTED_FIELDS = ("hidden_sizes", "epochs", "batch_size", "learning_rate", "class_weight")
+
+
+def _tenant_selected_config(output: Path, trainer: dict[str, Any], receipt: dict[str, Any], expected_config: str) -> dict[str, Any] | None:
+    """The setting the card trained, or None when model-config.json does not match what was approved.
+
+    Without a search the model configuration is the training configuration byte for byte. With a search it is the
+    training configuration minus ``search``, with one listed candidate's fields, bound by the receipt.
+    """
+    from .training_control import digest, read_json
+
+    path = output / "model-config.json"
+    search = trainer.get("search")
+    if not search:
+        if digest(path) != expected_config:
+            return None
+        return {key: trainer.get(key, "none") for key in _SELECTED_FIELDS}
+    model_config = read_json(path)
+    selection = receipt.get("model_selection") if isinstance(receipt.get("model_selection"), dict) else {}
+    index = selection.get("selected_index")
+    if (receipt.get("model_config_sha256") != digest(path) or type(index) is not int or not 0 <= index < len(search["candidates"])
+            or model_config.get("training_config_sha256") != expected_config or model_config.get("selected_candidate") != index):
+        return None
+    chosen = search["candidates"][index]
+    fixed = {key: value for key, value in trainer.items() if key not in {"search", *_SELECTED_FIELDS}}
+    if any(model_config.get(key) != value for key, value in fixed.items()) or any(model_config.get(key) != chosen[key] for key in _SELECTED_FIELDS):
+        return None
+    return {key: chosen[key] for key in _SELECTED_FIELDS}
+
+
+def _tenant_selection_report(output: Path, prepared: dict[str, Any], receipt: dict[str, Any], selected: dict[str, Any],
+                             classification_metrics: Callable, regression_metrics: Callable) -> dict[str, Any] | None:
+    """Auto mode summary: candidates tried, cross-validation scores, and the hold-out of the default setting for comparison."""
+    from .training_control import digest
+    import numpy as np
+
+    search = prepared["trainer_config"].get("search")
+    selection = receipt.get("model_selection") if isinstance(receipt.get("model_selection"), dict) else None
+    if not search or not selection:
+        return None
+    report: dict[str, Any] = {
+        "mode": "auto", "metric": search.get("metric"), "trials": len(selection.get("results") or []), "folds": selection.get("folds"),
+        "selected": selected, "selected_is_default": selection.get("selected_index") == 0,
+        "cv_scores": [round(float(item.get("cv_score")), 4) for item in selection.get("results") or [] if isinstance(item, dict)],
+    }
+    baseline = output / "baseline-predictions.npz"
+    if selection.get("selected_index") != 0:
+        if not baseline.is_file() or baseline.is_symlink() or receipt.get("baseline_predictions_sha256") != digest(baseline):
+            raise ValueError("managed_training_baseline_mismatch")
+        with np.load(baseline, allow_pickle=False) as loaded:
+            values = loaded["predictions"]
+        report["default_holdout"] = (classification_metrics(values, prepared["evaluation_y"]) if prepared["task"] == "classification"
+                                     else regression_metrics(values, prepared["evaluation_y"]))
+    return report
 
 
 def _tenant_artifacts(content: dict[str, Any]) -> list[dict[str, Any]]:
@@ -5069,7 +5225,7 @@ def build_default_registry() -> ToolRegistry:
     add("hpc_calibration_status", "Read only the already-registered SIIM MLE-bench comparison and its separate campaign budget. This is not the general hpc_execute_solution budget or current allocation health. Use hpc_execution_budget_status for general budget errors. No training, remote inspection, submission or hidden scoring is performed.", {}, [], "hpc.read", siim_web_status)
     add("hpc_calibration_run", "Start/resume the registered SIIM MLE-bench study through this visible Assistant Run. Exact approval required. Uses existing fixed baseline, independent EvoMind + DeepSeek-V4-Pro and AIDE-adapted controls, original seeds/folds/data, preserved checkpoints and unchanged total 24 GPU-hour ledger. The sealed coordinator dispatches native isolated sessions; this tool waits and reports progress until candidates freeze or a real blocker occurs. Pause/cancel prevents subsequent child calls; a current bounded fit drains before stopping. Never submits to Kaggle or reads hidden labels. Do not run separate training scripts or create replacement studies. After a verified fix and full settlement, an explicitly authorized retry of the same Run requires a fresh operation_id and fresh exact approval; old operations and their receipts are immutable. Constant interface probes cannot complete training. Returns a verifiable receipt, not an official score.", {"campaign": {"enum": ["siim_mlebench_calibration_20260908"]}, "operation_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{4,40}$"}}, ["campaign"], "hpc.execute", siim_web_run, read_only=False)
     add("model_protocols", "List administrator-frozen model-data protocols for this exact user and project. Exposes schema and source identities, never evaluation labels or permission to submit a competition.", {}, [], "runtime.read", _model_protocols)
-    add("managed_tensor_train", "Fit one registered CUDA-only dense PyTorch model using an authorized data protocol. Coder must first write and hash a JSON configuration containing only hidden_sizes, epochs, batch_size, learning_rate and seed. Approval binds configuration_sha256, not just its path. The immutable managed adapter, not generated Python, executes. Returns safetensors checkpoint, predictions, hash-locked environment and independent predict.py. Does not provide official competition scores. Requires exact approval, fresh 5/5 HPC gate, GPU queue and configured study budget. Tenant runs: talk to the person in plain Chinese only and never narrate hashes, protocol ids, adapters or hardware to them; protocol_id is the SHA-256 of one data file under inputs/ (CSV with a header row, or NPZ with x and y); the configuration also holds data_path (inputs/...), task (classification or regression) and optionally target_column (CSV, default last column); the run is time-shared and stops at its maximum run length.", {"protocol_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "solution_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"}, "configuration_path": {"type": "string", "minLength": 1}, "configuration_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, ["protocol_id", "solution_id", "configuration_path", "configuration_sha256"], "hpc.execute", _managed_tensor_train, read_only=False)
+    add("managed_tensor_train", "Fit one registered CUDA-only dense PyTorch model using an authorized data protocol. Coder must first write and hash a JSON configuration containing only hidden_sizes, epochs, batch_size, learning_rate and seed. Approval binds configuration_sha256, not just its path. The immutable managed adapter, not generated Python, executes. Returns safetensors checkpoint, predictions, hash-locked environment and independent predict.py. Does not provide official competition scores. Requires exact approval, fresh 5/5 HPC gate, GPU queue and configured study budget. Tenant runs: talk to the person in plain Chinese only and never narrate hashes, protocol ids, adapters or hardware to them; protocol_id is the SHA-256 of one data file under inputs/ (CSV with a header row, or NPZ with x and y); the configuration also holds data_path (inputs/...), task (classification or regression) and optionally target_column (CSV, default last column) and model_family (leave it out: the default auto compares up to 6 network settings by cross-validation and keeps the best; write mlp only when the person explicitly asks for exactly one fixed setting); the run is time-shared and stops at its maximum run length.", {"protocol_id": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "solution_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{1,100}$"}, "configuration_path": {"type": "string", "minLength": 1}, "configuration_sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}, ["protocol_id", "solution_id", "configuration_path", "configuration_sha256"], "hpc.execute", _managed_tensor_train, read_only=False)
     add(
         "hpc_asset_probe",
         "Read metadata for the fixed CURE/MindGames managed package, model and manifest candidates after the complete current 5/5 identity gate. The tool cannot accept a path, command, job or profile; it never reads file contents or labels and never writes, signals, uploads, installs, downloads or starts training.",

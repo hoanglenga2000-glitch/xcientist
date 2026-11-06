@@ -49,6 +49,14 @@ def build(workspace_root: str | Path, arguments: dict[str, Any], *, vram_budget_
         chosen = {key: config.get(key, sizing[key]) for key in ("hidden_sizes", "epochs", "batch_size", "learning_rate")}
         batch = max(1, int(chosen["batch_size"]))
         steps = int(chosen["epochs"]) * max(1, math.ceil(train_rows / batch))
+        from . import tenant_search
+        family = config.get("model_family", "auto")
+        auto = family == "auto" and tenant_search.fits_budget(train_rows, chosen)
+        trials = len(tenant_search.candidates({**chosen}, task=task)) if auto else 1
+        estimate = estimate_seconds(steps)
+        if auto:
+            extra = tenant_search.search_seconds(train_rows, chosen, trials) + int(steps / STEPS_PER_SECOND)
+            estimate = {"low": estimate["low"] + int(extra * 0.8), "high": estimate["high"] + int(math.ceil(extra * 1.6))}
         return {
             "task": task,
             "task_label": "分类" + (f"（{classes} 类）" if classes else "") if task == "classification" else "回归（预测数值）",
@@ -58,14 +66,16 @@ def build(workspace_root: str | Path, arguments: dict[str, Any], *, vram_budget_
             "train_rows": train_rows,
             "holdout_rows": rows - train_rows,
             "features": features,
-            "network": "全连接神经网络（MLP）",
+            "network": (f"全连接神经网络（MLP），自动比较 {trials} 组设置后选效果最好的" if auto else "全连接神经网络（MLP）"),
+            "model_family": "auto" if auto else "mlp",
+            "trials": trials,
             "hidden_sizes": [int(width) for width in chosen["hidden_sizes"]],
             "epochs": int(chosen["epochs"]),
             "batch_size": batch,
             "learning_rate": float(chosen["learning_rate"]),
             "steps": steps,
             "metrics": ["Accuracy", "Macro-F1", "ROC-AUC"] if task == "classification" else ["RMSE", "MAE", "R²"],
-            "estimated_gpu_seconds": estimate_seconds(steps),
+            "estimated_gpu_seconds": estimate,
             "billing_note": "只按显卡上实际训练的时间计费；环境准备和排队不计费。",
         }
     except Exception:  # noqa: BLE001 - display only: never blocks the approval itself

@@ -233,6 +233,53 @@ class SuperAgentStore:
             ).fetchone()
         return int(row[0])
 
+    # Run supervision v1 (run_supervision.RunLedger is the only writer of run attempts).
+    def count_attempts(self, run_id: str) -> int:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT COUNT(*) FROM execution_attempts_v2 WHERE run_id=? AND node_id='run'", (run_id,)
+            ).fetchone()
+        return int(row[0])
+
+    def get_attempt(self, attempt_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT payload_json FROM execution_attempts_v2 WHERE attempt_id=?", (attempt_id,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def latest_attempt(self, run_id: str) -> dict[str, Any] | None:
+        with self._lock:
+            row = self._connection.execute(
+                "SELECT payload_json FROM execution_attempts_v2 WHERE run_id=? AND node_id='run' "
+                "ORDER BY created_at_utc DESC, rowid DESC LIMIT 1", (run_id,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def attempt_summary(self, *, since: str = "") -> dict[str, int]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT json_extract(payload_json,'$.report'), COUNT(*) FROM execution_attempts_v2 "
+                "WHERE node_id='run' AND created_at_utc >= ? GROUP BY 1", (since,)
+            ).fetchall()
+        return {str(report or "unknown"): int(count) for report, count in rows}
+
+    def open_attempt_runs(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT payload_json FROM execution_attempts_v2 WHERE node_id='run' AND status='running' "
+                "ORDER BY created_at_utc DESC LIMIT ?", (max(1, min(int(limit), 500)),)
+            ).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+    def failure_summary(self, *, since: str = "") -> dict[str, int]:
+        with self._lock:
+            rows = self._connection.execute(
+                "SELECT category, COUNT(*) FROM failure_observations_v2 WHERE created_at_utc >= ? GROUP BY 1 ORDER BY 2 DESC",
+                (since,),
+            ).fetchall()
+        return {str(category): int(count) for category, count in rows}
+
     def put_repair(self, payload: dict[str, Any]) -> None:
         now = _now()
         with self._lock, self._connection:

@@ -280,6 +280,10 @@ class AccessStore:
             return
         if method == "GET" and parts == ["v1", "experience", "summary"]:
             return  # read-only count; experience_entry.summary requires the principal
+        if (method == "GET" and parts in (["v1", "experience"], ["v1", "experience", "settings"])) or (
+                method == "PATCH" and parts == ["v1", "experience", "settings"]) or (
+                method == "DELETE" and len(parts) == 3 and parts[:2] == ["v1", "experience"] and parts[2] != "settings"):
+            return  # ExperienceStore scopes every row and setting to the server-derived principal (others → 404 / 403).
         if method == "GET" and parts in (
             ["v1", "health"], ["v1", "tools"], ["v1", "super-agent", "capabilities"],
             ["v1", "sessions"], ["v1", "runs"], ["v1", "approvals"], ["v1", "goals"],

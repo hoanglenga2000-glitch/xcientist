@@ -16,6 +16,12 @@ export type UserTask = {
   deleted?: boolean;
 };
 export type Project = { id: string; name: string; instructions?: string; version?: number; conversation_count?: number; created_at?: string; updated_at?: string };
+/** Run supervision v1: a structured card for what a person must decide (model_unavailable / approval_* / tool_failing). */
+export type RunAttention = {
+  kind: string; reason?: string; code?: string; category?: string; retries?: number; tool?: string; count?: number;
+  platform_model_id?: string | null; created_at?: string;
+  options?: Array<{ action: string; label?: string; platform_model_id?: string }>;
+};
 export type TaskArtifact = { id: string; run_id: string; name: string; bytes: number; sha256: string; verified_at?: string; preview_kind: string; source_tool_call?: string };
 export type RunProgress = {
   schema?: string; work_kind?: string; phase?: string; freshness?: string; stalled?: boolean;
@@ -63,6 +69,11 @@ export type TaskRun = {
   fallback_model_id?: string | null;
   attachment_ids?: string[];
   model_error?: { kind: string; code: string; explicit?: boolean; platform_model_id?: string | null } | null;
+  // Run supervision v1: one stage (dsh order), the card a person must act on, and the model-slot queue position.
+  stage?: 'attention' | 'blocked' | 'failed' | 'queued' | 'waiting_gpu' | 'working' | 'paused' | 'done' | string;
+  stage_label?: string;
+  attention?: RunAttention | null;
+  queue_position?: number | null;
 };
 /** t238 C7a D2: advisory precheck against the training entry's input bound; uploads stay usable for chat and analysis. */
 export type Trainability = { trainable: boolean; reasons: string[]; limits: { max_files: number; max_bytes: number }; bytes: number; files: number };

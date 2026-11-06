@@ -1040,6 +1040,12 @@ class AssistantRunService:
         self._last_chunk_free: int | None = None
         self._chunk_bytes_since_check = 0
         self._chunk_cleanup_pending: set[str] = set()
+        # Run supervision v1 (dsh-superagent port): slots, attempt ledger, start priority and recovery reason.
+        from .run_supervision import RunLedger, RunSlots
+        self.slots = RunSlots()
+        self.ledger = RunLedger(runtime.super_agent.store)
+        self._start_priority: dict[str, str] = {}
+        self._resume_reasons: dict[str, str] = {}
         self._recover_uploads()
 
     def _recover_uploads(self) -> None:
@@ -2084,7 +2090,55 @@ class AssistantRunService:
             metadata["memory_used"] = (used + added)[:MEMORY_PROMPT_TOP_K * 2]
             self.store.update_session(session_id, metadata_json=metadata)
 
-    def _execution_prompt(self, run: dict[str, Any], *, resume: bool) -> str:
+    def _experience_prompt_lines(self, metadata: dict[str, Any], guidance: Any, tenant_id: str, root: Path,
+                                 attachments: list[dict[str, Any]], *, session_id: str, query: str) -> list[str]:
+        """Phase 2 recall. Tenant runs with a CSV input that may train: <= 3 private + 3 anonymous global experiences.
+
+        Operator runs that ask for training get platform knowledge instead. Recalled ids are recorded once per
+        session (``experience_used``) so a later success can credit them. Never raises: recall is advisory.
+        """
+        try:
+            from . import experience_store
+            from .personal_tool_boundary import is_personal
+            from .user_memory import principal_from_metadata
+
+            store = experience_store.ExperienceStore(self.runtime.runtime_root)
+            if not is_personal(tenant_id):
+                from .experience_entry import detect_compute_intent
+                return store.platform_lines(query) if detect_compute_intent(query) else []
+            principal = principal_from_metadata(metadata)
+            if principal is None or str(metadata.get("memory_mode") or "on") != "on" or not guidance(("managed_tensor_train",), "x"):
+                return []
+            csv_inputs = [root / "inputs" / Path(str(item.get("path") or "")).name for item in attachments
+                          if Path(str(item.get("path") or "")).suffix.casefold() == ".csv"]
+            guessed = next((value for value in (experience_store.guess_task_profile(path) for path in csv_inputs[:2]) if value), None)
+            if guessed is None:
+                return []
+            task, profile = guessed
+            recalled = store.recall(principal, task=task, profile=profile, project_id=str(metadata.get("project_id") or ""),
+                                    exclude_run_id=session_id)
+            if recalled["lines"] and session_id:
+                session = self.store.get_session(session_id) or {}
+                session_metadata = dict(session.get("metadata") or {})
+                if not session_metadata.get("experience_used"):
+                    store.mark_used(principal, recalled["private_ids"])
+                    session_metadata["experience_used"] = {key: recalled[key] for key in ("private_ids", "prior_keys", "recommended")}
+                    self.store.update_session(session_id, metadata_json=session_metadata)
+            return list(recalled["lines"])
+        except Exception:  # noqa: BLE001 - a broken knowledge base never blocks a run
+            logging.getLogger(__name__).exception("experience recall failed")
+            return []
+
+    @staticmethod
+    def _experience_used_view(value: Any) -> dict[str, Any]:
+        value = value if isinstance(value, dict) else {}
+        return {"private": len(value.get("private_ids") or []), "global": len(value.get("prior_keys") or []),
+                "recommended": bool(value.get("recommended"))}
+
+    def _execution_prompt(self, run: dict[str, Any], *, resume: bool, recovery_reason: str = "") -> str:
+        from .run_supervision import recovery_note
+
+        recovery_line = recovery_note(recovery_reason) if resume else ""
         root = Path(str(run["task_root"]))
         attachments = self.store.list_attachments(str(run["id"]))
         session = self.runtime.get_session(str(run["id"])) or {}
@@ -2198,6 +2252,7 @@ class AssistantRunService:
                 "For a new, replaced, reclaimed, or restored HPC allocation, the secure enrollment surface is Workbench > Data / Kaggle > AIMSLAB 60-second quick replacement. Direct the user to that browser-memory encrypted form and stop at its credential-entry gate. Do not claim the enrollment surface is unavailable merely because no enrollment tool schema is exposed to the model, and never request HPC or proxy credentials in the prompt.",
                 *guidance(("verified_context",), "When a selected research task is present, call verified_context before judging whether prior evidence exists; an empty task inputs/ directory is not proof that historical run evidence is absent."),
                 f"Resume mode: {str(resume).lower()}",
+                *([recovery_line] if recovery_line else []),
                 "User continuation instructions: " + (
                     json.dumps(continuation_instructions, ensure_ascii=False)
                     if continuation_instructions
@@ -2223,6 +2278,8 @@ class AssistantRunService:
                 *(attachment_lines or ["- none"]),
                 *project_lines,
                 *memory_lines,
+                *self._experience_prompt_lines(metadata, guidance, tenant_id, root, attachments,
+                                               session_id=str(run["session_id"]), query=str(run.get("prompt") or "")),
                 f"Recent conversation: {self._conversation_context(run)}",
                 (
                     "Original user objective (historical context only; overridden wherever it conflicts with the active continuation):"
@@ -2234,7 +2291,7 @@ class AssistantRunService:
             ]
         )
 
-    def start(self, run_id: str, *, resume: bool = False) -> bool:
+    def start(self, run_id: str, *, resume: bool = False, priority: str = "normal", reason: str = "") -> bool:
         if not _SAFE_ID.fullmatch(run_id):
             raise ValueError("run id is invalid")
         with self._lock:
@@ -2248,6 +2305,10 @@ class AssistantRunService:
                 raise KeyError(run_id)
             if run["status"] in {"completed", "cancelled"} or self.runtime.user_pause_requested(run_id):
                 return False
+            # Run supervision v1: a person's resume / an approved action may take the reserved slot.
+            self._start_priority[run_id] = priority
+            if reason:
+                self._resume_reasons[run_id] = reason
             thread = threading.Thread(
                 target=self._run_thread,
                 args=(run_id, resume),
@@ -2258,7 +2319,7 @@ class AssistantRunService:
             thread.start()
             return True
 
-    def _start_or_defer(self, run_id: str, *, resume: bool) -> bool:
+    def _start_or_defer(self, run_id: str, *, resume: bool, priority: str = "human") -> bool:
         """Resume once the worker that emitted an approval card has unwound."""
         if self.runtime.user_pause_requested(run_id):
             return False
@@ -2281,7 +2342,7 @@ class AssistantRunService:
                             return
                         run = self.store.get_assistant_run(run_id)
                         if run and run["status"] not in {"completed", "cancelled"}:
-                            self.start(run_id, resume=resume)
+                            self.start(run_id, resume=resume, priority=priority)
                     finally:
                         # Keep the waiter registered until its last store read.
                         with self._lock:
@@ -2295,7 +2356,7 @@ class AssistantRunService:
                 self._resume_waiters[run_id] = waiter
                 waiter.start()
         if immediate:
-            return self.start(run_id, resume=resume)
+            return self.start(run_id, resume=resume, priority=priority)
         return False
 
     def _run_thread(self, run_id: str, resume: bool) -> None:
@@ -2310,12 +2371,98 @@ class AssistantRunService:
         run = self.store.get_assistant_run(run_id)
         if not run:
             return
+        with self._lock:
+            priority = self._start_priority.pop(run_id, "normal")
+            reason = self._resume_reasons.pop(run_id, "")
+        if not self._acquire_slot(run_id, priority):
+            return
+        try:
+            self._execute_in_slot(run_id, run, resume=resume, reason=reason)
+        finally:
+            self.slots.release(run_id)
+            self._close_open_attempt(run_id)
+
+    _REPORT_FOR_STATUS = {"completed": "ready", "cancelled": "dropped", "waiting_approval": "waiting", "paused": "waiting",
+                          "blocked": "blocked", "failed": "failed"}
+
+    def _close_open_attempt(self, run_id: str) -> None:
+        """An attempt still open when its worker returns ends with the report its run status implies."""
+        try:
+            latest = self.ledger.latest(run_id) or {}
+            if latest.get("status") != "running":
+                return
+            current = self.store.get_assistant_run(run_id) or {}
+            report = self._REPORT_FOR_STATUS.get(str(current.get("status") or ""))
+            if report:
+                self.ledger.report(str(latest["attempt_id"]), report, closed_by="worker_exit")
+        except Exception:  # noqa: BLE001
+            logger.exception("closing the open attempt of %s failed", run_id)
+
+    def _acquire_slot(self, run_id: str, priority: str) -> bool:
+        """Run supervision v1: wait (status queued, with a position) until a model slot is free."""
+        from .personal_tool_boundary import session_tenant
+
+        tenant = session_tenant(self.store.get_session(run_id) or {})
+
+        def aborted() -> bool:
+            if self._stopping.is_set():
+                return True
+            current = self.store.get_assistant_run(run_id)
+            return not current or current["status"] == "cancelled" or self.runtime.user_pause_requested(run_id)
+
+        def queued(position: int) -> None:
+            self.store.update_assistant_run(run_id, status="queued")
+            self.store.append_event(run_id, "run_queued", {"run_id": run_id, "position": position})
+
+        return self.slots.acquire(run_id, tenant, priority=priority, should_abort=aborted, on_queued=queued)
+
+    def _ledger_safe(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        try:
+            return getattr(self.ledger, method)(*args, **kwargs)
+        except Exception:  # noqa: BLE001 - the ledger records a run; it never stops one
+            logger.exception("run ledger %s failed", method)
+            return ""
+
+    def _set_attention(self, run_id: str, card: dict[str, Any] | None) -> None:
+        session = self.store.get_session(run_id)
+        if not session:
+            return
+        metadata = dict(session.get("metadata") or {})
+        if card is None:
+            if "attention" not in metadata:
+                return
+            metadata.pop("attention", None)
+        else:
+            metadata["attention"] = card
+            self.store.append_event(run_id, "attention_required", {"run_id": run_id, "kind": card.get("kind"),
+                                                                    "options": [item.get("action") for item in card.get("options") or []]})
+        self.store.update_session(run_id, metadata_json=metadata)
+
+    def _interruptible_sleep(self, run_id: str, seconds: float) -> bool:
+        """Sleep in short steps; False when the run was cancelled, paused or the service is stopping."""
+        deadline = time.monotonic() + max(0.0, seconds)
+        while True:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return True
+            if self._stopping.wait(min(0.5, remaining)):
+                return False
+            current = self.store.get_assistant_run(run_id)
+            if not current or current["status"] == "cancelled" or self.runtime.user_pause_requested(run_id):
+                return False
+
+    def _execute_in_slot(self, run_id: str, run: dict[str, Any], *, resume: bool, reason: str) -> None:
+        from .run_supervision import ModelTurnFailed, model_retry_decision, model_unavailable_card
+
         attempts = int(run.get("retry_count") or 0)
+        model_retries = 0
+        attempt_reason = reason or ("resume" if resume else "start")
         # C6-answer H_a21: the process-row clock starts when execution starts, never at creation or while queued.
         self.store.append_event(run_id, "run_started", {"run_id": run_id, "started_at": utc_now()})
         while attempts < 3:
             if self._stopping.is_set():
                 return
+            attempt_id = ""
             try:
                 current_run = self.store.get_assistant_run(run_id)
                 if not current_run or current_run["status"] == "cancelled":
@@ -2323,6 +2470,8 @@ class AssistantRunService:
                 if self.runtime.user_pause_requested(run_id):
                     self.runtime.settle_user_pause(run_id)
                     return
+                attempt_id = self._ledger_safe("begin_attempt", run_id, reason=attempt_reason,
+                                               model=str(current_run.get("model") or ""))
                 self.store.update_assistant_run(run_id, status=SessionStatus.PLANNING.value, error_class="", error_message="")
                 self.runtime.store.update_session(run_id, status=SessionStatus.PLANNING.value)
                 self.store.append_event(run_id, "step_started", {"run_id": run_id, "step_id": "understand", "label": "理解目标与输入"})
@@ -2330,7 +2479,9 @@ class AssistantRunService:
                 self.store.update_assistant_run(run_id, status=SessionStatus.RUNNING.value)
                 self.runtime.store.update_session(run_id, status=SessionStatus.RUNNING.value)
                 self.store.append_event(run_id, "step_started", {"run_id": run_id, "step_id": "execute", "label": "调用工具执行任务"})
-                result = self.runtime.message(run_id, self._execution_prompt(run, resume=resume or attempts > 0), max_steps=48)
+                result = self.runtime.message(
+                    run_id, self._execution_prompt(run, resume=resume or attempts > 0 or model_retries > 0, recovery_reason=attempt_reason),
+                    max_steps=48)
                 if self.runtime.user_pause_requested(run_id):
                     self.runtime.settle_user_pause(run_id)
                     return
@@ -2358,13 +2509,18 @@ class AssistantRunService:
                 )
                 status = str(result.get("status") or "failed")
                 if status == "waiting_approval":
+                    self._ledger_safe("report", attempt_id, "waiting", detail="approval") if attempt_id else None
                     self._set_step(run_id, "execute", "waiting_approval")
                     self.store.update_assistant_run(run_id, status=SessionStatus.WAITING_APPROVAL.value)
                     approval = result.get("approval") if isinstance(result.get("approval"), dict) else {}
                     self.store.append_event(run_id, "approval_required", {"run_id": run_id, "approval": approval})
                     return
                 if status != "completed":
-                    raise RuntimeError(str(result.get("text") or f"runtime returned {status}"))
+                    raise ModelTurnFailed(
+                        str(result.get("text") or f"runtime returned {status}"),
+                        code=str(result.get("error_code") or ""),
+                        retry_after_seconds=result.get("retry_after_seconds") if isinstance(result.get("retry_after_seconds"), (int, float)) else None,
+                    )
                 self._set_step(run_id, "execute", "completed")
                 self.store.update_assistant_run(run_id, status=SessionStatus.VERIFYING.value)
                 self.runtime.store.update_session(run_id, status=SessionStatus.VERIFYING.value)
@@ -2395,6 +2551,10 @@ class AssistantRunService:
                     "run_completed",
                     {"run_id": run_id, "status": "completed", "answer": answer, "artifacts": [public_artifact(item) for item in artifacts]},
                 )
+                if attempt_id:
+                    self._ledger_safe("report", attempt_id, "ready", artifacts=len(artifacts), model=model_name)
+                    self._ledger_safe("receipt", run_id, "deliver", True, artifacts=len(artifacts), attempt_id=attempt_id)
+                self._set_attention(run_id, None)
                 try:
                     self.drain_queued_messages(run_id)
                 except Exception:
@@ -2405,6 +2565,34 @@ class AssistantRunService:
                     self.store.append_event(run_id, "run_paused", {"error_type": type(exc).__name__, "budget_reset": False})
                     self.runtime.settle_user_pause(run_id)
                     return
+                retry = model_retry_decision(
+                    str(exc), model_retries,
+                    code=getattr(exc, "code", "") if isinstance(exc, ModelTurnFailed) else "",
+                    retry_after_seconds=getattr(exc, "retry_after_seconds", None),
+                )
+                if retry is not None:
+                    served = self.store.get_assistant_run(run_id) or {}
+                    if attempt_id:
+                        self._ledger_safe("report", attempt_id, "failed" if retry.retry else "blocked",
+                                          code=retry.code, category=retry.category)
+                    self._ledger_safe("failure", run_id, signature=f"model:{retry.code}", category=f"model_{retry.category}",
+                                      model=str(served.get("model") or ""), retry=retry.retry)
+                if retry is not None and retry.retry:
+                    # Run supervision v1: a passing model failure is tried again on the same model (never another one).
+                    model_retries += 1
+                    self.store.update_assistant_run(run_id, status=SessionStatus.RECOVERING.value,
+                                                    error_class="model_retry", error_message=str(exc)[:1000])
+                    self.store.append_event(run_id, "retry_scheduled", {
+                        "run_id": run_id, "attempt": model_retries, "delay_seconds": retry.delay_seconds,
+                        "error_class": f"model_{retry.category}", "error_type": type(exc).__name__, "kind": "model"})
+                    if not self._interruptible_sleep(run_id, retry.delay_seconds):
+                        if self.runtime.user_pause_requested(run_id):
+                            self.runtime.settle_user_pause(run_id)
+                        return
+                    resume = True
+                    attempt_reason = "model_retry"
+                    run = self.store.get_assistant_run(run_id) or run
+                    continue
                 attempts += 1
                 failure_class, auto_retry = _failure_policy(exc)
                 self.store.update_assistant_run(
@@ -2416,6 +2604,8 @@ class AssistantRunService:
                 )
                 if auto_retry and attempts < 3:
                     delay = 2 ** (attempts - 1)
+                    if attempt_id and retry is None:
+                        self._ledger_safe("report", attempt_id, "failed", code=failure_class)
                     self.store.append_event(
                         run_id,
                         "retry_scheduled",
@@ -2427,6 +2617,15 @@ class AssistantRunService:
                     continue
                 terminal = failure_class == "terminal"
                 self.runtime.store.update_session(run_id, status=SessionStatus.FAILED.value if terminal else SessionStatus.BLOCKED.value)
+                if attempt_id and retry is None:
+                    self._ledger_safe("report", attempt_id, "failed" if terminal else "blocked", code=failure_class)
+                if retry is not None:
+                    session_meta = (self.store.get_session(run_id) or {}).get("metadata") or {}
+                    served = self.store.get_assistant_run(run_id) or {}
+                    self._set_attention(run_id, model_unavailable_card(
+                        code=retry.code, category=retry.category, retries=model_retries,
+                        platform_model_id=str(session_meta.get("platform_model_id") or ""),
+                        provider=str(served.get("model_provider") or "")))
                 self.store.append_event(
                     run_id,
                     "run_failed" if terminal else "run_blocked",
@@ -3055,6 +3254,7 @@ class AssistantRunService:
             "model_failover": _public_failover(session_metadata.get("model_failover")),
             "fallback_model_id": str(session_metadata.get("fallback_model_id") or "") or None,
             "model_error": _model_error(effective_run, answer, session_metadata),
+            **self._supervision_fields(run_id, effective_run, session_metadata, active_tools),
             "answer": answer,
             "started_at": started_at,
             "delivery_mode": delivery_mode,
@@ -3085,6 +3285,7 @@ class AssistantRunService:
             **self._activity(str(run["session_id"]), str(effective_run["status"])),
             "memory_saved": UserMemoryStore(self.runtime.runtime_root).saved_by_run(run_id),
             "memory_used": [item for item in (session_metadata.get("memory_used") or []) if isinstance(item, dict)],
+            "experience_used": self._experience_used_view(session_metadata.get("experience_used")),
             "memory_mode": str(session_metadata.get("memory_mode") or "on"),
             "queued_messages": [
                 item for item in ((session_metadata.get("c6b_inbox") or {}).get("queued") or [])
@@ -3102,6 +3303,33 @@ class AssistantRunService:
 
     def list_runs(self, conversation_id: str = "", limit: int = 50) -> list[dict[str, Any]]:
         return [self.snapshot(str(item["id"])) for item in self.store.list_assistant_runs(conversation_id, limit)]
+
+    def _supervision_fields(self, run_id: str, run: dict[str, Any], metadata: dict[str, Any],
+                            active_tools: list[dict[str, Any]]) -> dict[str, Any]:
+        """Run supervision v1: one ``stage`` (dsh priority order), the open ``attention`` card and the queue position."""
+        from .run_supervision import GPU_SLOT_RELEASE_TOOLS, STAGE_LABELS, approval_card, derive_stage, public_attention
+
+        status = str(run.get("status") or "")
+        attention = public_attention(status, metadata)
+        error_class = str(run.get("error_class") or "")
+        if attention is None and status == "blocked" and error_class in {"approval_rejected", "approval_expired"}:
+            attention = approval_card(error_class)
+        position = self.slots.position(run_id)
+        slot_state = self.slots.state(run_id)
+        gpu_running = any(str(item.get("tool_name") or "") in GPU_SLOT_RELEASE_TOOLS for item in active_tools)
+        stage = derive_stage(status, attention=attention, queue_position=position, slot_state=slot_state,
+                             gpu_tool_running=gpu_running)
+        try:
+            latest = self.ledger.latest(run_id) or {}
+        except Exception:  # noqa: BLE001 - supervision fields never break the run view
+            latest = {}
+        return {
+            "stage": stage,
+            "stage_label": STAGE_LABELS.get(stage, ""),
+            "attention": attention,
+            "queue_position": position,
+            "supervision": {"attempts": latest.get("number"), "last_report": latest.get("report")} if latest else None,
+        }
 
     def events(self, run_id: str, after: int = 0) -> list[dict[str, Any]]:
         if not self.store.get_assistant_run(run_id):
@@ -3596,6 +3824,7 @@ class AssistantRunService:
                 self.runtime.clear_user_pause(run_id)
             elif not approved_waiting:
                 reconcile_model_failure(self.runtime, run_id, continuation, idempotency_key)
+            self._clear_supervision_holds(run_id)
             self.store.update_assistant_run(
                 run_id,
                 status=SessionStatus.RECOVERING.value,
@@ -3612,8 +3841,20 @@ class AssistantRunService:
                 call, approval = approved_waiting[0]
                 self._queue_approved_action(approval, call)
             else:
-                self.start(run_id, resume=True)
+                self.start(run_id, resume=True, priority="human")
             return self.snapshot(run_id)
+
+    def _clear_supervision_holds(self, run_id: str) -> None:
+        """A person's resume answers the open card and resets the tool breaker (counts start again from now)."""
+        session = self.store.get_session(run_id)
+        if not session:
+            return
+        metadata = dict(session.get("metadata") or {})
+        had = bool(metadata.pop("attention", None)) | bool(metadata.pop("tool_circuit", None))
+        metadata["breaker_reset_at"] = utc_now()
+        self.store.update_session(run_id, metadata_json=metadata)
+        if had:
+            self.store.append_event(run_id, "attention_resolved", {"run_id": run_id, "by": "person"})
 
     def attach_secret_refs(
         self,
@@ -3954,13 +4195,32 @@ class AssistantRunService:
             })
             return {"run_id": current_id, "from": "planning", "to": target, "reason": reason}
 
-    def recover_incomplete(self) -> list[str]:
+    def recover_incomplete(self, max_age_seconds: float | None = None) -> list[str]:
+        """Resume interrupted runs (oldest first) and start the background run supervision.
+
+        ``max_age_seconds`` is the production entry's recovery window (EVOMIND_RECOVER_WINDOW_HOURS);
+        without it the window is 7 days. Older stragglers are left to the stall supervisor.
+        """
+        if max_age_seconds is not None:  # the production entry; tests and the legacy serve() start no monitor here
+            from .run_supervision import ensure_background_supervision
+
+            try:
+                ensure_background_supervision(self.runtime)
+            except Exception:
+                logger.exception("background run supervision failed to start")
         try:
             self.close_idle_planning()
         except Exception:
             logger.exception("close_idle_planning failed during recover_incomplete")
         recovered: list[str] = []
-        for run in self.store.list_assistant_runs(limit=200):
+        # Run supervision v1: every active run inside the window, oldest first (dsh 003 "Restart"),
+        # not only the newest 200; older stragglers are left to the stall supervisor.
+        window = 7 * 86400.0 if max_age_seconds is None else max(0.0, float(max_age_seconds))
+        since = (datetime.now(timezone.utc) - timedelta(seconds=window)).isoformat()
+        candidates = self.store.list_assistant_runs_by_status(
+            ("queued", "planning", "running", "verifying", "recovering", "pausing", "paused",
+             SessionStatus.WAITING_APPROVAL.value), since=since, limit=500)
+        for run in candidates:
             status = str(run["status"])
             if status == "blocked" and str(run.get("error_class") or "") in {
                 "execution_reconciliation_required", "approval_execution_unconfirmed",
@@ -3997,7 +4257,7 @@ class AssistantRunService:
                 continue
             if status in {"queued", "planning", "running", "verifying", "recovering", "paused", SessionStatus.WAITING_APPROVAL.value}:
                 self.store.update_assistant_run(str(run["id"]), status=SessionStatus.RECOVERING.value)
-                if self.start(str(run["id"]), resume=True):
+                if self.start(str(run["id"]), resume=True, reason="host_restarted"):
                     recovered.append(str(run["id"]))
         return recovered
 

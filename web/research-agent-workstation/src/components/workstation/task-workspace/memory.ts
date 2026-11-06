@@ -92,3 +92,23 @@ export const setProjectMemoryOnly = (projectId: string, projectOnly: boolean) =>
 export const deleteMemory = (id: string) => taskRequest(item(id), jsonRequest('DELETE'));
 export const restoreMemory = (id: string) => taskRequest<{ memory: Memory }>(`${item(id)}/restore`, jsonRequest('POST'));
 export const clearMemories = () => taskRequest<{ cleared: number }>(MEMORY, jsonRequest('DELETE'));
+
+/** Phase 2 我的经验: one row per training attempt, written by the platform (never by the model). */
+export type Experience = {
+  id: string; title: string; summary: string; outcome: 'success' | 'failed'; task: 'classification' | 'regression';
+  created_at: string; success_count: number; use_count: number; fixed_failure_id?: string | null;
+};
+export type ExperienceSettings = { contribute_global: boolean };
+export const EXPERIENCE_COPY = {
+  title: '我的经验', line: '每次训练结束后自动记下数据规模、设置和结果，下次训练时作为参考。只有你自己能看到。',
+  empty: '还没有训练经验', contribute: '参与匿名统计', contributeLine: '只汇总设置和结果的数字，不含数据和文字；至少 3 个用户出现过才会用到。',
+  remove: (title: string) => `删除经验：${title.slice(0, 40)}`, deleted: '已删除', failed: '没能保存，请重试', loadFailed: '经验暂时读不了，请稍后重试。',
+  reused: (count: number) => `帮到后续训练 ${count} 次`,
+} as const;
+const EXPERIENCE = '/api/assistant/experience';
+export const listExperiences = (signal?: AbortSignal) =>
+  taskRequest<{ experiences?: Experience[]; settings?: ExperienceSettings }>(EXPERIENCE, { signal })
+    .then(body => ({ experiences: body.experiences ?? [], settings: { contribute_global: body.settings?.contribute_global !== false } }));
+export const deleteExperience = (id: string) => taskRequest<{ id: string; deleted: boolean }>(`${EXPERIENCE}/${encodeURIComponent(id)}`, jsonRequest('DELETE'));
+export const setExperienceContribution = (contribute: boolean) =>
+  taskRequest<ExperienceSettings>(`${EXPERIENCE}/settings`, jsonRequest('PATCH', { contribute_global: contribute }));

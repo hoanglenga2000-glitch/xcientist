@@ -4,7 +4,9 @@ from evomind_runtime.super_agent_runtime import SuperAgentRuntime
 from evomind_runtime.models import ToolSpec
 
 
-def test_runtime_mounts_workspace_and_builds_durable_shadow_graph(tmp_path):
+def test_runtime_mounts_workspace_and_builds_durable_shadow_graph(tmp_path, monkeypatch):
+    # Run supervision v1: shadow graphs are listed only while they are still written (opt-in).
+    monkeypatch.setenv("EVOMIND_SUPER_AGENT_SHADOW_PLANS", "1")
     workspace = tmp_path / "workspace"
     workspace.mkdir()
     runtime_root = tmp_path / "runtime"
@@ -26,6 +28,10 @@ def test_runtime_mounts_workspace_and_builds_durable_shadow_graph(tmp_path):
     status = runtime.status()
     assert status["runs"][0]["nodes"][0]["id"] == "discover"
     assert status["runs"][0]["exact_gate"] is None
+    monkeypatch.setenv("EVOMIND_SUPER_AGENT_SHADOW_PLANS", "0")
+    status = runtime.status()
+    assert status["runs"] == [] and status["supervision"]["source"] == "execution_attempts_v2"
+    monkeypatch.setenv("EVOMIND_SUPER_AGENT_SHADOW_PLANS", "1")
     runtime.close()
 
     reopened = SuperAgentRuntime(

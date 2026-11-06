@@ -179,19 +179,28 @@ class StallSupervisor:
     def tick(self) -> dict[str, list[str]]:
         """One pass over active runs. Returns run ids per outcome (for logs/tests)."""
         from .ops_metrics import METRICS
+        from .run_supervision import no_progress_stall, parse_utc
 
         outcome: dict[str, list[str]] = {"exempt": [], "reattached": [], "failed": [], "left_running": []}
         assistant = self.runtime.assistant
-        for run in self.runtime.store.list_assistant_runs(limit=500):
+        for run in self._active_runs():
             run_id, status = str(run.get("id") or ""), str(run.get("status") or "")
             if status not in ACTIVE_RUN_STATUSES:
                 continue
             in_flight = assistant._effective_active_tool_calls(run_id)
             owned = self._locally_owned(run_id, in_flight)
             progress = self._progress(run_id, status)
-            if not self._is_stall(progress, in_flight, owned):
+            no_record = ""
+            if progress is None:
+                # Run supervision v1: an active run that never wrote progress (crashed before its first tool,
+                # or orphaned long ago) is a stall after 30 min without updates; after 24 h it is abandoned.
+                no_record = "" if owned else no_progress_stall(run, self.clock())
+                if not no_record:
+                    continue
+            elif not self._is_stall(progress, in_flight, owned):
                 continue
-            key = (run_id, float(progress.get("last_progress_at") or progress.get("heartbeat_at") or 0))
+            record = progress or {}
+            key = (run_id, float(record.get("last_progress_at") or record.get("heartbeat_at") or parse_utc(run.get("updated_at")) or 0))
             with self._lock:
                 first = key not in self._seen
                 self._seen.add(key)
@@ -205,18 +214,26 @@ class StallSupervisor:
                 continue
             metadata = dict((self.runtime.get_session(run_id) or {}).get("metadata") or {})
             attempts = int(metadata.get("stall_reattach_count") or 0)
-            if not in_flight and attempts < self.max_reattach:
+            if no_record != "abandoned" and not in_flight and attempts < self.max_reattach:
                 metadata["stall_reattach_count"] = attempts + 1
                 self.runtime.store.update_session(run_id, metadata_json=metadata)
                 self.runtime.store.append_event(run_id, "run_stall_reattach", {"run_id": run_id, "attempt": attempts + 1,
                                                                                "stalled_seconds": STALLED_SECONDS})
                 self.runtime.store.update_assistant_run(run_id, status="recovering")
-                if assistant.start(run_id, resume=True):
+                if assistant.start(run_id, resume=True, reason="stall_reattach"):
                     outcome["reattached"].append(run_id)
                     continue
             self._fail(run_id, attempts=attempts, in_flight=len(in_flight))
             outcome["failed"].append(run_id)
         return outcome
+
+    def _active_runs(self) -> list[dict[str, Any]]:
+        """Every active run, oldest first (the conversation list the old pass used is capped at the newest 200)."""
+        store = self.runtime.store
+        by_status = getattr(store, "list_assistant_runs_by_status", None)
+        if callable(by_status):
+            return by_status(tuple(sorted(ACTIVE_RUN_STATUSES)), limit=1000)
+        return store.list_assistant_runs(limit=500)
 
     def _fail(self, run_id: str, *, attempts: int, in_flight: int) -> None:
         message = "任务长时间没有进展，已停止。可以点「再试一次」重新开始。"
@@ -230,6 +247,15 @@ class StallSupervisor:
             "run_id": run_id, "status": "failed", "error_class": "stalled_unrecoverable", "recoverable": True,
             "reattach_attempts": attempts, "tool_calls_in_flight": in_flight, "message": message,
         })
+        ledger = getattr(getattr(self.runtime, "assistant", None), "ledger", None)
+        if ledger is not None:
+            try:
+                latest = ledger.latest(run_id) or {}
+                if latest.get("status") == "running":
+                    ledger.report(str(latest["attempt_id"]), "failed", code="stalled_unrecoverable")
+                ledger.failure(run_id, signature="stall:no_progress", category="stalled_unrecoverable")
+            except Exception:  # noqa: BLE001 - the ledger never blocks the stall verdict
+                pass
 
 
 def enabled(env: dict | None = None) -> bool:
