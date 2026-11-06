@@ -11,6 +11,9 @@ MODEL_FAMILIES = ("auto", "mlp")
 MAX_TRIALS = 6
 FOLDS = 3
 BUDGET_SECONDS = 600
+# Replace the default only on a clear cross-validation win (seen live: +0.005 macro-F1 in CV, -0.01 on the hold-out).
+MIN_GAIN = 0.005
+MIN_GAIN_RATIO = 0.01
 STEPS_PER_SECOND = 800  # same planning constant as training_plan
 FIELDS = ("hidden_sizes", "epochs", "batch_size", "learning_rate", "class_weight")
 
@@ -72,7 +75,7 @@ def fits_budget(train_rows: int, base: dict[str, Any]) -> bool:
 
 def search_block(task: str, chosen: list[dict[str, Any]]) -> dict[str, Any]:
     return {"schema": "evomind.tensor_search.v1", "candidates": chosen, "folds": FOLDS, "budget_seconds": BUDGET_SECONDS,
-            "metric": "macro_f1" if task == "classification" else "r2"}
+            "metric": "macro_f1" if task == "classification" else "r2", "min_gain": MIN_GAIN, "min_gain_ratio": MIN_GAIN_RATIO}
 
 
 def search_seconds(train_rows: int, base: dict[str, Any], trials: int) -> int:

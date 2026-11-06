@@ -77,10 +77,11 @@ def class_weights(y, outputs: int):
 
 
 def run_search(candidates: list, x, y, task: str, folds: int, budget_seconds: float, seed: int, fit_predict, clock=time.monotonic,
-               report=None) -> dict:
+               report=None, min_gain: float = 0.0, min_gain_ratio: float = 0.0) -> dict:
     """Cross-validate candidates in order until the budget would be exceeded; candidate 0 is always scored.
 
     ``fit_predict(candidate, x_train, y_train, x_valid) -> (predictions, steps)``. Ties keep the earlier candidate.
+    The default (candidate 0) is replaced only by a clear win: CV gain >= max(min_gain, min_gain_ratio * |default|).
     ``report(done, total)`` is called after every fold, in fold units (keeps the progress heartbeat fresh).
     """
     import numpy as np
@@ -105,6 +106,9 @@ def run_search(candidates: list, x, y, task: str, folds: int, budget_seconds: fl
                 report(index * len(splits) + len(scores), len(candidates) * len(splits))
         results.append({"index": index, "cv_score": round(float(np.mean(scores)), 6), "seconds": round(clock() - began, 3)})
     best = max(results, key=lambda item: (item["cv_score"], -item["index"]))
+    default = results[0]["cv_score"]
+    if best["index"] != 0 and best["cv_score"] - default < max(min_gain, min_gain_ratio * abs(default)):
+        best = results[0]
     return {"results": results, "selected_index": int(best["index"]), "stopped_early": stopped, "steps": steps,
             "folds": len(splits), "seconds": round(clock() - started, 3)}
 
@@ -211,7 +215,7 @@ def main() -> None:
 
         report(0, len(candidates) * int(search.get("folds", 3)))
         selection = run_search(candidates, x, y, task, int(search.get("folds", 3)), float(search.get("budget_seconds", 600)), config["seed"], fit_predict,
-                               report=report)
+                               report=report, min_gain=float(search.get("min_gain", 0.0)), min_gain_ratio=float(search.get("min_gain_ratio", 0.0)))
         steps += selection["steps"]
         selected = candidates[selection["selected_index"]]
     args.out_dir.mkdir(parents=True, exist_ok=True)

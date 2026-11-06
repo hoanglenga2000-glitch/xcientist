@@ -65,6 +65,20 @@ def test_run_search_picks_best_cv_and_ties_keep_the_default() -> None:
     assert tie["selected_index"] == 0
 
 
+def test_only_a_clear_cv_gain_replaces_the_default(monkeypatch) -> None:
+    y = np.array([0, 1] * 15)
+
+    def search(per_candidate):
+        scores = iter([value for value in per_candidate for _ in range(3)])
+        monkeypatch.setattr(card, "selection_score", lambda task, predictions, labels: next(scores))
+        return card.run_search([{}] * len(per_candidate), y.reshape(-1, 1), y, "classification", 3, 600, 0,
+                               lambda candidate, a, b, c: (None, 1), min_gain=0.005, min_gain_ratio=0.01)
+
+    assert search([0.970, 0.975])["selected_index"] == 0  # +0.005 is below 1 % of 0.97
+    assert search([0.970, 0.975, 0.990])["selected_index"] == 2
+    assert search([0.300, 0.306])["selected_index"] == 1  # +0.006 clears max(0.005, 0.003)
+
+
 def test_run_search_stops_at_the_budget_but_always_scores_the_default() -> None:
     now = [0.0]
 
