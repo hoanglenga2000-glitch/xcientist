@@ -35,7 +35,7 @@ MAX_CSV_RECORD_CHARS = 4 * 1024 * 1024  # far above MAX_COLUMNS numeric cells; c
 _PROFILE_INSTANCE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.IGNORECASE)
 _BINDING_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$")
 _OWNER = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
-TENANT_CONFIG_FIELDS = {"hidden_sizes", "epochs", "batch_size", "learning_rate", "seed", "data_path", "task", "target_column"}
+TENANT_CONFIG_FIELDS = {"hidden_sizes", "epochs", "batch_size", "learning_rate", "seed", "data_path", "task", "target_column", "model_family"}
 
 
 class TenantTrainingError(ValueError):
@@ -86,7 +86,10 @@ REPLY_RULE = ("Quote the sentence in user_message word for word, in plain Chines
               "not start or retry it yourself: wait until the person asks again.")
 # The same for a finished training: say in Chinese what was made and where, quote the numbers, never narrate how it was checked.
 SUCCESS_RULE = ("Reply in plain Chinese only. Say that the training finished, where the model and predictions are (the task's files), and the headline numbers "
-                "from managed_training.metrics. Never mention hashes, checksums, protocols, receipts, adapters, hardware, queues, budgets or how results were verified, "
+                "from managed_training.metrics. If managed_training.model_selection is present, add one plain sentence: the platform compared "
+                "model_selection.trials settings automatically and kept the best one; when model_selection.default_holdout exists, give the main number of "
+                "the default setting next to the chosen one. "
+                "Never mention hashes, checksums, protocols, receipts, adapters, hardware, queues, budgets or how results were verified, "
                 "and write no English narration, not even between tool calls.")
 CODE_PATTERN = re.compile(r"`?tenant_training_[a-z0-9_]+`?")
 FALLBACK_MESSAGE = "训练暂时不可用，请稍后再试。"
@@ -624,21 +627,28 @@ def load_data(path: Path, *, task: str, target_column: str | None = None):
     return x, y, classes
 
 
-def prepare(workspace_root: Path, config: dict[str, Any], protocol_id: str, *, vram_budget_mb: int | None = None) -> dict[str, Any]:
+def prepare(workspace_root: Path, config: dict[str, Any], protocol_id: str, *, vram_budget_mb: int | None = None,
+            warm_start: dict[str, Any] | None = None) -> dict[str, Any]:
     """Validate the approved configuration + tenant data; return the arrays and trainer config.
 
     ADDENDUM 2 §6: sizing fields the configuration leaves out are chosen by ``tenant_sizing.suggest``
     from the data and the VRAM budget; fields it sets are used as approved.
+
+    Phase 3: ``model_family`` 'auto' (default) adds a cross-validated search over at most 6 candidates, the first
+    being exactly the approved / suggested setting (``warm_start`` = the best matching past experience). 'mlp' trains
+    that one setting only. A dataset too large for the search budget falls back to 'mlp'.
     """
 
     from .training_control import training_config
+    from . import tenant_search
     import numpy as np
 
     if not isinstance(config, dict) or set(config) - TENANT_CONFIG_FIELDS or not isinstance(config.get("data_path"), str):
         raise TenantTrainingError("config_invalid")
     task = config.get("task")
     target = config.get("target_column")
-    if task not in {"classification", "regression"} or (target is not None and not isinstance(target, str)):
+    family = config.get("model_family", "auto")
+    if task not in {"classification", "regression"} or (target is not None and not isinstance(target, str)) or family not in tenant_search.MODEL_FAMILIES:
         raise TenantTrainingError("config_invalid")
     path = resolve_input(workspace_root, config["data_path"])
     if sha256(path) != protocol_id:
@@ -664,6 +674,15 @@ def prepare(workspace_root: Path, config: dict[str, Any], protocol_id: str, *, v
         trainer = training_config(chosen, protocol)
     except ValueError:
         raise TenantTrainingError("config_invalid") from None
+    trainer["class_weight"] = "none"
+    applied = "mlp"
+    if family == "auto" and tenant_search.fits_budget(len(train_index), trainer):
+        seed_value = trainer["seed"]
+        options = tenant_search.candidates(trainer, task=task, warm=warm_start,
+                                           validate=lambda candidate: training_config({**candidate, "seed": seed_value}, protocol))
+        if len(options) > 1:
+            trainer["search"] = tenant_search.search_block(task, options)
+            applied = "auto"
     return {"x": x[train_index], "y": y[train_index], "evaluation_x": x[eval_index], "evaluation_ids": eval_index,
             "evaluation_y": y[eval_index], "trainer_config": trainer, "task": task, "classes": classes, "data_name": path.name,
-            "sizing": sizing}
+            "sizing": sizing, "model_family": applied}

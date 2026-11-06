@@ -196,6 +196,8 @@ def trainer_numbers(config: dict[str, Any] | None) -> dict[str, Any]:
         kept["learning_rate"] = float(rate)
     if config.get("model_family") in {"auto", "mlp", "gbdt"}:
         kept["model_family"] = config["model_family"]
+    if config.get("class_weight") in {"none", "balanced"}:
+        kept["class_weight"] = config["class_weight"]
     for name in ("max_iter", "max_leaf_nodes", "max_depth", "min_samples_leaf"):
         if type(config.get(name)) is int and 0 < config[name] <= 100_000:
             kept[name] = int(config[name])
@@ -211,6 +213,8 @@ def config_text(config: dict[str, Any]) -> str:
     for name, label in (("epochs", "轮数"), ("batch_size", "批大小"), ("learning_rate", "学习率"), ("max_iter", "迭代"), ("max_leaf_nodes", "叶子数")):
         if name in config:
             parts.append(f"{label} {config[name]:g}" if isinstance(config[name], float) else f"{label} {config[name]}")
+    if config.get("class_weight") == "balanced":
+        parts.append("类别加权")
     return "，".join(parts) or "默认设置"
 
 
