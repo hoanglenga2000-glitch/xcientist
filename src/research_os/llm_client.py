@@ -13,8 +13,12 @@ Design rules (mirror gpu_credentials.py):
 """
 from __future__ import annotations
 
+import contextvars
+import http.client
 import json
 import os
+import socket
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -124,12 +128,80 @@ def openai_request_options(config: ProviderConfig) -> dict[str, str]:
     }
 
 
+_POST_LEASE: contextvars.ContextVar["SocketLease | None"] = contextvars.ContextVar(
+    "evomind_model_post_lease", default=None)
+
+
+class SocketLease:
+    """The sockets of one model POST. Closing the lease unblocks that read only."""
+
+    def __init__(self) -> None:
+        self._socks: list[socket.socket] = []
+        self._lock = threading.Lock()
+
+    def add(self, sock: socket.socket | None) -> None:
+        if sock is None:
+            return
+        with self._lock:
+            self._socks.append(sock)
+
+    def close(self) -> None:
+        with self._lock:
+            socks = self._socks
+            self._socks = []
+        for sock in socks:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            try:
+                sock.close()
+            except OSError:
+                pass
+
+    def opener(self) -> urllib.request.OpenerDirector:
+        lease = self
+
+        class _HTTP(http.client.HTTPConnection):
+            def connect(self) -> None:
+                super().connect()
+                lease.add(self.sock)
+
+        class _HTTPS(http.client.HTTPSConnection):
+            def connect(self) -> None:
+                super().connect()
+                lease.add(self.sock)
+
+        class _HTTPHandler(urllib.request.HTTPHandler):
+            def http_open(self, req):
+                return self.do_open(_HTTP, req)
+
+        class _HTTPSHandler(urllib.request.HTTPSHandler):
+            def https_open(self, req):
+                return self.do_open(_HTTPS, req, context=self._context)
+
+        return urllib.request.build_opener(_HTTPHandler(), _HTTPSHandler())
+
+
+def bind_post_lease(lease: SocketLease):
+    """Inherit this lease into model reads started on this thread."""
+    return _POST_LEASE.set(lease)
+
+
+def reset_post_lease(token) -> None:
+    _POST_LEASE.reset(token)
+
+
 def _post_json(url: str, headers: dict[str, str], payload: dict[str, Any], timeout: int) -> dict[str, Any]:
     data = json.dumps(payload).encode("utf-8")
     # Some gateways (Cloudflare, error 1010) reject urllib's default UA; send a normal one.
     headers = {"User-Agent": "research-os-evolution/1.0", **headers}
     request = urllib.request.Request(url, data=data, headers=headers, method="POST")
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    lease = _POST_LEASE.get()
+    # No lease: the historical urlopen path, including every caller that is not a
+    # planning fallback. A lease is the one read a deadline or cancel may close.
+    open_request = lease.opener().open if lease is not None else urllib.request.urlopen
+    with open_request(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
