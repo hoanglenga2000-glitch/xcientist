@@ -213,6 +213,7 @@ class ToolRegistry:
             "shell_exec", "process_start", "process_list", "process_poll", "process_log", "process_stdin", "process_cancel",
             "attachment_list", "attachment_read", "artifact_publish", "artifact_list", "artifact_preview", "artifact_bundle",
             "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route", "memory_remember",
+            "hpc_execution_budget_status",
             "super_agent_status", "capability_discover", "connector_health",
             "ecosystem_refresh",
             "directory_list", "directory_stat", "directory_read", "directory_hash",
@@ -3895,16 +3896,35 @@ def _managed_model_prepare(args: dict[str, Any], context: ToolContext) -> ToolRe
                     result.content["local_descriptor_cleanup_confirmed"] = True
 
 
+def _quote_facts(content: dict[str, Any], context: ToolContext) -> dict[str, Any]:
+    """Ledger fields plus the resources-page label. No price is invented here."""
+    from .personal_tool_boundary import offered, public_compute_status, session_tenant
+    from .tenant_training import byoa_state_root
+
+    tenant = session_tenant({'metadata': context.metadata})
+    reported = dict(content)
+    reported.update({
+        'incremental_price_known': False,
+        'zero_cost_confirmed': False,
+        'python_execution_offered': offered(tenant, 'shell_exec'),
+        'training_route_offered': offered(tenant, 'training_route'),
+        **public_compute_status(tenant, byoa_state_root()),
+    })
+    return reported
+
+
 def _hpc_execution_budget_status(args: dict[str, Any], context: ToolContext) -> ToolResult:
     from .training_control import controls, load_policy
     from .research_budget import read_execution_budget
     try:
         policy = load_policy(context.runtime_root)
         if not controls(policy, context.metadata):
-            return ToolResult('', True, {'configured': False, 'scope': 'general_hpc_execution', 'execution_authorized': False}, 'No general study budget is configured for this caller; this is not execution authorization')
+            content = _quote_facts({'configured': False, 'scope': 'general_hpc_execution', 'execution_authorized': False}, context)
+            return ToolResult('', True, content, 'No general study budget is configured for this caller; this is not execution authorization. This result has no per-run price.')
         summary = read_execution_budget(context.runtime_root / 'gpu_budget.sqlite3', policy['study_id'])
         summary['configured'] = True
-        return ToolResult('', True, summary, 'General GPU execution budget only. SIIM has a separate study ledger. Rebinding does not reset either budget. Preserve all historical charges: do not clear the ledger, switch study IDs, or reclassify engineering work to bypass a cap. An explicit administrator-authorized budget amendment is required before additional blocked execution.')
+        summary = _quote_facts(summary, context)
+        return ToolResult('', True, summary, 'General GPU execution budget only. SIIM has a separate study ledger. Rebinding does not reset either budget. Preserve all historical charges: do not clear the ledger, switch study IDs, or reclassify engineering work to bypass a cap. An explicit administrator-authorized budget amendment is required before additional blocked execution. This result has no per-run price; zero_cost_confirmed is false.')
     except (OSError, ValueError, RuntimeError, sqlite3.Error) as error:
         return ToolResult('', False, {}, 'Unable to read the authorized GPU execution budget', error=type(error).__name__)
 
@@ -5220,7 +5240,7 @@ def build_default_registry() -> ToolRegistry:
     # correctly rejected.  The handlers retain their retarget checks as a
     # second boundary for direct/internal callers.
     add("hpc_verify", "Verify the server-bound designated proxy, allocation role route, host/GPU UUIDs, remote root and five read-only GPU samples. The model cannot select or retarget the job/profile.", {}, [], "hpc.read", _hpc_verify)
-    add("hpc_execution_budget_status", "Read this caller's general hpc_execute_solution study budget, engineering cap, remaining seconds and reconciliation state. Local read only; no HPC connection or reservation. Use this to diagnose gpu_execution_budget_exhausted. Rebinding does not replenish the budget. SIIM calibration has a separate ledger.", {}, [], "hpc.read", _hpc_execution_budget_status)
+    add("hpc_execution_budget_status", "Read this caller's general execution ledger (charged seconds, reserved seconds, engineering_used_seconds, limits) and the local compute-verification label. Local read only; no connection, reservation, or training. The result has no per-run price: incremental_price_known and zero_cost_confirmed stay false, so a fee of 0 is not a result. Also reports whether this session is offered Python execution. Use this before any cost, quota, or compute-access claim.", {}, [], "hpc.read", _hpc_execution_budget_status)
     from .siim_calibration_web import run_tool as siim_web_run, status_tool as siim_web_status
     add("hpc_calibration_status", "Read only the already-registered SIIM MLE-bench comparison and its separate campaign budget. This is not the general hpc_execute_solution budget or current allocation health. Use hpc_execution_budget_status for general budget errors. No training, remote inspection, submission or hidden scoring is performed.", {}, [], "hpc.read", siim_web_status)
     add("hpc_calibration_run", "Start/resume the registered SIIM MLE-bench study through this visible Assistant Run. Exact approval required. Uses existing fixed baseline, independent EvoMind + DeepSeek-V4-Pro and AIDE-adapted controls, original seeds/folds/data, preserved checkpoints and unchanged total 24 GPU-hour ledger. The sealed coordinator dispatches native isolated sessions; this tool waits and reports progress until candidates freeze or a real blocker occurs. Pause/cancel prevents subsequent child calls; a current bounded fit drains before stopping. Never submits to Kaggle or reads hidden labels. Do not run separate training scripts or create replacement studies. After a verified fix and full settlement, an explicitly authorized retry of the same Run requires a fresh operation_id and fresh exact approval; old operations and their receipts are immutable. Constant interface probes cannot complete training. Returns a verifiable receipt, not an official score.", {"campaign": {"enum": ["siim_mlebench_calibration_20260908"]}, "operation_id": {"type": "string", "pattern": "^[A-Za-z0-9_-]{4,40}$"}}, ["campaign"], "hpc.execute", siim_web_run, read_only=False)

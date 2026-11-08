@@ -881,6 +881,7 @@ class AgentRuntime:
                 "shell_exec", "process_start", "process_list", "process_poll", "process_log", "process_stdin", "process_cancel",
                 "attachment_list", "attachment_read", "artifact_publish", "artifact_list", "artifact_preview", "artifact_bundle",
                 "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route", "memory_remember",
+                "hpc_execution_budget_status",
                 "managed_model_prepare", "artifact_import",
                 "model_protocols", "managed_tensor_train",
                 "report_generate", "report_status",
@@ -1094,6 +1095,8 @@ class AgentRuntime:
                     "identity samples before hpc_execute_solution. Never use a local GPU and never silently fall back to local "
                     "training when an HPC route is blocked. Collect, publish, and independently verify the resulting artifacts."
                 )
+            from .personal_tool_boundary import planning_resource_clause
+            system += planning_resource_clause(tenant_id)
             model_execution: dict[str, Any] = {
                 "provider": "",
                 "model": "",
@@ -1233,15 +1236,21 @@ class AgentRuntime:
                     continue
                 empty_terminal_turns = 0
                 messages.append({"role": "assistant", "content": turn.raw_content})
-                if turn.text:
-                    self.store.add_turn(session_id, "assistant", turn.text)
-                    self.store.append_event(session_id, "assistant.delta", {"text": turn.text})
+                shown = turn.text
+                if turn.text and not turn.tool_calls:
+                    from .personal_tool_boundary import annotate_unverified_zero_cost, zero_cost_was_confirmed
+                    shown = annotate_unverified_zero_cost(
+                        turn.text, confirmed=zero_cost_was_confirmed(self.store.list_tool_calls(session_id)),
+                    )
+                if shown:
+                    self.store.add_turn(session_id, "assistant", shown)
+                    self.store.append_event(session_id, "assistant.delta", {"text": shown})
                 if not turn.tool_calls:
                     journal.save_history(messages)
                     self.store.update_session(session_id, status=SessionStatus.COMPLETED.value)
                     return {
                         "status": "completed",
-                        "text": turn.text,
+                        "text": shown,
                         "model": decision.to_dict(),
                         "model_execution": model_execution,
                     }
