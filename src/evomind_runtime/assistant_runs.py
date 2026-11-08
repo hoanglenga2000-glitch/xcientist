@@ -2151,7 +2151,7 @@ class AssistantRunService:
             for value in (plan.get("continuation_instructions") or [])
             if str(value).strip()
         ][-8:]
-        from .personal_tool_boundary import offered, session_tenant
+        from .personal_tool_boundary import managed_training_clause, offered, session_tenant
         tenant_id = session_tenant(session)
 
         def guidance(tools: tuple[str, ...], *lines: str) -> list[str]:
@@ -2244,6 +2244,7 @@ class AssistantRunService:
                 *guidance(("capability_discover",), "Hotfix D8: training-run tuning: keep the per-turn tool surface small. Do not call capability_discover unless you genuinely need capabilities you do not already have: it expands the visible tool list and makes every later turn much slower. Reuse settled receipts instead of repeating the same status reads in one run."),
                 "Hotfix D9: long-run tuning: training, inference and preprocessing scripts must use a parallel, cache-aware data path. Decode/resize must run through worker processes or threads (for example torch DataLoader with num_workers >= 8, or a thread/process pool) and must reuse any cached, pre-scaled artifact that already exists under the managed data root. A single-threaded Python loop over hundreds of thousands of images is not acceptable: report the decode throughput (images/second) and the worker count in the run report.",
                 "When an action needs approval, call the exact tool with its final arguments so the runtime can create the approval card; do not ask for approval only in prose.",
+                *([clause] if (clause := managed_training_clause(tenant_id)) else []),
                 "If a tool fails, inspect its error and logs, correct the narrow cause, then retry with the same objective.",
                 *guidance(("competition_data_prepare", "competition_data_status"), "For competition or benchmark data, use competition_data_prepare and competition_data_status. Do not invent an ad-hoc downloader, guess a prior Run path, or treat exit code 0 as data readiness."),
                 *guidance(("competition_data_prepare", "competition_data_status"), "For the six-source workflow, the fixed IDs are cure_bench, e2lmc, mindgames, ariel_2025, weather4cast, and open_polymer. Call competition_data_status for all six first, then competition_data_prepare only for items that are not ready. Do not call kaggle_list as a prerequisite: the official URLs and adapter slugs are already pinned, and a live listing failure must not block these six adapters. Continue independent sources after one source reaches a human, credential, network, or storage gate. Derive the summary mechanically: FULL_DATA_READY only for 6/6 ready, PARTIAL for 1-5/6 ready, and BLOCKED for 0/6 ready or a failed status audit."),

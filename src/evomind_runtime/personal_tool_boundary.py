@@ -99,6 +99,30 @@ _ZERO_COST = re.compile(
 _QUOTE_NOTE = '费用和配额扣减没有经过核对，不能当成 0。'
 
 
+def managed_training_clause(tenant_id: str) -> str:
+    """How a personal session reaches the sanctioned trainer. Empty for operator sessions.
+
+    ``managed_tensor_train`` is the only training tool a personal session may be offered,
+    and only while tenant GPU training is on. shell_exec and training_route stay refused.
+    """
+    if not is_personal(tenant_id):
+        return ''
+    if offered(tenant_id, 'managed_tensor_train'):
+        return (
+            ' For a tabular baseline this person can approve, call managed_tensor_train. '
+            'Write the configuration JSON under work/ with data_path under inputs/, task, and target_column; '
+            'leave model_family unset unless the person named one. protocol_id is the sha256 of that inputs file. '
+            'Pass configuration_path, configuration_sha256, protocol_id and a solution_id. '
+            'The first call creates the approval card. Do not ask the person to reply go instead of that call. '
+            'After approval the tool publishes metrics.json, the model and predictions. '
+            'Do not use shell_exec, training_route, or a local Python fit.'
+        )
+    return (
+        ' managed_tensor_train is not offered in this session, so a baseline cannot be requested or approved here. '
+        'Do not tell the person to reply go to start training, and do not describe a local Python or CPU fit as available.'
+    )
+
+
 def planning_resource_clause(tenant_id: str) -> str:
     """Tell a turn that can read the ledger not to invent a price or a Python runtime."""
     if not offered(tenant_id, 'hpc_execution_budget_status'):
