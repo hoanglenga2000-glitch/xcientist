@@ -10,7 +10,8 @@ One module owns the run lifecycle record and the rules around it:
   attention (待你处理) > blocked (受阻/失败) > queued (排队) > waiting_gpu (等待训练) > working (执行中).
 - ``model_retry_decision`` retries passing model failures (unavailable / timeout / rate limit /
   empty answer) three times on the same model, 2 s, 8 s, 30 s apart (Retry-After wins, capped at 60 s).
-  Auth, request and identity failures never retry. The model is never switched here.
+  Auth, request and identity failures never retry. A request that already used its wall-clock
+  budget (``model_total_deadline_exceeded``) does not get another try. The model is never switched here.
 - ``RunSlots`` bounds concurrent model work: a global limit, a per-tenant limit and one reserved
   slot that only a person's resume or an approved action may take. GPU tools give their slot back
   while the scheduler owns the card.
@@ -54,6 +55,8 @@ RETRY_AFTER_CAP_SECONDS = 60.0
 MODEL_RETRY_LIMIT = len(RETRY_DELAYS_SECONDS)
 RETRYABLE_MODEL_CATEGORIES = frozenset({"unavailable", "timeout", "rate_limited"})
 EMPTY_ANSWER_CODES = frozenset({"empty_model_response", "model_empty_response"})
+# The request already waited out its own wall clock. Retrying it starts that clock again.
+BUDGET_EXHAUSTED_CODES = frozenset({"model_total_deadline_exceeded"})
 _LLM_CODE = re.compile(r"LLMError/([A-Za-z0-9_]{1,80})")
 
 
@@ -94,12 +97,24 @@ def model_retry_decision(text: str, retries_done: int, *, code: str = "",
     if found is None:
         return None
     public, category = found
-    if category not in RETRYABLE_MODEL_CATEGORIES or retries_done >= MODEL_RETRY_LIMIT:
+    if public in BUDGET_EXHAUSTED_CODES or category not in RETRYABLE_MODEL_CATEGORIES or retries_done >= MODEL_RETRY_LIMIT:
         return RetryDecision(False, 0.0, public, category)
     delay = RETRY_DELAYS_SECONDS[retries_done]
     if isinstance(retry_after_seconds, (int, float)) and retry_after_seconds > 0:
         delay = float(retry_after_seconds)
     return RetryDecision(True, min(delay, RETRY_AFTER_CAP_SECONDS), public, category)
+
+
+def planning_turn_ceiling_seconds(request_timeout: float = 120.0) -> float:
+    """Most wall-clock one planning model turn may use before it has to finalize.
+
+    One attempt gets one request budget. The stream and a non-stream fallback
+    share it; they do not each start a fresh budget. A passing failure may be
+    tried ``MODEL_RETRY_LIMIT`` more times, plus the scheduled delays. A
+    request that already spent its budget is not one of those retries.
+    Approved training is outside this ceiling: its tool timeout is its own.
+    """
+    return float(request_timeout) * (1 + MODEL_RETRY_LIMIT) + sum(RETRY_DELAYS_SECONDS)
 
 
 # ---------------------------------------------------------------- attention cards

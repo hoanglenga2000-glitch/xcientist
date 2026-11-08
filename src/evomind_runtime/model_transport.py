@@ -541,6 +541,10 @@ class _StreamingClient:
     Not a governed contract: identity, retries and provider failover remain the wrapped
     client's own. A failed stream emits ``reset`` (the UI clears the bubble) and the answer
     then appears whole, with no wording about the fallback.
+
+    The stream and that one fallback share ``client.timeout``. Once that clock is spent,
+    or the caller cancels, the turn ends. The fallback does not open a fresh socket budget,
+    and this wait is not the timeout of an approved training tool.
     """
 
     def __init__(self, client, text_observer, during_request=None):
@@ -564,8 +568,10 @@ class _StreamingClient:
         if transport.name != 'anthropic':
             wire['stream_options'] = {'include_usage': True}
         self.text_observer({'phase': 'start'})
+        started = time.monotonic()
+        budget = float(self.client.timeout)
         try:
-            body = post_stream_with_deadline(url, headers, wire, self.client.timeout,
+            body = post_stream_with_deadline(url, headers, wire, budget,
                 lambda text: self.text_observer({'phase': 'delta', 'text': text}), self.during_request,
                 decode=_served_model_decoder(transport.name, transport.config.model))
             if not isinstance(body, dict) or 'error' in body:
@@ -575,7 +581,12 @@ class _StreamingClient:
             self.last_stream_error = error.code
             if _first_byte_seconds():
                 raise  # t238 C7e A1: an alternate backend is waiting; skip the slow non-stream retry
-            turn = self.client.send(messages, system=system, tools=tools, max_tokens=max_tokens, temperature=temperature)
+            remaining = budget - (time.monotonic() - started)
+            if error.code == 'model_total_deadline_exceeded' or remaining <= 0.05:
+                if error.code != 'model_total_deadline_exceeded':
+                    raise ModelTransportError('model_total_deadline_exceeded', retryable=False) from None
+                raise
+            turn = self._fallback_within(remaining, messages, system=system, tools=tools, max_tokens=max_tokens, temperature=temperature)
             self.text_observer({'phase': 'start'})
             if turn.text:
                 self.text_observer({'phase': 'delta', 'text': turn.text})
@@ -590,6 +601,66 @@ class _StreamingClient:
             raise
         self.text_observer({'phase': 'complete'})
         return turn
+
+    def _fallback_within(self, seconds, messages, *, system, tools, max_tokens, temperature):
+        """One non-stream read inside the request clock that is still left.
+
+        ``client.send`` keeps its provider retries. This wait is the wall clock
+        for all of them. On deadline or cancel the read's own sockets are shut
+        down and the attempt stops, so a trickle cannot keep the connection.
+        The lease covers this read only. It is not a training-tool timeout.
+        """
+        from research_os.llm_client import SocketLease, bind_post_lease, reset_post_lease
+
+        box: dict[str, Any] = {}
+        stop = threading.Event()
+        lease = SocketLease()
+
+        def run():
+            # Set the lease on this thread. threading.Thread does not share the caller's context.
+            token = bind_post_lease(lease)
+            try:
+                box['turn'] = self.client.send(
+                    messages, system=system, tools=tools, max_tokens=max_tokens, temperature=temperature, stop=stop)
+            except Exception as exc:
+                box['error'] = exc
+            finally:
+                reset_post_lease(token)
+
+        started = time.monotonic()
+        thread = threading.Thread(target=run, daemon=True)
+        thread.start()
+        while thread.is_alive():
+            try:
+                if self.during_request is not None:
+                    self.during_request()
+            except Exception:
+                if not self._release_fallback(stop, lease, thread):
+                    raise ModelTransportError('model_transport_release_failed', retryable=False) from None
+                raise
+            if time.monotonic() - started >= seconds:
+                if not self._release_fallback(stop, lease, thread):
+                    raise ModelTransportError('model_transport_release_failed', retryable=False)
+                raise ModelTransportError('model_total_deadline_exceeded', retryable=False)
+            thread.join(0.05)
+        if time.monotonic() - started >= seconds:
+            if not self._release_fallback(stop, lease, thread):
+                raise ModelTransportError('model_transport_release_failed', retryable=False)
+            raise ModelTransportError('model_total_deadline_exceeded', retryable=False)
+        if 'error' in box:
+            raise box['error']
+        return box['turn']
+
+    def _release_fallback(self, stop: threading.Event, lease, thread: threading.Thread) -> bool:
+        """Stop further attempts and shut this read's sockets. True when the read has left."""
+        stop.set()
+        # perf_counter, not monotonic: tests move the planning clock without stretching this join.
+        end = time.perf_counter() + 1.0
+        while thread.is_alive() and time.perf_counter() < end:
+            lease.close()
+            thread.join(0.05)
+        lease.close()
+        return not thread.is_alive()
 
 
 def governed_client(client: Any, observer: Callable[[dict], None] | None = None,

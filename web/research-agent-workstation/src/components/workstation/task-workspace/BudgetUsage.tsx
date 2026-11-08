@@ -3,6 +3,7 @@ export type BudgetPayload = {
   charged_wall_seconds?: number;
   pending_reserved_seconds?: number;
   committed_seconds?: number;
+  engineering_used_seconds?: number;
   gpu_limit_seconds?: number;
   engineering_limit_seconds?: number;
   limit_seconds?: number;
@@ -37,12 +38,13 @@ export function BudgetUsage({ budget }: { budget: BudgetPayload }) {
   const reserved = budget.pending_reserved_seconds ?? 0;
   const gpuLimit = budget.gpu_limit_seconds ?? budget.limit_seconds;
   const engLimit = budget.engineering_limit_seconds;
-  if (!used && !reserved && gpuLimit == null && engLimit == null) {
+  const engineeringUsed = typeof budget.engineering_used_seconds === 'number' ? budget.engineering_used_seconds : 0;
+  if (!used && !reserved && !engineeringUsed && gpuLimit == null && engLimit == null) {
     return <p className="tw-muted">暂时没有额度数据。</p>;
   }
-  return <div className="tw-set-card tw-budget" data-budget-used={used} data-budget-reserved={reserved}>
+  return <div className="tw-set-card tw-budget" data-budget-used={used} data-budget-reserved={reserved} data-engineering-used={engineeringUsed}>
     <ProgressRow name="已用计算时间" used={used} limit={gpuLimit} />
     <ProgressRow name="预留" used={reserved} />
-    {engLimit != null && <ProgressRow name="工程额度" used={0} limit={engLimit} />}
+    {engLimit != null && <ProgressRow name="工程额度" used={engineeringUsed} limit={engLimit} />}
   </div>;
 }

@@ -1,0 +1,62 @@
+{
+  "schema": "evomind.planning_turn_install.v1",
+  "branch": "cursor/planning-turn-deadline-9d05",
+  "base": "8cd72cb52dd168a0b72d8ba686fbc39bd634d09f",
+  "files": [
+    {
+      "path": "src/evomind_runtime/assistant_runs.py",
+      "sha256": "c49254e659b3ea5072a5ac4e003446e3716d82ce3516bba2bf478f6ee5d5a960",
+      "bytes": 229607
+    },
+    {
+      "path": "src/evomind_runtime/model_transport.py",
+      "sha256": "48e07777f1de5db9012bfacd735e7d70f388df58962258ddb882fcb7e87c64ab",
+      "bytes": 35302
+    },
+    {
+      "path": "src/evomind_runtime/personal_tool_boundary.py",
+      "sha256": "9e9120c70fe24cf53b11b605422f12405111dd5253e2f364fab0d65752e6fa47",
+      "bytes": 10644
+    },
+    {
+      "path": "src/evomind_runtime/run_supervision.py",
+      "sha256": "c53033ade5e4024e2768e4448464af3be353c16449343e521a6e322387af238f",
+      "bytes": 29053
+    },
+    {
+      "path": "src/evomind_runtime/runtime.py",
+      "sha256": "99bd0c21785bf2baea69ca7972d865d111ab6a72a0d0f3581ec95873eea8a3eb",
+      "bytes": 72260
+    },
+    {
+      "path": "src/evomind_runtime/tools.py",
+      "sha256": "62fbf1581a9f45db2520ef842012040050dbc300d11043f60968e28f63e41c7e",
+      "bytes": 292377
+    },
+    {
+      "path": "src/research_os/agent/messaging.py",
+      "sha256": "afefa0884af9112312edd1b107eae5cb0db736d666314c7e29189b40a2a40ba8",
+      "bytes": 18068
+    },
+    {
+      "path": "src/research_os/llm_client.py",
+      "sha256": "f06b22154f6b7fff386f948ce30a60b2cebb98eb7ab2ee8b29c2fef465adc293",
+      "bytes": 23130
+    },
+    {
+      "path": "web/research-agent-workstation/src/components/workstation/task-workspace/BudgetUsage.tsx",
+      "sha256": "bfb389beb0277e467d242938f496a25dc4b3d615d3a5fdc2ac4350798b927590",
+      "bytes": 2448
+    }
+  ],
+  "install_set_sha256": "4b957cba9108bcf95ef06c5347297c64c101b98b010b68b5365f3ba3b32858e8",
+  "install_set_line_format": "sha256 two spaces path two spaces byte size, lines joined by newline",
+  "contains_secrets": false,
+  "notes": [
+    "Source files only. No environment, no binding, no credential, no HPC profile.",
+    "evomind_runtime files replace bundle/runtime/evomind_runtime/<name>.",
+    "research_os files replace the copy import research_os.llm_client loads.",
+    "BudgetUsage.tsx is part of the workstation build, not a runtime hot swap by itself.",
+    "This archive does not mint an overlay build id and does not restart any process."
+  ]
+}

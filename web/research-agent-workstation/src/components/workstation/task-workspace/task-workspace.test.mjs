@@ -262,6 +262,13 @@ test('quota used label excludes reserved holds', () => {
   assert.match(html, /data-budget-reserved="7200"/);
   assert.doesNotMatch(html, /data-budget-used="10800"/);
   assert.doesNotMatch(html, /剩余额度|保存预算/);
+  const charged = renderToStaticMarkup(React.createElement(BudgetUsage, { budget: {
+    used_seconds: 73700, pending_reserved_seconds: 0, engineering_used_seconds: 7200,
+    gpu_limit_seconds: 108000, engineering_limit_seconds: 108000,
+  } }));
+  assert.match(charged, /data-engineering-used="7200"/);
+  assert.match(charged, /工程额度<\/div><div class="tw-set-row-desc">已用 2 \/ 上限 30 小时/);
+  assert.doesNotMatch(charged, /工程额度<\/div><div class="tw-set-row-desc">已用 0 /);
 });
 
 test('blocked progress is one Chinese status and a next action', () => {

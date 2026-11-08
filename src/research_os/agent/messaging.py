@@ -414,13 +414,19 @@ class AgentMessageClient:
         return not turn.text and not turn.tool_calls and turn.stop_reason not in ("end_turn", "stop")
 
     def send(self, messages: list[dict[str, Any]], *, system: str, tools: list[ToolSpec],
-             max_tokens: int = 4096, temperature: float = 0.3) -> AssistantTurn:
-        """One round-trip with retry → failover → empty-response self-heal."""
+             max_tokens: int = 4096, temperature: float = 0.3, stop=None) -> AssistantTurn:
+        """One round-trip with retry → failover → empty-response self-heal.
+
+        ``stop`` set means the caller is abandoning this read. No further
+        attempt starts, and a retry sleep ends. The caller closes the socket.
+        """
         transports = self._resolve_transports()
         errors: list[str] = []
         for transport in transports:  # Layer 2: provider failover
             url, headers, payload = transport.build(messages, system, tools, max_tokens, temperature)
             for attempt in range(self.max_retries + 1):  # Layer 1: per-transport retry
+                if stop is not None and stop.is_set():
+                    raise LLMError("model_request_cancelled")
                 try:
                     body = _post_json(url, headers, payload, self.timeout)
                     turn = transport.parse(body)
@@ -431,6 +437,12 @@ class AgentMessageClient:
                         ValueError, EmptyResponseError) as exc:
                     # Never echo the exception URL/body verbatim (could carry the key).
                     errors.append(f"{transport.name} attempt {attempt + 1}: {type(exc).__name__}")
+                    if stop is not None and stop.is_set():
+                        raise LLMError("model_request_cancelled") from None
                     if attempt < self.max_retries:
-                        time.sleep(1.5 * (attempt + 1))
+                        delay = 1.5 * (attempt + 1)
+                        if stop is None:
+                            time.sleep(delay)
+                        elif stop.wait(delay):
+                            raise LLMError("model_request_cancelled") from None
         raise LLMError("agent message round-trip failed: " + "; ".join(errors))

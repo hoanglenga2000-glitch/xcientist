@@ -881,6 +881,7 @@ class AgentRuntime:
                 "shell_exec", "process_start", "process_list", "process_poll", "process_log", "process_stdin", "process_cancel",
                 "attachment_list", "attachment_read", "artifact_publish", "artifact_list", "artifact_preview", "artifact_bundle",
                 "runtime_health", "research_capabilities", "verified_context", "skill_list", "training_route", "memory_remember",
+                "hpc_execution_budget_status",
                 "managed_model_prepare", "artifact_import",
                 "model_protocols", "managed_tensor_train",
                 "report_generate", "report_status",
@@ -911,20 +912,13 @@ class AgentRuntime:
         return [item for item in specs if offered(tenant_id, item.name)]
 
     def _empty_failover_client(self, session_id: str, turn, make_client):
-        """The silent one-shot alternate for repeated empty answers, or None. Technical event only (no tenant notice)."""
-        from .model_router import empty_failover_transport
-        try:
-            transport = empty_failover_transport(turn.provider, turn.model)
-            if transport is None:
-                return None
-            alternate = make_client(transport)
-        except Exception:  # noqa: BLE001 - a broken candidate never replaces the real error
-            return None
-        self.store.append_event(session_id, "model.empty_failover", {
-            "from": f"{turn.provider}:{turn.model}",
-            "to": f"{transport.name}:{transport.config.model}",
-            "reason": "model_empty_response", "silent": True})
-        return alternate
+        """No silent provider switch. message() no longer calls this.
+
+        The historical target is still ``empty_failover_transport`` (DeepSeek 4.1 Flash on the
+        tri-vendor list). A different model is a new run the person starts from the picker.
+        """
+        del session_id, turn, make_client
+        return None
 
     def message(self, session_id: str, content: str, *, max_steps: int = 12) -> dict[str, Any]:
         if self.get_session(session_id)["status"] == "cancelled":
@@ -1030,13 +1024,16 @@ class AgentRuntime:
                     # A substitute model answering the user's pick is not success (t237 C4.1).
                     message_client = AgentMessageClient(transports=[require_served_identity(apply_reasoning_effort(selected, reasoning_effort))])
                 elif product_default:
-                    message_client = AgentMessageClient(transports=[apply_reasoning_effort(item, reasoning_effort) for item in product_default])
+                    # The picker names the first transport. The rest are other models, not silent substitutes.
+                    message_client = AgentMessageClient(transports=[require_served_identity(apply_reasoning_effort(product_default[0], reasoning_effort))])
                 elif reasoning_effort:
                     from research_os.agent.messaging import _resolve_transports
                     resolved = [apply_reasoning_effort(item, reasoning_effort) for item in _resolve_transports()]
-                    message_client = AgentMessageClient(transports=resolved) if resolved else AgentMessageClient()
+                    message_client = AgentMessageClient(transports=[require_served_identity(resolved[0])]) if resolved else AgentMessageClient()
                 else:
-                    message_client = AgentMessageClient()
+                    from research_os.agent.messaging import _resolve_transports
+                    resolved = _resolve_transports()
+                    message_client = AgentMessageClient(transports=[require_served_identity(resolved[0])]) if resolved else AgentMessageClient()
                 client = governed_client(message_client, lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
                                          before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
                 bind_run_client(self.store, session_id, client)
@@ -1047,7 +1044,6 @@ class AgentRuntime:
                 AgentMessageClient(transports=[apply_reasoning_effort(transport, reasoning_effort)]),
                 lambda value: self.store.append_event(session_id, "model.transport_attempt", value),
                 before_attempt=guard_model_dispatch, text_observer=text_stream, during_request=guard_model_stream)
-            implicit_selection = not (chosen_platform or personal_binding)
             client = wrap_run_client(self, session_id, client, explicit=bool(chosen_platform or personal_binding),
                                      reasoning_effort=reasoning_effort, make_client=make_alternate_client)
             if not client.is_available():
@@ -1094,6 +1090,9 @@ class AgentRuntime:
                     "identity samples before hpc_execute_solution. Never use a local GPU and never silently fall back to local "
                     "training when an HPC route is blocked. Collect, publish, and independently verify the resulting artifacts."
                 )
+            from .personal_tool_boundary import managed_training_clause, planning_resource_clause
+            system += planning_resource_clause(tenant_id)
+            system += managed_training_clause(tenant_id)
             model_execution: dict[str, Any] = {
                 "provider": "",
                 "model": "",
@@ -1104,7 +1103,6 @@ class AgentRuntime:
                 "turns": 0,
             }
             empty_terminal_turns = 0
-            empty_failover_done = False
             # C6b L14: adaptive summarized thinking on Anthropic transports when present.
             try:
                 from research_os.agent.messaging import enable_anthropic_thinking
@@ -1217,31 +1215,27 @@ class AgentRuntime:
                         },
                     )
                     if empty_terminal_turns >= 3:
-                        # t238 C7e R2: at most ONE silent switch per run, implicit selection only, and only while no
-                        # tool has run (an empty answer never executed or billed anything; a half-executed run is not
-                        # handed to another model, so no GPU job can be dispatched twice).
-                        alternate = None
-                        if (implicit_selection and not empty_failover_done and not model_execution["native_tool_calls"]
-                                and not _history_has_tool_activity(messages)):
-                            empty_failover_done = True
-                            alternate = self._empty_failover_client(session_id, turn, make_alternate_client)
-                        if alternate is None:
-                            from .model_transport import ModelTransportError
-                            raise ModelTransportError("model_empty_response", retryable=False)
-                        client = alternate
-                        empty_terminal_turns = 0
+                        # The displayed model stays the displayed model. Another provider is a new run the person starts.
+                        from .model_transport import ModelTransportError
+                        raise ModelTransportError("model_empty_response", retryable=False)
                     continue
                 empty_terminal_turns = 0
                 messages.append({"role": "assistant", "content": turn.raw_content})
-                if turn.text:
-                    self.store.add_turn(session_id, "assistant", turn.text)
-                    self.store.append_event(session_id, "assistant.delta", {"text": turn.text})
+                shown = turn.text
+                if turn.text and not turn.tool_calls:
+                    from .personal_tool_boundary import annotate_unverified_zero_cost, zero_cost_was_confirmed
+                    shown = annotate_unverified_zero_cost(
+                        turn.text, confirmed=zero_cost_was_confirmed(self.store.list_tool_calls(session_id)),
+                    )
+                if shown:
+                    self.store.add_turn(session_id, "assistant", shown)
+                    self.store.append_event(session_id, "assistant.delta", {"text": shown})
                 if not turn.tool_calls:
                     journal.save_history(messages)
                     self.store.update_session(session_id, status=SessionStatus.COMPLETED.value)
                     return {
                         "status": "completed",
-                        "text": turn.text,
+                        "text": shown,
                         "model": decision.to_dict(),
                         "model_execution": model_execution,
                     }
